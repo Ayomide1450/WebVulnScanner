@@ -1835,5 +1835,27 @@ def scan_media():
     return render_template("media_results.html", r=report, report_file=fname)
 
 
+@app.route("/scan-api", methods=["POST"])
+def scan_api():
+    if not request.form.get("authorized_api"):
+        return render_template("index.html",
+                                error="You must confirm you own or are authorized to test this domain.")
+
+    base_url = normalize_target(request.form.get("api_target", ""))
+    if not base_url:
+        return render_template("index.html", error="Enter a valid domain or URL for the API scan, e.g. example.com")
+
+    try:
+        report = run_api_scan(base_url)
+    except requests.RequestException as e:
+        return render_template("index.html", error=f"Could not reach {base_url}: {e}")
+
+    fname = f"api_{report['hostname'].replace(':', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    with open(os.path.join(REPORTS_DIR, fname), "w", encoding="utf-8") as f_out:
+        json.dump(report, f_out, indent=2)
+
+    return render_template("api_results.html", r=report, report_file=fname)
+
+
 if __name__ == "__main__":
     app.run(debug=False, port=5000)
