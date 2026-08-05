@@ -11,7 +11,7 @@ README.md for the full list of checks and the documented false-positive fix (CDN
 being misreported as exposed services) — that history matters when touching `check_open_ports`.
 
 **Only ever test against domains the user owns or has explicit permission to test.** Do not
-weaken or remove the `authorized` / `authorized_adv` / `authorized_media` server-side checks.
+weaken or remove the `authorized` / `authorized_adv` / `authorized_media` / `authorized_api` server-side checks.
 
 ## Commands
 

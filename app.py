@@ -1171,13 +1171,12 @@ def check_media(session, base_url, download, max_files):
             r = session.get(url, timeout=REQUEST_TIMEOUT)
         except requests.RequestException:
             continue
-        lower_url = url.lower()
-        is_hls = lower_url.endswith(".m3u8") and "#EXTM3U" in r.text[:200]
-        is_dash = lower_url.endswith(".mpd") and "<MPD" in r.text[:500]
+        path_lower = urlparse(url).path.lower()
+        is_hls = path_lower.endswith(".m3u8") and "#EXTM3U" in r.text[:200]
+        is_dash = path_lower.endswith(".mpd") and "<MPD" in r.text[:500]
         if r.status_code != 200 or not (is_hls or is_dash):
             continue  # regex-extracted but didn't resolve to a real manifest - skip
 
-        path_lower = urlparse(url).path.lower()
         suspicious = any(hint in path_lower for hint in MEDIA_PATH_HINTS)
         items.append({"url": url, "kind": "stream", "status": r.status_code,
                        "content_type": "HLS" if is_hls else "DASH", "size": None,
@@ -1232,11 +1231,8 @@ def run_api_scan(base_url):
     """Runs all three API-exposure checks against base_url. Uses the same
     Finding/severity/scoring model as the other three orchestrators."""
     session = _mk_session()
-    try:
-        home_r = session.get(base_url + "/", timeout=REQUEST_TIMEOUT)
-        home_html = home_r.text
-    except requests.RequestException:
-        home_html = ""
+    home_r = session.get(base_url + "/", timeout=REQUEST_TIMEOUT)
+    home_html = home_r.text
 
     results = {}
     all_findings = []
