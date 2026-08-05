@@ -1,5 +1,7 @@
 # WebVulnScanner
 
+[![GitHub repo](https://img.shields.io/badge/GitHub-WebVulnScanner-blue?logo=github)](https://github.com/Ayomide1450/WebVulnScanner)
+
 A local web app for checking your own website's security posture. Runs only
 on your machine (`localhost:5000`) — it is not deployed anywhere and has no
 way to be used against a target you didn't type in yourself.
