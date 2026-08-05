@@ -753,9 +753,9 @@ def _discover_api_endpoints(base_url, texts):
         for pattern in API_ENDPOINT_PATTERNS:
             for m in pattern.finditer(text):
                 candidate = m.group(1)
-                if candidate.startswith("http") and urlparse(candidate).netloc != origin:
-                    continue
                 abs_url = urljoin(base_url + "/", candidate)
+                if urlparse(abs_url).netloc != origin:
+                    continue
                 if abs_url not in found:
                     found.append(abs_url)
     return found[:MAX_API_JS_ENDPOINTS]
