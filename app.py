@@ -517,34 +517,48 @@ def _redact_secret(value):
     return value[:6] + "…" + value[-4:]
 
 
-def check_exposed_secrets(session, base_url, home_html):
-    """Scans the homepage HTML plus up to MAX_SECRET_JS_FILES same-origin JS
-    bundles for hardcoded API keys/tokens/private keys. Values are redacted
-    in the report (only a few leading/trailing chars kept) so the report
-    file itself doesn't become a second place the secret is exposed."""
+def _fetch_same_origin_js(session, base_url, page_html, max_files, max_bytes):
+    """Collects up to max_files same-origin <script src> URLs referenced in
+    page_html and fetches each, capped at max_bytes. Returns a list of
+    (url, text) tuples. Used by both check_exposed_secrets (JS bundles that
+    might contain hardcoded secrets) and crawl_media/check_api_js_discovery
+    (JS that might reference stream manifests or API endpoints)."""
     origin = urlparse(base_url).netloc
-    soup = BeautifulSoup(home_html, "html.parser")
-    sources = [("homepage HTML", home_html)]
+    soup = BeautifulSoup(page_html, "html.parser")
 
     js_urls = []
     for tag in soup.find_all("script", src=True):
         abs_url = urljoin(base_url + "/", tag["src"])
         if urlparse(abs_url).netloc == origin and abs_url not in js_urls:
             js_urls.append(abs_url)
-    js_urls = js_urls[:MAX_SECRET_JS_FILES]
+    js_urls = js_urls[:max_files]
 
+    sources = []
     for url in js_urls:
         try:
             r = session.get(url, timeout=REQUEST_TIMEOUT, stream=True)
             content = b""
             for chunk in r.iter_content(chunk_size=16384):
                 content += chunk
-                if len(content) >= MAX_JS_BYTES_PER_FILE:
+                if len(content) >= max_bytes:
                     break
             r.close()
             sources.append((url, content.decode("utf-8", errors="ignore")))
         except requests.RequestException:
             continue
+    return sources
+
+
+def check_exposed_secrets(session, base_url, home_html):
+    """Scans the homepage HTML plus up to MAX_SECRET_JS_FILES same-origin JS
+    bundles for hardcoded API keys/tokens/private keys. Values are redacted
+    in the report (only a few leading/trailing chars kept) so the report
+    file itself doesn't become a second place the secret is exposed."""
+    sources = [("homepage HTML", home_html)]
+    js_sources = _fetch_same_origin_js(session, base_url, home_html,
+                                        MAX_SECRET_JS_FILES, MAX_JS_BYTES_PER_FILE)
+    sources.extend(js_sources)
+    js_files_scanned = len(js_sources)
 
     rows, findings = [], []
     seen = set()
@@ -563,7 +577,7 @@ def check_exposed_secrets(session, base_url, home_html):
                                              f"Found in {source_name}: {redacted}",
                                              "Remove this credential from client-shipped code. If it's real, "
                                              "rotate it immediately and load secrets server-side only."))
-    return {"rows": rows, "js_files_scanned": len(js_urls)}, findings
+    return {"rows": rows, "js_files_scanned": js_files_scanned}, findings
 
 
 def check_sri(base_url, home_html):
