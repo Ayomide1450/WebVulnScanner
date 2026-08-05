@@ -689,6 +689,50 @@ def check_api_schema_exposure(base_url, session):
     return rows, findings
 
 
+def _looks_like_api_response(resp):
+    """True if a response looks like real API output rather than an SPA's
+    catch-all index.html (which would otherwise make every wordlist path
+    falsely look like a hit, since SPAs commonly return 200 for everything)."""
+    ctype = resp.headers.get("Content-Type", "").lower()
+    if "json" in ctype or "xml" in ctype:
+        return True
+    body_start = resp.text.lstrip()[:1]
+    return body_start in ("{", "[")
+
+
+def _api_path_severity(path):
+    lower = path.lower()
+    return "high" if any(hint in lower for hint in API_SENSITIVE_HINTS) else "info"
+
+
+def check_api_wordlist(base_url, session):
+    """Threaded probe of a small built-in wordlist of common REST-ish
+    paths. A hit only counts if the response is 200 AND looks like real
+    API output (see _looks_like_api_response) - otherwise SPAs that serve
+    the same index.html for every path would falsely flag every entry."""
+    rows, findings = [], []
+
+    def probe(path):
+        try:
+            r = session.get(f"{base_url}/{path}", timeout=REQUEST_TIMEOUT)
+            return path, r
+        except requests.RequestException:
+            return path, None
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for path, r in pool.map(probe, API_WORDLIST):
+            if r is None or r.status_code != 200 or not _looks_like_api_response(r):
+                rows.append({"path": "/" + path, "status": "pass"})
+                continue
+            sev = _api_path_severity(path)
+            rows.append({"path": "/" + path, "status": "warn", "severity": sev})
+            findings.append(Finding(
+                "API Exposure", f"Unauthenticated API response at /{path}", sev,
+                "Returned HTTP 200 with an API-shaped body (JSON/XML) with no authentication.",
+                "Confirm this endpoint is meant to be public; otherwise require authentication."))
+    return rows, findings
+
+
 def crawl_same_origin(base_url, home_html, limit=10):
     """Depth-1, same-origin only. Collects GET URLs with query params and
     lists (but never submits) discovered forms, so POST forms can't trigger
