@@ -897,7 +897,7 @@ def _extract_exif(image_bytes):
 
 def check_media(session, base_url, download, max_files):
     media_urls, embed_urls, stream_urls, crawl_info = crawl_media(session, base_url)
-    if not media_urls and not embed_urls:
+    if not media_urls and not embed_urls and not stream_urls:
         return {"media_items": [], "crawl_info": crawl_info, "downloaded_count": 0, "download_dir": None}, []
 
     findings = []
@@ -996,6 +996,29 @@ def check_media(session, base_url, download, max_files):
                     item["download_error"] = str(e)
 
         items.append(item)
+
+    for url in stream_urls:
+        try:
+            r = session.get(url, timeout=REQUEST_TIMEOUT)
+        except requests.RequestException:
+            continue
+        lower_url = url.lower()
+        is_hls = lower_url.endswith(".m3u8") and "#EXTM3U" in r.text[:200]
+        is_dash = lower_url.endswith(".mpd") and "<MPD" in r.text[:500]
+        if r.status_code != 200 or not (is_hls or is_dash):
+            continue  # regex-extracted but didn't resolve to a real manifest - skip
+
+        path_lower = urlparse(url).path.lower()
+        suspicious = any(hint in path_lower for hint in MEDIA_PATH_HINTS)
+        items.append({"url": url, "kind": "stream", "status": r.status_code,
+                       "content_type": "HLS" if is_hls else "DASH", "size": None,
+                       "suspicious_path": suspicious})
+        if suspicious:
+            findings.append(Finding(
+                "Media exposure", f"Possibly unintended public video stream: {url}", "medium",
+                "The stream manifest path contains a hint (e.g. 'private', 'internal') suggesting this "
+                "wasn't meant to be publicly reachable, but it's a verified, reachable manifest.",
+                "Move non-public streams behind authentication or remove them from public access."))
 
     for url in embed_urls:
         host = urlparse(url).netloc.lower()

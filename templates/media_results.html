@@ -157,7 +157,7 @@
           {% for item in r.media.media_items %}
           <tr>
             <td><code>{{ item.url }}</code></td>
-            <td>{% if item.kind == 'embedded' %}embedded ({{ item.content_type }}){% else %}{{ item.kind or '-' }}{% endif %}</td>
+            <td>{% if item.kind == 'embedded' %}embedded ({{ item.content_type }}){% elif item.kind == 'stream' %}stream ({{ item.content_type }}){% else %}{{ item.kind or '-' }}{% endif %}</td>
             <td class="{{ 'pass' if item.status == 200 else 'info' }}">{{ item.status or item.error or (item.kind == 'embedded' and 'n/a - external player') or '-' }}</td>
             <td>{{ '%0.0f KB'|format(item.size / 1024) if item.size else '-' }}</td>
             <td class="{{ 'medium' if item.suspicious_path else 'pass' }}">{{ 'yes' if item.suspicious_path else 'no' }}</td>
