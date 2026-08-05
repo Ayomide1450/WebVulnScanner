@@ -66,6 +66,8 @@ MAX_MEDIA_PAGES = 6
 MAX_MEDIA_ITEMS = 60
 MAX_EXIF_IMAGES = 15
 MAX_MEDIA_FILE_BYTES = 20 * 1024 * 1024
+MAX_MEDIA_JS_FILES = 4       # JS files fetched per crawled page for stream discovery
+MAX_MEDIA_STREAMS = 10       # verified HLS/DASH streams kept in a report
 
 # --------------------------------------------------------------------------
 # Findings model - every check appends a Finding so the report can show one
@@ -798,6 +800,20 @@ def _extract_media_urls(base_url, html):
     return urls, embeds
 
 
+STREAM_URL_PATTERN = re.compile(r'["\']([^"\'()\s]+\.(?:m3u8|mpd)(?:\?[^"\'()\s]*)?)["\']')
+
+
+def _extract_stream_urls(base_url, text):
+    """Regex-scans text (HTML or JS) for HLS (.m3u8) / DASH (.mpd) manifest
+    URLs inside quoted strings. Candidates are verified later (see
+    check_media) before being reported - this function only extracts, it
+    doesn't confirm the URL resolves to a real manifest."""
+    urls = set()
+    for m in STREAM_URL_PATTERN.finditer(text or ""):
+        urls.add(urljoin(base_url + "/", m.group(1)))
+    return urls
+
+
 def crawl_media(session, base_url):
     """Depth-1 same-origin crawl (homepage + up to MAX_MEDIA_PAGES-1 linked
     pages, prioritizing links that look media-heavy - gallery/portfolio/
@@ -807,7 +823,7 @@ def crawl_media(session, base_url):
     try:
         home_r = session.get(base_url + "/", timeout=REQUEST_TIMEOUT)
     except requests.RequestException as e:
-        return [], [], {"error": str(e)}
+        return [], [], [], {"error": str(e)}
 
     soup = BeautifulSoup(home_r.text, "html.parser")
     candidates = []
@@ -819,6 +835,11 @@ def crawl_media(session, base_url):
     pages = [base_url + "/"] + candidates[:MAX_MEDIA_PAGES - 1]
 
     media_urls, embeds = _extract_media_urls(base_url, home_r.text)
+    stream_urls = _extract_stream_urls(base_url, home_r.text)
+    for _, js_text in _fetch_same_origin_js(session, base_url, home_r.text,
+                                             MAX_MEDIA_JS_FILES, MAX_JS_BYTES_PER_FILE):
+        stream_urls |= _extract_stream_urls(base_url, js_text)
+
     for page in pages[1:]:
         try:
             r = session.get(page, timeout=REQUEST_TIMEOUT)
@@ -827,8 +848,13 @@ def crawl_media(session, base_url):
         u, e = _extract_media_urls(base_url, r.text)
         media_urls |= u
         embeds |= e
+        stream_urls |= _extract_stream_urls(base_url, r.text)
+        for _, js_text in _fetch_same_origin_js(session, base_url, r.text,
+                                                 MAX_MEDIA_JS_FILES, MAX_JS_BYTES_PER_FILE):
+            stream_urls |= _extract_stream_urls(base_url, js_text)
 
-    return list(media_urls)[:MAX_MEDIA_ITEMS], list(embeds)[:20], {"pages_crawled": len(pages)}
+    return (list(media_urls)[:MAX_MEDIA_ITEMS], list(embeds)[:20],
+            list(stream_urls)[:MAX_MEDIA_STREAMS], {"pages_crawled": len(pages)})
 
 
 def _dms_to_decimal(dms, ref):
@@ -870,7 +896,7 @@ def _extract_exif(image_bytes):
 
 
 def check_media(session, base_url, download, max_files):
-    media_urls, embed_urls, crawl_info = crawl_media(session, base_url)
+    media_urls, embed_urls, stream_urls, crawl_info = crawl_media(session, base_url)
     if not media_urls and not embed_urls:
         return {"media_items": [], "crawl_info": crawl_info, "downloaded_count": 0, "download_dir": None}, []
 
