@@ -37,6 +37,11 @@ enforced server-side, not just in the UI.
 - Reflected-XSS canary, error-based SQLi, and boolean-based blind-SQLi probes
   on every parameter found by the crawl (or a URL you supply), one to three
   non-destructive requests per parameter
+- API exposure: publicly reachable OpenAPI/Swagger docs, GraphQL introspection, a
+  small wordlist of common unauthenticated API paths (SPA-response-guarded to avoid
+  false positives), and endpoints discovered directly from the site's own JavaScript
+- HLS/DASH video stream discovery in the media scan, verified against the actual
+  manifest content (not just a URL pattern match) before being reported
 
 Every scan computes a weighted 0–100 risk score (critical/high/medium/low
 findings each cost points) and saves the full report as a timestamped JSON

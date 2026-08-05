@@ -31,9 +31,9 @@ Everything lives in one file, `app.py` (~1550 lines), plus four Jinja templates 
 `templates/`. There is no database; every scan writes a timestamped JSON report to `reports/`
 and (for media scans with download enabled) files to `downloads/`.
 
-### Three independent scan pipelines
+### Four independent scan pipelines
 
-The app exposes three unrelated scan flows, each with its own route, orchestrator function,
+The app exposes four unrelated scan flows, each with its own route, orchestrator function,
 report shape, and results template. They don't share state — a target is re-fetched from
 scratch in each:
 
@@ -42,6 +42,7 @@ scratch in each:
 | `POST /scan` | `run_scan()` | `results.html` | Passive/recon checks: headers, TLS, cookies, ports, CORS, secrets, crawl-then-probe XSS/SQLi, etc. |
 | `POST /scan-advanced` | `run_advanced_scan()` | `advanced_results.html` | Opt-in, form-field-driven checks needing credentials/session cookies: SQLi login bypass, stored XSS, IDOR across two test accounts, brute-force. Each check group only runs if its required form fields are all present. |
 | `POST /scan-media` | `run_media_scan()` | `media_results.html` | Same-origin media crawl (images/video), EXIF/GPS leakage, suspicious-path detection, optional download-to-disk. |
+| `POST /scan-api` | `run_api_scan()` | `api_results.html` | API exposure: OpenAPI/Swagger/GraphQL-introspection exposure, an unauthenticated-common-path wordlist (with an SPA-response guard), and endpoints discovered from the site's own JS. |
 
 ### Check function convention
 
@@ -87,6 +88,9 @@ formula, it needs updating in all three places.
   cookies even though it notes that'd be the trivial next step.
 - Time-based blind SQLi checks (`TIME_BLIND_DELAY = 4`) are used sparingly and stop after the
   first confirmed hit rather than probing every DB engine once one succeeds.
+- API probing (`check_api_wordlist`, `check_api_js_discovery`) only counts a `200` as a hit if the
+  response actually looks like API output (JSON/XML content-type or a `{`/`[`-leading body) - guards
+  against SPAs that return their `index.html` shell for every path.
 
 Preserve these constraints when modifying the corresponding checks — they're what keeps this a
 non-destructive, authorized-use-only tool rather than a general attack script.
