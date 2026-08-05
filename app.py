@@ -733,6 +733,68 @@ def check_api_wordlist(base_url, session):
     return rows, findings
 
 
+API_ENDPOINT_PATTERNS = [
+    re.compile(r'fetch\(\s*["\']([^"\']+)["\']'),
+    re.compile(r'axios\.(?:get|post|put|delete|patch)\(\s*["\']([^"\']+)["\']'),
+    re.compile(r'\.ajax\(\s*\{[^}]*?url\s*:\s*["\']([^"\']+)["\']', re.S),
+    re.compile(r'["\'](/(?:api|graphql)[\w\-/]*)["\']'),
+]
+
+
+def _discover_api_endpoints(base_url, texts):
+    """Regex-extracts API-looking paths from fetch()/axios()/.ajax() calls
+    and generic /api|/graphql string literals across the given texts
+    (homepage HTML + fetched JS). Third-party (cross-origin) absolute URLs
+    are skipped - this discovers the target's own API, not everyone it
+    talks to."""
+    origin = urlparse(base_url).netloc
+    found = []
+    for text in texts:
+        for pattern in API_ENDPOINT_PATTERNS:
+            for m in pattern.finditer(text):
+                candidate = m.group(1)
+                if candidate.startswith("http") and urlparse(candidate).netloc != origin:
+                    continue
+                abs_url = urljoin(base_url + "/", candidate)
+                if abs_url not in found:
+                    found.append(abs_url)
+    return found[:MAX_API_JS_ENDPOINTS]
+
+
+def check_api_js_discovery(session, base_url, home_html):
+    """Discovers API endpoints the site's own frontend code actually calls
+    (from homepage HTML + same-origin JS), then probes each the same way
+    as check_api_wordlist. Highest-signal of the three API checks - it
+    finds real endpoints, not guessed ones."""
+    js_sources = _fetch_same_origin_js(session, base_url, home_html,
+                                        MAX_SECRET_JS_FILES, MAX_JS_BYTES_PER_FILE)
+    texts = [home_html] + [text for _, text in js_sources]
+    endpoints = _discover_api_endpoints(base_url, texts)
+
+    rows, findings = [], []
+
+    def probe(url):
+        try:
+            r = session.get(url, timeout=REQUEST_TIMEOUT)
+            return url, r
+        except requests.RequestException:
+            return url, None
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for url, r in pool.map(probe, endpoints):
+            if r is None or r.status_code != 200 or not _looks_like_api_response(r):
+                rows.append({"url": url, "status": "pass"})
+                continue
+            sev = _api_path_severity(urlparse(url).path)
+            rows.append({"url": url, "status": "warn", "severity": sev})
+            findings.append(Finding(
+                "API Exposure", f"JS-referenced endpoint responds without auth: {url}", sev,
+                "This endpoint is called from the site's own frontend code and returned an API-shaped "
+                "response with no authentication.",
+                "Confirm this endpoint is meant to be public; otherwise require authentication."))
+    return {"rows": rows, "endpoints_discovered": len(endpoints)}, findings
+
+
 def crawl_same_origin(base_url, home_html, limit=10):
     """Depth-1, same-origin only. Collects GET URLs with query params and
     lists (but never submits) discovered forms, so POST forms can't trigger
