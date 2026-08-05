@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scan results - {{ r.target }}</title>
+<style>
+  :root {
+    --bg: #0b1020; --panel: #121a33; --panel2: #0e1530; --border: #23305c;
+    --text: #e8ecff; --muted: #93a0c9; --accent: #5b8cff; --accent2: #8b6bff;
+    --critical:#fb7185; --high:#fb923c; --medium:#fbbf24; --low:#60a5fa; --info:#93a0c9; --pass:#34d399;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f4f6fb; --panel:#ffffff; --panel2:#f0f3fb; --border:#dde3f3; --text:#141a33; --muted:#5a6689; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; font-family: -apple-system, "Segoe UI", Inter, Arial, sans-serif;
+    background: radial-gradient(1200px 600px at 80% -10%, rgba(91,140,255,.14), transparent), var(--bg);
+    color: var(--text);
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 40px 20px 90px; }
+  .top { display:flex; justify-content:space-between; align-items:flex-start; gap: 20px; flex-wrap: wrap; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .meta code { background: rgba(255,255,255,.06); padding: 1px 6px; border-radius: 5px; }
+  a.back { color: var(--accent); text-decoration:none; font-size: 13.5px; }
+
+  .score-card { display:flex; align-items:center; gap:20px; background: linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--border); border-radius:16px; padding:20px 26px; margin-top:22px; }
+  .gauge-wrap { position:relative; width:110px; height:110px; flex-shrink:0; }
+  .gauge-wrap svg { transform: rotate(-90deg); }
+  .gauge-bg { fill:none; stroke: rgba(255,255,255,.08); stroke-width: 10; }
+  .gauge-fg { fill:none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 1s ease; }
+  .gauge-num { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .gauge-num .n { font-size: 26px; font-weight: 800; }
+  .gauge-num .g { font-size: 11px; color: var(--muted); }
+  .score-summary h2 { margin: 0 0 6px; font-size: 18px; }
+  .sev-pills { display:flex; gap:8px; flex-wrap:wrap; }
+  .pill { font-size:12px; font-weight:700; padding:4px 10px; border-radius:999px; }
+
+  .pill.critical, .badge.critical, .dot.critical { background: rgba(251,113,133,.15); color: var(--critical); }
+  .pill.high, .badge.high, .dot.high { background: rgba(251,146,60,.15); color: var(--high); }
+  .pill.medium, .badge.medium, .dot.medium { background: rgba(251,191,36,.15); color: var(--medium); }
+  .pill.low, .badge.low, .dot.low { background: rgba(96,165,250,.15); color: var(--low); }
+  .pill.info, .badge.info, .dot.info { background: rgba(147,160,201,.15); color: var(--info); }
+  .pill.pass, .badge.pass, .dot.pass { background: rgba(52,211,153,.15); color: var(--pass); }
+
+  h2.section { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin: 36px 0 12px; }
+
+  .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 14px; }
+  .filter-btn { border:1px solid var(--border); background: transparent; color: var(--text); padding:6px 13px; border-radius:999px; font-size:12.5px; cursor:pointer; }
+  .filter-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+  .finding { display:flex; gap:14px; background: var(--panel); border:1px solid var(--border); border-left: 4px solid var(--muted); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+  .finding.critical { border-left-color: var(--critical); }
+  .finding.high { border-left-color: var(--high); }
+  .finding.medium { border-left-color: var(--medium); }
+  .finding.low { border-left-color: var(--low); }
+  .finding.info { border-left-color: var(--info); }
+
+  td.critical, span.critical { color: var(--critical); }
+  td.high, span.high { color: var(--high); }
+  td.medium, span.medium { color: var(--medium); }
+  td.low, span.low { color: var(--low); }
+  td.info, span.info { color: var(--info); }
+  td.pass, span.pass { color: var(--pass); }
+  .finding .badge { flex-shrink:0; font-size:11px; font-weight:800; padding: 3px 9px; border-radius: 6px; text-transform: uppercase; letter-spacing:.03em; height: fit-content; }
+  .finding .body b { font-size: 14px; }
+  .finding .cat { color: var(--muted); font-size: 11.5px; text-transform:uppercase; letter-spacing:.05em; }
+  .finding .detail { font-size: 13.5px; color: var(--muted); margin-top: 4px; }
+  .finding .rec { font-size: 13px; margin-top: 6px; }
+  .finding .rec b { color: var(--accent); font-weight: 700; }
+  .empty { color: var(--muted); font-size: 14px; padding: 18px 0; }
+
+  details { background: var(--panel); border:1px solid var(--border); border-radius: 12px; margin-bottom: 8px; overflow:hidden; }
+  summary { padding: 13px 16px; cursor: pointer; font-weight: 600; font-size: 14px; list-style: none; display:flex; justify-content: space-between; align-items:center; }
+  summary::-webkit-details-marker { display: none; }
+  summary .arrow { transition: transform .15s; color: var(--muted); }
+  details[open] summary .arrow { transform: rotate(90deg); }
+  .details-body { padding: 4px 16px 16px; }
+
+  table { width:100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align:left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight:600; }
+  code { background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 5px; font-size: 12px; }
+  pre { background: rgba(255,255,255,.04); padding: 10px; border-radius: 8px; font-size: 11.5px; overflow-x:auto; white-space: pre-wrap; }
+  .note { color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <h1>Scan results</h1>
+        <div class="meta">
+          Target: <code>{{ r.target }}</code>{% if r.resolved_ip %} &middot; {{ r.resolved_ip }}{% endif %}
+          &middot; {{ r.scanned_at }} &middot; saved as <code>reports/{{ report_file }}</code>
+        </div>
+      </div>
+      <a class="back" href="/">&larr; Run another scan</a>
+    </div>
+
+    <div class="score-card">
+      <div class="gauge-wrap">
+        <svg width="110" height="110" viewBox="0 0 110 110">
+          <circle class="gauge-bg" cx="55" cy="55" r="46"></circle>
+          <circle class="gauge-fg"
+                   id="gaugeFg" cx="55" cy="55" r="46"
+                   stroke="{{ '#34d399' if r.score >= 90 else ('#fbbf24' if r.score >= 60 else ('#fb923c' if r.score >= 40 else '#fb7185')) }}"
+                   stroke-dasharray="289" stroke-dashoffset="289"></circle>
+        </svg>
+        <div class="gauge-num"><div class="n">{{ r.score }}</div><div class="g">grade {{ r.risk_grade }}</div></div>
+      </div>
+      <div class="score-summary">
+        <h2>Overall risk score</h2>
+        <div class="sev-pills">
+          {% for sev in ['critical','high','medium','low','info'] %}
+            {% if r.severity_counts.get(sev, 0) > 0 %}
+            <span class="pill {{ sev }}">{{ r.severity_counts[sev] }} {{ sev }}</span>
+            {% endif %}
+          {% endfor %}
+          {% if r.findings|length == 0 %}<span class="pill pass">No findings</span>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <h2 class="section">Findings ({{ r.findings|length }})</h2>
+    {% if r.findings|length > 0 %}
+    <div class="filters">
+      <button class="filter-btn active" data-filter="all">All</button>
+      {% for sev in ['critical','high','medium','low','info'] %}
+        {% if r.severity_counts.get(sev, 0) > 0 %}
+        <button class="filter-btn" data-filter="{{ sev }}">{{ sev|capitalize }} ({{ r.severity_counts[sev] }})</button>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <div id="findingsList">
+      {% for f in r.findings %}
+      <div class="finding {{ f.severity }}" data-sev="{{ f.severity }}">
+        <span class="badge {{ f.severity }}">{{ f.severity }}</span>
+        <div class="body">
+          <div class="cat">{{ f.category }}</div>
+          <b>{{ f.title }}</b>
+          <div class="detail">{{ f.detail }}</div>
+          {% if f.recommendation %}<div class="rec"><b>Fix:</b> {{ f.recommendation }}</div>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty">No issues found by any check in this pass. That's a good sign, but automated checks can't
+    see business-logic or authenticated-role bugs &mdash; see the PDF guide's "Advanced Manual Attack-Simulation"
+    section for what to test by hand.</div>
+    {% endif %}
+
+    <h2 class="section">Detailed check output</h2>
+
+    <details open>
+      <summary>Security headers &mdash; grade {{ r.headers.grade }} <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        <table>
+          <tr><th>Header</th><th>Status</th><th>Value / note</th></tr>
+          {% for h in r.headers.rows %}
+          <tr>
+            <td>{{ h.header }}</td>
+            <td class="{{ 'pass' if h.status=='pass' else 'high' }}">{{ h.status|upper }}</td>
+            <td>{% if h.value %}<code>{{ h.value }}</code>{% else %}missing{% endif %}
+              {% if h.note %}<div class="note">{{ h.note }}</div>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+    </details>
+
+    <details>
+      <summary>Cookies <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        {% if r.cookies %}
+        <table>
+          <tr><th>Name</th><th>Secure</th><th>HttpOnly</th><th>SameSite</th></tr>
+          {% for c in r.cookies %}
+          <tr><td>{{ c.name }}</td>
+            <td class="{{ 'pass' if c.secure else 'high' }}">{{ 'yes' if c.secure else 'no' }}</td>
+            <td class="{{ 'pass' if c.httponly else 'high' }}">{{ 'yes' if c.httponly else 'no' }}</td>
+            <td class="{{ 'pass' if c.samesite else 'medium' }}">{{ 'yes' if c.samesite else 'no' }}</td>
+          </tr>
+          {% endfor %}
+        </table>
+        {% else %}<p class="note">No cookies set on the homepage response.</p>{% endif %}
+      </div>
+    </details>
+
+    <details>
+      <summary>TLS certificate <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        {% if r.tls.error %}<p>Could not retrieve certificate: {{ r.tls.error }}</p>
+        {% else %}
+        <table>
+          <tr><th>Subject</th><td>{{ r.tls.subject }}</td></tr>
+          <tr><th>Issuer</th><td>{{ r.tls.issuer }}</td></tr>
+          <tr><th>Expires</th><td>{{ r.tls.not_after }} &mdash; {{ r.tls.days_left }} days left</td></tr>
+        </table>
+        {% endif %}
+      </div>
+    </details>
+
+    <details>
+      <summary>HTTP &rarr; HTTPS redirect <span class="arrow">&#9656;</span></summary>
+      <div class="details-body"><p>{{ r.https_redirect.detail }}</p></div>
+    </details>
+
+    <details>
+      <summary>Sensitive path / file probe <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        <table>
+          <tr><th>Path</th><th>HTTP code</th><th>Status</th></tr>
+          {% for p in r.sensitive_paths %}
+          <tr><td><code>{{ p.path }}</code></td><td>{{ p.code if p.code is not none else 'error' }}</td>
+            <td class="{{ 'critical' if p.status=='warn' else ('info' if p.status=='recommend' else 'pass') }}">
+              {{ 'EXPOSED' if p.status=='warn' else ('RECOMMENDED' if p.status=='recommend' else 'OK') }}</td></tr>
+          {% endfor %}
+        </table>
+      </div>
+    </details>
+
+    <details open>
+      <summary>Exposed API keys / secrets <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        <p class="note">{{ r.secrets.js_files_scanned }} same-origin JS file(s) scanned, plus the homepage HTML.</p>
+        {% if r.secrets.rows %}
+        <table><tr><th>Type</th><th>Source</th><th>Value (redacted)</th><th>Severity</th></tr>
+          {% for row in r.secrets.rows %}
+          <tr><td>{{ row.type }}</td><td><code>{{ row.source }}</code></td><td><code>{{ row.value }}</code></td>
+            <td class="{{ 'critical' if row.severity in ('critical','high') else ('medium' if row.severity=='medium' else 'info') }}">{{ row.severity|upper }}</td></tr>
+          {% endfor %}
+        </table>
+        {% else %}<p class="note">No known API key / token / private-key patterns found.</p>{% endif %}
+      </div>
+    </details>
+
+    <details open>
+      <summary>Third-party scripts/stylesheets without SRI <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        {% if r.sri %}
+        <table><tr><th>Type</th><th>URL</th><th>Has SRI</th></tr>
+          {% for row in r.sri %}
+          <tr><td>{{ row.type }}</td><td><code>{{ row.url }}</code></td>
+            <td class="{{ 'pass' if row.has_sri else 'medium' }}">{{ 'yes' if row.has_sri else 'no' }}</td></tr>
+          {% endfor %}
+        </table>
+        {% else %}<p class="note">No third-party scripts or stylesheets found on the homepage.</p>{% endif %}
+      </div>
+    </details>
+
+    <details>
+      <summary>Open ports <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        {% if r.open_ports and r.open_ports[0].error %}
+        <p>DNS resolution failed: {{ r.open_ports[0].error }}</p>
+        {% elif r.open_ports %}
+        <table>
+          <tr><th>Port</th><th>Status</th><th>Note</th></tr>
+          {% for port in r.open_ports %}
+          <tr><td>{{ port.port }}</td>
+            <td class="{{ {'pass':'pass','warn':'high','medium':'medium','info':'info'}[port.status] }}">
+              {{ {'pass':'expected','warn':'unbranded - review','medium':'CDN edge','info':'handshake only'}[port.status] }}</td>
+            <td class="note">{{ port.note }}</td></tr>
+          {% endfor %}
+        </table>
+        {% else %}<p class="note">No unexpected ports open among the common set checked.</p>{% endif %}
+      </div>
+    </details>
+
+    <details>
+      <summary>CORS configuration <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        {% if r.cors.note %}<p class="note">{{ r.cors.note }}</p>{% endif %}
+        {% for path, d in r.cors.items() %}
+          {% if path != 'note' %}
+          <p><code>{{ path }}</code> &mdash; Access-Control-Allow-Origin: <code>{{ d.acao }}</code>
+            {% if d.acac %}, Allow-Credentials: <code>{{ d.acac }}</code>{% endif %}
+            {% if d.note %}<span class="note"> &mdash; {{ d.note }}</span>{% endif %}</p>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </details>
+
+    <details>
+      <summary>HTTP methods <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        <table>
+          <tr><th>Method</th><th>Response</th></tr>
+          {% for m in r.http_methods %}
+          <tr><td>{{ m.method }}</td><td>{{ m.code }}{% if m.allow %} (Allow: {{ m.allow }}){% endif %}</td></tr>
+          {% endfor %}
+        </table>
+      </div>
+    </details>
+
+    <details>
+      <summary>Open redirect probe <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        {% if r.open_redirect %}
+        <table><tr><th>Path</th><th>Parameter</th></tr>
+          {% for hit in r.open_redirect %}<tr><td><code>{{ hit.path }}</code></td><td><code>{{ hit.param }}</code></td></tr>{% endfor %}
+        </table>
+        {% else %}<p class="note">No open-redirect behavior found on tested paths/parameters.</p>{% endif %}
+      </div>
+    </details>
+
+    <details>
+      <summary>Directory listing <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        {% if r.directory_listing %}
+        <table><tr><th>Path</th></tr>{% for d in r.directory_listing %}<tr><td><code>{{ d.path }}</code></td></tr>{% endfor %}</table>
+        {% else %}<p class="note">No directory listings found on common paths.</p>{% endif %}
+      </div>
+    </details>
+
+    <details>
+      <summary>Mixed content <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        {% if r.mixed_content %}
+        <pre>{% for m in r.mixed_content %}{{ m }}
+{% endfor %}</pre>
+        {% else %}<p class="note">No insecure http:// references found on the homepage.</p>{% endif %}
+      </div>
+    </details>
+
+    <details>
+      <summary>DNS email security (SPF / DMARC / CAA) <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        <table>
+          <tr><th>Domain</th><td>{{ r.dns_email.domain }}</td></tr>
+          <tr><th>SPF</th><td>{% if r.dns_email.spf %}<code>{{ r.dns_email.spf }}</code>{% else %}not found{% endif %}</td></tr>
+          <tr><th>DMARC</th><td>{% if r.dns_email.dmarc %}<code>{{ r.dns_email.dmarc }}</code>{% else %}not found{% endif %}</td></tr>
+          <tr><th>CAA</th><td>{% if r.dns_email.caa %}{{ r.dns_email.caa|join(', ') }}{% else %}not found{% endif %}</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details>
+      <summary>Outdated JS libraries <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        {% if r.vulnerable_js %}
+        <table><tr><th>Library</th><th>Version</th><th>Source</th></tr>
+          {% for v in r.vulnerable_js %}<tr><td>{{ v.library }}</td><td>{{ v.version }}</td><td><code>{{ v.src }}</code></td></tr>{% endfor %}
+        </table>
+        {% else %}<p class="note">No recognizably outdated third-party JS libraries detected. Note: bundled/minified
+        frameworks (webpack/Next.js chunks) often don't expose a library name or version in the URL, so this check
+        has limited visibility on modern SPA stacks &mdash; use <code>npm audit</code> for real coverage.</p>{% endif %}
+      </div>
+    </details>
+
+    <details>
+      <summary>Same-origin crawl &amp; parameter/XSS/SQLi testing <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        <p class="note">{{ r.crawl.discovered_urls|length }} URL(s) discovered from the homepage
+        {% if r.crawl.forms %} &middot; {{ r.crawl.forms|length }} form(s) found (listed only, never auto-submitted){% endif %}.</p>
+        {% if r.crawl.forms %}
+        <table><tr><th>Form action</th><th>Method</th><th>Inputs</th></tr>
+          {% for f in r.crawl.forms %}<tr><td><code>{{ f.action }}</code></td><td>{{ f.method }}</td><td>{{ f.inputs|join(', ') }}</td></tr>{% endfor %}
+        </table>
+        {% endif %}
+        {% if r.xss_sqli %}
+        <table><tr><th>URL</th><th>Param</th><th>XSS</th><th>SQLi</th></tr>
+          {% for t in r.xss_sqli %}
+          <tr><td><code>{{ t.url }}</code></td><td>{{ t.param }}</td>
+            <td class="{{ 'pass' if t.xss=='pass' else 'critical' }}">{{ t.xss|upper }}</td>
+            <td class="{{ 'pass' if t.sqli=='pass' else ('high' if t.sqli=='review' else 'critical') }}">{{ t.sqli|upper }}</td></tr>
+          {% endfor %}
+        </table>
+        {% else %}<p class="note">No parameterized URLs found to test (nothing crawled and no seed URL supplied).</p>{% endif %}
+      </div>
+    </details>
+
+    <details>
+      <summary>robots.txt / sitemap.xml <span class="arrow">&#9656;</span></summary>
+      <div class="details-body">
+        {% for name, data in r.robots_sitemap.items() %}
+        <p><b>{{ name }}</b> &mdash; HTTP {{ data.code }}</p>
+        {% if data.excerpt %}<pre>{{ data.excerpt }}</pre>{% endif %}
+        {% endfor %}
+      </div>
+    </details>
+  </div>
+
+  <script>
+    const score = {{ r.score }};
+    const circumference = 2 * Math.PI * 46;
+    const fg = document.getElementById('gaugeFg');
+    fg.setAttribute('stroke-dasharray', circumference);
+    fg.setAttribute('stroke-dashoffset', circumference);
+    requestAnimationFrame(() => {
+      fg.style.strokeDashoffset = circumference * (1 - score / 100);
+    });
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const filter = btn.dataset.filter;
+        document.querySelectorAll('#findingsList .finding').forEach(card => {
+          card.style.display = (filter === 'all' || card.dataset.sev === filter) ? 'flex' : 'none';
+        });
+      });
+    });
+  </script>
+</body>
+</html>
