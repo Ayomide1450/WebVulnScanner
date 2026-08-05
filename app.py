@@ -124,6 +124,25 @@ VULN_JS_LIBS = {
     "bootstrap": (lambda v: v < (4, 3, 1), "Bootstrap < 4.3.1 has known XSS issues in tooltip/popover data attrs."),
 }
 
+# --------------------------------------------------------------------------
+# API exposure checks (see check_api_schema_exposure / check_api_wordlist /
+# check_api_js_discovery). Runs as its own scan (see run_api_scan / POST
+# /scan-api), separate from the base scan.
+# --------------------------------------------------------------------------
+API_SCHEMA_PATHS = ["swagger.json", "swagger.yaml", "openapi.json", "openapi.yaml",
+                     "api-docs", "v2/api-docs", "v3/api-docs", "graphiql", "api/swagger.json"]
+GRAPHQL_PATHS = ["graphql", "api/graphql", "v1/graphql"]
+GRAPHQL_INTROSPECTION_QUERY = {"query": "{__schema{types{name}}}"}
+API_SCHEMA_SIGNATURES = ('"openapi"', '"swagger"', '"paths"', "<title>swagger", "graphiql")
+
+API_WORDLIST = ["api", "api/v1", "api/v2", "api/admin", "api/internal", "api/users",
+                 "api/user", "api/config", "api/orders", "api/auth", "api/debug",
+                 "api/backup", "api/token", "api/keys", "api/accounts", "api/payments",
+                 "api/health", "api/status", "api/logs", "api/test"]
+API_SENSITIVE_HINTS = ["admin", "internal", "config", "debug", "backup", "token",
+                        "secret", "payment", "key", "credential"]
+MAX_API_JS_ENDPOINTS = 30
+
 
 def _mk_session():
     s = requests.Session()
@@ -622,6 +641,50 @@ def check_sri(base_url, home_html):
             findings.append(Finding("Supply chain", "Third-party stylesheet without SRI", "low",
                                      f"{abs_url} is loaded from an external host with no integrity= hash.",
                                      "Add an integrity (SHA-384) hash, or self-host the stylesheet."))
+
+    return rows, findings
+
+
+def check_api_schema_exposure(base_url, session):
+    """Probes common OpenAPI/Swagger doc paths and sends one read-only
+    GraphQL introspection query to common GraphQL paths. Either succeeding
+    hands an attacker the full API surface, including routes never linked
+    anywhere - a high-severity finding either way."""
+    rows, findings = [], []
+
+    def probe(path):
+        try:
+            r = session.get(f"{base_url}/{path}", timeout=REQUEST_TIMEOUT)
+            return path, r
+        except requests.RequestException:
+            return path, None
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for path, r in pool.map(probe, API_SCHEMA_PATHS):
+            if r is None:
+                continue
+            body_lower = r.text[:2000].lower()
+            is_schema = r.status_code == 200 and any(sig in body_lower for sig in API_SCHEMA_SIGNATURES)
+            rows.append({"path": "/" + path, "code": r.status_code, "status": "warn" if is_schema else "pass"})
+            if is_schema:
+                findings.append(Finding(
+                    "API Exposure", f"Publicly reachable API schema/docs: /{path}", "high",
+                    "Returns what looks like an OpenAPI/Swagger schema or interactive docs UI - reveals the "
+                    "full API surface, including routes never linked anywhere.",
+                    "Require authentication for schema/docs endpoints in production, or remove them."))
+
+    for path in GRAPHQL_PATHS:
+        try:
+            r = session.post(f"{base_url}/{path}", json=GRAPHQL_INTROSPECTION_QUERY, timeout=REQUEST_TIMEOUT)
+        except requests.RequestException:
+            continue
+        if r.status_code == 200 and ('"__schema"' in r.text or '"types"' in r.text):
+            rows.append({"path": "/" + path, "code": r.status_code, "status": "warn", "graphql_introspection": True})
+            findings.append(Finding(
+                "API Exposure", f"GraphQL introspection enabled at /{path}", "high",
+                "A read-only __schema introspection query succeeded, revealing the full GraphQL type/field "
+                "surface including anything not intentionally documented.",
+                "Disable introspection in production (most GraphQL servers have a flag for this)."))
 
     return rows, findings
 
