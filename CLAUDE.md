@@ -59,11 +59,11 @@ raise past its own function — network calls should be wrapped in
 
 ### Scoring
 
-All three orchestrators independently: start at 100, subtract `SEVERITY_WEIGHT[finding.severity]`
+All four orchestrators independently: start at 100, subtract `SEVERITY_WEIGHT[finding.severity]`
 per finding, clamp to `[0, 100]`, then map the score to a letter grade (`A`–`F`) and tally
-`severity_counts`. This scoring block is duplicated three times (`run_scan`,
-`run_media_scan`, `run_advanced_scan`) rather than shared — keep that in mind if changing the
-formula, it needs updating in all three places.
+`severity_counts`. This scoring block is duplicated four times (`run_scan`,
+`run_media_scan`, `run_advanced_scan`, `run_api_scan`) rather than shared — keep that in mind if changing the
+formula, it needs updating in all four places.
 
 ### Adding a new base-scan check
 
