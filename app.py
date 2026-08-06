@@ -9,8 +9,9 @@ else - models, blueprints, checks, orchestrators, entitlement gating - lives
 in the `webvulnscanner/` package. The old synchronous `/`, `/scan`,
 `/scan-advanced`, `/scan-media` routes that used to live here are retired in
 favor of `webvulnscanner.public_routes` ("/") and `webvulnscanner.scan_routes`
-(`/dashboard`, `/scan/new`, `/scan/<id>`, `/scan/<id>/events`,
-`/scan/<id>/report`, `/scan/<id>/compare/<other_id>`).
+(`/dashboard`, `/scan/new` + its four dedicated `/base`/`/advanced`/`/media`/
+`/api` sub-pages, `/scan/<id>`, `/scan/<id>/events`, `/scan/<id>/report`,
+`/scan/<id>/compare/<other_id>`).
 """
 from webvulnscanner import create_app
 

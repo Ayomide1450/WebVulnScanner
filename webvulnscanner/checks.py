@@ -72,6 +72,25 @@ MAX_MEDIA_ITEMS = 60
 MAX_EXIF_IMAGES = 15
 MAX_MEDIA_FILE_BYTES = 20 * 1024 * 1024
 
+# API exposure checks (see check_api_schema_exposure / check_api_wordlist /
+# check_api_js_discovery). Ported from the api-exposure-media-streaming
+# branch's pre-cutover app.py into this package for the dedicated
+# /scan/new/api page - runs as its own scan_type ("api"), separate from the
+# base scan.
+API_SCHEMA_PATHS = ["swagger.json", "swagger.yaml", "openapi.json", "openapi.yaml",
+                     "api-docs", "v2/api-docs", "v3/api-docs", "graphiql", "api/swagger.json"]
+GRAPHQL_PATHS = ["graphql", "api/graphql", "v1/graphql"]
+GRAPHQL_INTROSPECTION_QUERY = {"query": "{__schema{types{name}}}"}
+API_SCHEMA_SIGNATURES = ('"openapi"', '"swagger"', '"paths"', "<title>swagger", "graphiql")
+
+API_WORDLIST = ["api", "api/v1", "api/v2", "api/admin", "api/internal", "api/users",
+                 "api/user", "api/config", "api/orders", "api/auth", "api/debug",
+                 "api/backup", "api/token", "api/keys", "api/accounts", "api/payments",
+                 "api/health", "api/status", "api/logs", "api/test"]
+API_SENSITIVE_HINTS = ["admin", "internal", "config", "debug", "backup", "token",
+                        "secret", "payment", "key", "credential"]
+MAX_API_JS_ENDPOINTS = 30
+
 # --------------------------------------------------------------------------
 # Findings model - every check appends a Finding so the report can show one
 # consistent, severity-ranked summary instead of N differently shaped tables.
@@ -522,34 +541,48 @@ def _redact_secret(value):
     return value[:6] + "…" + value[-4:]
 
 
-def check_exposed_secrets(session, base_url, home_html):
-    """Scans the homepage HTML plus up to MAX_SECRET_JS_FILES same-origin JS
-    bundles for hardcoded API keys/tokens/private keys. Values are redacted
-    in the report (only a few leading/trailing chars kept) so the report
-    file itself doesn't become a second place the secret is exposed."""
+def _fetch_same_origin_js(session, base_url, page_html, max_files, max_bytes):
+    """Collects up to max_files same-origin <script src> URLs referenced in
+    page_html and fetches each, capped at max_bytes. Returns a list of
+    (url, text) tuples. Shared by check_exposed_secrets (JS bundles that
+    might contain hardcoded secrets) and check_api_js_discovery (JS that
+    might reference API endpoints)."""
     origin = urlparse(base_url).netloc
-    soup = BeautifulSoup(home_html, "html.parser")
-    sources = [("homepage HTML", home_html)]
+    soup = BeautifulSoup(page_html, "html.parser")
 
     js_urls = []
     for tag in soup.find_all("script", src=True):
         abs_url = urljoin(base_url + "/", tag["src"])
         if urlparse(abs_url).netloc == origin and abs_url not in js_urls:
             js_urls.append(abs_url)
-    js_urls = js_urls[:MAX_SECRET_JS_FILES]
+    js_urls = js_urls[:max_files]
 
+    sources = []
     for url in js_urls:
         try:
             r = session.get(url, timeout=REQUEST_TIMEOUT, stream=True)
             content = b""
             for chunk in r.iter_content(chunk_size=16384):
                 content += chunk
-                if len(content) >= MAX_JS_BYTES_PER_FILE:
+                if len(content) >= max_bytes:
                     break
             r.close()
             sources.append((url, content.decode("utf-8", errors="ignore")))
         except requests.RequestException:
             continue
+    return sources
+
+
+def check_exposed_secrets(session, base_url, home_html):
+    """Scans the homepage HTML plus up to MAX_SECRET_JS_FILES same-origin JS
+    bundles for hardcoded API keys/tokens/private keys. Values are redacted
+    in the report (only a few leading/trailing chars kept) so the report
+    file itself doesn't become a second place the secret is exposed."""
+    sources = [("homepage HTML", home_html)]
+    js_sources = _fetch_same_origin_js(session, base_url, home_html,
+                                        MAX_SECRET_JS_FILES, MAX_JS_BYTES_PER_FILE)
+    sources.extend(js_sources)
+    js_files_scanned = len(js_sources)
 
     rows, findings = [], []
     seen = set()
@@ -568,7 +601,7 @@ def check_exposed_secrets(session, base_url, home_html):
                                              f"Found in {source_name}: {redacted}",
                                              "Remove this credential from client-shipped code. If it's real, "
                                              "rotate it immediately and load secrets server-side only."))
-    return {"rows": rows, "js_files_scanned": len(js_urls)}, findings
+    return {"rows": rows, "js_files_scanned": js_files_scanned}, findings
 
 
 def check_sri(base_url, home_html):
@@ -613,6 +646,156 @@ def check_sri(base_url, home_html):
                                      "Add an integrity (SHA-384) hash, or self-host the stylesheet."))
 
     return rows, findings
+
+
+def check_api_schema_exposure(base_url, session):
+    """Probes common OpenAPI/Swagger doc paths and sends one read-only
+    GraphQL introspection query to common GraphQL paths. Either succeeding
+    hands an attacker the full API surface, including routes never linked
+    anywhere - a high-severity finding either way."""
+    rows, findings = [], []
+
+    def probe(path):
+        try:
+            r = session.get(f"{base_url}/{path}", timeout=REQUEST_TIMEOUT)
+            return path, r
+        except requests.RequestException:
+            return path, None
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for path, r in pool.map(probe, API_SCHEMA_PATHS):
+            if r is None:
+                continue
+            body_lower = r.text[:2000].lower()
+            is_schema = r.status_code == 200 and any(sig in body_lower for sig in API_SCHEMA_SIGNATURES)
+            rows.append({"path": "/" + path, "code": r.status_code, "status": "warn" if is_schema else "pass"})
+            if is_schema:
+                findings.append(Finding(
+                    "API Exposure", f"Publicly reachable API schema/docs: /{path}", "high",
+                    "Returns what looks like an OpenAPI/Swagger schema or interactive docs UI - reveals the "
+                    "full API surface, including routes never linked anywhere.",
+                    "Require authentication for schema/docs endpoints in production, or remove them."))
+
+    for path in GRAPHQL_PATHS:
+        try:
+            r = session.post(f"{base_url}/{path}", json=GRAPHQL_INTROSPECTION_QUERY, timeout=REQUEST_TIMEOUT)
+        except requests.RequestException:
+            continue
+        if r.status_code == 200 and ('"__schema"' in r.text or '"types"' in r.text):
+            rows.append({"path": "/" + path, "code": r.status_code, "status": "warn", "graphql_introspection": True})
+            findings.append(Finding(
+                "API Exposure", f"GraphQL introspection enabled at /{path}", "high",
+                "A read-only __schema introspection query succeeded, revealing the full GraphQL type/field "
+                "surface including anything not intentionally documented.",
+                "Disable introspection in production (most GraphQL servers have a flag for this)."))
+
+    return rows, findings
+
+
+def _looks_like_api_response(resp):
+    """True if a response looks like real API output rather than an SPA's
+    catch-all index.html (which would otherwise make every wordlist path
+    falsely look like a hit, since SPAs commonly return 200 for everything)."""
+    ctype = resp.headers.get("Content-Type", "").lower()
+    if "json" in ctype or "xml" in ctype:
+        return True
+    body_start = resp.text.lstrip()[:1]
+    return body_start in ("{", "[")
+
+
+def _api_path_severity(path):
+    lower = path.lower()
+    return "high" if any(hint in lower for hint in API_SENSITIVE_HINTS) else "info"
+
+
+def check_api_wordlist(base_url, session):
+    """Threaded probe of a small built-in wordlist of common REST-ish
+    paths. A hit only counts if the response is 200 AND looks like real
+    API output (see _looks_like_api_response) - otherwise SPAs that serve
+    the same index.html for every path would falsely flag every entry."""
+    rows, findings = [], []
+
+    def probe(path):
+        try:
+            r = session.get(f"{base_url}/{path}", timeout=REQUEST_TIMEOUT)
+            return path, r
+        except requests.RequestException:
+            return path, None
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for path, r in pool.map(probe, API_WORDLIST):
+            if r is None or r.status_code != 200 or not _looks_like_api_response(r):
+                rows.append({"path": "/" + path, "status": "pass"})
+                continue
+            sev = _api_path_severity(path)
+            rows.append({"path": "/" + path, "status": "warn", "severity": sev})
+            findings.append(Finding(
+                "API Exposure", f"Unauthenticated API response at /{path}", sev,
+                "Returned HTTP 200 with an API-shaped body (JSON/XML) with no authentication.",
+                "Confirm this endpoint is meant to be public; otherwise require authentication."))
+    return rows, findings
+
+
+API_ENDPOINT_PATTERNS = [
+    re.compile(r'fetch\(\s*["\']([^"\']+)["\']'),
+    re.compile(r'axios\.(?:get|post|put|delete|patch)\(\s*["\']([^"\']+)["\']'),
+    re.compile(r'\.ajax\(\s*\{[^}]*?url\s*:\s*["\']([^"\']+)["\']', re.S),
+    re.compile(r'["\'](/(?:api|graphql)[\w\-/]*)["\']'),
+]
+
+
+def _discover_api_endpoints(base_url, texts):
+    """Regex-extracts API-looking paths from fetch()/axios()/.ajax() calls
+    and generic /api|/graphql string literals across the given texts
+    (homepage HTML + fetched JS). Third-party (cross-origin) absolute URLs
+    are skipped - this discovers the target's own API, not everyone it
+    talks to."""
+    origin = urlparse(base_url).netloc
+    found = []
+    for text in texts:
+        for pattern in API_ENDPOINT_PATTERNS:
+            for m in pattern.finditer(text):
+                candidate = m.group(1)
+                abs_url = urljoin(base_url + "/", candidate)
+                if urlparse(abs_url).netloc != origin:
+                    continue
+                if abs_url not in found:
+                    found.append(abs_url)
+    return found[:MAX_API_JS_ENDPOINTS]
+
+
+def check_api_js_discovery(session, base_url, home_html):
+    """Discovers API endpoints the site's own frontend code actually calls
+    (from homepage HTML + same-origin JS), then probes each the same way
+    as check_api_wordlist. Highest-signal of the three API checks - it
+    finds real endpoints, not guessed ones."""
+    js_sources = _fetch_same_origin_js(session, base_url, home_html,
+                                        MAX_SECRET_JS_FILES, MAX_JS_BYTES_PER_FILE)
+    texts = [home_html] + [text for _, text in js_sources]
+    endpoints = _discover_api_endpoints(base_url, texts)
+
+    rows, findings = [], []
+
+    def probe(url):
+        try:
+            r = session.get(url, timeout=REQUEST_TIMEOUT)
+            return url, r
+        except requests.RequestException:
+            return url, None
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for url, r in pool.map(probe, endpoints):
+            if r is None or r.status_code != 200 or not _looks_like_api_response(r):
+                rows.append({"url": url, "status": "pass"})
+                continue
+            sev = _api_path_severity(urlparse(url).path)
+            rows.append({"url": url, "status": "warn", "severity": sev})
+            findings.append(Finding(
+                "API Exposure", f"JS-referenced endpoint responds without auth: {url}", sev,
+                "This endpoint is called from the site's own frontend code and returned an API-shaped "
+                "response with no authentication.",
+                "Confirm this endpoint is meant to be public; otherwise require authentication."))
+    return {"rows": rows, "endpoints_discovered": len(endpoints)}, findings
 
 
 def crawl_same_origin(base_url, home_html, limit=10):

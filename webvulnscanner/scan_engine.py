@@ -57,6 +57,9 @@ from webvulnscanner.checks import (
     check_sqli_union,
     check_xss_stored,
     check_idor,
+    check_api_schema_exposure,
+    check_api_wordlist,
+    check_api_js_discovery,
 )
 
 
@@ -85,6 +88,57 @@ def run_media_scan(base_url, download, max_files):
         "severity_counts": severity_counts,
         "findings": [asdict(f) for f in findings_sorted],
         "media": data,
+    }
+
+
+def run_api_scan(base_url):
+    """Runs all three API-exposure checks against base_url. Uses the same
+    Finding/severity/scoring model as the other three orchestrators.
+
+    Not gated here, same as run_media_scan above and for the same reason:
+    the api scan type has no sub-groups to partially unlock, so the route
+    checks the tier upfront and never calls this at all if it's insufficient
+    (see scan_routes.new_scan_api, mirroring new_scan_media's pattern)."""
+    session = _mk_session()
+    home_r = session.get(base_url + "/", timeout=REQUEST_TIMEOUT)
+    home_html = home_r.text
+
+    results = {}
+    all_findings = []
+
+    data, findings = check_api_schema_exposure(base_url, session)
+    results["schema"] = data
+    all_findings.extend(findings)
+
+    data, findings = check_api_wordlist(base_url, session)
+    results["wordlist"] = data
+    all_findings.extend(findings)
+
+    data, findings = check_api_js_discovery(session, base_url, home_html)
+    results["js_discovery"] = data
+    all_findings.extend(findings)
+
+    score = 100
+    for f in all_findings:
+        score -= SEVERITY_WEIGHT.get(f.severity, 0)
+    score = max(0, min(100, score))
+    risk_grade = ("A" if score >= 90 else "B" if score >= 75 else
+                  "C" if score >= 60 else "D" if score >= 40 else "F")
+
+    severity_counts = {s: 0 for s in SEVERITY_WEIGHT}
+    for f in all_findings:
+        severity_counts[f.severity] = severity_counts.get(f.severity, 0) + 1
+    findings_sorted = sorted(all_findings, key=lambda f: SEVERITY_ORDER.index(f.severity))
+
+    return {
+        "target": base_url,
+        "hostname": urlparse(base_url).netloc,
+        "scanned_at": datetime.now(timezone.utc).isoformat(),
+        "score": score,
+        "risk_grade": risk_grade,
+        "severity_counts": severity_counts,
+        "findings": [asdict(f) for f in findings_sorted],
+        "results": results,
     }
 
 

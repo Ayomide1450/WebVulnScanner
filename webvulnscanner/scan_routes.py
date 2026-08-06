@@ -1,20 +1,26 @@
 """
-Blueprint `scan`: /dashboard, /scan/new, /scan/<id>, /scan/<id>/events,
-/scan/<id>/report, /scan/<id>/compare/<other_id>.
+Blueprint `scan`: /dashboard, /scan/new(/base|/advanced|/media|/api),
+/scan/<id>, /scan/<id>/events, /scan/<id>/report, /scan/<id>/compare/<other_id>.
 
 This is the cutover point where the old synchronous `/scan`, `/scan-advanced`,
 `/scan-media` routes (formerly in the standalone `app.py`) become a single
-async, tier-aware flow: `POST /scan/new` creates a `Scan(status=QUEUED)` row,
-spawns a daemon `threading.Thread` running the appropriate orchestrator, and
-redirects to `/scan/<id>`, which live-updates via SSE (`/scan/<id>/events`)
-until the scan finishes and redirects to `/scan/<id>/report`.
+async, tier-aware flow: submitting any of the four dedicated "new scan"
+forms creates a `Scan(status=QUEUED)` row, spawns a daemon `threading.Thread`
+running the appropriate orchestrator, and redirects to `/scan/<id>`, which
+live-updates via SSE (`/scan/<id>/events`) until the scan finishes and
+redirects to `/scan/<id>/report`.
 
-**Form/route multiplexing decision**: `/scan/new` handles all 3 scan types
-(base/advanced/media) via a single route, dispatching on a hidden
-`scan_type` form field (one per sub-form in `scan_new.html`) rather than
-3 separate routes - this mirrors the old app.py's 3-separate-forms UI while
-giving all 3 the same async/SSE handling with no duplicated route/thread
-plumbing.
+**Per-type route decision**: `/scan/new` is a GET-only landing page (4 cards,
+one per scan type) rather than a single POST-handling multiplexer keyed on a
+hidden `scan_type` field. Each scan type gets its own GET+POST route
+(`new_scan_base`/`new_scan_advanced`/`new_scan_media`/`new_scan_api`) and
+template instead. Reasoning: a shared endpoint's validation-error repaint
+can't keep the browser URL in sync with which of several stacked forms
+actually failed; per-type routes make the URL always match the page content.
+The `scan.new_scan` endpoint name/URL is deliberately kept stable so
+existing links (`base.html`'s nav, `dashboard.html`'s CTA/empty-state links)
+don't need to change - they just land on the chooser instead of a combined
+form page.
 
 **Ownership decision**: a scan is viewable by the user who ran it
 (`scan.user_id == current_user.id`), OR by an ORG_ADMIN of the same org
@@ -47,7 +53,7 @@ from webvulnscanner.checks import REPORTS_DIR, normalize_target
 from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, domain_is_org_verified, effective_tier
 from webvulnscanner.extensions import db
 from webvulnscanner.models import Report, Role, Scan, ScanStatus
-from webvulnscanner.scan_engine import run_advanced_scan, run_media_scan, run_scan, save_report
+from webvulnscanner.scan_engine import run_advanced_scan, run_api_scan, run_media_scan, run_scan, save_report
 
 scan = Blueprint("scan", __name__)
 
@@ -114,6 +120,13 @@ def _run_scan_in_background(app, scan_id, scan_type, **kwargs):
                 # unchanged and does not re-check tier itself.
                 report = run_media_scan(kwargs["base_url"], kwargs["download"], kwargs["max_files"])
                 fname = save_report(report, "media_", report["hostname"])
+            elif scan_type == "api":
+                # Same no-progress_cb note as above; tier gating for api is
+                # enforced route-level in new_scan_api() before this thread
+                # is ever spawned, mirroring media's pattern - run_api_scan's
+                # signature does not re-check tier itself.
+                report = run_api_scan(kwargs["base_url"])
+                fname = save_report(report, "api_", report["hostname"])
             else:
                 raise ValueError(f"unknown scan_type {scan_type!r}")
 
@@ -189,130 +202,194 @@ def _tier_flags(tier):
         "can_run_paid": Tier.PAID <= tier,
         "can_run_org_verified": Tier.ORG_VERIFIED <= tier,
         "can_run_media": FEATURE_REQUIREMENTS["media"] <= tier,
+        "can_run_api": FEATURE_REQUIREMENTS["api"] <= tier,
     }
 
 
-@scan.route("/scan/new", methods=["GET", "POST"])
+@scan.route("/scan/new")
 @login_required
 def new_scan():
+    """GET-only "choose a scan type" landing page. Each scan type has its
+    own dedicated GET+POST route below (new_scan_base/advanced/media/api) -
+    this endpoint/URL is kept stable so existing links (base.html's nav,
+    dashboard.html's CTA and empty-state link) don't need to change."""
+    tier = effective_tier(current_user)
+    return render_template("scan_new.html", **_tier_flags(tier))
+
+
+@scan.route("/scan/new/base", methods=["GET", "POST"])
+@login_required
+def new_scan_base():
     tier = effective_tier(current_user)
 
     if request.method == "GET":
-        return render_template("scan_new.html", **_tier_flags(tier))
+        return render_template("scan_new_base.html", **_tier_flags(tier))
 
-    scan_type = request.form.get("scan_type")
-
-    if scan_type == "base":
-        if not request.form.get("authorized"):
-            return render_template(
-                "scan_new.html", error="You must confirm you own or are authorized to test this domain.",
-                **_tier_flags(tier),
-            )
-
-        base_url = normalize_target(request.form.get("target", ""))
-        if not base_url:
-            return render_template(
-                "scan_new.html", error="Enter a valid domain or URL, e.g. example.com",
-                **_tier_flags(tier),
-            )
-
-        manual_test_url = request.form.get("test_url", "").strip() or None
-        org_verified = domain_is_org_verified(current_user.organization, base_url)
-
-        s = Scan(user_id=current_user.id, org_id=current_user.org_id,
-                  target_url=base_url, scan_type="base", status=ScanStatus.QUEUED)
-        db.session.add(s)
-        db.session.commit()
-
-        _spawn_scan_thread(
-            s.id, "base",
-            base_url=base_url, manual_test_url=manual_test_url,
-            tier=tier, org_verified=org_verified,
+    if not request.form.get("authorized"):
+        return render_template(
+            "scan_new_base.html", error="You must confirm you own or are authorized to test this domain.",
+            **_tier_flags(tier),
         )
-        return redirect(url_for("scan.scan_detail", scan_id=s.id))
 
-    if scan_type == "advanced":
-        if not request.form.get("authorized_adv"):
-            return render_template(
-                "scan_new.html", error="You must confirm you own or are authorized to test this target.",
-                **_tier_flags(tier),
-            )
+    base_url = normalize_target(request.form.get("target", ""))
+    if not base_url:
+        return render_template(
+            "scan_new_base.html", error="Enter a valid domain or URL, e.g. example.com",
+            **_tier_flags(tier),
+        )
 
-        advanced = _parse_advanced_form(request.form)
-        has_login_group = advanced["login_url"] and advanced["user_field"] and advanced["pass_field"] and advanced["fail_text"]
-        has_union_group = advanced["sqli_union_url"] and advanced["sqli_union_param"]
-        has_xss_group = (advanced["stored_xss_submit_url"] and advanced["stored_xss_field"]
-                          and advanced["stored_xss_view_url"] and advanced["stored_xss_cookie"])
-        has_idor_group = (advanced["idor_url_template"] and advanced["idor_ids"]
-                           and advanced["idor_cookie_a"] and advanced["idor_cookie_b"])
+    manual_test_url = request.form.get("test_url", "").strip() or None
+    org_verified = domain_is_org_verified(current_user.organization, base_url)
 
-        if not (has_login_group or has_union_group or has_xss_group or has_idor_group):
-            return render_template(
-                "scan_new.html",
-                error="Fill in at least one advanced check group before running advanced checks.",
-                **_tier_flags(tier),
-            )
+    s = Scan(user_id=current_user.id, org_id=current_user.org_id,
+              target_url=base_url, scan_type="base", status=ScanStatus.QUEUED)
+    db.session.add(s)
+    db.session.commit()
 
-        # run_advanced_scan takes a single org_verified_for_domain flag that
-        # applies to every check group in the run. Advanced groups can target
-        # different URLs (login_url vs sqli_union_url vs ...), so the domain
-        # used for the verification check is the first non-empty group URL,
-        # in the same precedence order run_advanced_scan itself checks groups
-        # in - a judgment call, since there's no single canonical "the"
-        # target when multiple groups are filled in at once.
-        domain_probe_url = (advanced["login_url"] or advanced["sqli_union_url"]
-                             or advanced["stored_xss_submit_url"] or advanced["idor_url_template"])
-        org_verified = domain_is_org_verified(current_user.organization, domain_probe_url) if domain_probe_url else False
+    _spawn_scan_thread(
+        s.id, "base",
+        base_url=base_url, manual_test_url=manual_test_url,
+        tier=tier, org_verified=org_verified,
+    )
+    return redirect(url_for("scan.scan_detail", scan_id=s.id))
 
-        s = Scan(user_id=current_user.id, org_id=current_user.org_id,
-                  target_url=domain_probe_url or "advanced-scan",
-                  scan_type="advanced", status=ScanStatus.QUEUED)
-        db.session.add(s)
-        db.session.commit()
 
-        _spawn_scan_thread(s.id, "advanced", advanced=advanced, tier=tier, org_verified=org_verified)
-        return redirect(url_for("scan.scan_detail", scan_id=s.id))
+@scan.route("/scan/new/advanced", methods=["GET", "POST"])
+@login_required
+def new_scan_advanced():
+    tier = effective_tier(current_user)
 
-    if scan_type == "media":
-        if not request.form.get("authorized_media"):
-            return render_template(
-                "scan_new.html", error="You must confirm you own or are authorized to test this domain.",
-                **_tier_flags(tier),
-            )
+    if request.method == "GET":
+        return render_template("scan_new_advanced.html", **_tier_flags(tier))
 
-        base_url = normalize_target(request.form.get("media_target", ""))
-        if not base_url:
-            return render_template(
-                "scan_new.html", error="Enter a valid domain or URL for the media scan, e.g. example.com",
-                **_tier_flags(tier),
-            )
+    if not request.form.get("authorized_adv"):
+        return render_template(
+            "scan_new_advanced.html", error="You must confirm you own or are authorized to test this target.",
+            **_tier_flags(tier),
+        )
 
-        download = bool(request.form.get("media_download"))
-        try:
-            max_files = int(request.form.get("media_max_files", "20"))
-        except ValueError:
-            max_files = 20
-        max_files = max(0, min(max_files, 50))
+    advanced = _parse_advanced_form(request.form)
+    has_login_group = advanced["login_url"] and advanced["user_field"] and advanced["pass_field"] and advanced["fail_text"]
+    has_union_group = advanced["sqli_union_url"] and advanced["sqli_union_param"]
+    has_xss_group = (advanced["stored_xss_submit_url"] and advanced["stored_xss_field"]
+                      and advanced["stored_xss_view_url"] and advanced["stored_xss_cookie"])
+    has_idor_group = (advanced["idor_url_template"] and advanced["idor_ids"]
+                       and advanced["idor_cookie_a"] and advanced["idor_cookie_b"])
 
-        # Media gating is route-level (run_media_scan's signature isn't
-        # tier-aware) - if the tier doesn't qualify, don't create a Scan row
-        # or spawn a thread at all; just re-render with an upgrade message.
-        if FEATURE_REQUIREMENTS["media"] > tier:
-            return render_template(
-                "scan_new.html",
-                error="Media scanning requires a Paid plan or higher. Upgrade on the Billing page to unlock it.",
-                **_tier_flags(tier),
-            )
+    if not (has_login_group or has_union_group or has_xss_group or has_idor_group):
+        return render_template(
+            "scan_new_advanced.html",
+            error="Fill in at least one advanced check group before running advanced checks.",
+            **_tier_flags(tier),
+        )
 
-        s = Scan(user_id=current_user.id, org_id=current_user.org_id,
-                  target_url=base_url, scan_type="media", status=ScanStatus.QUEUED)
-        db.session.add(s)
-        db.session.commit()
+    # run_advanced_scan takes a single org_verified_for_domain flag that
+    # applies to every check group in the run. Advanced groups can target
+    # different URLs (login_url vs sqli_union_url vs ...), so the domain
+    # used for the verification check is the first non-empty group URL,
+    # in the same precedence order run_advanced_scan itself checks groups
+    # in - a judgment call, since there's no single canonical "the"
+    # target when multiple groups are filled in at once.
+    domain_probe_url = (advanced["login_url"] or advanced["sqli_union_url"]
+                         or advanced["stored_xss_submit_url"] or advanced["idor_url_template"])
+    org_verified = domain_is_org_verified(current_user.organization, domain_probe_url) if domain_probe_url else False
 
-        _spawn_scan_thread(s.id, "media", base_url=base_url, download=download, max_files=max_files)
-        return redirect(url_for("scan.scan_detail", scan_id=s.id))
+    s = Scan(user_id=current_user.id, org_id=current_user.org_id,
+              target_url=domain_probe_url or "advanced-scan",
+              scan_type="advanced", status=ScanStatus.QUEUED)
+    db.session.add(s)
+    db.session.commit()
 
-    return render_template("scan_new.html", error="Unknown scan type.", **_tier_flags(tier))
+    _spawn_scan_thread(s.id, "advanced", advanced=advanced, tier=tier, org_verified=org_verified)
+    return redirect(url_for("scan.scan_detail", scan_id=s.id))
+
+
+@scan.route("/scan/new/media", methods=["GET", "POST"])
+@login_required
+def new_scan_media():
+    tier = effective_tier(current_user)
+
+    if request.method == "GET":
+        return render_template("scan_new_media.html", **_tier_flags(tier))
+
+    if not request.form.get("authorized_media"):
+        return render_template(
+            "scan_new_media.html", error="You must confirm you own or are authorized to test this domain.",
+            **_tier_flags(tier),
+        )
+
+    base_url = normalize_target(request.form.get("media_target", ""))
+    if not base_url:
+        return render_template(
+            "scan_new_media.html", error="Enter a valid domain or URL for the media scan, e.g. example.com",
+            **_tier_flags(tier),
+        )
+
+    download = bool(request.form.get("media_download"))
+    try:
+        max_files = int(request.form.get("media_max_files", "20"))
+    except ValueError:
+        max_files = 20
+    max_files = max(0, min(max_files, 50))
+
+    # Media gating is route-level (run_media_scan's signature isn't
+    # tier-aware) - if the tier doesn't qualify, don't create a Scan row
+    # or spawn a thread at all; just re-render with an upgrade message.
+    if FEATURE_REQUIREMENTS["media"] > tier:
+        return render_template(
+            "scan_new_media.html",
+            error="Media scanning requires a Paid plan or higher. Upgrade on the Billing page to unlock it.",
+            **_tier_flags(tier),
+        )
+
+    s = Scan(user_id=current_user.id, org_id=current_user.org_id,
+              target_url=base_url, scan_type="media", status=ScanStatus.QUEUED)
+    db.session.add(s)
+    db.session.commit()
+
+    _spawn_scan_thread(s.id, "media", base_url=base_url, download=download, max_files=max_files)
+    return redirect(url_for("scan.scan_detail", scan_id=s.id))
+
+
+@scan.route("/scan/new/api", methods=["GET", "POST"])
+@login_required
+def new_scan_api():
+    """Same shape as new_scan_media: single target field, no sub-groups to
+    partially unlock, so the tier is checked upfront and no Scan row/thread
+    is created at all if it's insufficient (see run_api_scan's docstring in
+    scan_engine.py for why this scan type isn't gated in the engine)."""
+    tier = effective_tier(current_user)
+
+    if request.method == "GET":
+        return render_template("scan_new_api.html", **_tier_flags(tier))
+
+    if not request.form.get("authorized_api"):
+        return render_template(
+            "scan_new_api.html", error="You must confirm you own or are authorized to test this domain.",
+            **_tier_flags(tier),
+        )
+
+    base_url = normalize_target(request.form.get("api_target", ""))
+    if not base_url:
+        return render_template(
+            "scan_new_api.html", error="Enter a valid domain or URL for the API scan, e.g. example.com",
+            **_tier_flags(tier),
+        )
+
+    if FEATURE_REQUIREMENTS["api"] > tier:
+        return render_template(
+            "scan_new_api.html",
+            error="API exposure scanning requires a Paid plan or higher. Upgrade on the Billing page to unlock it.",
+            **_tier_flags(tier),
+        )
+
+    s = Scan(user_id=current_user.id, org_id=current_user.org_id,
+              target_url=base_url, scan_type="api", status=ScanStatus.QUEUED)
+    db.session.add(s)
+    db.session.commit()
+
+    _spawn_scan_thread(s.id, "api", base_url=base_url)
+    return redirect(url_for("scan.scan_detail", scan_id=s.id))
 
 
 @scan.route("/scan/<int:scan_id>")

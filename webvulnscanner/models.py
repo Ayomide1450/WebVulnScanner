@@ -128,7 +128,7 @@ class Scan(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     org_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=True)
     target_url = db.Column(db.String(2048), nullable=False)
-    scan_type = db.Column(db.String(16), nullable=False)  # "base" | "advanced" | "media"
+    scan_type = db.Column(db.String(16), nullable=False)  # "base" | "advanced" | "media" | "api"
     status = db.Column(db.Enum(ScanStatus), nullable=False, default=ScanStatus.QUEUED)
     risk_score = db.Column(db.Integer, nullable=True)
     progress_current = db.Column(db.Integer, nullable=False, default=0)

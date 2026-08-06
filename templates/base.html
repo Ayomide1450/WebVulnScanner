@@ -59,6 +59,16 @@
   .pill.info, .badge.info, .dot.info { background: rgba(139,150,173,.14); color: var(--info); }
   .pill.pass, .badge.pass, .dot.pass { background: rgba(34,197,94,.14); color: var(--pass); }
 
+  /* Bare severity text-color utilities - scan_report.html applies these
+     directly to <td>/<span> in its result tables (e.g. class="critical"),
+     distinct from the .pill/.badge/.dot compound selectors above. */
+  td.critical, span.critical, .text-critical { color: var(--critical); }
+  td.high, span.high, .text-high { color: var(--high); }
+  td.medium, span.medium, .text-medium { color: var(--medium); }
+  td.low, span.low, .text-low { color: var(--low); }
+  td.info, span.info, .text-info { color: var(--info); }
+  td.pass, span.pass, .text-pass { color: var(--pass); }
+
   /* Findings list */
   .finding { display:flex; gap:14px; background: var(--panel); border:1px solid var(--border); border-left: 3px solid var(--muted); border-radius: var(--radius); padding: var(--space-4) var(--space-4); margin-bottom: var(--space-2); }
   .finding.critical { border-left-color: var(--critical); }

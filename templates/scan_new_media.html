@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Media discovery - WebVulnScanner{% endblock %}
+{% block head %}
+{% include "_scan_form_styles.html" %}
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <a class="back" href="{{ url_for('scan.new_scan') }}">&larr; All scan types</a>
+  <div class="section-title" style="margin-top:14px;">
+    <h1 style="margin:0;">Media discovery</h1>
+    <span class="pill {{ 'pass' if can_run_media else 'medium' }}">
+      {{ 'Paid unlocked' if can_run_media else 'Requires Paid' }}
+    </span>
+  </div>
+  <p class="sub">Same-origin crawl for images/video, EXIF/GPS leakage, suspicious-path detection,
+  optional download to disk. Runs in the background - you'll be redirected to a live progress page.</p>
+
+  {% if error %}
+  <div class="error-box">{{ error }}</div>
+  {% endif %}
+
+  <div class="card">
+    {% if can_run_media %}
+    <div class="warn-box" style="margin-top:0;">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+      <div><b>Authorized use only.</b> Only scan domains you own or have explicit permission to test.</div>
+    </div>
+
+    <form method="POST" action="{{ url_for('scan.new_scan_media') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <label for="media_target">Target domain</label>
+      <input type="text" id="media_target" name="media_target" placeholder="www.example.com" required>
+
+      <label for="media_max_files">Max files to download (0-50, only used if download is checked)</label>
+      <input type="text" id="media_max_files" name="media_max_files" placeholder="20" value="20">
+
+      <div class="check-row">
+        <input type="checkbox" id="media_download" name="media_download">
+        <label for="media_download" style="margin:0; font-weight:500;">
+          Also download found media to disk (saved under <code>downloads/</code>)
+        </label>
+      </div>
+
+      <div class="check-row">
+        <input type="checkbox" id="authorized_media" name="authorized_media" required>
+        <label for="authorized_media" style="margin:0; font-weight:500;">
+          I own this domain, or I have explicit authorization to security-test it.
+        </label>
+      </div>
+
+      <button type="submit">Run media scan</button>
+    </form>
+
+    {% else %}
+    <div class="locked-state">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+      <h2 style="margin:0 0 4px; font-size:16px;">Requires the Paid plan or higher</h2>
+      <p>Media discovery crawls multiple pages and optionally downloads files - an active check
+      that needs a Paid plan to unlock.</p>
+      <div class="locked-actions">
+        <a class="btn primary" href="{{ url_for('billing.view') }}">Upgrade to Paid</a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -46,6 +46,11 @@ FEATURE_REQUIREMENTS = {
     # media scan - single call, judgment call: active multi-page crawl +
     # optional download, but no payload injection, so PAID (not ORG_VERIFIED).
     "media": Tier.PAID,
+    # api scan - single call, same reasoning as media: schema/wordlist/JS-
+    # discovery probing is read-only (GET requests, one read-only GraphQL
+    # introspection query) with no injection payloads, so PAID not
+    # ORG_VERIFIED.
+    "api": Tier.PAID,
 }
 
 

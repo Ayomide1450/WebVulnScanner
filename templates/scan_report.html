@@ -497,5 +497,59 @@
   <p class="empty">No images or videos were found while crawling this site.</p>
   {% endif %}
   {% endif %}
+
+  {% if scan.scan_type == 'api' %}
+  <h2 class="section">API exposure detail</h2>
+
+  <details open>
+    <summary>Schema / GraphQL introspection <span class="arrow">&#9656;</span></summary>
+    <div class="details-body">
+      <table>
+        <tr><th>Path</th><th>Code</th><th>Status</th></tr>
+        {% for row in r.results.schema %}
+        <tr>
+          <td><code>{{ row.path }}</code></td>
+          <td>{{ row.code }}</td>
+          <td class="{{ 'high' if row.status == 'warn' else 'pass' }}">{{ row.status }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </details>
+
+  <details open>
+    <summary>Common API path wordlist <span class="arrow">&#9656;</span></summary>
+    <div class="details-body">
+      <table>
+        <tr><th>Path</th><th>Status</th></tr>
+        {% for row in r.results.wordlist %}
+        <tr>
+          <td><code>{{ row.path }}</code></td>
+          <td class="{{ row.severity if row.status == 'warn' else 'pass' }}">{{ row.status }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </details>
+
+  <details open>
+    <summary>JS-discovered endpoints ({{ r.results.js_discovery.endpoints_discovered }} found) <span class="arrow">&#9656;</span></summary>
+    <div class="details-body">
+      {% if r.results.js_discovery.rows %}
+      <table>
+        <tr><th>URL</th><th>Status</th></tr>
+        {% for row in r.results.js_discovery.rows %}
+        <tr>
+          <td><code>{{ row.url }}</code></td>
+          <td class="{{ row.severity if row.status == 'warn' else 'pass' }}">{{ row.status }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}
+      <p class="note">No API-looking endpoints were found referenced in the homepage or its same-origin JS.</p>
+      {% endif %}
+    </div>
+  </details>
+  {% endif %}
 </div>
 {% endblock %}

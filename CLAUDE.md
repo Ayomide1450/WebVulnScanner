@@ -13,9 +13,9 @@ the full check list per tier and the documented false-positive fix (CDN edge por
 misreported as exposed services) — that history matters when touching `check_open_ports`.
 
 **Only ever test against domains the user owns or has explicit permission to test.** Do not
-weaken or remove: the `authorized` / `authorized_adv` / `authorized_media` server-side checkbox
-checks, or the `entitlements.py` tier/domain-verification gating that sits in front of the
-intrusive checks.
+weaken or remove: the `authorized` / `authorized_adv` / `authorized_media` / `authorized_api`
+server-side checkbox checks, or the `entitlements.py` tier/domain-verification gating that sits
+in front of the intrusive checks.
 
 ## Commands
 
@@ -43,8 +43,8 @@ Everything else — models, blueprints, checks, orchestrators, entitlement gatin
 | `webvulnscanner/org_routes.py`, `domain_verification.py` | Org admin, invites, domain-ownership verification (DNS TXT / well-known) |
 | `webvulnscanner/billing_routes.py`, `billing.py` | Crypto (USDT/USDC on Polygon) invoicing and plan activation |
 | `webvulnscanner/entitlements.py` | `Tier` enum + `FEATURE_REQUIREMENTS` map; the single place that gates checks by plan/domain-verification |
-| `webvulnscanner/scan_routes.py` | `/dashboard`, `/scan/new`, `/scan/<id>`, `/scan/<id>/events`, `/scan/<id>/report`, `/scan/<id>/compare/<other_id>`; spawns each scan in a background thread |
-| `webvulnscanner/scan_engine.py` | The three scan orchestrators (moved intact from the old `app.py`) |
+| `webvulnscanner/scan_routes.py` | `/dashboard`, `/scan/new` (+ `/base`/`/advanced`/`/media`/`/api`), `/scan/<id>`, `/scan/<id>/events`, `/scan/<id>/report`, `/scan/<id>/compare/<other_id>`; spawns each scan in a background thread |
+| `webvulnscanner/scan_engine.py` | The four scan orchestrators (`run_scan`/`run_advanced_scan`/`run_media_scan` moved intact from the old `app.py`; `run_api_scan` ported later from the `api-exposure-media-streaming` branch) |
 | `webvulnscanner/checks.py` | Every individual check function |
 | `webvulnscanner/models.py` | SQLAlchemy models: `Organization`, `User`, `DomainVerification`, `Scan`, `Report`, `Subscription`, `CryptoInvoice` |
 | `webvulnscanner/public_routes.py` | `/` marketing page |
@@ -52,16 +52,25 @@ Everything else — models, blueprints, checks, orchestrators, entitlement gatin
 Scan results are persisted as `Report` rows (queryable for the dashboard/compare view) and still
 also written to `reports/` as timestamped JSON; media downloads still go to `downloads/`.
 
-### Three independent scan pipelines
+### Four independent scan pipelines, one dedicated page each
 
-`scan_routes.new_scan()` dispatches to one of three orchestrators in `scan_engine.py` based on
-`scan_type`. They don't share state — a target is re-fetched from scratch in each:
+Each scan type has its own GET+POST route/template (`/scan/new/base` → `scan_new_base.html`,
+`/scan/new/advanced` → `scan_new_advanced.html`, `/scan/new/media` → `scan_new_media.html`,
+`/scan/new/api` → `scan_new_api.html`), each calling its own view function
+(`new_scan_base`/`new_scan_advanced`/`new_scan_media`/`new_scan_api` in `scan_routes.py`), which
+dispatches to its orchestrator in `scan_engine.py`. `/scan/new` itself is a GET-only landing page
+(`scan_new.html`) linking to the four. They don't share state — a target is re-fetched from
+scratch in each:
 
 | `scan_type` | Orchestrator | Purpose |
 |---|---|---|
 | `base` | `run_scan()` | Passive/recon checks: headers, TLS, cookies, ports, CORS, secrets, crawl-then-probe XSS/SQLi, etc. Free tier runs the passive subset only; Paid unlocks active checks (crawl, ports, CORS, methods, redirect, listing); Org-verified unlocks the XSS/SQLi canary. |
 | `advanced` | `run_advanced_scan()` | Opt-in, form-field-driven, Org-verified-only checks needing credentials/session cookies: SQLi login bypass, stored XSS, IDOR across two test accounts, brute-force. Each check group only runs if its required form fields are all present. |
 | `media` | `run_media_scan()` | Same-origin media crawl (images/video), EXIF/GPS leakage, suspicious-path detection, optional download-to-disk. Paid tier. |
+| `api` | `run_api_scan()` | API exposure: OpenAPI/Swagger/GraphQL-introspection exposure, an unauthenticated-path wordlist (SPA-response guarded), and endpoints discovered from the site's own JS (`fetch`/`axios`/`.ajax` calls). Paid tier — read-only probing, no injection payloads. |
+
+`media` and `api` are both gated route-level (before the `Scan` row/thread is created), not
+inside their orchestrators — see each orchestrator's docstring in `scan_engine.py` for why.
 
 `entitlements.allowed_checks()` filters the requested check names against the caller's `Tier`
 *before* the orchestrator runs them — a locked check never executes, it just gets reported back
@@ -82,11 +91,11 @@ raise past its own function — network calls should be wrapped in
 
 ### Scoring
 
-All three orchestrators independently: start at 100, subtract `SEVERITY_WEIGHT[finding.severity]`
+All four orchestrators independently: start at 100, subtract `SEVERITY_WEIGHT[finding.severity]`
 per finding, clamp to `[0, 100]`, then map the score to a letter grade (`A`–`F`) and tally
-`severity_counts`. This scoring block is duplicated three times in `scan_engine.py` (`run_scan`,
-`run_media_scan`, `run_advanced_scan`) rather than shared — keep that in mind if changing the
-formula, it needs updating in all three places.
+`severity_counts`. This scoring block is duplicated four times in `scan_engine.py` (`run_scan`,
+`run_media_scan`, `run_advanced_scan`, `run_api_scan`) rather than shared — keep that in mind if
+changing the formula, it needs updating in all four places.
 
 ### Adding a new base-scan check
 
@@ -116,6 +125,9 @@ formula, it needs updating in all three places.
 - Intrusive checks (`xss_sqli`, `sqli_login`, `bruteforce`, `sqli_union`, `xss_stored`, `idor`)
   require both `Tier.ORG_VERIFIED` *and* a verified `DomainVerification` row for the exact target
   hostname (`entitlements.domain_is_org_verified`) — a paid-but-unverified org cannot reach them.
+- API probing (`check_api_wordlist`, `check_api_js_discovery`) only counts a `200` as a hit if the
+  response actually looks like API output (`_looks_like_api_response`: JSON/XML content-type or a
+  `{`/`[`-leading body) — guards against SPAs that return their `index.html` shell for every path.
 
 Preserve these constraints when modifying the corresponding checks — they're what keeps this a
 non-destructive, authorized-use-only tool rather than a general attack script.
@@ -127,3 +139,10 @@ template inherits: OLED-dark palette (`--bg`/`--panel`/`--accent` etc.), Fira Sa
 Code (data, monospace) typography. Templates should reuse `.card`, `.btn`, `.pill`/`.badge`,
 `.finding`, `.warn-box`/`.error-box`/`.info-box`, and the `.icon` SVG convention rather than
 hardcoding colors or new component styles — and never use emoji as icons (inline SVG only).
+`base.html` also defines bare severity text-color utilities (`td.critical`/`.text-high`/etc.,
+distinct from the `.pill`/`.badge`/`.dot` compound selectors) for result-table cells.
+
+The four `scan_new_*.html` pages plus the `scan_new.html` chooser share their form/card CSS via
+`templates/_scan_form_styles.html` (included, not promoted into `base.html`, since it has
+unscoped `label`/`input`/`button` selectors that would otherwise leak into every other form in
+the app).
