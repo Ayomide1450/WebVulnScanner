@@ -61,6 +61,7 @@ Everything else — models, blueprints, checks, orchestrators, entitlement gatin
 | `webvulnscanner/scan_routes.py` | `/dashboard`, `/scan/new` (+ `/base`/`/advanced`/`/media`/`/api`), `/scan/<id>`, `/scan/<id>/events`, `/scan/<id>/report`, `/scan/<id>/compare/<other_id>`; spawns each scan in a background thread |
 | `webvulnscanner/scan_engine.py` | The four scan orchestrators (`run_scan`/`run_advanced_scan`/`run_media_scan` moved intact from the old `app.py`; `run_api_scan` ported later from the `api-exposure-media-streaming` branch) |
 | `webvulnscanner/checks.py` | Every individual check function |
+| `webvulnscanner/ai_summary.py` | AI-assisted remediation summary (Groq/open-source LLM), Paid tier and above |
 | `webvulnscanner/models.py` | SQLAlchemy models: `Organization`, `User`, `DomainVerification`, `Scan`, `Report`, `Subscription`, `CryptoInvoice` |
 | `webvulnscanner/public_routes.py` | `/` marketing page |
 
@@ -165,6 +166,30 @@ non-destructive, authorized-use-only tool rather than a general attack script.
   `CryptoInvoice.matched_tx_hash` also has a DB-level unique constraint as defense in depth.
 - 404/429/500 all render inside the app's own theme (`templates/404.html`/`429.html`/`500.html`,
   registered in `webvulnscanner/__init__.py`) instead of Flask's raw default error page.
+
+## AI-assisted remediation summaries
+
+`webvulnscanner/ai_summary.py`'s `generate_remediation_summary()` layers an LLM-generated,
+plain-English summary + prioritized remediation steps on top of a scan's already-deterministic
+findings — vulnerability *detection* stays 100% rule-based in `checks.py`; the AI's only job is
+explaining/prioritizing what was already found. Called once per scan, for Paid tier and above,
+from `_run_scan_in_background`'s shared tail in `scan_routes.py` (all four scan types alike),
+stored as `report["ai_summary"]` in the same JSON blob `save_report()` already writes — no DB
+schema change. Uses Groq's free, OpenAI-compatible API (`GROQ_API_KEY`/`GROQ_MODEL` in
+`config.py`) serving an open-source model (Llama 3.1 8B Instant by default); the `openai` package
+is used only as an HTTP client against Groq's endpoint, not OpenAI itself.
+
+**Safety constraint**: finding `detail`/`title` text can contain content drawn directly from the
+*scanned site's own HTTP responses* (header values, secret snippets, probe output) — not fully
+trusted input, even though it's the user's authorized target. `SYSTEM_PROMPT` in `ai_summary.py`
+explicitly frames all finding data as data-to-summarize inside `<findings>` delimiters, never as
+instructions to follow, and the model's output is read-only report text with no tool-use
+attached — bounds a successful prompt injection to "a wrong sentence in a report," not an
+action. Preserve this framing if the prompt is ever changed.
+
+`generate_remediation_summary()` never raises — a missing/invalid `GROQ_API_KEY`, network
+failure, or malformed response all return `None`, and the report simply omits the section, same
+degrade-gracefully convention as every `check_*` function in `checks.py`.
 
 ## Frontend design system
 

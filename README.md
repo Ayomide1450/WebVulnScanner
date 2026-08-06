@@ -108,6 +108,11 @@ development only, set `ALLOW_INSECURE_DEV_SECRET_KEY=true` instead. Session
 cookies also default to `Secure` (HTTPS-only); set `SESSION_COOKIE_SECURE=false`
 if you're testing locally over plain `http://`.
 
+AI-assisted remediation summaries (Paid tier and above) need `GROQ_API_KEY`
+set to a free Groq API key (https://console.groq.com) — without it, scans
+still run and reports still generate, they just skip that section.
+`GROQ_MODEL` defaults to `llama-3.1-8b-instant`.
+
 ## Notes on accuracy
 
 This tool caught and fixed a real false positive during development: an

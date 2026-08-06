@@ -49,6 +49,7 @@ from urllib.parse import urlparse
 from flask import Blueprint, Response, abort, current_app, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
+from webvulnscanner.ai_summary import generate_remediation_summary
 from webvulnscanner.checks import REPORTS_DIR, is_ssrf_safe_hostname, normalize_target
 from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, domain_is_org_verified, effective_tier
 from webvulnscanner.extensions import db
@@ -104,7 +105,7 @@ def _run_scan_in_background(app, scan_id, scan_type, **kwargs):
                     kwargs["base_url"], kwargs["manual_test_url"],
                     kwargs["tier"], kwargs["org_verified"], progress_cb=progress_cb,
                 )
-                fname = save_report(report, "", urlparse(kwargs["base_url"]).netloc)
+                prefix, hostname = "", urlparse(kwargs["base_url"]).netloc
             elif scan_type == "advanced":
                 # run_advanced_scan has no progress_cb param - its own locked-
                 # check-group gating is the only per-check granularity it
@@ -112,24 +113,37 @@ def _run_scan_in_background(app, scan_id, scan_type, **kwargs):
                 # the whole run (scan_progress.html degrades to a status-only
                 # display for this scan type, not a real percentage).
                 report = run_advanced_scan(kwargs["advanced"], kwargs["tier"], kwargs["org_verified"])
-                fname = save_report(report, "advanced_", report["hostname"])
+                prefix, hostname = "advanced_", report["hostname"]
             elif scan_type == "media":
                 # Same no-progress_cb note as above; also, tier gating for
                 # media is enforced route-level in new_scan() before this
                 # thread is ever spawned - run_media_scan's signature is
                 # unchanged and does not re-check tier itself.
                 report = run_media_scan(kwargs["base_url"], kwargs["download"], kwargs["max_files"])
-                fname = save_report(report, "media_", report["hostname"])
+                prefix, hostname = "media_", report["hostname"]
             elif scan_type == "api":
                 # Same no-progress_cb note as above; tier gating for api is
                 # enforced route-level in new_scan_api() before this thread
                 # is ever spawned, mirroring media's pattern - run_api_scan's
                 # signature does not re-check tier itself.
                 report = run_api_scan(kwargs["base_url"])
-                fname = save_report(report, "api_", report["hostname"])
+                prefix, hostname = "api_", report["hostname"]
             else:
                 raise ValueError(f"unknown scan_type {scan_type!r}")
 
+            # AI-assisted remediation summary - Paid tier and above, all 4
+            # scan types alike, one shared tail rather than 4 duplicated
+            # call sites. `tier` is passed by every new_scan_* route
+            # (see _spawn_scan_thread call sites) purely so this gate can
+            # be evaluated here; generate_remediation_summary() never
+            # raises (see its docstring), so a Groq outage degrades to no
+            # summary, not a failed scan.
+            if kwargs.get("tier") is not None and kwargs["tier"] >= Tier.PAID:
+                report["ai_summary"] = generate_remediation_summary(
+                    report, current_app.config["GROQ_API_KEY"], current_app.config["GROQ_MODEL"],
+                )
+
+            fname = save_report(report, prefix, hostname)
             db.session.add(Report(scan_id=scan_id, json_path=fname))
             s = Scan.query.get(scan_id)
             s.status = ScanStatus.COMPLETED
@@ -383,7 +397,7 @@ def new_scan_media():
     db.session.add(s)
     db.session.commit()
 
-    _spawn_scan_thread(s.id, "media", base_url=base_url, download=download, max_files=max_files)
+    _spawn_scan_thread(s.id, "media", base_url=base_url, download=download, max_files=max_files, tier=tier)
     return redirect(url_for("scan.scan_detail", scan_id=s.id))
 
 
@@ -427,7 +441,7 @@ def new_scan_api():
     db.session.add(s)
     db.session.commit()
 
-    _spawn_scan_thread(s.id, "api", base_url=base_url)
+    _spawn_scan_thread(s.id, "api", base_url=base_url, tier=tier)
     return redirect(url_for("scan.scan_detail", scan_id=s.id))
 
 

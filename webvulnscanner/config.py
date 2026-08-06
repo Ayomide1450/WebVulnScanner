@@ -90,3 +90,11 @@ class Config:
 
     # Email delivery mode: "console" prints to stdout (see email_stub.py).
     EMAIL_MODE = os.environ.get("EMAIL_MODE", "console")
+
+    # AI-assisted remediation summaries (see webvulnscanner/ai_summary.py) -
+    # Groq's free, OpenAI-compatible API serving an open-source model.
+    # Empty-string default: generate_remediation_summary() treats a missing
+    # key as "no summary available" and degrades gracefully, it does not
+    # fail the scan.
+    GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+    GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")

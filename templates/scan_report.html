@@ -26,6 +26,13 @@
      convention as .warn-box uses elsewhere in the app. */
   .finding.locked-card { opacity: .65; border-left-color: var(--border); }
   .finding.locked-card .badge { background: rgba(147,160,201,.15); color: var(--muted); }
+
+  /* AI-assisted remediation summary - a one-off violet accent, deliberately
+     distinct from --low (already blue for low-severity findings) so this
+     reads as "this specific section is AI-generated," not a severity cue. */
+  .ai-summary-card { border-left: 3px solid #8b5cf6; }
+  .ai-pill { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:3px 9px; border-radius:999px; background: rgba(139,92,246,.14); color:#8b5cf6; margin-bottom:10px; }
+  .ai-summary-card .body { white-space: pre-wrap; font-size: 14px; line-height:1.6; }
 </style>
 {% endblock %}
 {% block content %}
@@ -72,6 +79,16 @@
       </div>
     </div>
   </div>
+
+  {% if r.ai_summary %}
+  <div class="card ai-summary-card" style="margin-top:16px;">
+    <div class="ai-pill">
+      <svg class="icon" style="width:12px;height:12px;" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v3m0 12v3m9-9h-3M6 12H3m14.5-6.5-2 2m-9 9-2 2m13 0-2-2m-9-9-2-2"/></svg>
+      AI-assisted summary
+    </div>
+    <div class="body">{{ r.ai_summary }}</div>
+  </div>
+  {% endif %}
 
   {% if locked %}
   <div class="warn-box">
