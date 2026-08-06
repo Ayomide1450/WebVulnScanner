@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Verify email - WebVulnScanner{% endblock %}
+{% block head %}
+<style>
+  .auth-wrap { max-width: 420px; margin: 0 auto; padding: 40px 22px 80px; }
+  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 16px; padding: 26px; box-shadow: 0 10px 30px rgba(0,0,0,.15); }
+  h1 { font-size: 26px; margin: 0 0 12px; letter-spacing: -0.01em; }
+  p { color: var(--muted); font-size: 14.5px; }
+  a.back { display:inline-block; margin-top: 14px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="card">
+    {% if verified %}
+    <h1>Email verified</h1>
+    <p>Your email address has been verified. You can log in now.</p>
+    {% else %}
+    <h1>Invalid link</h1>
+    <p>This verification link is invalid or has already been used.</p>
+    {% endif %}
+    <a class="back" href="{{ url_for('auth.login') }}">&larr; Go to login</a>
+  </div>
+</div>
+{% endblock %}

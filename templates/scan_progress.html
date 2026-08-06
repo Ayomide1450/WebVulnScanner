@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Scan in progress - WebVulnScanner{% endblock %}
+{% block head %}
+<style>
+  .wrap { max-width: 640px; }
+  h1 { font-size: 22px; margin: 20px 0 0; letter-spacing: -0.01em; }
+  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 16px; padding: 26px; margin-top: 20px; }
+  .bar-track { background: rgba(255,255,255,.06); border-radius: 999px; height: 14px; overflow:hidden; margin-top:14px; }
+  .bar-fill { background: linear-gradient(135deg, var(--accent), var(--accent2)); height:100%; width:0%; transition: width .3s ease; }
+  .status-line { margin-top: 10px; color: var(--muted); font-size: 13.5px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <h1>Scanning <code>{{ scan.target_url }}</code></h1>
+  <div class="card">
+    {% if scan.status.value == 'failed' %}
+    <div class="error-box">Scan failed: {{ scan.error_message }}</div>
+    {% else %}
+    <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
+    <div class="status-line" id="statusLine">status: {{ scan.status.value }}</div>
+    {% endif %}
+  </div>
+</div>
+<script>
+  (function () {
+    var scanId = {{ scan.id }};
+    var status = "{{ scan.status.value }}";
+    if (status === 'completed') {
+      window.location.href = '/scan/' + scanId + '/report';
+      return;
+    }
+    if (status === 'failed') {
+      return;
+    }
+    var es = new EventSource('/scan/' + scanId + '/events');
+    es.onmessage = function (evt) {
+      var data = JSON.parse(evt.data);
+      var pct = data.progress_total > 0 ? Math.round(100 * data.progress_current / data.progress_total) : 0;
+      var fill = document.getElementById('barFill');
+      if (fill) { fill.style.width = pct + '%'; }
+      var line = document.getElementById('statusLine');
+      if (line) { line.textContent = 'status: ' + data.status + ' (' + data.progress_current + '/' + data.progress_total + ')'; }
+      if (data.status === 'completed') {
+        es.close();
+        window.location.href = '/scan/' + scanId + '/report';
+      } else if (data.status === 'failed') {
+        es.close();
+        window.location.reload();
+      }
+    };
+  })();
+</script>
+{% endblock %}

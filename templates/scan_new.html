@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}New scan - WebVulnScanner{% endblock %}
+{% block head %}
+<style>
+  .wrap { max-width: 760px; }
+  h1 { font-size: 26px; margin: 20px 0 6px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 22px; font-size: 14.5px; }
+  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 16px; padding: 26px; margin-top: 20px; }
+  .card.locked { opacity: .82; }
+  label { display: block; margin-top: 18px; font-weight: 600; font-size: 13.5px; color: var(--text); }
+  input[type=text] {
+    width: 100%; padding: 12px 14px; margin-top: 7px; border: 1px solid var(--border);
+    border-radius: 10px; font-size: 14.5px; background: rgba(255,255,255,.03); color: var(--text);
+    outline: none;
+  }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+  .check-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 22px; background: var(--accent-dim); border: 1px solid rgba(34,197,94,.3); padding: 13px 15px; border-radius: 12px; }
+  .check-row input { margin-top: 3px; width:16px; height:16px; accent-color: var(--accent); }
+  button {
+    margin-top: 24px; width: 100%; background: var(--accent);
+    color: #04150a; border: none; padding: 14px 22px; border-radius: 10px; font-size: 15px; font-weight: 700;
+    cursor: pointer; transition: filter 150ms ease;
+  }
+  button:hover:not(:disabled) { filter: brightness(1.08); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .adv-group { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .adv-group:first-child { margin-top: 4px; padding-top: 0; border-top: none; }
+  .adv-group h4 { margin: 0 0 2px; font-size: 13px; }
+  .adv-group input[type=text] { padding: 9px 11px; font-size: 13.5px; }
+  .adv-group label { margin-top: 10px; font-size: 12.5px; }
+  .section-title { display:flex; justify-content:space-between; align-items:center; }
+  .section-title h2 { margin: 0; font-size: 17px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <h1>New scan</h1>
+  <p class="sub">Run a base recon scan, opt-in advanced/authenticated checks, or a media discovery crawl.
+  Every scan runs in the background - you'll be redirected to a live progress page.</p>
+
+  {% if error %}
+  <div class="error-box">{{ error }}</div>
+  {% endif %}
+
+  <!-- Base scan -->
+  <div class="card">
+    <div class="warn-box" style="margin-top:0;">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+      <div><b>Authorized use only.</b> Only scan domains you own or have explicit permission to test.</div>
+    </div>
+    <div class="section-title"><h2>Base scan</h2><span class="pill pass">Free tier included</span></div>
+    <form method="POST" action="{{ url_for('scan.new_scan') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="scan_type" value="base">
+
+      <label for="target">Target domain</label>
+      <input type="text" id="target" name="target" placeholder="www.example.com" required>
+      <div class="hint">Just the domain, e.g. <code>example.com</code> or <code>https://www.example.com</code></div>
+
+      <label for="test_url">Optional: seed URL with query parameters</label>
+      <input type="text" id="test_url" name="test_url" placeholder="https://www.example.com/search?q=test">
+      <div class="hint">Left blank, the scanner crawls your homepage itself to find candidate links to test.</div>
+
+      {% if not can_run_paid or not can_run_org_verified %}
+      <div class="hint" style="margin-top:14px;">
+        <svg class="icon" style="width:13px;height:13px;vertical-align:-1px;" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+        {% if not can_run_paid %}Active checks (crawl, open ports, CORS, open redirect, directory listing) require a <b>Paid</b> plan.{% endif %}
+        {% if not can_run_org_verified %} Intrusive checks (reflected XSS/SQLi canary) require <b>Org-verified</b> plus a verified domain.{% endif %}
+        See <a href="{{ url_for('billing.view') }}">Billing</a> / <a href="{{ url_for('org.verify_domain_view') }}">Verify domain</a>.
+      </div>
+      {% endif %}
+
+      <div class="check-row">
+        <input type="checkbox" id="authorized" name="authorized" required>
+        <label for="authorized" style="margin:0; font-weight:500;">
+          I own this domain, or I have explicit authorization to security-test it.
+        </label>
+      </div>
+
+      <button type="submit">Run scan</button>
+    </form>
+  </div>
+
+  <!-- Advanced scan -->
+  <div class="card {{ '' if can_run_org_verified else 'locked' }}">
+    <div class="section-title">
+      <h2>Advanced / authenticated checks</h2>
+      <span class="pill {{ 'pass' if can_run_org_verified else 'medium' }}">
+        {{ 'Org-verified unlocked' if can_run_org_verified else 'Requires Org-verified' }}
+      </span>
+    </div>
+    <p class="hint">Runs separately from the base scan, with deeper multi-technique probing (auth-bypass SQLi,
+    brute-force rate-limit check, UNION/error/time-based SQLi, stored XSS, cross-account IDOR). Fill in only the
+    groups you have data for. Session cookies should come from disposable test accounts you created yourself.</p>
+    {% if not can_run_org_verified %}
+    <div class="hint"><svg class="icon" style="width:13px;height:13px;vertical-align:-1px;" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> Requires the <b>Org-verified</b> plan and a verified domain -
+    see <a href="{{ url_for('billing.view') }}">Billing</a> / <a href="{{ url_for('org.verify_domain_view') }}">Verify domain</a>.
+    Fields below are still shown; the server re-checks entitlement on submit.</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('scan.new_scan') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="scan_type" value="advanced">
+
+      <div class="adv-group">
+        <h4>SQLi auth-bypass + brute-force (login form)</h4>
+        <label for="login_url">Login page URL</label>
+        <input type="text" id="login_url" name="login_url" placeholder="https://www.example.com/login">
+        <label for="login_user_field">Username field name</label>
+        <input type="text" id="login_user_field" name="login_user_field" placeholder="username">
+        <label for="login_pass_field">Password field name</label>
+        <input type="text" id="login_pass_field" name="login_pass_field" placeholder="password">
+        <label for="login_fail_text">Text shown on a failed login</label>
+        <input type="text" id="login_fail_text" name="login_fail_text" placeholder="Invalid credentials">
+        <label for="bruteforce_username">Brute-force: username to test (leave blank to skip)</label>
+        <input type="text" id="bruteforce_username" name="bruteforce_username" placeholder="testuser">
+        <label for="bruteforce_passwords">Brute-force: passwords, comma-separated (max 5 used)</label>
+        <input type="text" id="bruteforce_passwords" name="bruteforce_passwords" placeholder="password,123456,letmein">
+      </div>
+
+      <div class="adv-group">
+        <h4>SQLi UNION / error-based / time-based probe</h4>
+        <label for="sqli_union_url">Page URL with a query parameter</label>
+        <input type="text" id="sqli_union_url" name="sqli_union_url" placeholder="https://www.example.com/item?id=1">
+        <label for="sqli_union_param">Parameter name to test</label>
+        <input type="text" id="sqli_union_param" name="sqli_union_param" placeholder="id">
+      </div>
+
+      <div class="adv-group">
+        <h4>Stored XSS (test account)</h4>
+        <label for="stored_xss_submit_url">Submit URL</label>
+        <input type="text" id="stored_xss_submit_url" name="stored_xss_submit_url" placeholder="https://www.example.com/comment">
+        <label for="stored_xss_field">Form field name to inject into</label>
+        <input type="text" id="stored_xss_field" name="stored_xss_field" placeholder="body">
+        <label for="stored_xss_view_url">View URL</label>
+        <input type="text" id="stored_xss_view_url" name="stored_xss_view_url" placeholder="https://www.example.com/comments">
+        <label for="stored_xss_cookie">Cookie header for your test account</label>
+        <input type="text" id="stored_xss_cookie" name="stored_xss_cookie" placeholder="session=abc123">
+      </div>
+
+      <div class="adv-group">
+        <h4>IDOR (cross-account + anonymous access)</h4>
+        <label for="idor_url_template">URL template (use {id} as placeholder)</label>
+        <input type="text" id="idor_url_template" name="idor_url_template" placeholder="https://www.example.com/orders/{id}">
+        <label for="idor_ids">Resource IDs owned by test account A (comma-separated)</label>
+        <input type="text" id="idor_ids" name="idor_ids" placeholder="101,102,103">
+        <label for="idor_cookie_a">Cookie header for test account A</label>
+        <input type="text" id="idor_cookie_a" name="idor_cookie_a" placeholder="session=aaa">
+        <label for="idor_cookie_b">Cookie header for test account B</label>
+        <input type="text" id="idor_cookie_b" name="idor_cookie_b" placeholder="session=bbb">
+      </div>
+
+      <div class="check-row">
+        <input type="checkbox" id="authorized_adv" name="authorized_adv" required>
+        <label for="authorized_adv" style="margin:0; font-weight:500;">
+          I own this target, or I have explicit authorization to security-test it.
+        </label>
+      </div>
+
+      <button type="submit">Run advanced checks</button>
+    </form>
+  </div>
+
+  <!-- Media scan -->
+  <div class="card {{ '' if can_run_media else 'locked' }}">
+    <div class="section-title">
+      <h2>Media discovery</h2>
+      <span class="pill {{ 'pass' if can_run_media else 'medium' }}">
+        {{ 'Paid unlocked' if can_run_media else 'Requires Paid' }}
+      </span>
+    </div>
+    <p class="hint">Same-origin crawl for images/video, EXIF/GPS leakage, suspicious-path detection, optional
+    download to disk.</p>
+    {% if not can_run_media %}
+    <div class="hint"><svg class="icon" style="width:13px;height:13px;vertical-align:-1px;" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> Requires the <b>Paid</b> plan or higher - see <a href="{{ url_for('billing.view') }}">Billing</a>.
+    Submitting below will be rejected server-side until you upgrade.</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('scan.new_scan') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="scan_type" value="media">
+
+      <label for="media_target">Target domain</label>
+      <input type="text" id="media_target" name="media_target" placeholder="www.example.com" required>
+
+      <label for="media_max_files">Max files to download (0-50, only used if download is checked)</label>
+      <input type="text" id="media_max_files" name="media_max_files" placeholder="20" value="20">
+
+      <div class="check-row">
+        <input type="checkbox" id="media_download" name="media_download">
+        <label for="media_download" style="margin:0; font-weight:500;">
+          Also download found media to disk (saved under <code>downloads/</code>)
+        </label>
+      </div>
+
+      <div class="check-row">
+        <input type="checkbox" id="authorized_media" name="authorized_media" required>
+        <label for="authorized_media" style="margin:0; font-weight:500;">
+          I own this domain, or I have explicit authorization to security-test it.
+        </label>
+      </div>
+
+      <button type="submit" {{ 'disabled' if not can_run_media else '' }}>Run media scan</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Compare scans - WebVulnScanner{% endblock %}
+{% block head %}
+<style>
+  h1 { font-size: 24px; margin: 20px 0 6px; }
+  .meta { color: var(--muted); font-size:13px; margin-bottom: 20px; }
+  h2.section { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin: 28px 0 12px; }
+  .delta { font-weight:700; }
+  .delta.pos { color: var(--pass); }
+  .delta.neg { color: var(--critical); }
+  .empty { color: var(--muted); font-size: 14px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <h1>Compare scans</h1>
+  <div class="meta">
+    Scan #{{ a.id }} ({{ report_a.scanned_at }}) &rarr; Scan #{{ b.id }} ({{ report_b.scanned_at }})
+    &middot; score delta: <span class="delta {{ 'pos' if diff.score_delta >= 0 else 'neg' }}">{{ '%+d' % diff.score_delta }}</span>
+  </div>
+
+  <h2 class="section">Added ({{ diff.added|length }})</h2>
+  {% for f in diff.added %}
+  <div class="finding {{ f.severity }}">
+    <span class="badge {{ f.severity }}">{{ f.severity }}</span>
+    <div class="body"><b>{{ f.title }}</b><div class="cat">{{ f.category }}</div><div class="detail">{{ f.detail }}</div></div>
+  </div>
+  {% else %}<p class="empty">None.</p>{% endfor %}
+
+  <h2 class="section">Removed ({{ diff.removed|length }})</h2>
+  {% for f in diff.removed %}
+  <div class="finding {{ f.severity }}">
+    <span class="badge {{ f.severity }}">{{ f.severity }}</span>
+    <div class="body"><b>{{ f.title }}</b><div class="cat">{{ f.category }}</div><div class="detail">{{ f.detail }}</div></div>
+  </div>
+  {% else %}<p class="empty">None.</p>{% endfor %}
+
+  <h2 class="section">Changed ({{ diff.changed|length }})</h2>
+  {% for c in diff.changed %}
+  <div class="finding {{ c.after.severity }}">
+    <span class="badge {{ c.after.severity }}">{{ c.before.severity }} &rarr; {{ c.after.severity }}</span>
+    <div class="body"><b>{{ c.after.title }}</b><div class="cat">{{ c.after.category }}</div><div class="detail">{{ c.after.detail }}</div></div>
+  </div>
+  {% else %}<p class="empty">None.</p>{% endfor %}
+
+  <h2 class="section">Unchanged</h2>
+  <p class="empty">{{ diff.unchanged_count }} finding(s) unchanged.</p>
+</div>
+{% endblock %}

@@ -6,3 +6,5 @@ downloads/
 reports/
 .worktrees/
 .superpowers/
+webvulnscanner.db
+.env

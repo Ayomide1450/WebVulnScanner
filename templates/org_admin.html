@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Org admin - WebVulnScanner{% endblock %}
+{% block head %}
+<style>
+  h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  h2.section { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin: 32px 0 12px; }
+  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 18px; }
+  table { width:100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align:left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  label { display: block; margin-top: 14px; font-weight: 600; font-size: 13.5px; }
+  input[type=text], input[type=email], select {
+    width: 100%; padding: 10px 12px; margin-top: 6px; border: 1px solid var(--border);
+    border-radius: 10px; font-size: 14px; background: rgba(255,255,255,.03); color: var(--text);
+  }
+  button { margin-top: 16px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; border: none; padding: 10px 18px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .field-error { color: var(--critical); font-size: 12.5px; margin-top: 5px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <h1>{{ org.name if org else 'Organization admin' }}</h1>
+  <p style="color: var(--muted); font-size: 13.5px;">Plan: <b>{{ org.plan.value if org else 'n/a' }}</b></p>
+
+  <h2 class="section">Members</h2>
+  <div class="card">
+    {% if members %}
+    <table>
+      <tr><th>Email</th><th>Role</th><th>Email verified</th></tr>
+      {% for m in members %}
+      <tr>
+        <td>{{ m.email }}</td>
+        <td>{{ m.role.value }}</td>
+        <td class="{{ 'pass' if m.email_verified_at else 'medium' }}">{{ 'yes' if m.email_verified_at else 'no' }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p style="color: var(--muted); font-size: 13.5px;">No members.</p>
+    {% endif %}
+  </div>
+
+  <h2 class="section">Invite a member</h2>
+  <div class="card">
+    <form method="POST" action="{{ url_for('org.invite') }}">
+      {{ invite_form.hidden_tag() }}
+      <label for="invite_email">Email</label>
+      {{ invite_form.email(id="invite_email", type="email", placeholder="teammate@example.com") }}
+      {% for err in invite_form.email.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="invite_role">Role</label>
+      {{ invite_form.role(id="invite_role") }}
+      {% for err in invite_form.role.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <button type="submit">Send invite</button>
+    </form>
+    <p style="color: var(--muted); font-size: 12.5px; margin-top: 10px;">
+      The invite link is printed to the server console (email delivery is a dev-mode stub).
+      Note: signup does not yet auto-apply an invite token - this generates the link only.
+    </p>
+  </div>
+
+  <h2 class="section">Verified domains</h2>
+  <div class="card">
+    {% if domains %}
+    <table>
+      <tr><th>Domain</th><th>Status</th></tr>
+      {% for dv in domains %}
+      <tr>
+        <td><code>{{ dv.domain }}</code></td>
+        <td class="{{ 'pass' if dv.verified_at else 'medium' }}">{{ 'VERIFIED' if dv.verified_at else 'PENDING' }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p style="color: var(--muted); font-size: 13.5px;">No domains added yet. <a class="back" href="{{ url_for('org.verify_domain_view') }}">Add one &rarr;</a></p>
+    {% endif %}
+  </div>
+
+  <h2 class="section">Org scan history</h2>
+  <div class="card">
+    {% if scans %}
+    <table>
+      <tr><th>Target</th><th>Type</th><th>Status</th><th>Risk score</th><th>Created</th></tr>
+      {% for s in scans %}
+      <tr>
+        <td><code>{{ s.target_url }}</code></td>
+        <td>{{ s.scan_type }}</td>
+        <td>{{ s.status.value }}</td>
+        <td>{{ s.risk_score if s.risk_score is not none else '-' }}</td>
+        <td>{{ s.created_at }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p style="color: var(--muted); font-size: 13.5px;">No scans recorded for this org yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

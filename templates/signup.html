@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Sign up - WebVulnScanner{% endblock %}
+{% block head %}
+<style>
+  .auth-wrap { max-width: 420px; margin: 0 auto; padding: 40px 22px 80px; }
+  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 16px; padding: 26px; box-shadow: 0 10px 30px rgba(0,0,0,.15); }
+  h1 { font-size: 26px; margin: 0 0 20px; letter-spacing: -0.01em; }
+  label { display: block; margin-top: 18px; font-weight: 600; font-size: 13.5px; color: var(--text); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+  input[type=text], input[type=email], input[type=password] {
+    width: 100%; padding: 12px 14px; margin-top: 7px; border: 1px solid var(--border);
+    border-radius: 10px; font-size: 14.5px; background: rgba(255,255,255,.03); color: var(--text);
+    outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  input[type=text]:focus, input[type=email]:focus, input[type=password]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,197,94,.18); }
+  .field-error { color: var(--critical); font-size: 12.5px; margin-top: 5px; }
+  button {
+    margin-top: 24px; width: 100%; background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white; border: none; padding: 14px 22px; border-radius: 10px; font-size: 15px; font-weight: 700;
+    cursor: pointer; letter-spacing: .01em; transition: transform .1s, opacity .15s;
+  }
+  button:hover { opacity: .92; }
+  button:active { transform: scale(.99); }
+  .swap { margin-top: 18px; font-size: 13.5px; color: var(--muted); text-align: center; }
+  .swap a { color: var(--accent); text-decoration: none; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="card">
+    <h1>Sign up</h1>
+    <form method="POST" action="{{ url_for('auth.signup') }}">
+      {{ form.hidden_tag() }}
+      <label for="email">Email</label>
+      {{ form.email(id="email", type="email", placeholder="you@example.com") }}
+      {% for err in form.email.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="password">Password</label>
+      {{ form.password(id="password", type="password", placeholder="At least 8 characters") }}
+      {% for err in form.password.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="org_name">Organization name (optional)</label>
+      {{ form.org_name(id="org_name", type="text", placeholder="Acme Inc.") }}
+      <div class="hint">Give your organization a name to create it and become its admin. Leave blank to sign up solo.</div>
+      {% for err in form.org_name.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <button type="submit">Create account</button>
+    </form>
+    <div class="swap">Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a></div>
+  </div>
+</div>
+{% endblock %}

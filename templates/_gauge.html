@@ -1,0 +1,41 @@
+{#
+  Reusable risk-gauge partial - markup/JS extracted verbatim from the SVG
+  circular gauge that used to be duplicated inline in templates/results.html
+  (and advanced_results.html/media_results.html). CSS for .score-card/
+  .gauge-wrap/.gauge-bg/.gauge-fg/.gauge-num lives in base.html (shared
+  component, same convention as .pill/.badge/.finding/.warn-box) since every
+  page that includes this partial already extends base.html.
+
+  Expected variables in scope before `{% include "_gauge.html" %}`:
+    score       - int 0-100 (required)
+    risk_grade  - str, e.g. "A".."F" (required)
+    gauge_id    - optional unique DOM id for the <circle id="..."> + the
+                  script's getElementById lookup, so two gauges on one page
+                  (not currently needed anywhere, but kept safe) don't clash.
+                  Defaults to "gaugeFg" if not set.
+#}
+{% set _gauge_id = gauge_id|default('gaugeFg') %}
+<div class="gauge-wrap">
+  <svg width="110" height="110" viewBox="0 0 110 110">
+    <circle class="gauge-bg" cx="55" cy="55" r="46"></circle>
+    <circle class="gauge-fg"
+             id="{{ _gauge_id }}" cx="55" cy="55" r="46"
+             stroke="{{ '#34d399' if score >= 90 else ('#fbbf24' if score >= 60 else ('#fb923c' if score >= 40 else '#fb7185')) }}"
+             stroke-dasharray="289" stroke-dashoffset="289"></circle>
+  </svg>
+  <div class="gauge-num"><div class="n">{{ score }}</div><div class="g">grade {{ risk_grade }}</div></div>
+</div>
+<script>
+  (function () {
+    var score = {{ score }};
+    var circumference = 2 * Math.PI * 46;
+    var fg = document.getElementById({{ _gauge_id|tojson }});
+    if (fg) {
+      fg.setAttribute('stroke-dasharray', circumference);
+      fg.setAttribute('stroke-dashoffset', circumference);
+      requestAnimationFrame(function () {
+        fg.style.strokeDashoffset = circumference * (1 - score / 100);
+      });
+    }
+  })();
+</script>

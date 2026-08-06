@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Verify a domain - WebVulnScanner{% endblock %}
+{% block head %}
+<style>
+  h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  h2.section { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin: 32px 0 12px; }
+  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 18px; }
+  table { width:100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align:left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  label { display: block; margin-top: 14px; font-weight: 600; font-size: 13.5px; }
+  input[type=text], select {
+    width: 100%; padding: 10px 12px; margin-top: 6px; border: 1px solid var(--border);
+    border-radius: 10px; font-size: 14px; background: rgba(255,255,255,.03); color: var(--text);
+  }
+  button { margin-top: 16px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; border: none; padding: 10px 18px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .verify-btn { margin-top: 0; padding: 6px 12px; font-size: 12.5px; }
+  .field-error { color: var(--critical); font-size: 12.5px; margin-top: 5px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <h1>Verify a domain</h1>
+  <p style="color: var(--muted); font-size: 13.5px;">
+    Proving ownership of a domain unlocks org-verified checks (reflected
+    XSS/SQLi and the advanced/authenticated scan groups) against it.
+  </p>
+
+  <div class="card">
+    <h2 class="section">Add a domain</h2>
+    <form method="POST" action="{{ url_for('org.verify_domain_view') }}">
+      {{ add_form.hidden_tag() }}
+      <input type="hidden" name="action" value="add">
+      <label for="domain">Domain</label>
+      {{ add_form.domain(id="domain", type="text", placeholder="www.example.com") }}
+      {% for err in add_form.domain.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="method">Verification method</label>
+      {{ add_form.method(id="method") }}
+      {% for err in add_form.method.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <button type="submit">Add domain</button>
+    </form>
+  </div>
+
+  <h2 class="section">Your domains</h2>
+  {% if domains %}
+  <div class="card">
+    <table>
+      <tr><th>Domain</th><th>Method</th><th>Status</th><th>Proof</th><th></th></tr>
+      {% for dv in domains %}
+      <tr>
+        <td><code>{{ dv.domain }}</code></td>
+        <td>{{ dv.method.value }}</td>
+        <td class="{{ 'pass' if dv.verified_at else 'medium' }}">
+          {{ 'VERIFIED' if dv.verified_at else 'PENDING' }}
+        </td>
+        <td>
+          {% if dv.method.value == 'dns_txt' %}
+            TXT record on <code>{{ dv.domain }}</code>:<br>
+            <code>{{ instructions[dv.id].txt_value }}</code>
+          {% else %}
+            {% set path, content = instructions[dv.id].well_known %}
+            HTTP GET <code>https://{{ dv.domain }}{{ path }}</code> must return 200 with body containing:<br>
+            <code>{{ content }}</code>
+          {% endif %}
+        </td>
+        <td>
+          <form method="POST" action="{{ url_for('org.verify_domain_view') }}">
+            {{ add_form.csrf_token }}
+            <input type="hidden" name="action" value="verify">
+            <input type="hidden" name="domain_id" value="{{ dv.id }}">
+            <button class="verify-btn" type="submit">Verify</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}
+  <div class="warn-box"><span class="ico">&#9888;&#65039;</span><div>No domains added yet.</div></div>
+  {% endif %}
+</div>
+{% endblock %}

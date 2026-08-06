@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - WebVulnScanner{% endblock %}
+{% block head %}
+<style>
+  h1 { font-size: 24px; margin: 20px 0 6px; letter-spacing: -0.01em; }
+  h2.section { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin: 28px 0 12px; }
+  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 18px; }
+  table { width:100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align:left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  a.row-link { color: var(--accent); text-decoration:none; }
+  .cta { display:inline-block; margin: 4px 0 10px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff; text-decoration:none; padding: 10px 18px; border-radius: 10px; font-size:14px; font-weight:700; }
+  .latest-score { font-size:36px; font-weight:800; }
+  .sparkline-card .hint { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <h1>Dashboard</h1>
+  <p style="color: var(--muted); font-size: 13.5px;">
+    Showing scans you've personally run. Org-wide history is on
+    {% if current_user.role == Role.ORG_ADMIN %}
+    <a class="row-link" href="{{ url_for('org.admin') }}">Org Admin</a>.
+    {% else %}
+    Org Admin (visible to org admins only).
+    {% endif %}
+  </p>
+
+  {% if latest %}
+  <div class="card">
+    {% if latest.risk_score is not none %}
+      {% set score = latest.risk_score %}
+      {% set risk_grade = 'A' if score >= 90 else ('B' if score >= 75 else ('C' if score >= 60 else ('D' if score >= 40 else 'F'))) %}
+      {% set gauge_id = 'gaugeFgDashboard' %}
+      <div class="score-card" style="margin-top:0; padding:0; border:none; background:none;">
+        {% include "_gauge.html" %}
+        <div class="score-summary">
+          <div style="color: var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.05em;">Latest scan</div>
+          <div style="font-size:13.5px; margin-top:4px;">
+            <code>{{ latest.target_url }}</code> &middot; {{ latest.scan_type }} scan &middot; {{ latest.status.value }}
+            {% if latest.status.value == 'completed' %}
+            &middot; <a class="row-link" href="{{ url_for('scan.scan_report', scan_id=latest.id) }}">View report &rarr;</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% else %}
+    <div style="color: var(--muted); font-size:13.5px;">
+      <code>{{ latest.target_url }}</code> &middot; {{ latest.scan_type }} scan &middot; {{ latest.status.value }}
+      {% if latest.status.value != 'completed' %}
+      &middot; <a class="row-link" href="{{ url_for('scan.scan_detail', scan_id=latest.id) }}">View progress &rarr;</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <h2 class="section">Risk score over time</h2>
+  <div class="card sparkline-card">
+    {% set scored = [] %}
+    {% for s in scans %}
+      {% if s.risk_score is not none %}{% set _ = scored.append(s) %}{% endif %}
+    {% endfor %}
+    {% if scored|length > 0 %}
+    <p class="hint">{{ scored|length }} completed scan(s) with a risk score, oldest to newest.</p>
+    {% set n = scored|length %}
+    {% set sw = 560 %}{% set sh = 70 %}
+    {% set pts = [] %}
+    {% for s in scored|reverse %}
+      {% set x = ((loop.index0 / (n - 1)) * sw) if n > 1 else (sw / 2) %}
+      {% set y = sh - (s.risk_score / 100 * sh) %}
+      {% set _ = pts.append((x|round(1))|string + ',' + (y|round(1))|string) %}
+    {% endfor %}
+    <svg width="100%" height="{{ sh + 10 }}" viewBox="0 0 {{ sw }} {{ sh + 10 }}" preserveAspectRatio="none" style="overflow:visible;">
+      <polyline points="{{ pts|join(' ') }}" fill="none" stroke="var(--accent)" stroke-width="2"></polyline>
+      {% for s in scored|reverse %}
+        {% set x = ((loop.index0 / (n - 1)) * sw) if n > 1 else (sw / 2) %}
+        {% set y = sh - (s.risk_score / 100 * sh) %}
+        <circle cx="{{ x|round(1) }}" cy="{{ y|round(1) }}" r="3" fill="var(--accent2)"></circle>
+      {% endfor %}
+    </svg>
+    {% else %}
+    <p class="hint" style="margin:0;">Not enough completed scans yet for a trend line.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <a class="cta" href="{{ url_for('scan.new_scan') }}">New scan</a>
+
+  <h2 class="section">Your scans</h2>
+  <div class="card">
+    {% if scans %}
+    <table>
+      <tr><th>Target</th><th>Type</th><th>Status</th><th>Risk score</th><th>Created</th><th></th></tr>
+      {% for s in scans %}
+      <tr>
+        <td><code>{{ s.target_url }}</code></td>
+        <td>{{ s.scan_type }}</td>
+        <td>{{ s.status.value }}</td>
+        <td>{{ s.risk_score if s.risk_score is not none else '-' }}</td>
+        <td>{{ s.created_at }}</td>
+        <td><a class="row-link" href="{{ url_for('scan.scan_detail', scan_id=s.id) }}">View &rarr;</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p style="color: var(--muted); font-size: 13.5px;">No scans yet. <a class="row-link" href="{{ url_for('scan.new_scan') }}">Run your first scan &rarr;</a></p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

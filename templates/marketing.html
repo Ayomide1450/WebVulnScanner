@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}WebVulnScanner{% endblock %}
+{% block head %}
+<style>
+  .hero { max-width: 760px; margin: 0 auto; padding: 70px 22px 40px; text-align: center; }
+  .eyebrow { display:inline-flex; align-items:center; gap:7px; font-family:"Fira Code",monospace; font-size:12px; color: var(--accent); background: var(--accent-dim); border:1px solid rgba(34,197,94,.3); padding:5px 12px; border-radius:999px; margin-bottom:18px; }
+  .eyebrow .dot { width:6px; height:6px; border-radius:50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .hero h1 { font-size: 40px; margin: 0 0 14px; letter-spacing: -0.02em; }
+  .hero .sub { color: var(--muted); font-size: 16.5px; margin: 0 0 32px; }
+  .cta-row { display:flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .cta { text-decoration:none; padding: 14px 26px; border-radius: 10px; font-weight:700; font-size:15px; transition: filter 150ms ease, transform 150ms ease; }
+  .cta:hover { filter: brightness(1.08); }
+  .cta.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#04150a; }
+  .cta.secondary { border:1px solid var(--border); color: var(--text); background: var(--panel); }
+  .features { max-width: 920px; margin: 48px auto 0; display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:16px; padding: 0 22px 80px; }
+  .feature { background: linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--border); border-radius:14px; padding:22px; transition: border-color 150ms ease; }
+  .feature:hover { border-color: rgba(34,197,94,.4); }
+  .feature h3 { margin:0 0 8px; font-size:15px; }
+  .feature p { margin:0; color:var(--muted); font-size:13.5px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="hero">
+  <div class="eyebrow"><span class="dot"></span> Authorized-use security scanner</div>
+  <h1>Know your website's real attack surface.</h1>
+  <p class="sub">Headers, TLS, exposed secrets, CORS and open ports for free - and, once you've
+  proven you own the domain, live XSS/SQLi probing, stored-XSS, IDOR and brute-force checks too.
+  One dashboard, real-time progress, full report history.</p>
+  <div class="cta-row">
+    <a class="cta primary" href="{{ url_for('auth.signup') }}">Sign up</a>
+    <a class="cta secondary" href="{{ url_for('auth.login') }}">Log in</a>
+  </div>
+</div>
+<div class="features">
+  <div class="feature">
+    <h3>Free - passive checks</h3>
+    <p>Security headers, cookies, TLS certificate, DNS/email security (SPF/DMARC/CAA), outdated JS libraries,
+    exposed secrets, SRI - no domain verification required.</p>
+  </div>
+  <div class="feature">
+    <h3>Paid - active checks</h3>
+    <p>Same-origin crawl, open ports, CORS misconfiguration, HTTP methods, open redirect, directory listing,
+    and same-origin media/EXIF discovery.</p>
+  </div>
+  <div class="feature">
+    <h3>Org-verified - intrusive checks</h3>
+    <p>Reflected XSS/SQLi canaries, SQLi login bypass, stored XSS, cross-account IDOR, and rate-limited
+    brute-force checks - gated behind a server-verified domain-ownership proof.</p>
+  </div>
+</div>
+{% endblock %}
