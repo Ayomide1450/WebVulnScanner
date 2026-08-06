@@ -42,7 +42,9 @@ SYSTEM_PROMPT = (
     "behavior. Write a short (3-6 sentence) plain-English executive summary "
     "of the overall risk, then a prioritized, numbered list of the most "
     "important remediation steps. Do not invent findings that are not in "
-    "the data."
+    "the data. Output PLAIN TEXT ONLY, no markdown - no asterisks, no "
+    "headers, no bullet characters, since this is rendered verbatim in a "
+    "plain-text report card, not a markdown renderer."
 )
 
 
