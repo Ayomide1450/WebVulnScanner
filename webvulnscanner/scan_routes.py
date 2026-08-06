@@ -49,7 +49,7 @@ from urllib.parse import urlparse
 from flask import Blueprint, Response, abort, current_app, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from webvulnscanner.checks import REPORTS_DIR, normalize_target
+from webvulnscanner.checks import REPORTS_DIR, is_ssrf_safe_hostname, normalize_target
 from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, domain_is_org_verified, effective_tier
 from webvulnscanner.extensions import db
 from webvulnscanner.models import Report, Role, Scan, ScanStatus
@@ -206,6 +206,18 @@ def _tier_flags(tier):
     }
 
 
+def _unsafe_target_error(url):
+    """None if url's hostname resolves only to public addresses; an
+    error string (safe to show the user) otherwise. Every route below
+    calls this on each user-supplied absolute URL before a Scan row is
+    created - see is_ssrf_safe_hostname's docstring in checks.py for
+    what this does and doesn't protect against."""
+    hostname = urlparse(url).hostname
+    if not hostname or not is_ssrf_safe_hostname(hostname):
+        return "This target resolves to a private, internal, or unreachable address and cannot be scanned."
+    return None
+
+
 @scan.route("/scan/new")
 @login_required
 def new_scan():
@@ -237,8 +249,15 @@ def new_scan_base():
             "scan_new_base.html", error="Enter a valid domain or URL, e.g. example.com",
             **_tier_flags(tier),
         )
+    unsafe = _unsafe_target_error(base_url)
+    if unsafe:
+        return render_template("scan_new_base.html", error=unsafe, **_tier_flags(tier))
 
     manual_test_url = request.form.get("test_url", "").strip() or None
+    if manual_test_url:
+        unsafe = _unsafe_target_error(manual_test_url)
+        if unsafe:
+            return render_template("scan_new_base.html", error=unsafe, **_tier_flags(tier))
     org_verified = domain_is_org_verified(current_user.organization, base_url)
 
     s = Scan(user_id=current_user.id, org_id=current_user.org_id,
@@ -283,6 +302,20 @@ def new_scan_advanced():
             **_tier_flags(tier),
         )
 
+    # Every group's URL field is user-typed free text, independent of
+    # normalize_target - Org-verified + a verified domain only proves
+    # ownership of *a* domain, not that these specific fields point at a
+    # public address, so each one gets the same SSRF check as the other
+    # scan types before anything is spawned.
+    for group_url in (advanced["login_url"], advanced["sqli_union_url"],
+                       advanced["stored_xss_submit_url"], advanced["stored_xss_view_url"],
+                       advanced["idor_url_template"]):
+        if not group_url:
+            continue
+        unsafe = _unsafe_target_error(group_url)
+        if unsafe:
+            return render_template("scan_new_advanced.html", error=unsafe, **_tier_flags(tier))
+
     # run_advanced_scan takes a single org_verified_for_domain flag that
     # applies to every check group in the run. Advanced groups can target
     # different URLs (login_url vs sqli_union_url vs ...), so the domain
@@ -324,6 +357,9 @@ def new_scan_media():
             "scan_new_media.html", error="Enter a valid domain or URL for the media scan, e.g. example.com",
             **_tier_flags(tier),
         )
+    unsafe = _unsafe_target_error(base_url)
+    if unsafe:
+        return render_template("scan_new_media.html", error=unsafe, **_tier_flags(tier))
 
     download = bool(request.form.get("media_download"))
     try:
@@ -375,6 +411,9 @@ def new_scan_api():
             "scan_new_api.html", error="Enter a valid domain or URL for the API scan, e.g. example.com",
             **_tier_flags(tier),
         )
+    unsafe = _unsafe_target_error(base_url)
+    if unsafe:
+        return render_template("scan_new_api.html", error=unsafe, **_tier_flags(tier))
 
     if FEATURE_REQUIREMENTS["api"] > tier:
         return render_template(

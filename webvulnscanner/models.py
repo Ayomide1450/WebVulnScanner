@@ -169,6 +169,15 @@ class Subscription(db.Model):
 
 class CryptoInvoice(db.Model):
     __tablename__ = "crypto_invoices"
+    __table_args__ = (
+        # Defense in depth alongside create_invoice()'s offset-collision
+        # retry: even if two invoices somehow ended up with the same
+        # expected_amount, this stops the same on-chain transaction from
+        # being credited to a second invoice after it already paid a
+        # first. NULLs (unmatched/pending invoices) aren't constrained by
+        # a unique index, so this only ever fires on an actual double-match.
+        db.UniqueConstraint("matched_tx_hash", name="uq_crypto_invoices_matched_tx_hash"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     org_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=False)

@@ -11,6 +11,7 @@ from flask_login import current_user, login_required
 
 from webvulnscanner import billing
 from webvulnscanner.decorators import org_admin_required
+from webvulnscanner.extensions import limiter
 from webvulnscanner.models import CryptoInvoice, InvoiceStatus, Plan
 
 billing_bp = Blueprint("billing", __name__, url_prefix="/account/billing")
@@ -44,6 +45,7 @@ def view():
 @billing_bp.route("/invoice", methods=["POST"])
 @login_required
 @org_admin_required
+@limiter.limit("10 per hour")
 def create_invoice():
     target_plan_raw = request.form.get("target_plan")
     token_symbol = request.form.get("token_symbol")
@@ -62,7 +64,12 @@ def create_invoice():
         flash("Unsupported payment token.", "error")
         return redirect(url_for("billing.view"))
 
-    inv = billing.create_invoice(current_user.org_id, target_plan, token_symbol)
+    try:
+        inv = billing.create_invoice(current_user.org_id, target_plan, token_symbol)
+    except RuntimeError as e:
+        flash(str(e), "error")
+        return redirect(url_for("billing.view"))
+
     flash(
         f"Invoice created: send exactly {inv.expected_amount} {inv.token_symbol} "
         f"to {inv.receiving_address} before it expires.",
@@ -74,6 +81,7 @@ def create_invoice():
 @billing_bp.route("/invoice/<int:invoice_id>/verify", methods=["POST"])
 @login_required
 @org_admin_required
+@limiter.limit("30 per hour")
 def verify_invoice_route(invoice_id):
     inv = CryptoInvoice.query.get(invoice_id)
     if inv is None:

@@ -11,6 +11,7 @@ in the same place on disk) was adjusted; no check's behavior changed.
 Run only against domains you own or are explicitly authorized to test.
 """
 import io
+import ipaddress
 import os
 import re
 import socket
@@ -166,6 +167,41 @@ def normalize_target(raw):
 def registrable_domain(hostname):
     parts = hostname.split(".")
     return ".".join(parts[-2:]) if len(parts) >= 2 else hostname
+
+
+def is_ssrf_safe_hostname(hostname):
+    """False if hostname resolves to any private/loopback/link-local/
+    reserved/multicast/unspecified address - a first line of defense
+    against a scan being pointed at the hosting network's internal
+    services or the cloud metadata endpoint (169.254.169.254 is
+    link-local, caught by is_link_local below). Unresolvable hostnames
+    are treated as unsafe too, so the caller gets a clean rejection
+    instead of a confusing downstream connection-error finding.
+
+    This is a submission-time check only - it does not pin the resolved
+    IP for the actual scan request that happens later, so a DNS-
+    rebinding attacker who controls their own DNS could still resolve
+    differently between this check and the real request. Closing that
+    fully would need a custom requests Transport/Adapter that connects
+    to the exact IP verified here; that's a larger change than this
+    check and is a known residual gap, not something this function
+    claims to solve."""
+    try:
+        infos = socket.getaddrinfo(hostname, None)
+    except (socket.gaierror, UnicodeError):
+        return False
+    if not infos:
+        return False
+    for info in infos:
+        ip_str = info[4][0]
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            continue
+        if (ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_reserved or ip.is_multicast or ip.is_unspecified):
+            return False
+    return True
 
 
 # --------------------------------------------------------------------------

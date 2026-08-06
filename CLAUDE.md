@@ -14,8 +14,11 @@ misreported as exposed services) — that history matters when touching `check_o
 
 **Only ever test against domains the user owns or has explicit permission to test.** Do not
 weaken or remove: the `authorized` / `authorized_adv` / `authorized_media` / `authorized_api`
-server-side checkbox checks, or the `entitlements.py` tier/domain-verification gating that sits
-in front of the intrusive checks.
+server-side checkbox checks, the `entitlements.py` tier/domain-verification gating that sits in
+front of the intrusive checks, or `checks.is_ssrf_safe_hostname()` (called by every
+`new_scan_*` route in `scan_routes.py` before a `Scan` row is created — blocks scans targeting
+loopback/link-local/RFC1918/cloud-metadata addresses; see its docstring for what it does and
+does not protect against).
 
 ## Commands
 
@@ -29,6 +32,18 @@ python app.py
 
 Then open http://127.0.0.1:5000. SQLite tables are created automatically on first run. There is
 no build step, linter, or test suite configured in this repo.
+
+**`SECRET_KEY` is required, not optional** — `config.py` raises `RuntimeError` at import time if
+it's unset, since it signs session cookies, the remember-me cookie, and org-invite tokens. For
+local development only, set `ALLOW_INSECURE_DEV_SECRET_KEY=true` instead of a real key to fall
+back to a hardcoded placeholder — never set that variable anywhere but a throwaway local
+`.env`. `.env.example` at the repo root could not be edited by this assistant (sandboxed —
+dotfile directory access denied); add both `SECRET_KEY`/`ALLOW_INSECURE_DEV_SECRET_KEY` and
+`SESSION_COOKIE_SECURE` (see below) to it by hand if it doesn't already list them.
+
+Session/remember cookies default to `Secure` (HTTPS-only) — a plain-`http://` local dev server
+won't have the cookie sent back by the browser at all unless you set
+`SESSION_COOKIE_SECURE=false` in `.env` for local testing.
 
 ## Architecture
 
@@ -128,9 +143,28 @@ changing the formula, it needs updating in all four places.
 - API probing (`check_api_wordlist`, `check_api_js_discovery`) only counts a `200` as a hit if the
   response actually looks like API output (`_looks_like_api_response`: JSON/XML content-type or a
   `{`/`[`-leading body) — guards against SPAs that return their `index.html` shell for every path.
+- `checks.is_ssrf_safe_hostname()` resolves every user-supplied absolute URL's hostname and
+  rejects private/loopback/link-local/reserved/multicast addresses before any `Scan` row is
+  created. It's a submission-time check only — it does not pin the resolved IP for the actual
+  scan request, so it does not protect against DNS rebinding; see its docstring before assuming
+  more coverage than that.
 
 Preserve these constraints when modifying the corresponding checks — they're what keeps this a
 non-destructive, authorized-use-only tool rather than a general attack script.
+
+### Other hardening in `webvulnscanner/`
+
+- `extensions.limiter` (Flask-Limiter, in-memory storage — fine for the current single dev-
+  server-process reality, not multi-worker-safe) rate-limits `/login` (10/min),
+  `/signup` (5/hour), and invoice create/verify (10/hour, 30/hour) in `auth_routes.py` /
+  `billing_routes.py`.
+- `billing.create_invoice()` re-rolls its random amount-offset (up to
+  `MAX_OFFSET_COLLISION_RETRIES` times) if it collides with another `PENDING` invoice's
+  `expected_amount` for the same plan, since `verify_invoice()` matches purely by amount — a
+  collision would otherwise let one real payment activate the wrong org's plan.
+  `CryptoInvoice.matched_tx_hash` also has a DB-level unique constraint as defense in depth.
+- 404/429/500 all render inside the app's own theme (`templates/404.html`/`429.html`/`500.html`,
+  registered in `webvulnscanner/__init__.py`) instead of Flask's raw default error page.
 
 ## Frontend design system
 

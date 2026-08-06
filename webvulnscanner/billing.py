@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 from flask import current_app
+from sqlalchemy.exc import IntegrityError
 
 from webvulnscanner.extensions import db
 from webvulnscanner.models import InvoiceStatus, CryptoInvoice, Plan, SubStatus, Subscription
@@ -48,6 +49,9 @@ def _token_contract_address(token_symbol):
     raise ValueError(f"Unsupported token_symbol: {token_symbol!r}")
 
 
+MAX_OFFSET_COLLISION_RETRIES = 25
+
+
 def create_invoice(org_id, target_plan, token_symbol):
     """Creates a PENDING `CryptoInvoice` for `org_id` to upgrade to
     `target_plan`, paid in `token_symbol` (USDT/USDC).
@@ -56,10 +60,37 @@ def create_invoice(org_id, target_plan, token_symbol):
     offset (four decimal places, 0.0001-0.0099) - this is what makes an
     incoming transfer identifiable as belonging to *this* invoice rather
     than any other pending invoice for the same plan.
+
+    The offset space is only ~99 discrete values, so with multiple pending
+    invoices for the same plan a naive random pick can collide (birthday-
+    paradox math) - `verify_invoice` matches purely by amount, so a
+    collision would let one real payment activate the wrong org's plan.
+    Guard against that here: re-roll the offset (up to
+    MAX_OFFSET_COLLISION_RETRIES times) if it collides with any other
+    still-PENDING invoice's expected_amount for the same plan. This closes
+    the loophole at creation time rather than trying to disambiguate two
+    already-colliding invoices later.
     """
     base = PLAN_USD_PRICE[target_plan]
-    offset = round(random.uniform(0.0001, 0.0099), 4)
-    expected = round(base + offset, 6)
+
+    for _ in range(MAX_OFFSET_COLLISION_RETRIES):
+        offset = round(random.uniform(0.0001, 0.0099), 4)
+        expected = round(base + offset, 6)
+        collision = CryptoInvoice.query.filter_by(
+            target_plan=target_plan, status=InvoiceStatus.PENDING, expected_amount=expected,
+        ).first()
+        if collision is None:
+            break
+    else:
+        # Exhausted the retry budget - every offset in the ~99-value space
+        # is currently claimed by a pending invoice for this plan. Rather
+        # than silently create a colliding invoice, fail loudly; the org
+        # admin can just try again once some of those invoices expire.
+        raise RuntimeError(
+            "Could not allocate a unique invoice amount right now - too many "
+            "pending invoices for this plan. Try again shortly."
+        )
+
     now = datetime.now(timezone.utc)
 
     inv = CryptoInvoice(
@@ -154,7 +185,18 @@ def verify_invoice(inv):
         inv.status = InvoiceStatus.PAID
         inv.matched_tx_hash = tx.get("hash")
         inv.matched_at = datetime.now(timezone.utc)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except IntegrityError:
+            # uq_crypto_invoices_matched_tx_hash fired - this exact
+            # transaction has already been credited to a different
+            # invoice (see create_invoice's offset-collision-retry
+            # docstring for how that could still happen despite the
+            # creation-time guard, e.g. a pre-existing DB from before
+            # that guard shipped). Don't mark this invoice paid for a
+            # payment it didn't actually receive.
+            db.session.rollback()
+            return False
         _activate_subscription(inv)
         return True
 

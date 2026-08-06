@@ -16,18 +16,53 @@ load_dotenv(os.path.join(APP_DIR, ".env"))
 
 _DEV_SECRET_KEY = "dev-only-insecure-secret-key-change-me"
 
+
+def _allow_insecure_dev_secret():
+    return os.environ.get("ALLOW_INSECURE_DEV_SECRET_KEY", "").lower() in ("1", "true", "yes")
+
+
 _secret_key = os.environ.get("SECRET_KEY")
 if not _secret_key:
-    logging.warning(
-        "SECRET_KEY is not set in the environment - falling back to an "
-        "insecure development key. Set SECRET_KEY in .env before anything "
-        "beyond local single-user use."
-    )
-    _secret_key = _DEV_SECRET_KEY
+    # A missing SECRET_KEY used to fall back to a hardcoded, source-visible
+    # string with only a log line as a warning - since this key signs
+    # session cookies, Flask-Login's remember-me cookie, and org-invite
+    # tokens (org_routes.py), a deploy that forgot to set it would silently
+    # run with a publicly-known secret (full session forgery / CSRF
+    # bypass), not just "insecure for advanced use" as the old warning
+    # implied. Fail fast instead - the only way to get the old behavior
+    # back is to opt in explicitly, one env var at a time, never silently.
+    if _allow_insecure_dev_secret():
+        logging.warning(
+            "SECRET_KEY is not set - using the insecure placeholder key "
+            "because ALLOW_INSECURE_DEV_SECRET_KEY is set. Never set that "
+            "variable outside local development."
+        )
+        _secret_key = _DEV_SECRET_KEY
+    else:
+        raise RuntimeError(
+            "SECRET_KEY is not set. Generate one (e.g. `python -c "
+            "\"import secrets; print(secrets.token_hex(32))\"`) and set it "
+            "in your environment or .env file. For local development only, "
+            "set ALLOW_INSECURE_DEV_SECRET_KEY=true instead to use an "
+            "insecure placeholder key."
+        )
 
 
 class Config:
     SECRET_KEY = _secret_key
+
+    # Secure by default. Local dev over plain http needs SESSION_COOKIE_SECURE=false
+    # (a browser will not set a Secure cookie over http at all, so leaving
+    # this true against a plain-http dev server just means login silently
+    # doesn't persist - set the env var rather than flipping the default).
+    SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "true").lower() not in (
+        "0", "false", "no",
+    )
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    REMEMBER_COOKIE_SECURE = SESSION_COOKIE_SECURE
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SAMESITE = "Lax"
 
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "SQLALCHEMY_DATABASE_URI",

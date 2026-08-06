@@ -21,7 +21,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from wtforms import PasswordField, StringField
 from wtforms.validators import DataRequired, Email, Length, Optional
 
-from webvulnscanner.extensions import db
+from webvulnscanner.extensions import db, limiter
 from webvulnscanner.models import Organization, Plan, Role, User
 
 auth = Blueprint("auth", __name__)
@@ -48,6 +48,7 @@ def _safe_next(default="/dashboard"):
 
 
 @auth.route("/signup", methods=["GET", "POST"])
+@limiter.limit("5 per hour")
 def signup():
     form = SignupForm()
     if form.validate_on_submit():
@@ -104,6 +105,7 @@ def verify_email(token):
 
 
 @auth.route("/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 def login():
     form = LoginForm()
     if form.validate_on_submit():

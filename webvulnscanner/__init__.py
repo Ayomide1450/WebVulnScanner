@@ -6,11 +6,11 @@ App factory for the webvulnscanner package.
 create_app()`. All 5 blueprints (auth, org, billing, scan, public) are
 registered here.
 """
-from flask import Flask
+from flask import Flask, render_template
 
 from webvulnscanner.config import Config
 from webvulnscanner.email_stub import make_email_sender
-from webvulnscanner.extensions import csrf, db, login_manager
+from webvulnscanner.extensions import csrf, db, limiter, login_manager
 
 
 def create_app(config_class=Config):
@@ -20,6 +20,7 @@ def create_app(config_class=Config):
     db.init_app(app)
     login_manager.init_app(app)
     csrf.init_app(app)
+    limiter.init_app(app)
 
     # Email sender is stashed on app.extensions (Flask's own convention for
     # extension-owned, app-scoped state) so route code can reach it via
@@ -52,6 +53,22 @@ def create_app(config_class=Config):
     def inject_role_enum():
         # base.html's nav checks current_user.role == Role.ORG_ADMIN
         return {"Role": Role}
+
+    # Custom error pages so 404/500 stay inside the app's own dark theme
+    # (nav, back-to-dashboard link) instead of dropping a logged-in user
+    # into Flask's raw unstyled default error page.
+    @app.errorhandler(404)
+    def _not_found(_e):
+        return render_template("404.html"), 404
+
+    @app.errorhandler(500)
+    def _server_error(_e):
+        db.session.rollback()
+        return render_template("500.html"), 500
+
+    @app.errorhandler(429)
+    def _rate_limited(_e):
+        return render_template("429.html"), 429
 
     with app.app_context():
         from webvulnscanner import models  # noqa: F401  (registers models with db.Model)

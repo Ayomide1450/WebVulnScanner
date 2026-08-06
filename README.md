@@ -102,6 +102,12 @@ first run (`webvulnscanner.db`). See `.env.example` for every supported
 variable (DB URL, crypto billing config, email mode — `EMAIL_MODE=console`
 by default, which just prints verification/invite emails to stdout).
 
+`SECRET_KEY` is required — the app refuses to start without it (it signs
+session cookies, the remember-me cookie, and org-invite tokens). For local
+development only, set `ALLOW_INSECURE_DEV_SECRET_KEY=true` instead. Session
+cookies also default to `Secure` (HTTPS-only); set `SESSION_COOKIE_SECURE=false`
+if you're testing locally over plain `http://`.
+
 ## Notes on accuracy
 
 This tool caught and fixed a real false positive during development: an

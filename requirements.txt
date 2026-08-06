@@ -6,5 +6,6 @@ Pillow
 Flask-Login
 Flask-SQLAlchemy
 Flask-WTF
+Flask-Limiter
 python-dotenv
 email-validator
