@@ -50,7 +50,7 @@ from flask import Blueprint, Response, abort, current_app, redirect, render_temp
 from flask_login import current_user, login_required
 
 from webvulnscanner.ai_summary import generate_remediation_summary
-from webvulnscanner.checks import CHECK_LABELS, REPORTS_DIR, is_ssrf_safe_hostname, normalize_target
+from webvulnscanner.checks import CHECK_CATEGORY, CHECK_LABELS, REPORTS_DIR, is_ssrf_safe_hostname, normalize_target
 from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, domain_is_org_verified, effective_tier
 from webvulnscanner.extensions import db
 from webvulnscanner.models import Report, Role, Scan, ScanEvent, ScanEventPhase, ScanStatus
@@ -95,7 +95,8 @@ def _run_scan_in_background(app, scan_id, scan_type, **kwargs):
         db.session.commit()
         try:
             if scan_type == "base":
-                def progress_cb(name, phase, done, total, detail=None):
+                def progress_cb(name, phase, done, total, detail=None,
+                                 finding_count=None, top_severity=None):
                     # progress_current/progress_total update unconditionally,
                     # same as before this closure carried a check name/phase
                     # at all - a tier-locked open_ports still bumps the
@@ -105,7 +106,10 @@ def _run_scan_in_background(app, scan_id, scan_type, **kwargs):
                     # failed phase gets a ScanEvent row, so the live feed on
                     # scan_progress.html never shows a fabricated "open
                     # ports: done" line for a check the caller's plan didn't
-                    # unlock.
+                    # unlock. finding_count/top_severity are only ever set
+                    # on a completed/failed call (run_scan() never passes
+                    # them for "started") - they're what let the feed show
+                    # findings surfacing live as each check resolves.
                     row = Scan.query.get(scan_id)
                     row.progress_current = done
                     row.progress_total = total
@@ -113,6 +117,7 @@ def _run_scan_in_background(app, scan_id, scan_type, **kwargs):
                         db.session.add(ScanEvent(
                             scan_id=scan_id, check_name=name,
                             phase=ScanEventPhase(phase), detail=detail,
+                            finding_count=finding_count, top_severity=top_severity,
                         ))
                     db.session.commit()
 
@@ -471,15 +476,16 @@ def scan_detail(scan_id):
 
 
 def _serialize_new_events(scan_id, after_id):
-    """Returns `[{"id", "check_name", "label", "phase", "detail"}, ...]` for
-    every `ScanEvent` row belonging to `scan_id` with `id > after_id`,
-    ordered oldest-first - the "only what's new since the last tick" query
-    `scan_events()` streams, so the client never has to re-render its whole
-    feed history every 0.5s. Standalone function (not inlined in
-    `scan_events()`'s `generate()` closure) specifically so it's unit-
-    testable without ever iterating the live SSE stream - see
-    tests/test_scan_events.py, and the same constraint already documented
-    for `_check_ownership` coverage in tests/test_scan_ownership.py."""
+    """Returns `[{"id", "check_name", "label", "phase", "detail",
+    "finding_count", "top_severity"}, ...]` for every `ScanEvent` row
+    belonging to `scan_id` with `id > after_id`, ordered oldest-first - the
+    "only what's new since the last tick" query `scan_events()` streams, so
+    the client never has to re-render its whole feed history every 0.5s.
+    Standalone function (not inlined in `scan_events()`'s `generate()`
+    closure) specifically so it's unit-testable without ever iterating the
+    live SSE stream - see tests/test_scan_events.py, and the same
+    constraint already documented for `_check_ownership` coverage in
+    tests/test_scan_ownership.py."""
     rows = (
         ScanEvent.query.filter(ScanEvent.scan_id == scan_id, ScanEvent.id > after_id)
         .order_by(ScanEvent.id)
@@ -490,8 +496,11 @@ def _serialize_new_events(scan_id, after_id):
             "id": row.id,
             "check_name": row.check_name,
             "label": CHECK_LABELS.get(row.check_name, row.check_name.replace("_", " ").title()),
+            "icon": CHECK_CATEGORY.get(row.check_name, "shield"),
             "phase": row.phase.value,
             "detail": row.detail,
+            "finding_count": row.finding_count,
+            "top_severity": row.top_severity,
         }
         for row in rows
     ]

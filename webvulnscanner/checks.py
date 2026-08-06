@@ -69,6 +69,23 @@ CHECK_LABELS = {
     "robots_sitemap": "robots.txt / sitemap.xml",
 }
 
+# Icon-sprite key (see the <symbol id="icon-*"> sprite in templates/base.html)
+# for each check unit, used by the live scan-progress feed to give each row
+# a category glyph instead of forcing a fake sequential-phase narrative onto
+# checks that actually run concurrently. Six categories, not seventeen
+# bespoke icons, on purpose - restraint over "one icon per row" noise; keep
+# this dict in sync with CHECK_LABELS (same key set) if a check is ever
+# added or removed from run_scan()'s jobs dict.
+CHECK_CATEGORY = {
+    "headers": "shield", "cookies": "shield",
+    "tls": "lock", "https_redirect": "lock", "mixed_content": "lock",
+    "open_ports": "network", "cors": "network", "http_methods": "network",
+    "open_redirect": "network", "directory_listing": "network",
+    "sensitive_paths": "folder", "secrets": "folder", "sri": "folder", "robots_sitemap": "folder",
+    "dns_email": "mail",
+    "vulnerable_js": "bug", "xss_sqli": "bug",
+}
+
 # (label, regex, severity). High-confidence formats (AWS/Stripe/GitHub/private
 # keys) are critical/high; ambiguous generic patterns are medium to keep the
 # false-positive rate manageable; publishable keys/JWTs are info since those

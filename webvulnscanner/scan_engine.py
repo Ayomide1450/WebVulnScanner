@@ -253,6 +253,31 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
 # Orchestration
 # --------------------------------------------------------------------------
 
+def _top_severity(findings):
+    """Most severe value present among `findings`, per SEVERITY_ORDER's
+    ranking, or None if there are no findings - lets the live scan-progress
+    feed show a severity badge as each check resolves ("2 findings, high"),
+    not just at the final report."""
+    if not findings:
+        return None
+    return min((f.severity for f in findings), key=SEVERITY_ORDER.index)
+
+
+def _extract_detail(name, data):
+    """Optional, best-effort enrichment for a completed check's live-feed
+    detail line, beyond the pass/fail dot - only checks whose `data` shape
+    is known-safe to introspect here get an entry; everything else stays
+    None (the row still shows a complete label + status, just no extra
+    line). Deliberately conservative: the jobs dict's checks return a mix
+    of dicts and lists depending on the check (e.g. check_sensitive_paths
+    returns a bare list), so guessing at an unlisted check's shape here
+    risks an AttributeError mid-scan - the isinstance guard is load-bearing,
+    not decorative."""
+    if name == "tls" and isinstance(data, dict) and data.get("issuer"):
+        return f"{data['issuer']} · {data.get('days_left', '?')}d left"
+    return None
+
+
 def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_cb=None):
     session = _mk_session()
     hostname = urlparse(base_url).netloc
@@ -321,10 +346,12 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
     # order even though the calls themselves are deferred.
     done += 1
     if progress_cb:
-        progress_cb("headers", "completed", done, total, detail=f"grade {header_data['grade']}")
+        progress_cb("headers", "completed", done, total, detail=f"grade {header_data['grade']}",
+                     finding_count=len(f1), top_severity=_top_severity(f1))
     done += 1
     if progress_cb:
-        progress_cb("cookies", "completed", done, total)
+        progress_cb("cookies", "completed", done, total,
+                     finding_count=len(f2), top_severity=_top_severity(f2))
 
     with ThreadPoolExecutor(max_workers=max(len(jobs), 1)) as pool:
         future_map = {}
@@ -336,7 +363,7 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
             name = future_map[fut]
             try:
                 data, findings = fut.result()
-                phase, detail = "completed", None
+                phase, detail = "completed", _extract_detail(name, data)
             except Exception as e:
                 data, findings = {"error": str(e)}, []
                 phase, detail = "failed", str(e)[:255]
@@ -344,13 +371,15 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
             all_findings.extend(findings)
             done += 1
             if progress_cb:
-                progress_cb(name, phase, done, total, detail=detail)
+                progress_cb(name, phase, done, total, detail=detail,
+                            finding_count=len(findings), top_severity=_top_severity(findings))
 
     if FEATURE_REQUIREMENTS["open_ports"] <= tier:
         ports, resolved_ip, f_ports = check_open_ports(hostname)
         results["open_ports"] = ports
         all_findings.extend(f_ports)
         open_ports_phase = "completed"
+        open_ports_detail = f"{len(ports)} open" + (f" · {resolved_ip}" if resolved_ip else "")
     else:
         ports, resolved_ip, f_ports = [], None, []
         locked.append("open_ports")
@@ -362,9 +391,12 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         # closure treats phase=None as "update counters only, write no
         # ScanEvent" - see its docstring.
         open_ports_phase = None
+        open_ports_detail = None
     done += 1
     if progress_cb:
-        progress_cb("open_ports", open_ports_phase, done, total)
+        progress_cb("open_ports", open_ports_phase, done, total, detail=open_ports_detail,
+                     finding_count=len(f_ports) if open_ports_phase else None,
+                     top_severity=_top_severity(f_ports) if open_ports_phase else None)
 
     score = 100
     for f in all_findings:

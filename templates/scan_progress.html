@@ -1,44 +1,129 @@
+<!--
+THESIS: a scan is an AI security engineer conducting a live investigation,
+not a progress bar - the page proves that by surfacing what it's finding,
+not just how far along it is.
+OWN-WORLD: inherits the app's established OLED-dark "evolved operator
+console" (base.html tokens: --telemetry blue/--accent green/severity
+scale, Fira Sans/Code, .glow-pulse/.hud-grid/.telemetry-dot, .pill severity
+badges) - restrained, enterprise-register, not a neon/cyberpunk departure.
+STORY: the visitor watches checks start, resolve, and surface real
+findings in real time, with a running intelligence tally (checks
+completed, findings discovered, most severe so far) beside the log.
+FIRST VIEWPORT: status bar (target + live status/elapsed/count readout)
+above a two-column grid - Investigation Log (main, left) and Live
+Intelligence (sidebar, right), stacking on mobile.
+FORM: extend the established world within a single existing surface (not
+a new visual world) - impeccable's new-work.md "create a whole surface
+inside an established world" path; concept-seed.mjs was not run because
+this is a scoped page inside a coherent, already-documented product
+identity (see CLAUDE.md's "Frontend design system" / "evolved operator
+console" sections), not a greenfield or brand-replacement surface.
+FINISH: unreviewed and undocumented is unfinished; this build ends with
+the finish review, the verdict, and DESIGN.md.
+-->
 {% extends "base.html" %}
 {% block title %}Scan in progress - WebVulnScanner{% endblock %}
 {% block head %}
 <style>
-  .wrap { max-width: 640px; }
-  h1 { font-size: 22px; margin: 20px 0 0; letter-spacing: -0.01em; }
-  /* base.html's shared .card now matches this page's shape by default -
-     only the padding/margin differ slightly from the shared default
-     (a single standalone card here, not a stacked list), so just the
-     delta is overridden rather than the whole rule. */
-  .card { padding: 26px; margin-top: 20px; margin-bottom: 0; }
-  .bar-track { background: rgba(255,255,255,.06); border-radius: 999px; height: 14px; overflow:hidden; margin-top:14px; }
-  .bar-fill { background: linear-gradient(135deg, var(--accent), var(--accent2)); height:100%; width:0%; transition: width .3s ease; }
-  .status-line { margin-top: 10px; color: var(--muted); font-size: 13.5px; }
-  .status-line.stale { color: var(--medium); }
+  .wrap { max-width: 1040px; }
 
-  /* Live "watching it think" feed - each row is one check, started
-     (pulsing blue) -> completed (steady green) or failed (steady red).
-     Local to this page since nothing else reuses it yet. */
-  .console-feed { list-style:none; margin: 18px 0 0; padding:0; font-family: "Fira Code", monospace; font-size: 12.5px; }
-  .console-feed li { display:flex; align-items:center; gap:10px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  /* ---- Status bar ------------------------------------------------- */
+  .soc-header { display:flex; justify-content:space-between; align-items:flex-end; gap:20px; flex-wrap:wrap; margin-top: 20px; }
+  .soc-header h1 { font-size: 24px; margin: 6px 0 0; letter-spacing: -0.01em; }
+  .status-pill { display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; padding:4px 10px 4px 8px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
+  .status-pill .dot { width:6px; height:6px; border-radius:50%; background: currentColor; box-shadow: 0 0 6px currentColor; }
+  .status-pill.running { background: var(--telemetry-dim); color: var(--telemetry); }
+  .status-pill.queued { background: rgba(139,150,173,.14); color: var(--muted); }
+  .status-pill.failed { background: rgba(248,113,113,.14); color: var(--critical); }
+  .soc-header-meta { color: var(--muted); font-size: 13px; font-family: "Fira Code", monospace; text-align:right; }
+
+  /* ---- Two-column grid --------------------------------------------- */
+  .soc-grid { display:grid; grid-template-columns: 1fr; gap: 18px; margin-top: 18px; }
+  @media (min-width: 880px) { .soc-grid { grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr); align-items:start; } }
+
+  /* ---- Investigation log -------------------------------------------- */
+  .soc-log-card { position:relative; padding: 22px; overflow:hidden; }
+  .scan-sweep-bar { position:absolute; top:0; left:0; right:0; height:2px; overflow:hidden; }
+  .scan-sweep-bar::after { content:""; position:absolute; inset:0; width:40%; background: linear-gradient(90deg, transparent, var(--telemetry), transparent); }
+  @media (prefers-reduced-motion: no-preference) {
+    .scan-sweep-bar.active::after { animation: scan-sweep 2.6s linear infinite; }
+  }
+  .soc-log-header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px 16px; margin-bottom: 14px; }
+  .soc-log-header h2.section { margin: 0; flex-shrink:0; }
+  .bar-track { flex: 1 1 160px; max-width: 220px; background: rgba(255,255,255,.06); border-radius: 999px; height: 8px; overflow:hidden; }
+  @media (max-width: 480px) {
+    .soc-log-header { flex-direction: column; align-items: flex-start; }
+    .bar-track { width: 100%; max-width: none; }
+  }
+  .bar-fill { background: linear-gradient(135deg, var(--accent), var(--accent2)); height:100%; width:0%; transition: width .3s ease; }
+
+  .console-feed { list-style:none; margin:0; padding:0; font-size: 13.5px; }
+  .console-feed li { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding: 9px 0; border-bottom: 1px solid var(--border); }
   .console-feed li:last-child { border-bottom: none; }
-  .console-feed .feed-label { color: var(--text); }
-  .console-feed .feed-detail { color: var(--muted); }
+  .console-feed .feed-icon { width:15px; height:15px; color: var(--muted); flex-shrink:0; }
+  .console-feed .feed-label { color: var(--text); font-weight:600; flex-shrink:0; }
+  .console-feed .feed-detail { color: var(--muted); font-family: "Fira Code", monospace; font-size: 12.5px; flex: 1 1 auto; min-width: 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .console-feed .feed-badge { flex-shrink:0; }
+  .console-feed .feed-time { color: var(--muted); font-family: "Fira Code", monospace; font-size: 11.5px; flex-shrink:0; margin-left:auto; min-width: 32px; text-align:right; }
   .console-feed li.feed-in { animation: feed-in .3s ease forwards; }
   @keyframes feed-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
+  .feed-empty .feed-label { color: var(--muted); font-weight:500; font-style:italic; }
+
+  .status-line.stale { margin-top: 12px; color: var(--medium); font-size: 13px; }
+
+  /* ---- Live intelligence sidebar ------------------------------------ */
+  .intel-panel { padding: 22px; }
+  .intel-panel h2.section { margin-top: 0; }
+  .intel-row { display:flex; justify-content:space-between; align-items:baseline; padding: 7px 0; font-size: 13.5px; }
+  .intel-row span { color: var(--muted); }
+  .intel-row strong { font-family: "Fira Code", monospace; font-weight:700; }
+  .intel-severity { display:flex; align-items:center; gap:8px; margin-top: 4px; }
+  .intel-divider { border:none; border-top: 1px solid var(--border); margin: 14px 0; }
+  .intel-target-row { display:flex; align-items:center; gap:9px; font-size: 13px; color: var(--muted); padding: 4px 0; }
+  .intel-target-row .icon { width:15px; height:15px; flex-shrink:0; }
+  .intel-target-row code { color: var(--text); word-break: break-all; }
 </style>
 {% endblock %}
 {% block content %}
 <div class="wrap">
-  <h1>Scanning <code>{{ scan.target_url }}</code></h1>
-  <div class="card hud-grid">
-    {% if scan.status.value == 'failed' %}
-    <div class="error-box">Scan failed: {{ scan.error_message }}</div>
-    {% else %}
-    <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
-    <div class="status-line" id="statusLine">status: {{ scan.status.value }}</div>
-    <div class="status-line stale" id="staleLine" style="display:none;"></div>
-    <ul class="console-feed" id="consoleFeed" aria-live="polite"></ul>
-    {% endif %}
+  <div class="soc-header">
+    <div>
+      <span class="status-pill {{ scan.status.value }}" id="statusPill"><span class="dot"></span><span id="statusPillText">{{ scan.status.value }}</span></span>
+      <h1><code>{{ scan.target_url }}</code></h1>
+    </div>
+    <div class="soc-header-meta" id="headerMeta">{{ scan.scan_type }} scan · 0/0 checks · 00:00 elapsed</div>
   </div>
+
+  {% if scan.status.value == 'failed' %}
+  <div class="error-box" style="margin-top:18px;">Scan failed: {{ scan.error_message }}</div>
+  {% else %}
+  <div class="soc-grid">
+    <div class="card hud-grid soc-log-card">
+      <div class="scan-sweep-bar" id="sweepBar"></div>
+      <div class="soc-log-header">
+        <h2 class="section">Investigation log</h2>
+        <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
+      </div>
+      <ul class="console-feed" id="consoleFeed" aria-live="polite">
+        <li class="feed-empty" id="feedEmpty">
+          <span class="telemetry-dot glow-pulse"></span>
+          <span class="feed-label">Initializing investigation…</span>
+        </li>
+      </ul>
+      <div class="status-line stale" id="staleLine" style="display:none;"></div>
+    </div>
+
+    <div class="card intel-panel">
+      <h2 class="section">Live intelligence</h2>
+      <div class="intel-row"><span>Checks completed</span><strong id="statChecks">0 / 0</strong></div>
+      <div class="intel-row"><span>Findings discovered</span><strong id="statFindings">0</strong></div>
+      <div class="intel-severity" id="severityRow" style="display:none;"></div>
+      <hr class="intel-divider">
+      <div class="intel-target-row"><svg class="icon"><use href="#icon-network"></use></svg><code>{{ scan.target_url }}</code></div>
+      <div class="intel-target-row"><svg class="icon"><use href="#icon-shield"></use></svg>{{ scan.scan_type|capitalize }} scan</div>
+    </div>
+  </div>
+  {% endif %}
 </div>
 <script>
   (function () {
@@ -52,13 +137,10 @@
       return;
     }
 
+    var startedAtMs = Date.now();  // best-effort t0 for the elapsed ticker and per-row "+Ns" timestamps
+
     var staleLine = document.getElementById('staleLine');
     var lastMessageAt = Date.now();
-    // The server-side generator can also stop cleanly with no error event
-    // at all (e.g. the Scan row disappears mid-poll - scan_routes.py's
-    // scan_events breaks its loop rather than raising) - onerror alone
-    // wouldn't catch that, so this watchdog covers both "connection
-    // dropped" and "stream went quiet" the same way.
     var STALE_AFTER_MS = 15000;
     var watchdog = setInterval(function () {
       if (Date.now() - lastMessageAt > STALE_AFTER_MS && staleLine) {
@@ -75,72 +157,160 @@
       }
     }
 
-    // --- Live feed ---------------------------------------------------
+    function fmtElapsed(ms) {
+      var totalSec = Math.max(0, Math.floor(ms / 1000));
+      var m = Math.floor(totalSec / 60);
+      var s = totalSec % 60;
+      return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    var headerMeta = document.getElementById('headerMeta');
+    var lastCounts = { done: 0, total: 0 };
+    function renderHeaderMeta() {
+      if (!headerMeta) { return; }
+      headerMeta.textContent = "{{ scan.scan_type }} scan · " + lastCounts.done + "/" + lastCounts.total
+        + " checks · " + fmtElapsed(Date.now() - startedAtMs) + " elapsed";
+    }
+    setInterval(renderHeaderMeta, 1000);
+    renderHeaderMeta();
+
+    // --- Live feed -----------------------------------------------------
     // Row lifecycle: a "started" event creates a row with a pulsing blue
     // dot; the matching "completed"/"failed" event (found by check_name)
-    // resolves it to steady green/red and appends `detail` if present.
-    // Synchronous checks (headers/cookies, and open_ports when unlocked)
-    // only ever arrive as "completed" - they never had a "started" row,
-    // so ensureRow() creates one already-resolved rather than a startled
-    // jump from nothing. A tier-locked open_ports never emits an event at
-    // all (server-side), so it simply never appears here - consistent
-    // with it not having run.
+    // resolves it to steady green/red, appends `detail` (best-effort
+    // enrichment - an issuer name, a probe count - not every check has
+    // one), and a severity badge when the check produced findings.
+    // Synchronous checks (headers/cookies, open_ports when unlocked) only
+    // ever arrive as "completed" - ensureRow() creates them already-
+    // resolved rather than a startled jump from nothing. A tier-locked
+    // open_ports never emits an event at all (server-side), so it simply
+    // never appears - consistent with it not having run.
     var feedEl = document.getElementById('consoleFeed');
+    var feedEmpty = document.getElementById('feedEmpty');
     var feedRows = {};
+    var totalFindings = 0;
+    var severityOrder = ['critical', 'high', 'medium', 'low', 'info'];
+    var worstSeverity = null;
 
-    function ensureRow(checkName, label) {
-      var row = feedRows[checkName];
+    var iconByCategory = {
+      shield: 'icon-shield', lock: 'icon-lock', network: 'icon-network',
+      folder: 'icon-folder', mail: 'icon-mail', bug: 'icon-bug',
+    };
+
+    function ensureRow(ev) {
+      var row = feedRows[ev.check_name];
       if (row) { return row; }
+      if (feedEmpty) { feedEmpty.remove(); feedEmpty = null; }
       row = document.createElement('li');
       row.className = 'feed-in';
-      row.dataset.check = checkName;
+      row.dataset.check = ev.check_name;
+
+      var icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      icon.setAttribute('class', 'icon feed-icon');
+      var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+      use.setAttribute('href', '#' + (iconByCategory[ev.icon] || 'icon-shield'));
+      icon.appendChild(use);
+
       var dot = document.createElement('span');
       dot.className = 'telemetry-dot';
+
       var labelEl = document.createElement('span');
       labelEl.className = 'feed-label';
-      labelEl.textContent = label;
+      labelEl.textContent = ev.label;
+
+      row.appendChild(icon);
       row.appendChild(dot);
       row.appendChild(labelEl);
-      if (feedEl) { feedEl.appendChild(row); }
-      feedRows[checkName] = row;
+      feedEl.appendChild(row);
+      feedRows[ev.check_name] = row;
       return row;
     }
 
+    function updateSeverityBadge(row, ev) {
+      if (!ev.finding_count) { return; }
+      var badge = row.querySelector('.feed-badge');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'feed-badge pill';
+        row.insertBefore(badge, row.querySelector('.feed-time'));
+      }
+      var sev = ev.top_severity || 'info';
+      badge.className = 'feed-badge pill ' + sev;
+      badge.textContent = ev.finding_count + (ev.finding_count === 1 ? ' finding' : ' findings') + (ev.top_severity ? ' · ' + ev.top_severity : '');
+    }
+
     function renderEvent(ev) {
-      var row = ensureRow(ev.check_name, ev.label);
+      var row = ensureRow(ev);
       var dot = row.querySelector('.telemetry-dot');
+
       if (ev.phase === 'started') {
         dot.classList.add('glow-pulse');
         return;
       }
+
       dot.classList.remove('glow-pulse');
       dot.classList.add(ev.phase === 'failed' ? 'failed' : 'done');
+
       if (ev.detail) {
         var detailEl = row.querySelector('.feed-detail');
         if (!detailEl) {
           detailEl = document.createElement('span');
           detailEl.className = 'feed-detail';
-          row.appendChild(detailEl);
+          row.insertBefore(detailEl, row.querySelector('.feed-time'));
         }
-        detailEl.textContent = '— ' + ev.detail;
+        detailEl.textContent = ev.detail;
+      }
+
+      if (!row.querySelector('.feed-time')) {
+        var timeEl = document.createElement('span');
+        timeEl.className = 'feed-time';
+        timeEl.textContent = '+' + Math.max(0, Math.round((Date.now() - startedAtMs) / 1000)) + 's';
+        row.appendChild(timeEl);
+      }
+
+      updateSeverityBadge(row, ev);
+
+      if (typeof ev.finding_count === 'number' && ev.finding_count > 0) {
+        totalFindings += ev.finding_count;
+        var statFindings = document.getElementById('statFindings');
+        if (statFindings) { statFindings.textContent = totalFindings; }
+        if (ev.top_severity && (!worstSeverity || severityOrder.indexOf(ev.top_severity) < severityOrder.indexOf(worstSeverity))) {
+          worstSeverity = ev.top_severity;
+          var row2 = document.getElementById('severityRow');
+          if (row2) {
+            row2.style.display = 'flex';
+            row2.innerHTML = '<span class="pill ' + worstSeverity + '">most severe: ' + worstSeverity + '</span>';
+          }
+        }
       }
     }
 
     var es = new EventSource('/scan/' + scanId + '/events');
+    var sweepBar = document.getElementById('sweepBar');
+    if (sweepBar) { sweepBar.classList.add('active'); }
+
     es.onmessage = function (evt) {
       lastMessageAt = Date.now();
       if (staleLine) { staleLine.style.display = 'none'; }
       var data = JSON.parse(evt.data);
+
+      lastCounts.done = data.progress_current;
+      lastCounts.total = data.progress_total;
+      renderHeaderMeta();
+
       var pct = data.progress_total > 0 ? Math.round(100 * data.progress_current / data.progress_total) : 0;
       var fill = document.getElementById('barFill');
       if (fill) { fill.style.width = pct + '%'; }
-      var line = document.getElementById('statusLine');
-      if (line) { line.textContent = 'status: ' + data.status + ' (' + data.progress_current + '/' + data.progress_total + ')'; }
+      var statChecks = document.getElementById('statChecks');
+      if (statChecks) { statChecks.textContent = data.progress_current + ' / ' + data.progress_total; }
+
       if (data.events) {
         data.events.forEach(renderEvent);
       }
+
       if (data.status === 'completed') {
         clearInterval(watchdog);
+        if (sweepBar) { sweepBar.classList.remove('active'); }
         es.close();
         window.location.href = '/scan/' + scanId + '/report';
       } else if (data.status === 'failed') {
@@ -150,9 +320,6 @@
       }
     };
     es.onerror = function () {
-      // EventSource auto-reconnects on its own unless the browser gave up
-      // (readyState 2 = CLOSED) - either way, tell the user something is
-      // wrong instead of leaving the progress bar silently frozen.
       showReconnecting();
       if (es.readyState === EventSource.CLOSED && staleLine) {
         clearInterval(watchdog);

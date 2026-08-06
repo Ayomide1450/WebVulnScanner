@@ -177,6 +177,22 @@
 {% block head %}{% endblock %}
 </head>
 <body>
+  <!-- Shared icon sprite - reference any symbol with
+       <svg class="icon"><use href="#icon-NAME"/></svg>. Hand-authored,
+       one consistent stroke/weight (matches .icon's stroke:currentColor;
+       stroke-width:1.8 convention), not a icon-font/emoji substitute.
+       Category icons for the scan-progress live feed (Phase 2 redesign)
+       live here so any future page can reuse them without re-drawing. -->
+  <svg style="position:absolute; width:0; height:0; overflow:hidden;" aria-hidden="true">
+    <symbol id="icon-shield" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/></symbol>
+    <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="icon-network" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="4" y="14" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" d="M8 7h.01M8 17h.01"/></symbol>
+    <symbol id="icon-folder" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z"/></symbol>
+    <symbol id="icon-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="m4 7 8 6 8-6"/></symbol>
+    <symbol id="icon-bug" viewBox="0 0 24 24"><rect x="8" y="9" width="8" height="10" rx="4" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V7a3 3 0 0 1 6 0v2M6 12h12M7 9 5 7m14 2 2-2M7 15l-2 2m14-2 2 2"/></symbol>
+    <symbol id="icon-radar" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-linecap="round"/><circle cx="12" cy="12" r="5" stroke-linecap="round"/><path stroke-linecap="round" d="M12 12 17 7"/></symbol>
+  </svg>
+
   <div class="topnav">
     <a class="brand-link" href="/">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>

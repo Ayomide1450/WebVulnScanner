@@ -149,6 +149,15 @@ bar/status-line-only view. Extending the live feed to them is a deferred, separa
 (would need each orchestrator to grow the same `jobs`-dict-`+`-`as_completed` pattern `run_scan`
 already has).
 
+`ScanEvent` also carries `finding_count`/`top_severity` (set only on completed/failed rows, via
+`scan_engine._top_severity()`/`_extract_detail()`) so the feed shows findings surfacing live, not
+just pass/fail dots - `checks.CHECK_CATEGORY` maps each check to one of 6 icon-sprite keys
+(`templates/base.html`'s `<symbol id="icon-*">` sprite) for the same reason `CHECK_LABELS` exists:
+kept in sync via a regression test, falls back to `"shield"` if a future check is missed.
+`scan_progress.html`'s current layout (status bar + two-column Investigation Log / Live
+Intelligence grid, `scan-sweep` motif) is the Phase 2 "SOC" redesign - keep both `CHECK_LABELS`
+and `CHECK_CATEGORY` updated together when `run_scan()`'s jobs dict changes.
+
 ### Check function convention
 
 Every individual check is a plain function that returns `(data, findings)`:

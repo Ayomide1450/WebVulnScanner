@@ -184,7 +184,14 @@ class ScanEvent(db.Model):
     run inside the ThreadPoolExecutor; synchronous checks (headers/cookies/
     open_ports) only ever get a single COMPLETED row - see run_scan()'s
     progress_cb call sites in scan_engine.py for the exact semantics,
-    including why a tier-locked open_ports never gets a row here at all."""
+    including why a tier-locked open_ports never gets a row here at all.
+
+    `finding_count`/`top_severity` are only ever set on a COMPLETED/FAILED
+    row (never STARTED, since a check's findings aren't known until it
+    finishes) - they're what let the live feed on scan_progress.html show
+    findings surfacing in real time ("2 findings, high") instead of only
+    at the final report. `top_severity` is the most severe value present
+    among that check's findings, per checks.SEVERITY_ORDER's ranking."""
     __tablename__ = "scan_events"
     __table_args__ = (
         db.Index("ix_scan_events_scan_id_id", "scan_id", "id"),
@@ -195,6 +202,8 @@ class ScanEvent(db.Model):
     check_name = db.Column(db.String(64), nullable=False)
     phase = db.Column(db.Enum(ScanEventPhase), nullable=False)
     detail = db.Column(db.String(255), nullable=True)
+    finding_count = db.Column(db.Integer, nullable=True)
+    top_severity = db.Column(db.String(16), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
 
     scan = db.relationship("Scan")

@@ -41,7 +41,8 @@ def test_scan_event_round_trips(db):
 
     user = make_user("owner@example.com")
     scan = make_scan(user)
-    ev = ScanEvent(scan_id=scan.id, check_name="tls", phase=ScanEventPhase.STARTED, detail="foo")
+    ev = ScanEvent(scan_id=scan.id, check_name="tls", phase=ScanEventPhase.STARTED, detail="foo",
+                    finding_count=2, top_severity="high")
     _db.session.add(ev)
     _db.session.flush()
 
@@ -49,6 +50,8 @@ def test_scan_event_round_trips(db):
     assert fetched.check_name == "tls"
     assert fetched.phase == ScanEventPhase.STARTED
     assert fetched.detail == "foo"
+    assert fetched.finding_count == 2
+    assert fetched.top_severity == "high"
     assert fetched.scan_id == scan.id
     assert fetched.scan.id == scan.id
 
@@ -70,6 +73,17 @@ def test_check_labels_covers_every_run_scan_job_name():
 
     missing = job_names - set(CHECK_LABELS)
     assert not missing, f"CHECK_LABELS is missing entries for {missing} - live feed would title-case fallback"
+
+
+def test_check_category_covers_every_check_label():
+    # CHECK_CATEGORY drives the live feed's icon (see _serialize_new_events's
+    # icon-key fallback to "shield") - keep it in sync with CHECK_LABELS's
+    # key set the same way CHECK_LABELS itself is kept in sync with
+    # run_scan()'s dispatchable check names above.
+    from webvulnscanner.checks import CHECK_CATEGORY
+
+    missing = set(CHECK_LABELS) - set(CHECK_CATEGORY)
+    assert not missing, f"CHECK_CATEGORY is missing entries for {missing} - live feed would fall back to 'shield'"
 
 
 # --------------------------------------------------------------------------
@@ -100,7 +114,7 @@ def test_run_scan_progress_cb_sequence_free_tier(monkeypatch):
     _stub_all_checks(monkeypatch)
     calls = []
 
-    def progress_cb(name, phase, done, total, detail=None):
+    def progress_cb(name, phase, done, total, detail=None, finding_count=None, top_severity=None):
         calls.append((name, phase, done, total, detail))
 
     scan_engine.run_scan("https://example.com", None, Tier.FREE, False, progress_cb=progress_cb)
@@ -139,7 +153,7 @@ def test_run_scan_progress_cb_open_ports_completed_when_allowed(monkeypatch):
     _stub_all_checks(monkeypatch)
     calls = []
 
-    def progress_cb(name, phase, done, total, detail=None):
+    def progress_cb(name, phase, done, total, detail=None, finding_count=None, top_severity=None):
         calls.append((name, phase))
 
     scan_engine.run_scan("https://example.com", None, Tier.PAID, False, progress_cb=progress_cb)
@@ -156,7 +170,7 @@ def test_run_scan_progress_cb_reports_failed_check(monkeypatch):
 
     calls = []
 
-    def progress_cb(name, phase, done, total, detail=None):
+    def progress_cb(name, phase, done, total, detail=None, finding_count=None, top_severity=None):
         calls.append((name, phase, detail))
 
     scan_engine.run_scan("https://example.com", None, Tier.FREE, False, progress_cb=progress_cb)
@@ -166,6 +180,36 @@ def test_run_scan_progress_cb_reports_failed_check(monkeypatch):
     failed = [c for c in tls_calls if c[1] == "failed"]
     assert len(failed) == 1
     assert "simulated check failure" in failed[0][2]
+
+
+def test_run_scan_progress_cb_reports_finding_count_and_top_severity(monkeypatch):
+    from webvulnscanner.checks import Finding
+
+    _stub_all_checks(monkeypatch)
+    # tls "completes" with two real findings (high + low) - top_severity
+    # must be the more severe of the two, not just the first/last one.
+    monkeypatch.setattr(scan_engine, "check_tls_cert", lambda *a, **k: ({}, [
+        Finding("TLS", "Weak cipher suite", "low", "detail", "fix"),
+        Finding("TLS", "Expired intermediate", "high", "detail", "fix"),
+    ]))
+
+    calls = []
+
+    def progress_cb(name, phase, done, total, detail=None, finding_count=None, top_severity=None):
+        calls.append((name, phase, finding_count, top_severity))
+
+    scan_engine.run_scan("https://example.com", None, Tier.FREE, False, progress_cb=progress_cb)
+
+    tls_completed = [c for c in calls if c[0] == "tls" and c[1] == "completed"]
+    assert tls_completed == [("tls", "completed", 2, "high")]
+
+    tls_started = [c for c in calls if c[0] == "tls" and c[1] == "started"]
+    assert tls_started == [("tls", "started", None, None)]  # not known yet at start
+
+    # A check that completes with zero findings reports finding_count=0,
+    # top_severity=None (not "no data" - a real, meaningful zero).
+    cookies_completed = [c for c in calls if c[0] == "cookies"]
+    assert cookies_completed == [("cookies", "completed", 0, None)]
 
 
 def test_run_scan_without_progress_cb_still_works(monkeypatch):
@@ -251,9 +295,11 @@ def test_serialize_new_events_returns_only_events_after_cursor(db):
 
     user = make_user("owner@example.com")
     scan = make_scan(user)
-    e1 = ScanEvent(scan_id=scan.id, check_name="headers", phase=ScanEventPhase.COMPLETED, detail="grade B")
+    e1 = ScanEvent(scan_id=scan.id, check_name="headers", phase=ScanEventPhase.COMPLETED, detail="grade B",
+                    finding_count=3, top_severity="high")
     e2 = ScanEvent(scan_id=scan.id, check_name="tls", phase=ScanEventPhase.STARTED)
-    e3 = ScanEvent(scan_id=scan.id, check_name="totally_unknown_check", phase=ScanEventPhase.COMPLETED)
+    e3 = ScanEvent(scan_id=scan.id, check_name="totally_unknown_check", phase=ScanEventPhase.COMPLETED,
+                    finding_count=0)
     _db.session.add_all([e1, e2, e3])
     _db.session.flush()
 
@@ -261,10 +307,14 @@ def test_serialize_new_events_returns_only_events_after_cursor(db):
     assert [e["check_name"] for e in all_events] == ["headers", "tls", "totally_unknown_check"]
     assert all_events[0]["label"] == "Security headers"
     assert all_events[0]["detail"] == "grade B"
+    assert all_events[0]["finding_count"] == 3
+    assert all_events[0]["top_severity"] == "high"
     assert all_events[1]["phase"] == "started"
+    assert all_events[1]["finding_count"] is None  # not known yet at "started"
     # Fallback label for a check_name absent from CHECK_LABELS - same
     # title-case fallback templates/scan_report.html's locked_card() uses.
     assert all_events[2]["label"] == "Totally Unknown Check"
+    assert all_events[2]["finding_count"] == 0  # a real, meaningful zero, not "no data"
 
     after_first = _serialize_new_events(scan.id, all_events[0]["id"])
     assert [e["check_name"] for e in after_first] == ["tls", "totally_unknown_check"]
