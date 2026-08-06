@@ -27,11 +27,29 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env    # set SECRET_KEY at minimum
+set FLASK_APP=app.py
+flask db upgrade          # applies migrations/ - see "Database migrations" below
 python app.py
 ```
 
-Then open http://127.0.0.1:5000. SQLite tables are created automatically on first run. There is
-no build step or linter configured in this repo.
+Then open http://127.0.0.1:5000. There is no build step or linter configured in this repo.
+
+**Database migrations (infra track)**: `db.create_all()` no longer runs automatically in
+`create_app()` - schema is owned by Alembic via Flask-Migrate (`migrations/`). Run
+`flask db upgrade` once after cloning (creates all tables) and again after pulling any commit
+that adds a `migrations/versions/*.py` file. After changing a model, run
+`flask db migrate -m "description"` then review the generated file before `flask db upgrade` -
+autogenerate is good but not infallible (renamed columns show up as drop+add, for one). This
+replaced the old "no migrations, add a new table instead of altering one" constraint entirely.
+
+**Deploying (Render)**: `render.yaml` + `Procfile` are set up for Render's Blueprint deploy
+(gunicorn, `flask db upgrade` runs before the app starts, `/healthz` as the health-check path).
+Postgres works out of the box - `config.py` rewrites a `postgres://` URI to `postgresql://`
+(what SQLAlchemy 2.x requires) and only applies the SQLite-only `check_same_thread` engine
+option when the URI is actually sqlite. Real email needs `EMAIL_MODE=resend` +
+`RESEND_API_KEY` + `RESEND_FROM_EMAIL` (a domain verified in Resend) - unset, it stays on the
+console stub. None of this creates accounts for you - see handoff.md's infra-track section for
+the exact steps only a human can do (Render/Neon/Resend/Sentry/UptimeRobot signups).
 
 **Tests**: `pip install -r requirements-dev.txt` then `pytest` (or
 `.venv\Scripts\python -m pytest`). `tests/conftest.py` builds a fresh Flask app per test against

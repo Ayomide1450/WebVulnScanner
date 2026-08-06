@@ -7,12 +7,20 @@ without triggering circular imports with the app factory.
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
+from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import CSRFProtect
 
 db = SQLAlchemy()
 login_manager = LoginManager()
 csrf = CSRFProtect()
+# Alembic-backed migrations (infra track) - replaces the old "db.create_all()
+# only, no migrations, add a new table instead of altering one" constraint.
+# `flask db migrate`/`flask db upgrade` now own schema changes; db.create_all()
+# in create_app() stays only as a first-run convenience for a brand-new empty
+# DB (a fresh `flask db upgrade` accomplishes the same thing and is what a
+# real deploy should run instead - see CLAUDE.md's Commands section).
+migrate = Migrate()
 # In-memory storage (Flask-Limiter's default) - fine for this app's current
 # single dev-server-process reality (same caveat as SQLite's
 # check_same_thread config), but limits won't be shared across multiple

@@ -10,7 +10,7 @@ from flask import Flask, render_template
 
 from webvulnscanner.config import Config
 from webvulnscanner.email_stub import make_email_sender
-from webvulnscanner.extensions import csrf, db, limiter, login_manager
+from webvulnscanner.extensions import csrf, db, limiter, login_manager, migrate
 
 
 def create_app(config_class=Config):
@@ -21,11 +21,14 @@ def create_app(config_class=Config):
     login_manager.init_app(app)
     csrf.init_app(app)
     limiter.init_app(app)
+    migrate.init_app(app, db)
 
     # Email sender is stashed on app.extensions (Flask's own convention for
     # extension-owned, app-scoped state) so route code can reach it via
     # current_app.extensions["email_sender"].
-    app.extensions["email_sender"] = make_email_sender(app.config["EMAIL_MODE"])
+    app.extensions["email_sender"] = make_email_sender(
+        app.config["EMAIL_MODE"], app.config["RESEND_API_KEY"], app.config["RESEND_FROM_EMAIL"],
+    )
 
     from webvulnscanner.auth_routes import auth as auth_blueprint
 
@@ -71,8 +74,13 @@ def create_app(config_class=Config):
         return render_template("429.html"), 429
 
     with app.app_context():
-        from webvulnscanner import models  # noqa: F401  (registers models with db.Model)
-
-        db.create_all()
+        # Import only, to register models with db.Model - schema creation is
+        # now owned by Alembic (`flask db upgrade`, see migrations/ and
+        # CLAUDE.md's Commands section), not an implicit db.create_all() here.
+        # That unconditional call used to run on every app start, which is
+        # also what silently masked adding a column to an existing table
+        # never actually applying to a real, already-created DB - the exact
+        # failure mode migrations exist to fix.
+        from webvulnscanner import models  # noqa: F401
 
     return app

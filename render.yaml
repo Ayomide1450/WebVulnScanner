@@ -1,0 +1,22 @@
+# Render Blueprint - see https://render.com/docs/blueprint-spec
+# Deploy: connect this repo in the Render dashboard and it reads this file
+# automatically ("New +" -> "Blueprint"). Secrets (SECRET_KEY, GROQ_API_KEY,
+# RESEND_API_KEY, SQLALCHEMY_DATABASE_URI pointing at your Neon Postgres
+# instance, etc.) are NOT declared here - set them as real secrets in the
+# Render dashboard's Environment tab after the first deploy, never commit
+# them. See CLAUDE.md's Commands section for the full env var list.
+services:
+  - type: web
+    name: webvulnscanner
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "flask db upgrade && gunicorn app:app --workers 1 --threads 4 --timeout 120"
+    healthCheckPath: /healthz
+    envVars:
+      - key: FLASK_APP
+        value: app.py
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: PYTHON_VERSION
+        value: "3.12.0"

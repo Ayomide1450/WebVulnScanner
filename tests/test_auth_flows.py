@@ -397,6 +397,9 @@ def test_login_rate_limit_is_enforced(tmp_path):
         SQLALCHEMY_DATABASE_URI = f"sqlite:///{tmp_path / 'ratelimit.db'}"
 
     rl_app = create_app(_RateLimitedConfig)
+    with rl_app.app_context():
+        from webvulnscanner.extensions import db as _db
+        _db.create_all()
     _limiter.reset()
     try:
         rl_client = rl_app.test_client()

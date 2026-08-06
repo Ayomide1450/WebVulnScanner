@@ -64,14 +64,26 @@ class Config:
     REMEMBER_COOKIE_HTTPONLY = True
     REMEMBER_COOKIE_SAMESITE = "Lax"
 
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
+    _db_uri = os.environ.get(
         "SQLALCHEMY_DATABASE_URI",
         "sqlite:///" + os.path.join(APP_DIR, "webvulnscanner.db"),
     )
+    # Render/Heroku/most managed-Postgres providers (Neon included) hand out
+    # connection strings starting "postgres://" - SQLAlchemy 1.4+ only
+    # accepts the "postgresql://" scheme, so this rewrite is required, not
+    # cosmetic, for the app to even boot against one of those URLs.
+    if _db_uri.startswith("postgres://"):
+        _db_uri = _db_uri.replace("postgres://", "postgresql://", 1)
+    SQLALCHEMY_DATABASE_URI = _db_uri
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    # Needed because scans run in a background thread (Workstream 4) that
-    # writes to the same SQLite connection pool as the request thread.
-    SQLALCHEMY_ENGINE_OPTIONS = {"connect_args": {"check_same_thread": False}}
+    # check_same_thread only means anything to SQLite (scans run in a
+    # background thread that writes to the same connection pool as the
+    # request thread) - Postgres connections are already safe to share
+    # across threads via the pool, and passing this connect_arg to
+    # psycopg2 would be a TypeError, not a no-op.
+    SQLALCHEMY_ENGINE_OPTIONS = (
+        {"connect_args": {"check_same_thread": False}} if _db_uri.startswith("sqlite") else {}
+    )
 
     WTF_CSRF_ENABLED = os.environ.get("WTF_CSRF_ENABLED", "true").lower() not in (
         "0",
@@ -90,6 +102,8 @@ class Config:
 
     # Email delivery mode: "console" prints to stdout (see email_stub.py).
     EMAIL_MODE = os.environ.get("EMAIL_MODE", "console")
+    RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+    RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "")
 
     # AI-assisted remediation summaries (see webvulnscanner/ai_summary.py) -
     # Groq's free, OpenAI-compatible API serving an open-source model.

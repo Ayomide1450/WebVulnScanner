@@ -10,3 +10,6 @@ Flask-Limiter
 openai
 python-dotenv
 email-validator
+Flask-Migrate
+psycopg2-binary
+gunicorn

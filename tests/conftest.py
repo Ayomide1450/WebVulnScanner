@@ -49,6 +49,12 @@ def app(tmp_path):
         SQLALCHEMY_DATABASE_URI = f"sqlite:///{db_path}"
 
     application = create_app(_AppConfig)
+    with application.app_context():
+        # create_app() no longer calls db.create_all() itself (schema is now
+        # Alembic's job - see migrations/ and webvulnscanner/__init__.py) -
+        # tests want instant fresh schema per-run, not a real migration
+        # replay, so they create it directly here instead.
+        _db.create_all()
     yield application
     with application.app_context():
         _db.session.remove()
