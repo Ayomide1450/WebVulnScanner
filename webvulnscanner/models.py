@@ -100,6 +100,23 @@ class User(UserMixin, db.Model):
         return True
 
 
+class PasswordReset(db.Model):
+    """One-time password-reset tokens, same pattern as User.verify_token
+    but its own table rather than a column on User - added after the app
+    already had a live database, and db.create_all() can only create new
+    tables, never ALTER an existing one."""
+    __tablename__ = "password_resets"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    token = db.Column(db.String(64), unique=True, nullable=False)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    used_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+
+    user = db.relationship("User")
+
+
 class DomainVerification(db.Model):
     __tablename__ = "domain_verifications"
     __table_args__ = (
