@@ -31,7 +31,21 @@ python app.py
 ```
 
 Then open http://127.0.0.1:5000. SQLite tables are created automatically on first run. There is
-no build step, linter, or test suite configured in this repo.
+no build step or linter configured in this repo.
+
+**Tests**: `pip install -r requirements-dev.txt` then `pytest` (or
+`.venv\Scripts\python -m pytest`). `tests/conftest.py` builds a fresh Flask app per test against
+its own on-disk SQLite file under pytest's `tmp_path` (not `:memory:` — see the fixture's
+docstring for why), with CSRF and rate-limiting disabled and env vars defaulted so the suite
+needs no `.env` file. Coverage so far: `entitlements.py` tier-gating (`allowed_checks`,
+`effective_tier`, `domain_is_org_verified`, plus a regression check that `FEATURE_REQUIREMENTS`
+covers every check name `run_scan`'s jobs dict can dispatch), `_check_ownership`'s IDOR guard in
+`scan_routes.py` across all four call sites, and `checks.is_ssrf_safe_hostname` /
+`scan_routes._unsafe_target_error` (mocked `socket.getaddrinfo` for the address-class matrix,
+plus route-level tests confirming a blocked target creates no `Scan` row). No CI workflow wired
+up yet. **Gotcha**: `email_validator` (backing WTForms' `Email()` validator) statically rejects
+reserved TLDs (`.test`/`.invalid`/`.localhost`) even with deliverability checking off — use
+`.com`/`.org`/`.dev`-style fake domains for test fixture emails, not `.test`.
 
 **`SECRET_KEY` is required, not optional** — `config.py` raises `RuntimeError` at import time if
 it's unset, since it signs session cookies, the remember-me cookie, and org-invite tokens. For

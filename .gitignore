@@ -7,4 +7,7 @@ reports/
 .worktrees/
 .superpowers/
 webvulnscanner.db
+instance/
 .env
+handoff.md
+.pytest_cache/
