@@ -37,13 +37,20 @@ no build step or linter configured in this repo.
 `.venv\Scripts\python -m pytest`). `tests/conftest.py` builds a fresh Flask app per test against
 its own on-disk SQLite file under pytest's `tmp_path` (not `:memory:` — see the fixture's
 docstring for why), with CSRF and rate-limiting disabled and env vars defaulted so the suite
-needs no `.env` file. Coverage so far: `entitlements.py` tier-gating (`allowed_checks`,
+needs no `.env` file. Runs on every push/PR via `.github/workflows/tests.yml` (GitHub Actions,
+Python 3.12, `ubuntu-latest`). Coverage so far: `entitlements.py` tier-gating (`allowed_checks`,
 `effective_tier`, `domain_is_org_verified`, plus a regression check that `FEATURE_REQUIREMENTS`
 covers every check name `run_scan`'s jobs dict can dispatch), `_check_ownership`'s IDOR guard in
-`scan_routes.py` across all four call sites, and `checks.is_ssrf_safe_hostname` /
+`scan_routes.py` across all four call sites, `checks.is_ssrf_safe_hostname` /
 `scan_routes._unsafe_target_error` (mocked `socket.getaddrinfo` for the address-class matrix,
-plus route-level tests confirming a blocked target creates no `Scan` row). No CI workflow wired
-up yet. **Gotcha**: `email_validator` (backing WTForms' `Email()` validator) statically rejects
+plus route-level tests confirming a blocked target creates no `Scan` row), and
+`auth_routes.py`'s signup/verify-email/login/logout/forgot-password/reset-password flows
+(anti-user-enumeration on both the login and forgot-password forms, single-use verify/reset
+tokens, the `_safe_next()` open-redirect guard, and one dedicated test that turns
+`RATELIMIT_ENABLED` back on to confirm `/login`'s 10/min limit actually trips a 429 — every
+other test leaves rate limiting disabled since `Limiter`'s in-memory storage is a
+process-wide singleton shared across every test app instance, see `extensions.py`).
+**Gotcha**: `email_validator` (backing WTForms' `Email()` validator) statically rejects
 reserved TLDs (`.test`/`.invalid`/`.localhost`) even with deliverability checking off — use
 `.com`/`.org`/`.dev`-style fake domains for test fixture emails, not `.test`.
 
