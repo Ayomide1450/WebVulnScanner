@@ -5,9 +5,21 @@
   .hero { max-width: 760px; margin: 0 auto; padding: 70px 22px 40px; text-align: center; }
   .eyebrow { display:inline-flex; align-items:center; gap:7px; font-family:"Fira Code",monospace; font-size:12px; color: var(--accent); background: var(--accent-dim); border:1px solid rgba(34,197,94,.3); padding:5px 12px; border-radius:999px; margin-bottom:18px; }
   .eyebrow .dot { width:6px; height:6px; border-radius:50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
-  .hero h1 { font-size: 40px; margin: 0 0 14px; letter-spacing: -0.02em; }
-  .hero .sub { color: var(--muted); font-size: 16.5px; margin: 0 0 32px; }
-  .cta-row { display:flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+  /* Terminal boot sequence - hidden until JS enables it (see script below),
+     so no-JS / prefers-reduced-motion visitors just see the final static
+     hero with zero animation, no layout jump. */
+  .terminal { display:none; max-width: 480px; margin: 0 auto 22px; text-align:left; background: var(--panel); border:1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .terminal.active { display:block; }
+  .terminal pre { margin:0; font-family:"Fira Code",monospace; font-size:12.5px; line-height:1.7; color: var(--muted); white-space:pre-wrap; min-height: 1.7em; }
+  .terminal .cursor { display:inline-block; width:7px; height:13px; background: var(--accent); margin-left:2px; vertical-align:-2px; animation: blink 1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .hero h1 { font-size: 40px; margin: 0 0 14px; letter-spacing: -0.02em; min-height: 1.2em; }
+  .hero h1 .cursor { animation: blink 1s step-end infinite; }
+  .hero .sub { color: var(--muted); font-size: 16.5px; margin: 0 0 32px; transition: opacity 250ms ease; }
+  .cta-row { display:flex; gap: 14px; justify-content: center; flex-wrap: wrap; transition: opacity 250ms ease; }
+  .fade-pending { opacity: 0; }
   .cta { text-decoration:none; padding: 14px 26px; border-radius: 10px; font-weight:700; font-size:15px; transition: filter 150ms ease, transform 150ms ease; }
   .cta:hover { filter: brightness(1.08); }
   .cta.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#04150a; }
@@ -21,13 +33,18 @@
 {% endblock %}
 {% block content %}
 <div class="hero">
-  <div class="eyebrow"><span class="dot"></span> Authorized-use security scanner</div>
-  <h1>Know your website's real attack surface.</h1>
-  <p class="sub">Headers, TLS, exposed secrets, CORS and open ports for free - and, once you've
-  proven you own the domain, live XSS/SQLi probing, stored-XSS, IDOR and brute-force checks too.
-  One dashboard, real-time progress, full report history.</p>
-  <div class="cta-row">
-    <a class="cta primary" href="{{ url_for('auth.signup') }}">Sign up</a>
+  <div class="eyebrow"><span class="dot"></span> Autonomous Security Validation Platform</div>
+
+  <div class="terminal" id="bootTerminal" aria-hidden="true">
+    <pre id="bootLines"></pre>
+  </div>
+
+  <h1 id="heroHeadline">Your own automated security engineer.</h1>
+  <p class="sub" id="heroSub">Discover, verify, and safely test your organization's attack
+  surface - no bug bounty hunters, no third-party access. Everything stays between you and
+  the platform.</p>
+  <div class="cta-row" id="heroCta">
+    <a class="cta primary" href="{{ url_for('auth.signup') }}">Start free scan</a>
     <a class="cta secondary" href="{{ url_for('auth.login') }}">Log in</a>
   </div>
 </div>
@@ -48,4 +65,88 @@
     brute-force checks - gated behind a server-verified domain-ownership proof.</p>
   </div>
 </div>
+<script>
+(function () {
+  // Progressive enhancement only: the server-rendered headline/sub/CTA are
+  // already the final, correct content. If JS is disabled or the visitor
+  // asked for reduced motion, do nothing and let that static render stand.
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion) return;
+
+  var terminalEl = document.getElementById('bootTerminal');
+  var linesEl = document.getElementById('bootLines');
+  var headlineEl = document.getElementById('heroHeadline');
+  var subEl = document.getElementById('heroSub');
+  var ctaEl = document.getElementById('heroCta');
+  if (!terminalEl || !linesEl || !headlineEl) return;
+
+  // Real check-registry lines, not invented "AI engine" theater - this is
+  // representative of what checks.py's check_headers/check_tls_cert/
+  // check_exposed_secrets/etc. and the domain-verification gate actually do.
+  var bootLines = [
+    'Initializing scan engine...',
+    'Loading check registry...',
+    'Discovering attack surface...',
+    'Verifying domain ownership...',
+    'Scanning headers, TLS, cookies...',
+    'Probing exposed secrets & SRI...',
+    'Compiling risk report...',
+    'Done.'
+  ];
+  var headlineText = headlineEl.textContent;
+
+  headlineEl.textContent = '';
+  subEl.classList.add('fade-pending');
+  ctaEl.classList.add('fade-pending');
+  terminalEl.classList.add('active');
+
+  function typeLine(text, cb) {
+    var i = 0;
+    var current = linesEl.textContent;
+    (function step() {
+      linesEl.textContent = current + text.slice(0, i);
+      if (i < text.length) {
+        i++;
+        setTimeout(step, 14);
+      } else {
+        linesEl.textContent = current + text + '\n';
+        setTimeout(cb, 180);
+      }
+    })();
+  }
+
+  function runBoot(index) {
+    if (index >= bootLines.length) {
+      setTimeout(function () {
+        terminalEl.classList.remove('active');
+        typeHeadline();
+      }, 300);
+      return;
+    }
+    typeLine(bootLines[index], function () { runBoot(index + 1); });
+  }
+
+  function typeHeadline() {
+    var i = 0;
+    var cursor = document.createElement('span');
+    cursor.className = 'cursor';
+    (function step() {
+      headlineEl.textContent = headlineText.slice(0, i);
+      headlineEl.appendChild(cursor);
+      if (i < headlineText.length) {
+        i++;
+        setTimeout(step, 28);
+      } else {
+        setTimeout(function () {
+          cursor.remove();
+          subEl.classList.remove('fade-pending');
+          ctaEl.classList.remove('fade-pending');
+        }, 200);
+      }
+    })();
+  }
+
+  runBoot(0);
+})();
+</script>
 {% endblock %}
