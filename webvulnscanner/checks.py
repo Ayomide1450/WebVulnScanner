@@ -44,6 +44,31 @@ XSS_MARKER = "xsscanary7f3a"
 MAX_BRUTEFORCE_ATTEMPTS = 5
 AUTH_BYPASS_PAYLOADS = ["' OR '1'='1' -- ", "' OR 1=1 -- ", "admin'-- "]
 
+# Human-readable labels for run_scan()'s base-scan check units - the single
+# source of truth for the live scan_events() feed (scan_routes.py) shown on
+# scan_progress.html. Copied verbatim from the <summary> text already used
+# for these same checks in templates/scan_report.html's "Detailed check
+# output" section, so the live feed and the final report use identical
+# wording for the same check. Keys must match run_scan()'s jobs-dict keys
+# plus "headers"/"cookies"/"open_ports" (dispatched outside the jobs dict) -
+# see entitlements.FEATURE_REQUIREMENTS's own comment for the same key-set
+# convention. A key missing here isn't fatal - scan_routes.scan_events()
+# falls back to `check_name.replace('_', ' ').title()`, the same fallback
+# templates/scan_report.html's locked_card() macro already uses - but
+# tests/test_scan_events.py asserts this stays in sync with run_scan()'s
+# actual dispatchable check names, same regression-test pattern as
+# entitlements.py's FEATURE_REQUIREMENTS-coverage test.
+CHECK_LABELS = {
+    "headers": "Security headers", "cookies": "Cookies", "tls": "TLS certificate",
+    "https_redirect": "HTTP → HTTPS redirect", "sensitive_paths": "Sensitive path / file probe",
+    "secrets": "Exposed API keys / secrets", "sri": "Third-party scripts/stylesheets without SRI",
+    "open_ports": "Open ports", "cors": "CORS configuration", "http_methods": "HTTP methods",
+    "open_redirect": "Open redirect probe", "directory_listing": "Directory listing",
+    "mixed_content": "Mixed content", "dns_email": "DNS email security (SPF / DMARC / CAA)",
+    "vulnerable_js": "Outdated JS libraries", "xss_sqli": "Same-origin crawl & parameter/XSS/SQLi testing",
+    "robots_sitemap": "robots.txt / sitemap.xml",
+}
+
 # (label, regex, severity). High-confidence formats (AWS/Stripe/GitHub/private
 # keys) are critical/high; ambiguous generic patterns are medium to keep the
 # false-positive rate manageable; publishable keys/JWTs are info since those

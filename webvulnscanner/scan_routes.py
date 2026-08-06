@@ -50,10 +50,10 @@ from flask import Blueprint, Response, abort, current_app, redirect, render_temp
 from flask_login import current_user, login_required
 
 from webvulnscanner.ai_summary import generate_remediation_summary
-from webvulnscanner.checks import REPORTS_DIR, is_ssrf_safe_hostname, normalize_target
+from webvulnscanner.checks import CHECK_LABELS, REPORTS_DIR, is_ssrf_safe_hostname, normalize_target
 from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, domain_is_org_verified, effective_tier
 from webvulnscanner.extensions import db
-from webvulnscanner.models import Report, Role, Scan, ScanStatus
+from webvulnscanner.models import Report, Role, Scan, ScanEvent, ScanEventPhase, ScanStatus
 from webvulnscanner.scan_engine import run_advanced_scan, run_api_scan, run_media_scan, run_scan, save_report
 
 scan = Blueprint("scan", __name__)
@@ -95,10 +95,25 @@ def _run_scan_in_background(app, scan_id, scan_type, **kwargs):
         db.session.commit()
         try:
             if scan_type == "base":
-                def progress_cb(done, total):
+                def progress_cb(name, phase, done, total, detail=None):
+                    # progress_current/progress_total update unconditionally,
+                    # same as before this closure carried a check name/phase
+                    # at all - a tier-locked open_ports still bumps the
+                    # counters (run_scan() calls this every time regardless
+                    # of gating) but passes phase=None for it, since no
+                    # check actually ran; only a real started/completed/
+                    # failed phase gets a ScanEvent row, so the live feed on
+                    # scan_progress.html never shows a fabricated "open
+                    # ports: done" line for a check the caller's plan didn't
+                    # unlock.
                     row = Scan.query.get(scan_id)
                     row.progress_current = done
                     row.progress_total = total
+                    if phase is not None:
+                        db.session.add(ScanEvent(
+                            scan_id=scan_id, check_name=name,
+                            phase=ScanEventPhase(phase), detail=detail,
+                        ))
                     db.session.commit()
 
                 report = run_scan(
@@ -455,6 +470,33 @@ def scan_detail(scan_id):
     return render_template("scan_progress.html", scan=s)
 
 
+def _serialize_new_events(scan_id, after_id):
+    """Returns `[{"id", "check_name", "label", "phase", "detail"}, ...]` for
+    every `ScanEvent` row belonging to `scan_id` with `id > after_id`,
+    ordered oldest-first - the "only what's new since the last tick" query
+    `scan_events()` streams, so the client never has to re-render its whole
+    feed history every 0.5s. Standalone function (not inlined in
+    `scan_events()`'s `generate()` closure) specifically so it's unit-
+    testable without ever iterating the live SSE stream - see
+    tests/test_scan_events.py, and the same constraint already documented
+    for `_check_ownership` coverage in tests/test_scan_ownership.py."""
+    rows = (
+        ScanEvent.query.filter(ScanEvent.scan_id == scan_id, ScanEvent.id > after_id)
+        .order_by(ScanEvent.id)
+        .all()
+    )
+    return [
+        {
+            "id": row.id,
+            "check_name": row.check_name,
+            "label": CHECK_LABELS.get(row.check_name, row.check_name.replace("_", " ").title()),
+            "phase": row.phase.value,
+            "detail": row.detail,
+        }
+        for row in rows
+    ]
+
+
 @scan.route("/scan/<int:scan_id>/events")
 @login_required
 def scan_events(scan_id):
@@ -470,16 +512,29 @@ def scan_events(scan_id):
         # pattern as the background scan thread). `db.session.expire_all()`
         # each iteration forces a fresh row read instead of the scoped
         # session's cached copy from a previous iteration.
+        #
+        # `after_id` is a plain closure-local variable, not something the
+        # client sends back - this SSE connection is one long-lived
+        # response, not repeated short polls, so the cursor only needs to
+        # survive across this loop's own iterations. A genuine client-side
+        # reconnect (network drop, tab backgrounded) already falls back to
+        # the page's existing stale/reconnect-then-reload recovery path,
+        # which re-renders the whole page anyway.
         with app_obj.app_context():
+            after_id = 0
             while True:
                 db.session.expire_all()
                 row = Scan.query.get(scan_id)
                 if row is None:
                     break
+                events = _serialize_new_events(scan_id, after_id)
+                if events:
+                    after_id = events[-1]["id"]
                 payload = {
                     "progress_current": row.progress_current,
                     "progress_total": row.progress_total,
                     "status": row.status.value,
+                    "events": events,
                 }
                 yield f"data: {json.dumps(payload)}\n\n"
                 if row.status in (ScanStatus.COMPLETED, ScanStatus.FAILED):

@@ -159,6 +159,47 @@ class Scan(db.Model):
     report = db.relationship("Report", back_populates="scan", uselist=False)
 
 
+class ScanEventPhase(enum.Enum):
+    STARTED = "started"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ScanEvent(db.Model):
+    """Append-only, per-check timeline for a running scan - what drives the
+    live "watching it think" feed on scan_progress.html. New table (not a
+    column on Scan) for the same reason PasswordReset is its own table:
+    db.create_all() only creates new tables, it never ALTERs an existing
+    one, so a live DB can't gain a column on Scan without a manual migration.
+
+    `id` doubles as the SSE delivery cursor for scan_routes.scan_events() -
+    it's already a monotonic per-row PK, and the composite (scan_id, id)
+    index below makes "events for this scan after cursor N" an index-range
+    scan, so a separate per-scan sequence counter isn't needed.
+
+    `check_name` stores the raw run_scan() jobs-dict key (e.g. "tls"), not
+    a pre-rendered label - label resolution happens at read time via
+    checks.CHECK_LABELS, so relabeling a check later is a code change, not
+    a data backfill. `phase` is only ever STARTED for checks that actually
+    run inside the ThreadPoolExecutor; synchronous checks (headers/cookies/
+    open_ports) only ever get a single COMPLETED row - see run_scan()'s
+    progress_cb call sites in scan_engine.py for the exact semantics,
+    including why a tier-locked open_ports never gets a row here at all."""
+    __tablename__ = "scan_events"
+    __table_args__ = (
+        db.Index("ix_scan_events_scan_id_id", "scan_id", "id"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    scan_id = db.Column(db.Integer, db.ForeignKey("scans.id"), nullable=False)
+    check_name = db.Column(db.String(64), nullable=False)
+    phase = db.Column(db.Enum(ScanEventPhase), nullable=False)
+    detail = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+
+    scan = db.relationship("Scan")
+
+
 class Report(db.Model):
     __tablename__ = "reports"
 

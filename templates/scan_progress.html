@@ -4,23 +4,39 @@
 <style>
   .wrap { max-width: 640px; }
   h1 { font-size: 22px; margin: 20px 0 0; letter-spacing: -0.01em; }
-  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 16px; padding: 26px; margin-top: 20px; }
+  /* base.html's shared .card now matches this page's shape by default -
+     only the padding/margin differ slightly from the shared default
+     (a single standalone card here, not a stacked list), so just the
+     delta is overridden rather than the whole rule. */
+  .card { padding: 26px; margin-top: 20px; margin-bottom: 0; }
   .bar-track { background: rgba(255,255,255,.06); border-radius: 999px; height: 14px; overflow:hidden; margin-top:14px; }
   .bar-fill { background: linear-gradient(135deg, var(--accent), var(--accent2)); height:100%; width:0%; transition: width .3s ease; }
   .status-line { margin-top: 10px; color: var(--muted); font-size: 13.5px; }
   .status-line.stale { color: var(--medium); }
+
+  /* Live "watching it think" feed - each row is one check, started
+     (pulsing blue) -> completed (steady green) or failed (steady red).
+     Local to this page since nothing else reuses it yet. */
+  .console-feed { list-style:none; margin: 18px 0 0; padding:0; font-family: "Fira Code", monospace; font-size: 12.5px; }
+  .console-feed li { display:flex; align-items:center; gap:10px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .console-feed li:last-child { border-bottom: none; }
+  .console-feed .feed-label { color: var(--text); }
+  .console-feed .feed-detail { color: var(--muted); }
+  .console-feed li.feed-in { animation: feed-in .3s ease forwards; }
+  @keyframes feed-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
 </style>
 {% endblock %}
 {% block content %}
 <div class="wrap">
   <h1>Scanning <code>{{ scan.target_url }}</code></h1>
-  <div class="card">
+  <div class="card hud-grid">
     {% if scan.status.value == 'failed' %}
     <div class="error-box">Scan failed: {{ scan.error_message }}</div>
     {% else %}
     <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
     <div class="status-line" id="statusLine">status: {{ scan.status.value }}</div>
     <div class="status-line stale" id="staleLine" style="display:none;"></div>
+    <ul class="console-feed" id="consoleFeed" aria-live="polite"></ul>
     {% endif %}
   </div>
 </div>
@@ -59,6 +75,57 @@
       }
     }
 
+    // --- Live feed ---------------------------------------------------
+    // Row lifecycle: a "started" event creates a row with a pulsing blue
+    // dot; the matching "completed"/"failed" event (found by check_name)
+    // resolves it to steady green/red and appends `detail` if present.
+    // Synchronous checks (headers/cookies, and open_ports when unlocked)
+    // only ever arrive as "completed" - they never had a "started" row,
+    // so ensureRow() creates one already-resolved rather than a startled
+    // jump from nothing. A tier-locked open_ports never emits an event at
+    // all (server-side), so it simply never appears here - consistent
+    // with it not having run.
+    var feedEl = document.getElementById('consoleFeed');
+    var feedRows = {};
+
+    function ensureRow(checkName, label) {
+      var row = feedRows[checkName];
+      if (row) { return row; }
+      row = document.createElement('li');
+      row.className = 'feed-in';
+      row.dataset.check = checkName;
+      var dot = document.createElement('span');
+      dot.className = 'telemetry-dot';
+      var labelEl = document.createElement('span');
+      labelEl.className = 'feed-label';
+      labelEl.textContent = label;
+      row.appendChild(dot);
+      row.appendChild(labelEl);
+      if (feedEl) { feedEl.appendChild(row); }
+      feedRows[checkName] = row;
+      return row;
+    }
+
+    function renderEvent(ev) {
+      var row = ensureRow(ev.check_name, ev.label);
+      var dot = row.querySelector('.telemetry-dot');
+      if (ev.phase === 'started') {
+        dot.classList.add('glow-pulse');
+        return;
+      }
+      dot.classList.remove('glow-pulse');
+      dot.classList.add(ev.phase === 'failed' ? 'failed' : 'done');
+      if (ev.detail) {
+        var detailEl = row.querySelector('.feed-detail');
+        if (!detailEl) {
+          detailEl = document.createElement('span');
+          detailEl.className = 'feed-detail';
+          row.appendChild(detailEl);
+        }
+        detailEl.textContent = '— ' + ev.detail;
+      }
+    }
+
     var es = new EventSource('/scan/' + scanId + '/events');
     es.onmessage = function (evt) {
       lastMessageAt = Date.now();
@@ -69,6 +136,9 @@
       if (fill) { fill.style.width = pct + '%'; }
       var line = document.getElementById('statusLine');
       if (line) { line.textContent = 'status: ' + data.status + ' (' + data.progress_current + '/' + data.progress_total + ')'; }
+      if (data.events) {
+        data.events.forEach(renderEvent);
+      }
       if (data.status === 'completed') {
         clearInterval(watchdog);
         es.close();

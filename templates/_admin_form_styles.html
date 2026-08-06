@@ -1,0 +1,19 @@
+<!-- Shared CSS for billing.html/org_admin.html/org_verify_domain.html's small
+     admin-style forms (invite-member, add-domain, create-invoice, verify
+     buttons) - extracted from three near-identical local <style> blocks.
+     Not promoted into base.html, same reasoning _scan_form_styles.html's
+     own header comment already documents: label/input[type=text]/
+     input[type=email]/select/button are unscoped element selectors that
+     would otherwise leak into every other form in the app (auth pages,
+     the scan_new_* forms) - keeping this as an included partial scopes it
+     to only the three pages that opt in. -->
+<style>
+  label { display: block; margin-top: 14px; font-weight: 600; font-size: 13.5px; }
+  input[type=text], input[type=email], select {
+    width: 100%; padding: 10px 12px; margin-top: 6px; border: 1px solid var(--border);
+    border-radius: 10px; font-size: 14px; background: rgba(255,255,255,.03); color: var(--text);
+  }
+  button { margin-top: 16px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; border: none; padding: 10px 18px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .verify-btn { margin-top: 0; padding: 6px 12px; font-size: 12.5px; }
+  .field-error { color: var(--critical); font-size: 12.5px; margin-top: 5px; }
+</style>

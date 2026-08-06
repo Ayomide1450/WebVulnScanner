@@ -2,11 +2,11 @@
 {% block title %}Dashboard - WebVulnScanner{% endblock %}
 {% block head %}
 <style>
-  h1 { font-size: 24px; margin: 20px 0 6px; letter-spacing: -0.01em; }
-  h2.section { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin: 28px 0 12px; }
-  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 18px; }
-  table { width:100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align:left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  /* h1/h2.section/.card/table/th/td now live in base.html - see its
+     comments for why. This page only needs its own top-margin bump on h1
+     and a slightly tighter h2.section top-margin (28px vs base's 32px). */
+  h1 { margin-top: 20px; }
+  h2.section { margin-top: 28px; }
   a.row-link { color: var(--accent); text-decoration:none; }
   .cta { display:inline-block; margin: 4px 0 10px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff; text-decoration:none; padding: 10px 18px; border-radius: 10px; font-size:14px; font-weight:700; }
   .latest-score { font-size:36px; font-weight:800; }

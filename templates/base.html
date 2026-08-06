@@ -17,6 +17,12 @@
     --text: #f8fafc; --muted: #8b96ad; --accent: #22c55e; --accent2: #16a34a; --accent-dim: rgba(34,197,94,.14);
     --primary: #0f172a; --ring: #22c55e;
     --critical:#f87171; --high:#fb923c; --medium:#fbbf24; --low:#60a5fa; --info:#8b96ad; --pass:#22c55e;
+    /* "Operator console" telemetry accent - blue family, distinct from
+       --accent (reserved for pass/complete) and --low (a different,
+       severity-scale blue). Used for "in progress" states: the live scan
+       feed's pulsing dot while a check is running, before it resolves to
+       green on completion. */
+    --telemetry: #38bdf8; --telemetry2: #0ea5e9; --telemetry-dim: rgba(56,189,248,.14);
     --radius: 12px; --radius-lg: 18px;
     --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px; --space-7:48px;
   }
@@ -100,7 +106,59 @@
   .error-box { background: rgba(248,113,113,.09); border: 1px solid rgba(248,113,113,.35); padding: var(--space-3) var(--space-4); border-radius: var(--radius); margin-bottom: var(--space-4); color: var(--critical); font-size: 14px; }
   .info-box { background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.3); padding: var(--space-3) var(--space-4); border-radius: var(--radius); margin-bottom: var(--space-4); color: var(--text); font-size: 14px; }
 
-  .card { background: var(--panel); border:1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-5); }
+  /* .card's canonical definition - every template that uses this class
+     already locally overrode it to this exact gradient/16px-radius shape
+     (dashboard/billing/org_admin/org_verify_domain/scan_progress/the five
+     scan_new_* pages via _scan_form_styles.html/the auth pages), so this
+     is that same, already-converged-on value promoted to the shared
+     default rather than a new design choice - only 404/429/500.html were
+     actually relying on the old flat/no-margin version, and those pages
+     override padding/margin inline anyway (inline styles always win), so
+     this change is visually inert there and a small consistency win. */
+  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 18px; }
+
+  /* Shared page-title rules, promoted from four near-identical local
+     overrides (dashboard/billing/org_admin/org_verify_domain) - same
+     reasoning as .card above. dashboard.html keeps a 2-line local
+     override for its extra top margin rather than this changing for
+     everyone. */
+  h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  h2.section { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin: 32px 0 12px; }
+  table { width:100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align:left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+
+  /* Operator-console motion language. .glow-pulse generalizes the
+     currentColor drop-shadow glow _gauge.html's .gauge-fg already proved;
+     scan-sweep is reserved for future use (a sweeping highlight across a
+     panel). Both are named/reusable rather than one-off inline styles. */
+  @keyframes glow-pulse { 0%, 100% { filter: drop-shadow(0 0 4px currentColor); } 50% { filter: drop-shadow(0 0 10px currentColor); } }
+  @keyframes scan-sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+  @media (prefers-reduced-motion: no-preference) {
+    .glow-pulse { animation: glow-pulse 2.2s ease-in-out infinite; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* Still visibly distinct from .done/.failed (steady glow, no pulse)
+       rather than losing the "in progress" signal entirely. */
+    .glow-pulse { filter: drop-shadow(0 0 6px currentColor); }
+  }
+
+  /* CSS-only ambient circuit/grid texture - static by default (no motion,
+     so no prefers-reduced-motion gate needed on its own; an *animated*
+     drift variant, if ever added, must be its own modifier class gated by
+     @media (prefers-reduced-motion: no-preference), matching the
+     discipline marketing.html's typewriter hero already established). */
+  .hud-grid {
+    background-image:
+      linear-gradient(rgba(56,189,248,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(56,189,248,.05) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  /* Live-feed state dot: blue+pulsing while a check is in flight, swapped
+     to green+static on completion - see scan_progress.html. */
+  .telemetry-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; background: var(--telemetry); box-shadow: 0 0 6px var(--telemetry); color: var(--telemetry); }
+  .telemetry-dot.done { background: var(--accent); box-shadow: 0 0 6px var(--accent); color: var(--accent); animation: none; }
+  .telemetry-dot.failed { background: var(--critical); box-shadow: 0 0 6px var(--critical); color: var(--critical); animation: none; }
 
   a.back { color: var(--accent); text-decoration:none; font-size: 13.5px; font-weight:600; }
   a.back:hover { text-decoration:underline; }

@@ -306,32 +306,65 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
 
     results = {}
     all_findings = list(f1) + list(f2)
-    total = len(jobs) + 1
+    # +3 for headers/cookies/open_ports, which run outside the jobs dict
+    # (see below) but should still be represented in the live feed/progress
+    # ratio rather than silently skipped, as they were before this signature
+    # change (`progress_cb` used to only see `(done, total)`, so headers and
+    # cookies never emitted an event at all).
+    total = len(jobs) + 3
     done = 0
+
+    # headers/cookies already ran (synchronously, above, before this jobs
+    # dict even existed) - their progress_cb events fire here, now that
+    # `total` is known, so they land as the live feed's first two rows,
+    # ahead of any parallel job's "started" event, matching real execution
+    # order even though the calls themselves are deferred.
+    done += 1
+    if progress_cb:
+        progress_cb("headers", "completed", done, total, detail=f"grade {header_data['grade']}")
+    done += 1
+    if progress_cb:
+        progress_cb("cookies", "completed", done, total)
+
     with ThreadPoolExecutor(max_workers=max(len(jobs), 1)) as pool:
-        future_map = {pool.submit(fn): name for name, fn in jobs.items()}
+        future_map = {}
+        for name, fn in jobs.items():
+            if progress_cb:
+                progress_cb(name, "started", done, total)
+            future_map[pool.submit(fn)] = name
         for fut in as_completed(future_map):
             name = future_map[fut]
             try:
                 data, findings = fut.result()
+                phase, detail = "completed", None
             except Exception as e:
                 data, findings = {"error": str(e)}, []
+                phase, detail = "failed", str(e)[:255]
             results[name] = data
             all_findings.extend(findings)
             done += 1
             if progress_cb:
-                progress_cb(done, total)
+                progress_cb(name, phase, done, total, detail=detail)
 
     if FEATURE_REQUIREMENTS["open_ports"] <= tier:
         ports, resolved_ip, f_ports = check_open_ports(hostname)
         results["open_ports"] = ports
         all_findings.extend(f_ports)
+        open_ports_phase = "completed"
     else:
         ports, resolved_ip, f_ports = [], None, []
         locked.append("open_ports")
+        # `open_ports_phase = None` rather than "completed" - the counter
+        # bump below is unconditional (preserving the existing behavior of
+        # progress_current/progress_total advancing regardless of gating),
+        # but a locked check never ran, so it must not get a fabricated
+        # ScanEvent row. scan_routes._run_scan_in_background's progress_cb
+        # closure treats phase=None as "update counters only, write no
+        # ScanEvent" - see its docstring.
+        open_ports_phase = None
     done += 1
     if progress_cb:
-        progress_cb(done, total)
+        progress_cb("open_ports", open_ports_phase, done, total)
 
     score = 100
     for f in all_findings:

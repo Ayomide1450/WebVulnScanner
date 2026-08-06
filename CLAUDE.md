@@ -49,7 +49,14 @@ plus route-level tests confirming a blocked target creates no `Scan` row), and
 tokens, the `_safe_next()` open-redirect guard, and one dedicated test that turns
 `RATELIMIT_ENABLED` back on to confirm `/login`'s 10/min limit actually trips a 429 — every
 other test leaves rate limiting disabled since `Limiter`'s in-memory storage is a
-process-wide singleton shared across every test app instance, see `extensions.py`).
+process-wide singleton shared across every test app instance, see `extensions.py`), and the
+live scan-progress feed (`tests/test_scan_events.py` — `ScanEvent` model, `CHECK_LABELS`
+coverage, `run_scan()`'s `progress_cb` call sequence against stubbed check functions,
+`_serialize_new_events`, and the `scan_events()` ownership guard; see that module's docstring
+for why `_run_scan_in_background` is called there with short-lived `with app.app_context():`
+blocks rather than the shared `db` fixture — holding an outer context open while calling it
+causes its otherwise-successful commits to read back stale through that same session, a broader
+instance of the concurrency caveat below).
 **Gotcha**: `email_validator` (backing WTForms' `Email()` validator) statically rejects
 reserved TLDs (`.test`/`.invalid`/`.localhost`) even with deliverability checking off — use
 `.com`/`.org`/`.dev`-style fake domains for test fixture emails, not `.test`.
@@ -83,7 +90,7 @@ Everything else — models, blueprints, checks, orchestrators, entitlement gatin
 | `webvulnscanner/scan_engine.py` | The four scan orchestrators (`run_scan`/`run_advanced_scan`/`run_media_scan` moved intact from the old `app.py`; `run_api_scan` ported later from the `api-exposure-media-streaming` branch) |
 | `webvulnscanner/checks.py` | Every individual check function |
 | `webvulnscanner/ai_summary.py` | AI-assisted remediation summary (Groq/open-source LLM), Paid tier and above |
-| `webvulnscanner/models.py` | SQLAlchemy models: `Organization`, `User`, `DomainVerification`, `Scan`, `Report`, `Subscription`, `CryptoInvoice` |
+| `webvulnscanner/models.py` | SQLAlchemy models: `Organization`, `User`, `DomainVerification`, `Scan`, `ScanEvent` (per-check live-feed timeline, base scans only — see "Live scan-progress feed" below), `Report`, `Subscription`, `CryptoInvoice` |
 | `webvulnscanner/public_routes.py` | `/` marketing page |
 
 Scan results are persisted as `Report` rows (queryable for the dashboard/compare view) and still
@@ -112,6 +119,35 @@ inside their orchestrators — see each orchestrator's docstring in `scan_engine
 `entitlements.allowed_checks()` filters the requested check names against the caller's `Tier`
 *before* the orchestrator runs them — a locked check never executes, it just gets reported back
 as `locked` so the UI can show an upgrade prompt.
+
+### Live scan-progress feed (base scans only)
+
+`templates/scan_progress.html` shows a real-time, per-check feed while a scan runs (not just a
+percentage bar) — each check appears as a row that goes pulsing-blue ("started") →
+green/"completed" or red/"failed", with `checks.CHECK_LABELS` supplying the human-readable name
+and an optional `detail` string (e.g. the header grade). The data path: `run_scan()`'s
+`progress_cb(name, phase, done, total, detail=None)` calls (fired for `headers`/`cookies`
+synchronously, and for every parallel job in the `ThreadPoolExecutor` both before submission —
+`"started"` — and on `as_completed` — `"completed"`/`"failed"`) → `_run_scan_in_background`'s
+closure in `scan_routes.py` writes one `ScanEvent` row per call (new table, not a `Scan` column —
+same no-migrations reason `PasswordReset` is its own table) → `scan_events()`'s SSE endpoint
+streams only the rows newer than the client's last-seen cursor each tick, via the standalone
+`_serialize_new_events(scan_id, after_id)` helper (kept out of the `generate()` closure
+specifically so it's unit-testable without ever consuming the live stream).
+
+**A tier-locked `open_ports` gets `phase=None`, not a fabricated `"completed"` event** — the
+`progress_current`/`progress_total` counters still bump unconditionally (existing behavior,
+preserved), but no `ScanEvent` row is written for a check that never ran. If you add a new
+check to `run_scan()`'s `jobs` dict, add its label to `CHECK_LABELS` too (a regression test in
+`tests/test_scan_events.py` checks this stays in sync, mirroring `entitlements.py`'s own
+`FEATURE_REQUIREMENTS`-coverage test) — a missing entry only degrades to a title-cased raw key,
+it doesn't break anything.
+
+**Only base scans have this mechanism.** `run_advanced_scan`/`run_media_scan`/`run_api_scan` have
+no `progress_cb` parameter at all; their scan-progress pages still degrade to the plain
+bar/status-line-only view. Extending the live feed to them is a deferred, separate piece of work
+(would need each orchestrator to grow the same `jobs`-dict-`+`-`as_completed` pattern `run_scan`
+already has).
 
 ### Check function convention
 
@@ -218,11 +254,32 @@ degrade-gracefully convention as every `check_*` function in `checks.py`.
 template inherits: OLED-dark palette (`--bg`/`--panel`/`--accent` etc.), Fira Sans (UI) / Fira
 Code (data, monospace) typography. Templates should reuse `.card`, `.btn`, `.pill`/`.badge`,
 `.finding`, `.warn-box`/`.error-box`/`.info-box`, and the `.icon` SVG convention rather than
-hardcoding colors or new component styles — and never use emoji as icons (inline SVG only).
-`base.html` also defines bare severity text-color utilities (`td.critical`/`.text-high`/etc.,
-distinct from the `.pill`/`.badge`/`.dot` compound selectors) for result-table cells.
+hardcoding colors or new component styles — and never use emoji as icons (inline SVG only, one
+pre-existing exception in `billing.html`/`org_verify_domain.html`'s empty-state `.warn-box` not
+yet cleaned up). `base.html` also defines bare severity text-color utilities
+(`td.critical`/`.text-high`/etc., distinct from the `.pill`/`.badge`/`.dot` compound selectors)
+for result-table cells, `.card`'s canonical gradient/16px-radius shape (every template that uses
+it already independently converged on this — see the git history for the reconciliation), and
+`h1`/`h2.section`/`table, th, td` promoted the same way from four near-identical local overrides
+(`dashboard.html`/`billing.html`/`org_admin.html`/`org_verify_domain.html`).
 
 The four `scan_new_*.html` pages plus the `scan_new.html` chooser share their form/card CSS via
-`templates/_scan_form_styles.html` (included, not promoted into `base.html`, since it has
-unscoped `label`/`input`/`button` selectors that would otherwise leak into every other form in
-the app).
+`templates/_scan_form_styles.html`; `billing.html`/`org_admin.html`/`org_verify_domain.html`
+share theirs via `templates/_admin_form_styles.html`. Neither is promoted into `base.html`: both
+have unscoped `label`/`input`/`select`/`button` selectors that would otherwise leak into every
+other form in the app (auth pages included) — keep this pattern for any future form-heavy page
+rather than adding bare element selectors to `base.html` directly.
+
+### "Evolved operator console" motion language
+
+`base.html` also defines a small set of reusable motion/texture primitives, first used by the
+live scan-progress feed above and available for future redesign phases: `--telemetry`/
+`--telemetry2` (a blue accent distinct from `--accent`'s green, for "in progress" states),
+`.glow-pulse` (a `drop-shadow(currentColor)` pulse — generalizes the glow `_gauge.html`'s
+`.gauge-fg` already used, gated under `@media (prefers-reduced-motion: no-preference)` with a
+steady-glow fallback for reduced-motion users, matching the discipline `marketing.html`'s
+terminal-boot typewriter already established), `.hud-grid` (a static, CSS-only ambient grid
+texture — no motion, so no reduced-motion gate needed on its own), and `.telemetry-dot`/`.done`/
+`.failed` (the feed's state-dot classes). Reuse these rather than inventing new ad hoc glow/motion
+CSS in future redesign phases (dashboard/billing/org-admin/scan_report visual passes are still
+open — see handoff.md).
