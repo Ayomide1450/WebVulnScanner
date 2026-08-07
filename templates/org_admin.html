@@ -2,6 +2,9 @@
 {% block title %}Org admin - WebVulnScanner{% endblock %}
 {% block head %}
 {% include "_admin_form_styles.html" %}
+<style>
+  table tbody tr:hover td { background: rgba(255,255,255,.025); }
+</style>
 {% endblock %}
 {% block content %}
 <div class="wrap">
@@ -17,7 +20,7 @@
       <tr>
         <td>{{ m.email }}</td>
         <td>{{ m.role.value }}</td>
-        <td class="{{ 'pass' if m.email_verified_at else 'medium' }}">{{ 'yes' if m.email_verified_at else 'no' }}</td>
+        <td><span class="pill {{ 'pass' if m.email_verified_at else 'medium' }}">{{ 'yes' if m.email_verified_at else 'no' }}</span></td>
       </tr>
       {% endfor %}
     </table>
@@ -54,7 +57,7 @@
       {% for dv in domains %}
       <tr>
         <td><code>{{ dv.domain }}</code></td>
-        <td class="{{ 'pass' if dv.verified_at else 'medium' }}">{{ 'VERIFIED' if dv.verified_at else 'PENDING' }}</td>
+        <td><span class="pill {{ 'pass' if dv.verified_at else 'medium' }}">{{ 'VERIFIED' if dv.verified_at else 'PENDING' }}</span></td>
       </tr>
       {% endfor %}
     </table>
