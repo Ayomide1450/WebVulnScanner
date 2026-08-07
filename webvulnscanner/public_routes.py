@@ -18,6 +18,16 @@ def index():
     return render_template("marketing.html")
 
 
+@public.route("/terms")
+def terms():
+    return render_template("terms.html")
+
+
+@public.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
+
+
 @public.route("/healthz")
 def healthz():
     """Liveness + DB-connectivity check for Render's healthCheckPath and

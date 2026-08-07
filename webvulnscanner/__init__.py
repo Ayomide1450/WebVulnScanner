@@ -54,8 +54,11 @@ def create_app(config_class=Config):
 
     @app.context_processor
     def inject_role_enum():
-        # base.html's nav checks current_user.role == Role.ORG_ADMIN
-        return {"Role": Role}
+        # base.html's nav checks current_user.role == Role.ORG_ADMIN;
+        # base.html's footer and terms.html/privacy.html use current_year.
+        from datetime import datetime, timezone
+
+        return {"Role": Role, "current_year": datetime.now(timezone.utc).year}
 
     # Custom error pages so 404/500 stay inside the app's own dark theme
     # (nav, back-to-dashboard link) instead of dropping a logged-in user

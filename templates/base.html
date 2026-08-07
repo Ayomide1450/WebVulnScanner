@@ -173,6 +173,11 @@
   .topnav .nav-links a.cta-link { color: var(--accent); }
 
   .wrap { max-width: 1040px; margin: 0 auto; padding: var(--space-6) 20px 90px; }
+
+  .site-footer { border-top: 1px solid var(--border); margin-top: 40px; }
+  .footer-inner { max-width: 1040px; margin: 0 auto; padding: 20px; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; color: var(--muted); font-size: 12.5px; }
+  .footer-inner a { color: var(--muted); text-decoration:none; }
+  .footer-inner a:hover { color: var(--text); }
 </style>
 {% block head %}{% endblock %}
 </head>
@@ -225,5 +230,12 @@
   {% endwith %}
 
   {% block content %}{% endblock %}
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>&copy; {{ current_year }} WebVulnScanner</span>
+      <span><a href="{{ url_for('public.terms') }}">Terms</a> &middot; <a href="{{ url_for('public.privacy') }}">Privacy</a></span>
+    </div>
+  </footer>
 </body>
 </html>
