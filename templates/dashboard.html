@@ -59,23 +59,33 @@
     {% for s in scans %}
       {% if s.risk_score is not none %}{% set _ = scored.append(s) %}{% endif %}
     {% endfor %}
-    {% if scored|length > 0 %}
-    <p class="hint">{{ scored|length }} completed scan(s) with a risk score, oldest to newest.</p>
     {% set n = scored|length %}
+    {% if n > 0 %}
+    <p class="hint">{{ n }} completed scan(s) with a risk score, oldest to newest.</p>
     {% set sw = 560 %}{% set sh = 70 %}
-    {% set pts = [] %}
-    {% for s in scored|reverse %}
-      {% set x = ((loop.index0 / (n - 1)) * sw) if n > 1 else (sw / 2) %}
-      {% set y = sh - (s.risk_score / 100 * sh) %}
-      {% set _ = pts.append((x|round(1))|string + ',' + (y|round(1))|string) %}
-    {% endfor %}
+    {% if n == 1 %}
+      {% set only_y = (sh - (scored[0].risk_score / 100 * sh))|round(1) %}
+      {% set pts = ['0,' + only_y|string, sw|string + ',' + only_y|string] %}
+    {% else %}
+      {% set pts = [] %}
+      {% for s in scored|reverse %}
+        {% set x = ((loop.index0 / (n - 1)) * sw)|round(1) %}
+        {% set y = (sh - (s.risk_score / 100 * sh))|round(1) %}
+        {% set _ = pts.append(x|string + ',' + y|string) %}
+      {% endfor %}
+    {% endif %}
     <svg width="100%" height="{{ sh + 10 }}" viewBox="0 0 {{ sw }} {{ sh + 10 }}" preserveAspectRatio="none" style="overflow:visible;">
       <polyline points="{{ pts|join(' ') }}" fill="none" stroke="var(--accent)" stroke-width="2"></polyline>
+      {% if n == 1 %}
+      <circle cx="{{ sw / 2 }}" cy="{{ only_y }}" r="3" fill="var(--accent2)"></circle>
+      <text x="{{ (sw / 2) + 8 }}" y="{{ only_y - 8 }}" fill="var(--muted)" font-family="Fira Code, monospace" font-size="11">{{ scored[0].risk_score }} (only scan so far)</text>
+      {% else %}
       {% for s in scored|reverse %}
-        {% set x = ((loop.index0 / (n - 1)) * sw) if n > 1 else (sw / 2) %}
-        {% set y = sh - (s.risk_score / 100 * sh) %}
-        <circle cx="{{ x|round(1) }}" cy="{{ y|round(1) }}" r="3" fill="var(--accent2)"></circle>
+        {% set x = ((loop.index0 / (n - 1)) * sw)|round(1) %}
+        {% set y = (sh - (s.risk_score / 100 * sh))|round(1) %}
+        <circle cx="{{ x }}" cy="{{ y }}" r="3" fill="var(--accent2)"></circle>
       {% endfor %}
+      {% endif %}
     </svg>
     {% else %}
     <p class="hint" style="margin:0;">Not enough completed scans yet for a trend line.</p>
