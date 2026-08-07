@@ -9,6 +9,9 @@
   .delta.pos { color: var(--pass); }
   .delta.neg { color: var(--critical); }
   .empty { color: var(--muted); font-size: 14px; }
+
+  .finding { transition: border-color 150ms ease; }
+  .finding:hover { border-color: rgba(255,255,255,.16); }
 </style>
 {% endblock %}
 {% block content %}
