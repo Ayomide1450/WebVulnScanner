@@ -16,10 +16,8 @@
   @keyframes blink { 50% { opacity: 0; } }
 
   .hero h1 { font-size: 40px; margin: 0 0 14px; letter-spacing: -0.02em; min-height: 1.2em; }
-  .hero h1 .cursor { animation: blink 1s step-end infinite; }
   .hero .sub { color: var(--muted); font-size: 16.5px; margin: 0 0 32px; transition: opacity 250ms ease; }
   .cta-row { display:flex; gap: 14px; justify-content: center; flex-wrap: wrap; transition: opacity 250ms ease; }
-  .fade-pending { opacity: 0; }
   .cta { text-decoration:none; padding: 14px 26px; border-radius: 10px; font-weight:700; font-size:15px; transition: filter 150ms ease, transform 150ms ease; }
   .cta:hover { filter: brightness(1.08); }
   .cta.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#04150a; }
@@ -68,17 +66,17 @@
 <script>
 (function () {
   // Progressive enhancement only: the server-rendered headline/sub/CTA are
-  // already the final, correct content. If JS is disabled or the visitor
-  // asked for reduced motion, do nothing and let that static render stand.
+  // already the final, correct content, and now stay visible the ENTIRE
+  // time - previously they were blanked/hidden (opacity:0) until the ~6s
+  // terminal-boot sequence finished, which left the page looking empty on
+  // load. The terminal box is now purely decorative, typing alongside the
+  // real content instead of gating it.
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduceMotion) return;
 
   var terminalEl = document.getElementById('bootTerminal');
   var linesEl = document.getElementById('bootLines');
-  var headlineEl = document.getElementById('heroHeadline');
-  var subEl = document.getElementById('heroSub');
-  var ctaEl = document.getElementById('heroCta');
-  if (!terminalEl || !linesEl || !headlineEl) return;
+  if (!terminalEl || !linesEl) return;
 
   // Real check-registry lines, not invented "AI engine" theater - this is
   // representative of what checks.py's check_headers/check_tls_cert/
@@ -93,11 +91,7 @@
     'Compiling risk report...',
     'Done.'
   ];
-  var headlineText = headlineEl.textContent;
 
-  headlineEl.textContent = '';
-  subEl.classList.add('fade-pending');
-  ctaEl.classList.add('fade-pending');
   terminalEl.classList.add('active');
 
   function typeLine(text, cb) {
@@ -117,33 +111,12 @@
 
   function runBoot(index) {
     if (index >= bootLines.length) {
-      setTimeout(function () {
-        terminalEl.classList.remove('active');
-        typeHeadline();
-      }, 300);
+      // Leave "Done." visible briefly, then fade the terminal box out -
+      // the real hero content next to it never moved.
+      setTimeout(function () { terminalEl.classList.remove('active'); }, 1200);
       return;
     }
     typeLine(bootLines[index], function () { runBoot(index + 1); });
-  }
-
-  function typeHeadline() {
-    var i = 0;
-    var cursor = document.createElement('span');
-    cursor.className = 'cursor';
-    (function step() {
-      headlineEl.textContent = headlineText.slice(0, i);
-      headlineEl.appendChild(cursor);
-      if (i < headlineText.length) {
-        i++;
-        setTimeout(step, 28);
-      } else {
-        setTimeout(function () {
-          cursor.remove();
-          subEl.classList.remove('fade-pending');
-          ctaEl.classList.remove('fade-pending');
-        }, 200);
-      }
-    })();
   }
 
   runBoot(0);
