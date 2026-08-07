@@ -2,6 +2,18 @@
 {% block title %}Billing - WebVulnScanner{% endblock %}
 {% block head %}
 {% include "_admin_form_styles.html" %}
+<style>
+  .invoice-card { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); margin-bottom: var(--space-3); background: rgba(255,255,255,.02); }
+  .invoice-card:last-child { margin-bottom: 0; }
+  .invoice-row { display:flex; gap: var(--space-5); flex-wrap: wrap; margin-bottom: 14px; }
+  .invoice-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+  .invoice-value { font-size: 14px; font-weight: 600; }
+  .invoice-value.mono { font-family: "Fira Code", monospace; }
+  .invoice-address-row { display:flex; align-items:center; gap: 10px; background: rgba(255,255,255,.03); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .invoice-address { flex: 1; min-width: 200px; font-size: 12.5px; word-break: break-all; }
+  .copy-btn { margin-top: 0; padding: 6px 12px; font-size: 12px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
+  .copy-btn.copied { background: var(--accent-dim); color: var(--accent); border-color: rgba(34,197,94,.4); }
+</style>
 {% endblock %}
 {% block content %}
 <div class="wrap">
@@ -51,24 +63,33 @@
   <h2 class="section">Pending invoices</h2>
   <div class="card">
     {% if pending_invoices %}
-    <table>
-      <tr><th>Plan</th><th>Amount</th><th>Token</th><th>Receiving address</th><th>Expires</th><th></th></tr>
-      {% for inv in pending_invoices %}
-      <tr>
-        <td>{{ inv.target_plan.value }}</td>
-        <td><code>{{ inv.expected_amount }}</code></td>
-        <td>{{ inv.token_symbol }}</td>
-        <td><code>{{ inv.receiving_address }}</code></td>
-        <td>{{ inv.expires_at }}</td>
-        <td>
-          <form method="POST" action="{{ url_for('billing.verify_invoice_route', invoice_id=inv.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="verify-btn" type="submit">Verify payment</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </table>
+    {% for inv in pending_invoices %}
+    <div class="invoice-card">
+      <div class="invoice-row">
+        <div>
+          <div class="invoice-label">Upgrade to</div>
+          <div class="invoice-value">{{ inv.target_plan.value }}</div>
+        </div>
+        <div>
+          <div class="invoice-label">Amount</div>
+          <div class="invoice-value mono">{{ inv.expected_amount }} {{ inv.token_symbol }}</div>
+        </div>
+        <div>
+          <div class="invoice-label">Expires</div>
+          <div class="invoice-value">{{ inv.expires_at }}</div>
+        </div>
+      </div>
+      <div class="invoice-address-row">
+        <span class="invoice-label">Send to</span>
+        <code class="invoice-address" id="addr-{{ inv.id }}">{{ inv.receiving_address }}</code>
+        <button type="button" class="copy-btn" data-copy-target="addr-{{ inv.id }}">Copy</button>
+      </div>
+      <form method="POST" action="{{ url_for('billing.verify_invoice_route', invoice_id=inv.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="verify-btn" type="submit">Verify payment</button>
+      </form>
+    </div>
+    {% endfor %}
     {% else %}
     <p style="color: var(--muted); font-size: 13.5px;">No pending invoices.</p>
     {% endif %}
@@ -77,4 +98,20 @@
   <div class="warn-box"><span class="ico">&#9888;&#65039;</span><div>Create an organization (via sign up) to purchase a plan.</div></div>
   {% endif %}
 </div>
+<script>
+(function () {
+  document.querySelectorAll('.copy-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var target = document.getElementById(btn.getAttribute('data-copy-target'));
+      if (!target || !navigator.clipboard) return;
+      navigator.clipboard.writeText(target.textContent.trim()).then(function () {
+        var original = btn.textContent;
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(function () { btn.textContent = original; btn.classList.remove('copied'); }, 1500);
+      });
+    });
+  });
+})();
+</script>
 {% endblock %}
