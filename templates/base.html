@@ -237,5 +237,21 @@
       <span><a href="{{ url_for('public.terms') }}">Terms</a> &middot; <a href="{{ url_for('public.privacy') }}">Privacy</a></span>
     </div>
   </footer>
+  <script>
+  (function () {
+    // Code-only keep-alive heartbeat: pings /healthz every 4 minutes while
+    // this tab is open and visible, to help stop a free-tier host (e.g.
+    // Render) from spinning down an active browsing session due to
+    // inactivity. This only helps while someone has the site open in a
+    // tab - true 24/7 uptime still needs an external monitor (e.g.
+    // UptimeRobot) pointed at /healthz once deployed.
+    var HEARTBEAT_INTERVAL_MS = 4 * 60 * 1000;
+    function ping() {
+      if (document.visibilityState !== 'visible') return;
+      fetch('/healthz', { method: 'GET', cache: 'no-store', credentials: 'omit' }).catch(function () {});
+    }
+    setInterval(ping, HEARTBEAT_INTERVAL_MS);
+  })();
+  </script>
 </body>
 </html>
