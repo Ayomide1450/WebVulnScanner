@@ -48,6 +48,31 @@ if not _secret_key:
         )
 
 
+def _engine_options_for(db_uri):
+    """Pure function (no app/class-body coupling) so tests can exercise both
+    branches directly - see tests/test_config.py.
+
+    check_same_thread only means anything to SQLite (scans run in a
+    background thread that writes to the same connection pool as the
+    request thread) - Postgres connections are already safe to share across
+    threads via the pool, and passing this connect_arg to psycopg2 would be
+    a TypeError, not a no-op.
+
+    pool_pre_ping/pool_recycle only matter for a real network DB (Postgres/
+    Neon): a managed Postgres provider can silently close an idle connection
+    server-side (confirmed live: psycopg2.OperationalError "server closed
+    the connection unexpectedly") - pool_pre_ping issues a cheap SELECT 1
+    before handing a pooled connection back out and transparently
+    reconnects if it's dead, and pool_recycle (280s, comfortably under
+    Neon's typical idle timeout) forces a connection to be replaced before
+    it gets that stale in the first place. Neither means anything for
+    SQLite's single local file.
+    """
+    if db_uri.startswith("sqlite"):
+        return {"connect_args": {"check_same_thread": False}}
+    return {"pool_pre_ping": True, "pool_recycle": 280}
+
+
 class Config:
     SECRET_KEY = _secret_key
 
@@ -76,14 +101,7 @@ class Config:
         _db_uri = _db_uri.replace("postgres://", "postgresql://", 1)
     SQLALCHEMY_DATABASE_URI = _db_uri
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    # check_same_thread only means anything to SQLite (scans run in a
-    # background thread that writes to the same connection pool as the
-    # request thread) - Postgres connections are already safe to share
-    # across threads via the pool, and passing this connect_arg to
-    # psycopg2 would be a TypeError, not a no-op.
-    SQLALCHEMY_ENGINE_OPTIONS = (
-        {"connect_args": {"check_same_thread": False}} if _db_uri.startswith("sqlite") else {}
-    )
+    SQLALCHEMY_ENGINE_OPTIONS = _engine_options_for(_db_uri)
 
     WTF_CSRF_ENABLED = os.environ.get("WTF_CSRF_ENABLED", "true").lower() not in (
         "0",
