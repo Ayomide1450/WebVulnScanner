@@ -53,3 +53,16 @@ def test_dashboard_no_scored_scans_shows_not_enough_data_message(client, db):
 
     assert resp.status_code == 200
     assert "Not enough completed scans yet for a trend line." in resp.get_data(as_text=True)
+
+
+def test_dashboard_scan_status_renders_as_a_pill(client, db):
+    org = make_org()
+    user = make_user("pill@example.com", org=org)
+    make_scan(user, org=org)  # default status is ScanStatus.QUEUED
+    db.session.commit()
+
+    login(client, "pill@example.com")
+    resp = client.get("/dashboard")
+
+    assert resp.status_code == 200
+    assert 'class="status-pill queued"' in resp.get_data(as_text=True)
