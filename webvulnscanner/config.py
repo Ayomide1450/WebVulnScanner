@@ -109,6 +109,36 @@ class Config:
         "no",
     )
 
+    # Flask-Limiter reads this key from app.config automatically at
+    # init_app() time (see extensions.py's Limiter() construction, which
+    # deliberately doesn't pass storage_uri itself). Left unset, Flask-
+    # Limiter's own default applies (in-memory storage) - unchanged
+    # behavior for local dev / single-process deploys. Set to a Redis URL
+    # (e.g. "redis://...") once running behind more than one worker
+    # process, where in-memory counters would silently stop being shared -
+    # see extensions.py's docstring for why that's not just a nice-to-have
+    # on Vercel/multi-worker gunicorn specifically.
+    RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "")
+
+    # Trust exactly one reverse-proxy hop's X-Forwarded-* headers (Render's
+    # own edge proxy, or Vercel's). Without this, request.remote_addr is
+    # always the proxy's IP for every request behind it - Flask-Limiter's
+    # get_remote_address key func would then bucket every visitor into one
+    # shared rate limit instead of limiting per real client IP, and
+    # request.is_secure would read as False even over real HTTPS (wrong
+    # scheme in any url_for(..., _external=True) link, e.g. password-reset
+    # emails). Defaults on, since every documented deployment target
+    # (Render/Vercel) sits behind exactly one such proxy; set
+    # TRUST_PROXY_HOPS=0 to disable if running directly, unproxied.
+    TRUST_PROXY_HOPS = int(os.environ.get("TRUST_PROXY_HOPS", "1"))
+
+    # Error monitoring (Sentry) - see webvulnscanner/__init__.py's
+    # _init_sentry(). Empty by default: sentry-sdk isn't a hard dependency
+    # (not in requirements.txt) and initialization is skipped entirely,
+    # with a log line, if either the package or this DSN is missing - same
+    # degrade-gracefully convention as GROQ_API_KEY/ai_summary.py.
+    SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+
     # Crypto billing (self-built USDT/USDC invoicing, see billing.py in a later workstream)
     CRYPTO_RECEIVING_ADDRESS = os.environ.get("CRYPTO_RECEIVING_ADDRESS", "")
     CRYPTO_CHAIN = os.environ.get("CRYPTO_CHAIN", "polygon")

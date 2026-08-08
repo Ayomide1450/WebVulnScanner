@@ -6,16 +6,53 @@ App factory for the webvulnscanner package.
 create_app()`. All 5 blueprints (auth, org, billing, scan, public) are
 registered here.
 """
+import logging
+
 from flask import Flask, render_template
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from webvulnscanner.config import Config
 from webvulnscanner.email_stub import make_email_sender
 from webvulnscanner.extensions import csrf, db, limiter, login_manager, migrate
 
 
+def _init_sentry(app):
+    """Best-effort Sentry init - never raises, never required. sentry-sdk
+    isn't a hard dependency (not in requirements.txt): if it's not
+    installed, or SENTRY_DSN isn't set, this is a silent no-op with a log
+    line, same degrade-gracefully convention as ai_summary.py's Groq call.
+    Add `sentry-sdk[flask]` to requirements.txt and set SENTRY_DSN to
+    actually activate it - see docs/env-vars.md."""
+    dsn = app.config.get("SENTRY_DSN")
+    if not dsn:
+        return
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.flask import FlaskIntegration
+    except ImportError:
+        logging.warning(
+            "SENTRY_DSN is set but sentry-sdk isn't installed - add "
+            "sentry-sdk[flask] to requirements.txt to activate it."
+        )
+        return
+    sentry_sdk.init(dsn=dsn, integrations=[FlaskIntegration()], traces_sample_rate=0.1)
+
+
 def create_app(config_class=Config):
     app = Flask(__name__, template_folder="../templates")
     app.config.from_object(config_class)
+
+    # Trust exactly one reverse-proxy hop's X-Forwarded-* headers (Render's
+    # edge proxy / Vercel's) - see config.py's TRUST_PROXY_HOPS docstring
+    # for why this matters for both rate limiting and HTTPS-scheme
+    # detection. A value of 0 (set TRUST_PROXY_HOPS=0) disables this for a
+    # direct/unproxied deployment, where trusting forwarded headers from an
+    # arbitrary client would let them spoof their own IP/scheme.
+    hops = app.config.get("TRUST_PROXY_HOPS", 0)
+    if hops > 0:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=hops, x_proto=hops, x_host=hops)
+
+    _init_sentry(app)
 
     db.init_app(app)
     login_manager.init_app(app)
