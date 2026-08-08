@@ -16,7 +16,11 @@
   .details-body { padding: 4px 16px 16px; }
 
   .finding { transition: border-color 150ms ease; }
-  .finding:hover { border-color: rgba(255,255,255,.16); }
+  .finding:hover {
+    border-top-color: rgba(255,255,255,.16);
+    border-right-color: rgba(255,255,255,.16);
+    border-bottom-color: rgba(255,255,255,.16);
+  }
   summary:hover { background: rgba(255,255,255,.02); }
 
   table { width:100%; border-collapse: collapse; font-size: 13px; }
@@ -133,6 +137,7 @@
   <details open>
     <summary>Security headers &mdash; grade {{ r.headers.grade }} <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
+      <div class="table-scroll">
       <table>
         <tr><th>Header</th><th>Status</th><th>Value / note</th></tr>
         {% for h in r.headers.rows %}
@@ -144,6 +149,7 @@
         </tr>
         {% endfor %}
       </table>
+      </div>
     </div>
   </details>
 
@@ -151,6 +157,7 @@
     <summary>Cookies <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       {% if r.cookies %}
+      <div class="table-scroll">
       <table>
         <tr><th>Name</th><th>Secure</th><th>HttpOnly</th><th>SameSite</th></tr>
         {% for c in r.cookies %}
@@ -161,6 +168,7 @@
         </tr>
         {% endfor %}
       </table>
+      </div>
       {% else %}<p class="note">No cookies set on the homepage response.</p>{% endif %}
     </div>
   </details>
@@ -171,11 +179,13 @@
       {% if 'tls' in locked %}{{ locked_card('tls') }}
       {% elif r.tls.error %}<p>Could not retrieve certificate: {{ r.tls.error }}</p>
       {% else %}
+      <div class="table-scroll">
       <table>
         <tr><th>Subject</th><td>{{ r.tls.subject }}</td></tr>
         <tr><th>Issuer</th><td>{{ r.tls.issuer }}</td></tr>
         <tr><th>Expires</th><td>{{ r.tls.not_after }} &mdash; {{ r.tls.days_left }} days left</td></tr>
       </table>
+      </div>
       {% endif %}
     </div>
   </details>
@@ -193,6 +203,7 @@
     <div class="details-body">
       {% if 'sensitive_paths' in locked %}{{ locked_card('sensitive_paths') }}
       {% else %}
+      <div class="table-scroll">
       <table>
         <tr><th>Path</th><th>HTTP code</th><th>Status</th></tr>
         {% for p in r.sensitive_paths %}
@@ -201,6 +212,7 @@
             {{ 'EXPOSED' if p.status=='warn' else ('RECOMMENDED' if p.status=='recommend' else 'OK') }}</td></tr>
         {% endfor %}
       </table>
+      </div>
       {% endif %}
     </div>
   </details>
@@ -212,12 +224,14 @@
       {% else %}
       <p class="note">{{ r.secrets.js_files_scanned }} same-origin JS file(s) scanned, plus the homepage HTML.</p>
       {% if r.secrets.rows %}
+      <div class="table-scroll">
       <table><tr><th>Type</th><th>Source</th><th>Value (redacted)</th><th>Severity</th></tr>
         {% for row in r.secrets.rows %}
         <tr><td>{{ row.type }}</td><td><code>{{ row.source }}</code></td><td><code>{{ row.value }}</code></td>
           <td class="{{ 'critical' if row.severity in ('critical','high') else ('medium' if row.severity=='medium' else 'info') }}">{{ row.severity|upper }}</td></tr>
         {% endfor %}
       </table>
+      </div>
       {% else %}<p class="note">No known API key / token / private-key patterns found.</p>{% endif %}
       {% endif %}
     </div>
@@ -229,12 +243,14 @@
       {% if 'sri' in locked %}{{ locked_card('sri') }}
       {% else %}
       {% if r.sri %}
+      <div class="table-scroll">
       <table><tr><th>Type</th><th>URL</th><th>Has SRI</th></tr>
         {% for row in r.sri %}
         <tr><td>{{ row.type }}</td><td><code>{{ row.url }}</code></td>
           <td class="{{ 'pass' if row.has_sri else 'medium' }}">{{ 'yes' if row.has_sri else 'no' }}</td></tr>
         {% endfor %}
       </table>
+      </div>
       {% else %}<p class="note">No third-party scripts or stylesheets found on the homepage.</p>{% endif %}
       {% endif %}
     </div>
@@ -247,6 +263,7 @@
       {% elif r.open_ports and r.open_ports[0].error %}
       <p>DNS resolution failed: {{ r.open_ports[0].error }}</p>
       {% elif r.open_ports %}
+      <div class="table-scroll">
       <table>
         <tr><th>Port</th><th>Status</th><th>Note</th></tr>
         {% for port in r.open_ports %}
@@ -256,6 +273,7 @@
           <td class="note">{{ port.note }}</td></tr>
         {% endfor %}
       </table>
+      </div>
       {% else %}<p class="note">No unexpected ports open among the common set checked.</p>{% endif %}
     </div>
   </details>
@@ -282,12 +300,14 @@
     <div class="details-body">
       {% if 'http_methods' in locked %}{{ locked_card('http_methods') }}
       {% else %}
+      <div class="table-scroll">
       <table>
         <tr><th>Method</th><th>Response</th></tr>
         {% for m in r.http_methods %}
         <tr><td>{{ m.method }}</td><td>{{ m.code }}{% if m.allow %} (Allow: {{ m.allow }}){% endif %}</td></tr>
         {% endfor %}
       </table>
+      </div>
       {% endif %}
     </div>
   </details>
@@ -298,9 +318,11 @@
       {% if 'open_redirect' in locked %}{{ locked_card('open_redirect') }}
       {% else %}
       {% if r.open_redirect %}
+      <div class="table-scroll">
       <table><tr><th>Path</th><th>Parameter</th></tr>
         {% for hit in r.open_redirect %}<tr><td><code>{{ hit.path }}</code></td><td><code>{{ hit.param }}</code></td></tr>{% endfor %}
       </table>
+      </div>
       {% else %}<p class="note">No open-redirect behavior found on tested paths/parameters.</p>{% endif %}
       {% endif %}
     </div>
@@ -312,7 +334,9 @@
       {% if 'directory_listing' in locked %}{{ locked_card('directory_listing') }}
       {% else %}
       {% if r.directory_listing %}
+      <div class="table-scroll">
       <table><tr><th>Path</th></tr>{% for d in r.directory_listing %}<tr><td><code>{{ d.path }}</code></td></tr>{% endfor %}</table>
+      </div>
       {% else %}<p class="note">No directory listings found on common paths.</p>{% endif %}
       {% endif %}
     </div>
@@ -336,12 +360,14 @@
     <div class="details-body">
       {% if 'dns_email' in locked %}{{ locked_card('dns_email') }}
       {% else %}
+      <div class="table-scroll">
       <table>
         <tr><th>Domain</th><td>{{ r.dns_email.domain }}</td></tr>
         <tr><th>SPF</th><td>{% if r.dns_email.spf %}<code>{{ r.dns_email.spf }}</code>{% else %}not found{% endif %}</td></tr>
         <tr><th>DMARC</th><td>{% if r.dns_email.dmarc %}<code>{{ r.dns_email.dmarc }}</code>{% else %}not found{% endif %}</td></tr>
         <tr><th>CAA</th><td>{% if r.dns_email.caa %}{{ r.dns_email.caa|join(', ') }}{% else %}not found{% endif %}</td></tr>
       </table>
+      </div>
       {% endif %}
     </div>
   </details>
@@ -352,9 +378,11 @@
       {% if 'vulnerable_js' in locked %}{{ locked_card('vulnerable_js') }}
       {% else %}
       {% if r.vulnerable_js %}
+      <div class="table-scroll">
       <table><tr><th>Library</th><th>Version</th><th>Source</th></tr>
         {% for v in r.vulnerable_js %}<tr><td>{{ v.library }}</td><td>{{ v.version }}</td><td><code>{{ v.src }}</code></td></tr>{% endfor %}
       </table>
+      </div>
       {% else %}<p class="note">No recognizably outdated third-party JS libraries detected.</p>{% endif %}
       {% endif %}
     </div>
@@ -366,12 +394,15 @@
       <p class="note">{{ r.crawl.discovered_urls|length }} URL(s) discovered from the homepage
       {% if r.crawl.forms %} &middot; {{ r.crawl.forms|length }} form(s) found (listed only, never auto-submitted){% endif %}.</p>
       {% if r.crawl.forms %}
+      <div class="table-scroll">
       <table><tr><th>Form action</th><th>Method</th><th>Inputs</th></tr>
         {% for f in r.crawl.forms %}<tr><td><code>{{ f.action }}</code></td><td>{{ f.method }}</td><td>{{ f.inputs|join(', ') }}</td></tr>{% endfor %}
       </table>
+      </div>
       {% endif %}
       {% if 'xss_sqli' in locked %}{{ locked_card('xss_sqli') }}
       {% elif r.xss_sqli %}
+      <div class="table-scroll">
       <table><tr><th>URL</th><th>Param</th><th>XSS</th><th>SQLi</th></tr>
         {% for t in r.xss_sqli %}
         <tr><td><code>{{ t.url }}</code></td><td>{{ t.param }}</td>
@@ -379,6 +410,7 @@
           <td class="{{ 'pass' if t.sqli=='pass' else ('high' if t.sqli=='review' else 'critical') }}">{{ t.sqli|upper }}</td></tr>
         {% endfor %}
       </table>
+      </div>
       {% else %}<p class="note">No parameterized URLs found to test (nothing crawled and no seed URL supplied).</p>{% endif %}
     </div>
   </details>
@@ -408,18 +440,22 @@
       {% if r.results.sqli_login.error %}<p>{{ r.results.sqli_login.error }}</p>
       {% else %}
       <p class="note">Baseline response time: {{ r.results.sqli_login.baseline_time }}s</p>
+      <div class="table-scroll">
       <table><tr><th>Auth-bypass payload</th><th>Result</th></tr>
         {% for row in r.results.sqli_login.bypass_rows %}
         <tr><td><code>{{ row.payload }}</code></td>
           <td class="{{ 'critical' if 'BYPASS' in row.result else 'pass' }}">{{ row.result }}</td></tr>
         {% endfor %}
       </table>
+      </div>
+      <div class="table-scroll">
       <table style="margin-top:12px;"><tr><th>Time-based payload</th><th>Elapsed</th><th>Result</th></tr>
         {% for row in r.results.sqli_login.timing_rows %}
         <tr><td><code>{{ row.payload }}</code></td><td>{{ row.elapsed if row.elapsed is defined else '-' }}s</td>
           <td class="{{ 'critical' if row.result == 'DELAYED' else 'pass' }}">{{ row.result }}</td></tr>
         {% endfor %}
       </table>
+      </div>
       {% endif %}
     </div>
   </details>
@@ -431,12 +467,14 @@
     <summary>Bounded brute-force (capped at {{ r.results.bruteforce.cap }}) <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       <p class="note">Rate-limiting observed: {{ 'yes' if r.results.bruteforce.rate_limited else 'no' }}</p>
+      <div class="table-scroll">
       <table><tr><th>Attempt</th><th>Result</th></tr>
         {% for row in r.results.bruteforce.attempts %}
         <tr><td>#{{ loop.index }}</td>
           <td class="{{ 'critical' if 'SUCCEEDED' in row.result else 'pass' }}">{{ row.result }}</td></tr>
         {% endfor %}
       </table>
+      </div>
     </div>
   </details>
   {% endif %}
@@ -460,12 +498,14 @@
   <details open>
     <summary>Stored XSS probe (3 payload variants) <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
+      <div class="table-scroll">
       <table><tr><th>Variant</th><th>Result</th></tr>
         {% for row in r.results.xss_stored.rows %}
         <tr><td>{{ row.variant }}</td>
           <td class="{{ 'critical' if row.result == 'CONFIRMED' else 'pass' }}">{{ row.result }}</td></tr>
         {% endfor %}
       </table>
+      </div>
     </div>
   </details>
   {% endif %}
@@ -475,6 +515,7 @@
   <details open>
     <summary>IDOR check (cross-account + anonymous) <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
+      <div class="table-scroll">
       <table><tr><th>Resource ID</th><th>Status</th><th>Cross-account code</th><th>Anonymous code</th></tr>
         {% for row in r.results.idor.rows %}
         <tr><td><code>{{ row.id }}</code></td>
@@ -482,6 +523,7 @@
           <td>{{ row.cross_account_code }}</td><td>{{ row.anonymous_code }}</td></tr>
         {% endfor %}
       </table>
+      </div>
     </div>
   </details>
   {% endif %}
@@ -496,6 +538,7 @@
   <details open>
     <summary>Media items <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
+      <div class="table-scroll">
       <table>
         <tr><th>URL</th><th>Kind</th><th>Status</th><th>Size</th><th>Suspicious path</th><th>EXIF</th><th>Downloaded</th></tr>
         {% for item in r.media.media_items %}
@@ -510,6 +553,7 @@
         </tr>
         {% endfor %}
       </table>
+      </div>
       <p class="note" style="margin-top:10px;">Embedded video players (YouTube/Vimeo/etc.) are listed for
       inventory but can't be downloaded as a file - they're hosted on the third-party platform, not your site.</p>
     </div>
@@ -525,6 +569,7 @@
   <details open>
     <summary>Schema / GraphQL introspection <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
+      <div class="table-scroll">
       <table>
         <tr><th>Path</th><th>Code</th><th>Status</th></tr>
         {% for row in r.results.schema %}
@@ -535,12 +580,14 @@
         </tr>
         {% endfor %}
       </table>
+      </div>
     </div>
   </details>
 
   <details open>
     <summary>Common API path wordlist <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
+      <div class="table-scroll">
       <table>
         <tr><th>Path</th><th>Status</th></tr>
         {% for row in r.results.wordlist %}
@@ -550,6 +597,7 @@
         </tr>
         {% endfor %}
       </table>
+      </div>
     </div>
   </details>
 
@@ -557,6 +605,7 @@
     <summary>JS-discovered endpoints ({{ r.results.js_discovery.endpoints_discovered }} found) <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       {% if r.results.js_discovery.rows %}
+      <div class="table-scroll">
       <table>
         <tr><th>URL</th><th>Status</th></tr>
         {% for row in r.results.js_discovery.rows %}
@@ -566,6 +615,7 @@
         </tr>
         {% endfor %}
       </table>
+      </div>
       {% else %}
       <p class="note">No API-looking endpoints were found referenced in the homepage or its same-origin JS.</p>
       {% endif %}

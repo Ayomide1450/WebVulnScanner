@@ -57,13 +57,25 @@
   .btn.ghost { color: var(--muted); background: transparent; }
 
   /* Badges / pills / severity tokens */
-  .pill { font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
+  .pill { display:inline-block; font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
   .pill.critical, .badge.critical, .dot.critical { background: rgba(248,113,113,.14); color: var(--critical); }
   .pill.high, .badge.high, .dot.high { background: rgba(251,146,60,.14); color: var(--high); }
   .pill.medium, .badge.medium, .dot.medium { background: rgba(251,191,36,.14); color: var(--medium); }
   .pill.low, .badge.low, .dot.low { background: rgba(96,165,250,.14); color: var(--low); }
   .pill.info, .badge.info, .dot.info { background: rgba(139,150,173,.14); color: var(--info); }
   .pill.pass, .badge.pass, .dot.pass { background: rgba(34,197,94,.14); color: var(--pass); }
+
+  /* Scan-status pill - sibling component to .pill above, shared by
+     dashboard.html's "Your scans" table and org_admin.html's "Org scan
+     history" table so the same Scan.status field renders identically on
+     both pages. */
+  .status-pill { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
+  .status-pill.completed { background: rgba(34,197,94,.14); color: var(--accent); }
+  .status-pill.running, .status-pill.queued { background: rgba(56,189,248,.14); color: var(--telemetry); }
+  .status-pill.failed { background: rgba(248,113,113,.14); color: var(--critical); }
+  /* Optional leading dot, used by scan_progress.html's live feed - additive,
+     absent from dashboard.html/org_admin.html's plain-text .status-pill usage. */
+  .status-pill .dot { width:6px; height:6px; border-radius:50%; background: currentColor; box-shadow: 0 0 6px currentColor; flex-shrink:0; }
 
   /* Bare severity text-color utilities - scan_report.html applies these
      directly to <td>/<span> in its result tables (e.g. class="critical"),
@@ -126,6 +138,14 @@
   h2.section { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin: 32px 0 12px; }
   table { width:100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align:left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table tbody tr:hover td { background: rgba(255,255,255,.025); }
+  /* Deliberate mobile strategy for data tables: unbreakable content (email
+     addresses, URLs) forces a table wider than its card at narrow
+     viewports since table cells don't wrap mid-string. Without this, that
+     overflow was silently clipped at the card's edge with no way to reach
+     the cut-off columns - .table-scroll makes it a horizontal scroll
+     instead. Wrap every <table> in the app with <div class="table-scroll">. */
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
   /* Operator-console motion language. .glow-pulse generalizes the
      currentColor drop-shadow glow _gauge.html's .gauge-fg already proved;
@@ -248,7 +268,7 @@
     var HEARTBEAT_INTERVAL_MS = 4 * 60 * 1000;
     function ping() {
       if (document.visibilityState !== 'visible') return;
-      fetch('/healthz', { method: 'GET', cache: 'no-store', credentials: 'omit' }).catch(function () {});
+      fetch({{ url_for('public.healthz')|tojson }}, { method: 'GET', cache: 'no-store', credentials: 'omit' }).catch(function () {});
     }
     setInterval(ping, HEARTBEAT_INTERVAL_MS);
   })();

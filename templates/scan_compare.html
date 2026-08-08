@@ -11,7 +11,11 @@
   .empty { color: var(--muted); font-size: 14px; }
 
   .finding { transition: border-color 150ms ease; }
-  .finding:hover { border-color: rgba(255,255,255,.16); }
+  .finding:hover {
+    border-top-color: rgba(255,255,255,.16);
+    border-right-color: rgba(255,255,255,.16);
+    border-bottom-color: rgba(255,255,255,.16);
+  }
 </style>
 {% endblock %}
 {% block content %}

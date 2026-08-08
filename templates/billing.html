@@ -20,21 +20,25 @@
   <h1>Billing</h1>
 
   <div class="card">
+    <div class="table-scroll">
     <table>
       <tr><th>Current plan</th><td>{{ org.plan.value if org else 'n/a (no organization)' }}</td></tr>
       <tr><th>Subscription status</th><td>{{ subscription.status.value if subscription else 'none' }}</td></tr>
       <tr><th>Current period end</th><td>{{ subscription.current_period_end if subscription and subscription.current_period_end else '-' }}</td></tr>
     </table>
+    </div>
   </div>
 
   <h2 class="section">Plan prices</h2>
   <div class="card">
+    <div class="table-scroll">
     <table>
       <tr><th>Plan</th><th>USD / mo</th></tr>
       {% for plan, price in plan_prices.items() %}
       <tr><td>{{ plan.value }}</td><td>${{ '%.2f' % price }}</td></tr>
       {% endfor %}
     </table>
+    </div>
   </div>
 
   {% if org %}
@@ -82,7 +86,7 @@
       <div class="invoice-address-row">
         <span class="invoice-label">Send to</span>
         <code class="invoice-address" id="addr-{{ inv.id }}">{{ inv.receiving_address }}</code>
-        <button type="button" class="copy-btn" data-copy-target="addr-{{ inv.id }}">Copy</button>
+        <button type="button" class="copy-btn" data-copy-target="addr-{{ inv.id }}" aria-live="polite">Copy</button>
       </div>
       <form method="POST" action="{{ url_for('billing.verify_invoice_route', invoice_id=inv.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

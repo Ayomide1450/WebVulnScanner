@@ -6,11 +6,26 @@
   .eyebrow { display:inline-flex; align-items:center; gap:7px; font-family:"Fira Code",monospace; font-size:12px; color: var(--accent); background: var(--accent-dim); border:1px solid rgba(34,197,94,.3); padding:5px 12px; border-radius:999px; margin-bottom:18px; }
   .eyebrow .dot { width:6px; height:6px; border-radius:50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 
-  /* Terminal boot sequence - hidden until JS enables it (see script below),
-     so no-JS / prefers-reduced-motion visitors just see the final static
-     hero with zero animation, no layout jump. */
-  .terminal { display:none; max-width: 480px; margin: 0 auto 22px; text-align:left; background: var(--panel); border:1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
-  .terminal.active { display:block; }
+  /* Terminal boot sequence - reserves its full, final footprint from the
+     very first paint (fixed height, no display:none/block toggle), so
+     there is nothing for JS to pop in and no single-frame jump of the
+     headline/CTA below it. This replaced an earlier version that started
+     at display:none and had JS add .active to reveal it - that toggle
+     happened after the hero had already painted, so the headline visibly
+     hopped down by the box's full height the instant JS ran. Height math
+     for the 8 boot lines:
+       padding: 16px top + 16px bottom                        =  32px
+       8 lines x (12.5px font-size * 1.7 line-height = 21.25px) = 170px
+       32px + 170px                                            = 202px
+     - `prefers-reduced-motion: reduce` and `<noscript>` both collapse the
+       box to zero via CSS alone (resolved before first paint, so still no
+       shift) instead of relying on JS to decide visibility.
+     - Once the boot log finishes, JS adds .collapsing to animate height/
+       margin/padding/opacity down to 0 (still in flow throughout) - a
+       smooth, intentional exit, not a snap. */
+  .terminal { max-width: 480px; margin: 0 auto 22px; text-align:left; background: var(--panel); border:1px solid var(--border); border-radius: 10px; padding: 16px 18px; height: 202px; overflow: hidden; transition: height 320ms ease, margin-bottom 320ms ease, padding 320ms ease, opacity 220ms ease; }
+  .terminal.collapsing { height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; opacity: 0; }
+  @media (prefers-reduced-motion: reduce) { .terminal { height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; opacity: 0; overflow: hidden; } }
   .terminal pre { margin:0; font-family:"Fira Code",monospace; font-size:12.5px; line-height:1.7; color: var(--muted); white-space:pre-wrap; min-height: 1.7em; }
   .terminal .cursor { display:inline-block; width:7px; height:13px; background: var(--accent); margin-left:2px; vertical-align:-2px; animation: blink 1s step-end infinite; }
   @keyframes blink { 50% { opacity: 0; } }
@@ -28,6 +43,7 @@
   .feature h3 { margin:0 0 8px; font-size:15px; }
   .feature p { margin:0; color:var(--muted); font-size:13.5px; }
 </style>
+<noscript><style>.terminal { height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; opacity: 0; overflow: hidden; }</style></noscript>
 {% endblock %}
 {% block content %}
 <div class="hero">
@@ -92,8 +108,6 @@
     'Done.'
   ];
 
-  terminalEl.classList.add('active');
-
   function typeLine(text, cb) {
     var i = 0;
     var current = linesEl.textContent;
@@ -111,9 +125,13 @@
 
   function runBoot(index) {
     if (index >= bootLines.length) {
-      // Leave "Done." visible briefly, then fade the terminal box out -
-      // the real hero content next to it never moved.
-      setTimeout(function () { terminalEl.classList.remove('active'); }, 1200);
+      // Leave "Done." visible briefly, then smoothly collapse the terminal
+      // box's height/margin/padding/opacity to 0 (still in flow throughout,
+      // via the .terminal.collapsing transition) - an intentional, animated
+      // exit once the boot log is no longer needed.
+      setTimeout(function () {
+        terminalEl.classList.add('collapsing');
+      }, 1200);
       return;
     }
     typeLine(bootLines[index], function () { runBoot(index + 1); });

@@ -9,7 +9,11 @@
   .wrap { max-width: 760px; }
   h1 { font-size: 26px; margin: 20px 0 6px; letter-spacing: -0.01em; }
   .sub { color: var(--muted); margin: 0 0 22px; font-size: 14.5px; }
-  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 16px; padding: 26px; margin-top: 20px; }
+  /* .card's shape now comes from base.html's canonical definition (padding
+     22px, margin-bottom 18px) rather than a local override that had drifted
+     to padding:26px/margin-top:20px - this page-specific margin-top is kept
+     to preserve the gap below .sub above the first card. */
+  .card { margin-top: 20px; }
   label { display: block; margin-top: 18px; font-weight: 600; font-size: 13.5px; color: var(--text); }
   input[type=text] {
     width: 100%; padding: 12px 14px; margin-top: 7px; border: 1px solid var(--border);
@@ -44,7 +48,7 @@
 
   /* 4-card chooser grid (scan_new.html) */
   .scan-type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-4); margin-top: 22px; }
-  .scan-type-grid .card { margin-top: 0; display: flex; flex-direction: column; transition: border-color 150ms ease, transform 150ms ease; }
+  .scan-type-grid .card { margin-top: 0; margin-bottom: 0; display: flex; flex-direction: column; transition: border-color 150ms ease, transform 150ms ease; }
   .scan-type-grid .card:hover { border-color: rgba(34,197,94,.35); transform: translateY(-2px); }
   .scan-type-grid .card p.hint { flex: 1; margin-bottom: 18px; }
 </style>

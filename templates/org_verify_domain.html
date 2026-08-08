@@ -31,15 +31,14 @@
   <h2 class="section">Your domains</h2>
   {% if domains %}
   <div class="card">
+    <div class="table-scroll">
     <table>
       <tr><th>Domain</th><th>Method</th><th>Status</th><th>Proof</th><th></th></tr>
       {% for dv in domains %}
       <tr>
         <td><code>{{ dv.domain }}</code></td>
         <td>{{ dv.method.value }}</td>
-        <td class="{{ 'pass' if dv.verified_at else 'medium' }}">
-          {{ 'VERIFIED' if dv.verified_at else 'PENDING' }}
-        </td>
+        <td><span class="pill {{ 'pass' if dv.verified_at else 'medium' }}">{{ 'VERIFIED' if dv.verified_at else 'PENDING' }}</span></td>
         <td>
           {% if dv.method.value == 'dns_txt' %}
             TXT record on <code>{{ dv.domain }}</code>:<br>
@@ -61,6 +60,7 @@
       </tr>
       {% endfor %}
     </table>
+    </div>
   </div>
   {% else %}
   <div class="warn-box"><span class="ico">&#9888;&#65039;</span><div>No domains added yet.</div></div>

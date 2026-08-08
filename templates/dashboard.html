@@ -11,11 +11,6 @@
   .cta { display:inline-block; margin: 4px 0 10px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff; text-decoration:none; padding: 10px 18px; border-radius: 10px; font-size:14px; font-weight:700; }
   .latest-score { font-size:36px; font-weight:800; }
   .sparkline-card .hint { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
-  table tbody tr:hover td { background: rgba(255,255,255,.025); }
-  .status-pill { display:inline-flex; align-items:center; font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
-  .status-pill.completed { background: rgba(34,197,94,.14); color: var(--accent); }
-  .status-pill.running, .status-pill.queued { background: rgba(56,189,248,.14); color: var(--telemetry); }
-  .status-pill.failed { background: rgba(248,113,113,.14); color: var(--critical); }
 </style>
 {% endblock %}
 {% block content %}
@@ -105,6 +100,7 @@
   <h2 class="section">Your scans</h2>
   <div class="card">
     {% if scans %}
+    <div class="table-scroll">
     <table>
       <tr><th>Target</th><th>Type</th><th>Status</th><th>Risk score</th><th>Created</th><th></th></tr>
       {% for s in scans %}
@@ -118,6 +114,7 @@
       </tr>
       {% endfor %}
     </table>
+    </div>
     {% else %}
     <p style="color: var(--muted); font-size: 13.5px;">No scans yet. <a class="row-link" href="{{ url_for('scan.new_scan') }}">Run your first scan &rarr;</a></p>
     {% endif %}
