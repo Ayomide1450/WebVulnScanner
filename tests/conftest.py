@@ -23,7 +23,7 @@ from werkzeug.security import generate_password_hash
 from webvulnscanner import create_app
 from webvulnscanner.config import Config
 from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import Organization, Plan, Role, Scan, ScanStatus, User
+from webvulnscanner.models import Asset, Organization, Plan, Role, Scan, ScanStatus, User
 
 
 class TestConfig(Config):
@@ -32,6 +32,10 @@ class TestConfig(Config):
     RATELIMIT_ENABLED = False  # Limiter is a module-level singleton (extensions.py) shared
     # across every create_app() call in the same process - without this, rate-limit
     # counters from one test's requests would leak into the next test's app instance.
+    SCHEDULER_ENABLED = False  # never start the in-process scheduler thread in the test
+    # suite - the `app` fixture below creates a fresh Flask app (and disposable SQLite
+    # file) per test, so an unconditionally-started scheduler thread would leak an
+    # infinite background loop against a soon-to-be-deleted DB file for every test.
 
 
 @pytest.fixture()
@@ -116,6 +120,32 @@ def make_scan(user, org=None, target_url="https://example.com", scan_type="base"
     _db.session.add(scan)
     _db.session.flush()
     return scan
+
+
+def make_asset(org, user, name="Test Asset", target_url="https://example.com",
+                cadence="daily", schedule_scan_type="base", next_run_at=None,
+                is_paused=False, deleted_at=None):
+    from datetime import datetime, timezone
+    from urllib.parse import urlparse
+
+    now = datetime.now(timezone.utc)
+    a = Asset(
+        org_id=org.id if org else None,
+        created_by_user_id=user.id,
+        authorized_by_user_id=user.id,
+        authorized_at=now,
+        name=name,
+        target_url=target_url,
+        hostname=urlparse(target_url).hostname,
+        cadence=cadence,
+        schedule_scan_type=schedule_scan_type,
+        next_run_at=next_run_at if next_run_at is not None else now,
+        is_paused=is_paused,
+        deleted_at=deleted_at,
+    )
+    _db.session.add(a)
+    _db.session.flush()
+    return a
 
 
 def login(client, email, password="password123"):

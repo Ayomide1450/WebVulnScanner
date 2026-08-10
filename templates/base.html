@@ -226,6 +226,7 @@
     <div class="nav-links">
       {% if current_user.is_authenticated %}
         <a href="/dashboard">Dashboard</a>
+        <a href="{{ url_for('asset.list_assets') }}">Assets</a>
         <a href="/scan/new" class="cta-link">New Scan</a>
         <a href="/account/billing">Billing</a>
         {% if current_user.role == Role.ORG_ADMIN %}

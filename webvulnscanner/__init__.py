@@ -7,6 +7,7 @@ create_app()`. All 5 blueprints (auth, org, billing, scan, public) are
 registered here.
 """
 import logging
+import os
 
 from flask import Flask, render_template
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -14,6 +15,31 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from webvulnscanner.config import Config
 from webvulnscanner.email_stub import make_email_sender
 from webvulnscanner.extensions import csrf, db, limiter, login_manager, migrate
+
+
+def _maybe_start_scheduler(app):
+    """Three-part guard (01-RESEARCH.md Pattern 1) so the in-process
+    scheduler thread starts exactly once per real process and never during
+    the test suite:
+      (a) explicit config opt-out (SCHEDULER_ENABLED, e.g. ops maintenance)
+      (b) TESTING - tests/conftest.py's `app` fixture creates a fresh Flask
+          app (and disposable SQLite file) per test; without this check
+          every test would leak an infinite background thread
+      (c) the standard Werkzeug-reloader guard - `flask run --debug` forks a
+          child process that re-imports/re-runs create_app(); only the
+          reloader's actual child process (WERKZEUG_RUN_MAIN == "true")
+          should start the thread. Production (gunicorn) never sets
+          app.debug True, so `not app.debug` alone covers it there.
+    """
+    if not app.config.get("SCHEDULER_ENABLED", True):
+        return
+    if app.config.get("TESTING", False):
+        return
+    if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        return
+    from webvulnscanner.scheduler import start_scheduler
+
+    start_scheduler(app)
 
 
 def _init_sentry(app):
@@ -83,6 +109,10 @@ def create_app(config_class=Config):
 
     app.register_blueprint(scan_blueprint)
 
+    from webvulnscanner.asset_routes import asset as asset_blueprint
+
+    app.register_blueprint(asset_blueprint)
+
     from webvulnscanner.public_routes import public as public_blueprint
 
     app.register_blueprint(public_blueprint)
@@ -122,5 +152,7 @@ def create_app(config_class=Config):
         # never actually applying to a real, already-created DB - the exact
         # failure mode migrations exist to fix.
         from webvulnscanner import models  # noqa: F401
+
+    _maybe_start_scheduler(app)
 
     return app

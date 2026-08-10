@@ -160,3 +160,14 @@ class Config:
     # fail the scan.
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
     GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
+
+    # In-process daemon-thread scheduler (Phase 1, D-01/webvulnscanner/scheduler.py) -
+    # ticks periodically to fire due Assets. Default on; set false to disable
+    # entirely (e.g. ops maintenance) without a code change. TestConfig
+    # (tests/conftest.py) sets this False unconditionally - required, or
+    # every test in the suite leaks an infinite background thread against a
+    # soon-to-be-deleted SQLite file (see 01-RESEARCH.md Pitfall 2).
+    SCHEDULER_ENABLED = os.environ.get("SCHEDULER_ENABLED", "true").lower() not in (
+        "0", "false", "no",
+    )
+    SCHEDULER_POLL_INTERVAL_SECONDS = int(os.environ.get("SCHEDULER_POLL_INTERVAL_SECONDS", "60"))
