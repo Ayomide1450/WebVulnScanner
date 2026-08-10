@@ -27,6 +27,7 @@ ranked list's raw order are worth calling out explicitly:
   recommendation itself didn't push it as urgent relative to continuous scanning/API/compliance,
   and there's no concrete requirement or user request for it now — see PROJECT.md's Out of Scope
   section.
+
 - **Rank #5 (self-hostable/open-core) stays deprioritized** per the user's explicit confirmation
   that billing/SaaS shape is locked — it was never a candidate for this milestone's phases.
 
@@ -54,6 +55,7 @@ observable capability, per this project's granularity setting.
 ## Phases
 
 **Phase Numbering:**
+
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
@@ -67,53 +69,68 @@ Decimal phases appear between their surrounding integers in numeric order.
 ## Phase Details
 
 ### Phase 1: Asset Inventory & Continuous Scanning
+
 **Goal**: Users can register a domain they own once as a persistent Asset and have
 WebVulnScanner scan it automatically on a recurring schedule, building a history over time —
 instead of manually resubmitting the same target for every scan.
 **Depends on**: Nothing (first phase)
 **Requirements**: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, ASSET-07, ASSET-08
 **Success Criteria** (what must be TRUE):
+
   1. User can add a domain as a persistent Asset (separate from submitting a one-off scan) that
      appears in an Asset inventory list.
+
   2. Adding an Asset requires the same authorization checkbox and SSRF-safe-hostname check as
      submitting a manual scan — no weaker gate on the new entry point.
+
   3. User can set a recurring scan schedule on an Asset (cadence + scan type), and a scan runs
      automatically at that cadence without the user manually starting it.
+
   4. User can view an Asset's scan history/trend across multiple scheduled runs, not just the
      latest single scan.
+
   5. User can pause, resume, or delete an Asset's schedule; a Free-tier Asset's scheduled scan
      never silently runs Paid/Org-verified-only checks.
-**Plans**: 2 plans
+**Plans**: 1/2 plans executed
 Plans:
-- [ ] 01-01-PLAN.md — Tracer: Asset registration + automatic first scheduled fire, end-to-end (ASSET-01/02/04/07/08, initial ASSET-03)
+
+- [x] 01-01-PLAN.md — Tracer: Asset registration + automatic first scheduled fire, end-to-end (ASSET-01/02/04/07/08, initial ASSET-03)
 - [ ] 01-02-PLAN.md — Asset detail: schedule editing, scan history/trend, pause/resume/delete (ASSET-03/05/06)
+
 **UI hint**: yes
 
 ### Phase 2: API & CLI Access
+
 **Goal**: Security engineers can manage assets and trigger/retrieve scans programmatically,
 enabling CI/CD and internal-tooling integration instead of requiring the web UI for every action.
 **Depends on**: Phase 1
 **Requirements**: API-01, API-02, API-03, API-04, API-05, API-06
 **Success Criteria** (what must be TRUE):
+
   1. Org admin can generate and revoke an API token from the web UI.
   2. Using an API token (no session cookie), a user can list their org's Assets and each Asset's
      latest scan status.
+
   3. Using an API token, a user can trigger a new scan on an existing Asset and retrieve its
      finished report as structured JSON, subject to the same authorization/SSRF/tier gating the
      web UI enforces.
+
   4. A CLI command authenticates with an API token and can list assets, start a scan, and print a
      report without opening a browser.
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 3: Compliance & Framework Reporting
+
 **Goal**: Security teams can see scan findings mapped to recognized compliance frameworks (OWASP
 Top 10 / ASVS) for audit and reporting purposes, not just a flat severity list.
 **Depends on**: Phase 1
 **Requirements**: COMP-01, COMP-02, COMP-03, COMP-04
 **Success Criteria** (what must be TRUE):
+
   1. A scan report shows each finding's mapped OWASP Top 10 (and/or ASVS) category alongside its
      severity.
+
   2. User can filter or group a report's findings by compliance category, not only by severity.
   3. User can view a per-Asset compliance-coverage summary across its scan history — which
      categories have been checked, and which are currently failing.
@@ -121,18 +138,23 @@ Top 10 / ASVS) for audit and reporting purposes, not just a flat severity list.
 **UI hint**: yes
 
 ### Phase 4: Production Hardening & Reliability
+
 **Goal**: The platform is safe to run with more than one production worker and has test/visual
 consistency coverage matching the "production ready" bar this milestone targets.
 **Depends on**: Phase 1, Phase 2, Phase 3
 **Requirements**: HARD-01, HARD-02, HARD-03, HARD-04, HARD-05
 **Success Criteria** (what must be TRUE):
+
   1. Rate limits (login, signup, invoice, and the new API-token endpoints) enforce correctly even
      when the app runs with more than one gunicorn worker.
+
   2. `run_advanced_scan`, `run_media_scan`, and `run_api_scan` each have automated tests covering
      status transitions and error handling, matching the coverage `run_scan` already has —
      including the scheduler-triggered path added in Phase 1.
+
   3. Org invite/role-change/domain-verification flows have automated test coverage beyond the
      current single rendering test.
+
   4. Dashboard, billing, org-admin, and scan_report pages visually match the rest of the app's
      design system — no bland/legacy styling left on any of the four.
 **Plans**: TBD
@@ -145,7 +167,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Asset Inventory & Continuous Scanning | 0/2 | Planned | - |
+| 1. Asset Inventory & Continuous Scanning | 1/2 | In Progress|  |
 | 2. API & CLI Access | 0/TBD | Not started | - |
 | 3. Compliance & Framework Reporting | 0/TBD | Not started | - |
 | 4. Production Hardening & Reliability | 0/TBD | Not started | - |

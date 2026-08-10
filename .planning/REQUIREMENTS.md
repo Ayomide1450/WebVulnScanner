@@ -12,22 +12,28 @@ to exactly one roadmap phase.
 
 ### Asset Inventory & Continuous Scanning (ASSET)
 
-- [ ] **ASSET-01**: User can register a domain/target as a persistent "Asset" (name, target URL,
+- [x] **ASSET-01**: User can register a domain/target as a persistent "Asset" (name, target URL,
       hostname) tied to their org — distinct from submitting a one-off manual scan.
-- [ ] **ASSET-02**: Asset registration enforces the same authorization-checkbox and
+
+- [x] **ASSET-02**: Asset registration enforces the same authorization-checkbox and
       `is_ssrf_safe_hostname()` gating as manual scan submission — no weaker safety check for the
       new entry point.
+
 - [ ] **ASSET-03**: User can configure a recurring scan schedule for an Asset (cadence, e.g.
       daily/weekly/monthly, plus which scan type to run).
-- [ ] **ASSET-04**: A scheduled scan runs automatically at its configured cadence without the user
+
+- [x] **ASSET-04**: A scheduled scan runs automatically at its configured cadence without the user
       manually starting it, producing a new `Scan`/`Report` linked to that Asset.
+
 - [ ] **ASSET-05**: User can view an Asset's scan history/trend across multiple scheduled runs
       (risk score/findings over time), not just the latest single scan.
+
 - [ ] **ASSET-06**: User can pause, resume, or delete an Asset's schedule.
-- [ ] **ASSET-07**: Scheduled scan execution respects the same tier-entitlement gating
+- [x] **ASSET-07**: Scheduled scan execution respects the same tier-entitlement gating
       (`entitlements.py`) as manually triggered scans — a Free-tier Asset cannot silently run
       Paid/Org-verified checks on a schedule.
-- [ ] **ASSET-08**: A scheduling mechanism exists that periodically checks due schedules and
+
+- [x] **ASSET-08**: A scheduling mechanism exists that periodically checks due schedules and
       triggers scans automatically, compatible with the existing single-worker threaded-gunicorn
       Render deployment (no required re-architecture to a different execution model).
 
@@ -35,14 +41,19 @@ to exactly one roadmap phase.
 
 - [ ] **API-01**: Org admin can generate and revoke API tokens scoped to their org, separate from
       session-cookie auth.
+
 - [ ] **API-02**: Authenticated API requests can list an org's Assets and each Asset's latest scan
       status/report summary.
+
 - [ ] **API-03**: Authenticated API requests can trigger a new scan against an existing Asset,
       subject to the same authorization/SSRF/tier gating as the web UI.
+
 - [ ] **API-04**: Authenticated API requests can retrieve a completed scan's full report
       (findings, score) as structured JSON.
+
 - [ ] **API-05**: API endpoints are rate-limited and tier-gated consistent with existing
       entitlement rules — no API path that bypasses tier restrictions enforced elsewhere.
+
 - [ ] **API-06**: A CLI tool (thin wrapper over the API) lets a user authenticate, list assets,
       trigger a scan, and fetch a report from the command line.
 
@@ -50,10 +61,13 @@ to exactly one roadmap phase.
 
 - [ ] **COMP-01**: Each check/finding category is tagged with the OWASP Top 10 category (and/or
       ASVS control) it maps to.
+
 - [ ] **COMP-02**: A scan report includes a compliance-framework view — findings grouped/filterable
       by framework category, not only by severity.
+
 - [ ] **COMP-03**: User can view a per-Asset compliance-coverage summary across its scan history
       (which framework categories have been checked, and which are currently failing).
+
 - [ ] **COMP-04**: Compliance mapping data is maintained per check in a way that stays in sync as
       new checks are added, following the same coverage-regression-test convention already used
       for `CHECK_LABELS`/`CHECK_CATEGORY`.
@@ -63,14 +77,18 @@ to exactly one roadmap phase.
 - [ ] **HARD-01**: Rate limits (login, signup, invoice, and new API-token endpoints) enforce
       correctly even when the app runs with more than one gunicorn worker (shared rate-limit
       backend, not in-memory-only).
+
 - [ ] **HARD-02**: `run_advanced_scan`, `run_media_scan`, and `run_api_scan` each have automated
       test coverage for status transitions and error handling, matching what `run_scan` already
       has in `tests/test_scan_events.py`.
+
 - [ ] **HARD-03**: Org invite / role-change / domain-verification flows have automated test
       coverage beyond the current single rendering test in `tests/test_org_routes.py`.
+
 - [ ] **HARD-04**: Scoring logic (risk score, letter grade, `severity_counts`) is deduplicated into
       a single shared helper used by all scan orchestrators, including any new scheduled-scan path
       from Phase 1.
+
 - [ ] **HARD-05**: Dashboard, billing, org-admin, and scan_report pages visually match the rest of
       the app's existing design system (no remaining bland/legacy styling), completing the visual
       pass `CLAUDE.md` already flags as open.
@@ -83,6 +101,7 @@ Deferred to future release. Tracked but not in current roadmap.
 
 - **PLUGIN-01**: Third-party/user-authored custom checks can be registered without editing
   `checks.py` directly.
+
 - **PLUGIN-02**: A documented plugin contract exists (input/output shape, entitlement-tier
   assignment, safety requirements) for community or internal check authors.
 
@@ -109,14 +128,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ASSET-01 | Phase 1 | Pending |
-| ASSET-02 | Phase 1 | Pending |
+| ASSET-01 | Phase 1 | Complete |
+| ASSET-02 | Phase 1 | Complete |
 | ASSET-03 | Phase 1 | Pending |
-| ASSET-04 | Phase 1 | Pending |
+| ASSET-04 | Phase 1 | Complete |
 | ASSET-05 | Phase 1 | Pending |
 | ASSET-06 | Phase 1 | Pending |
-| ASSET-07 | Phase 1 | Pending |
-| ASSET-08 | Phase 1 | Pending |
+| ASSET-07 | Phase 1 | Complete |
+| ASSET-08 | Phase 1 | Complete |
 | API-01 | Phase 2 | Pending |
 | API-02 | Phase 2 | Pending |
 | API-03 | Phase 2 | Pending |
@@ -134,6 +153,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | HARD-05 | Phase 4 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 23 total
 - Mapped to phases: 23
 - Unmapped: 0 ✓

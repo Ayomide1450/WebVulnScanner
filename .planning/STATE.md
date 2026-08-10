@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 1
 current_phase_name: Asset Inventory & Continuous Scanning
-status: planning
-stopped_at: Phase 1 planned and verified — 2 plans, ready for execution
-last_updated: "2026-08-10T15:09:21.303Z"
+status: executing
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-08-10T15:36:49.161Z"
 last_activity: 2026-08-10
 last_activity_desc: Roadmap created from ingested intel (SYNTHESIS.md, codebase map,
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 2
-  completed_plans: 0
+  completed_plans: 1
 ---
 
 # Project State
@@ -29,12 +29,12 @@ non-destructive scans against their own infrastructure and get findings they can
 ## Current Position
 
 Phase: 1 of 4 (Asset Inventory & Continuous Scanning)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
+Plan: 1 of 2 in current phase
+Status: Ready to execute
 Last activity: 2026-08-10 — Roadmap created from ingested intel (SYNTHESIS.md, codebase map,
 PRODUCT.md) and prior strategic-direction context; awaiting user approval before planning begins.
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -56,6 +56,11 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: N/A
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01-asset-inventory-continuous-scanning P01 | 45min | 1 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -73,6 +78,9 @@ Recent decisions affecting current work:
 
 - Milestone kickoff: Plugin/check-extensibility system (ranked gap #2) deferred to v2 — no
   concrete requirement or user request for it this milestone.
+
+- [Phase ?]: Extracted entitlements.effective_tier_for_org(org) so the scheduler can look up tier without faking a User object
+- [Phase ?]: Added synchronize_session=False to the scheduler claim-guard UPDATE to avoid a tz-naive/aware datetime comparison crash on SQLite
 
 ### Pending Todos
 
@@ -92,6 +100,8 @@ None yet.
 - Flask-Limiter's in-memory rate limiting is not multi-worker-safe — known, addressed directly in
   Phase 4 (HARD-01), not before.
 
+- Flask CLI (flask db migrate/upgrade) auto-loads the main repo's real .env by walking upward from a worktree cwd - always set FLASK_SKIP_DOTENV=1 before running flask db commands from inside a worktree to avoid connecting to the real/shared database
+
 ## Deferred Items
 
 Items acknowledged and carried forward from previous milestone close:
@@ -103,7 +113,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-10T15:09:21.274Z
-Stopped at: Phase 1 planned and verified — 2 plans, ready for execution
+Last session: 2026-08-10T15:36:49.132Z
+Stopped at: Completed 01-01-PLAN.md
 awaiting user approval of the roadmap draft before `/gsd-plan-phase 1`.
-Resume file: .planning/phases/01-asset-inventory-continuous-scanning/01-01-PLAN.md
+Resume file: None
