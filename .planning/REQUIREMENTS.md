@@ -19,16 +19,16 @@ to exactly one roadmap phase.
       `is_ssrf_safe_hostname()` gating as manual scan submission — no weaker safety check for the
       new entry point.
 
-- [ ] **ASSET-03**: User can configure a recurring scan schedule for an Asset (cadence, e.g.
+- [x] **ASSET-03**: User can configure a recurring scan schedule for an Asset (cadence, e.g.
       daily/weekly/monthly, plus which scan type to run).
 
 - [x] **ASSET-04**: A scheduled scan runs automatically at its configured cadence without the user
       manually starting it, producing a new `Scan`/`Report` linked to that Asset.
 
-- [ ] **ASSET-05**: User can view an Asset's scan history/trend across multiple scheduled runs
+- [x] **ASSET-05**: User can view an Asset's scan history/trend across multiple scheduled runs
       (risk score/findings over time), not just the latest single scan.
 
-- [ ] **ASSET-06**: User can pause, resume, or delete an Asset's schedule.
+- [x] **ASSET-06**: User can pause, resume, or delete an Asset's schedule.
 - [x] **ASSET-07**: Scheduled scan execution respects the same tier-entitlement gating
       (`entitlements.py`) as manually triggered scans — a Free-tier Asset cannot silently run
       Paid/Org-verified checks on a schedule.
@@ -130,10 +130,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | ASSET-01 | Phase 1 | Complete |
 | ASSET-02 | Phase 1 | Complete |
-| ASSET-03 | Phase 1 | Pending |
+| ASSET-03 | Phase 1 | Complete |
 | ASSET-04 | Phase 1 | Complete |
-| ASSET-05 | Phase 1 | Pending |
-| ASSET-06 | Phase 1 | Pending |
+| ASSET-05 | Phase 1 | Complete |
+| ASSET-06 | Phase 1 | Complete |
 | ASSET-07 | Phase 1 | Complete |
 | ASSET-08 | Phase 1 | Complete |
 | API-01 | Phase 2 | Pending |
