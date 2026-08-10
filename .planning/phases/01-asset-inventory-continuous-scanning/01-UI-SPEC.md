@@ -1,7 +1,7 @@
 ---
 phase: 1
 slug: asset-inventory-continuous-scanning
-status: draft
+status: force-approved
 shadcn_initialized: false
 preset: none
 created: 2026-08-10
@@ -82,6 +82,16 @@ pre-existing `7px 8px` padding value, an existing non-4pt exception this phase d
 touch, or re-declare). New markup in this phase that needs cell-adjacent spacing uses the
 standard-set `--space-2` (8px) token instead of introducing or repeating the legacy value.
 
+> **Confirmed design-system exception (project-level, not phase-local).** Same disposition as the
+> Typography exception above: `gsd-ui-checker` correctly rejected framing the pre-existing `7px`
+> table-cell padding as "out of scope" without changing what renders. The user was asked directly
+> and chose to keep the new Asset tables visually consistent with every other table in the app
+> (`dashboard.html`, `scan_report.html`, etc.) rather than give the new tables a different,
+> divergent cell-padding value just to satisfy a phase-level spacing-scale count. This `7px 8px`
+> value is a pre-existing, whole-app convention that predates this phase; fixing it (if ever) is a
+> project-level design-system change, not something Phase 1 should do unilaterally to its own two
+> new tables while leaving every other table in the app inconsistent with them.
+
 Exceptions:
 - Icon-only pause/resume/delete row controls use a **44px minimum touch target** (padding around
   an 18px `.icon`), matching accessibility guidance — this is a touch-target minimum, not a spacing
@@ -121,6 +131,19 @@ Exactly two weights, 400 and 600, cover every piece of genuinely new text this p
 These two rows are pre-existing, unchanged house typography and are excluded from this phase's
 weight count — they are placed on new pages via existing `h1`/`.latest-score` classes, not
 redeclared or modified by this phase.
+
+> **Confirmed design-system exception (project-level, not phase-local).** `gsd-ui-checker` twice
+> flagged this as a 4-weight declaration blocking the 2-weight rule, correctly rejecting the
+> phase-scoped "inherited/out of scope" framing as insufficient on its own — the checker's own
+> guidance was to either genuinely constrain new screens to 2 weights (breaking visual consistency
+> with the rest of the app) or escalate this as a consciously-accepted systemic exception rather
+> than a phase-local table reclassification. The user was asked directly (via `/gsd-plan-phase 1`'s
+> orchestrator, 2026-08-10) and explicitly chose: **keep visual consistency** — new Asset pages use
+> the same pre-existing `h1`/700 heading and `.latest-score`/800 display-number styling as every
+> other page in the app, rather than diverging Phase 1's screens to satisfy a phase-level weight
+> count. This is recorded here as the durable exception; it applies to the whole house design
+> system (already 4 weights before this phase existed), not something this phase invented or should
+> re-litigate per-phase.
 
 ---
 
@@ -255,11 +278,18 @@ No third-party registries were declared. No vetting gate was triggered.
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: BLOCK by gsd-ui-checker (2 revision rounds) — **force-approved** as a
+      confirmed project-level design-system exception; see note under Typography above.
+- [x] Dimension 5 Spacing: BLOCK by gsd-ui-checker (2 revision rounds) — **force-approved** as a
+      confirmed project-level design-system exception; see note under Spacing Scale above.
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** Force-approved 2026-08-10 after 2 revision rounds. Dimensions 4 and 5 remain
+technically BLOCK per `gsd-ui-checker`'s literal rule (pre-existing house typography/spacing
+values render on this phase's new screens), but the underlying design-system decision was
+explicitly surfaced to and confirmed by the user: keep visual consistency with the rest of the
+app rather than diverge this phase's new screens to satisfy a phase-level weight/spacing count.
+Not a silent pass — see the "Confirmed design-system exception" notes inline above.
