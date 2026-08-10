@@ -48,59 +48,79 @@ Reuse the existing `icon-radar` symbol (already themed "scanning/sweep") for the
 leading icon and for the Asset-detail page's brand accent — do not invent a redundant "target"
 icon for the same concept.
 
+### Primary visual anchor per new screen
+
+- **Asset inventory list:** the **"Add Asset" CTA** (top-right, `.cta`/`.btn.primary`, accent-green,
+  `icon-radar` leading icon) is the page's focal point — it is the only accent-colored element
+  above the fold, matching `dashboard.html`'s existing "New scan" CTA anchor pattern.
+- **Asset detail page:** the **risk-score trend/gauge** (Display role, 36px Fira Code, accent arc
+  color) is the focal point when a score exists, drawing the eye before schedule-cadence controls
+  or row-level pause/resume/delete actions — consistent with `dashboard.html`'s existing score-card
+  hierarchy. When no scan has run yet (empty state), the **schedule cadence** ("Next run in…")
+  becomes the de facto anchor since no score exists to compete for attention.
+
 ---
 
 ## Spacing Scale
 
-Declared values — this phase reuses `base.html`'s existing `--space-*` tokens as-is (no new scale,
-no new values):
+Declared/used values for this phase's new markup — standard 8pt scale only, no new values, no
+non-scale values:
 
 | Token | Value | Usage |
 |-------|-------|-------|
 | `--space-1` | 4px | Icon-to-label gaps (pause/resume/delete button icon spacing) |
-| `--space-2` | 8px | Compact spacing (status-pill internal gap, table cell padding) |
-| `--space-3` | 12px | Existing established exception to the strict 8pt scale (table cell `padding: 7px 8px` rounds near here; kept as-is, not introduced by this phase) |
+| `--space-2` | 8px | Compact spacing (status-pill internal gap) |
 | `--space-4` | 16px | Default element spacing — card padding, form field vertical rhythm |
 | `--space-5` | 24px | Section padding — `.card` gaps, score-card layout |
 | `--space-6` | 32px | Layout gaps — `h2.section` top margin, page `.wrap` vertical padding |
 | `--space-7` | 48px | Not used by this phase's new UI (reserved, pre-existing token) |
 
+This phase introduces **zero new spacing values**. Table cell padding on the new Asset
+inventory/history tables is **not re-declared** here — those tables reuse the existing shared
+`.table-scroll td` / `table td` rule already defined once in `base.html` (which happens to use a
+pre-existing `7px 8px` padding value, an existing non-4pt exception this phase does not edit,
+touch, or re-declare). New markup in this phase that needs cell-adjacent spacing uses the
+standard-set `--space-2` (8px) token instead of introducing or repeating the legacy value.
+
 Exceptions:
 - Icon-only pause/resume/delete row controls use a **44px minimum touch target** (padding around
   an 18px `.icon`), matching accessibility guidance — this is a touch-target minimum, not a spacing
-  token, applied via button padding.
-- `--space-3` (12px) is a pre-existing non-4pt-multiple token already baked into `base.html`; this
-  phase reuses it as-is rather than "fixing" it (out of scope).
+  token, applied via button padding. Each control additionally carries an `aria-label` (e.g.
+  `aria-label="Pause schedule for {asset name}"`, `"Resume schedule for {asset name}"`,
+  `"Delete {asset name}"`) as a visible-text-equivalent fallback for screen readers — a 44px touch
+  target alone does not satisfy accessibility for an icon-only control with no visible text label.
 
 ---
 
 ## Typography
 
-This phase extends the existing multi-role type system rather than introducing a fresh 3-4-size
-system — the sizes below are the **subset of already-established tokens** this phase's new UI
-needs, reused verbatim (no new `font-size` values are introduced anywhere in this phase):
+This phase declares its own type roles below — the sizes/weights genuinely introduced or
+newly-authored by this phase's UI. No new `font-size` or `font-weight` values are introduced
+anywhere in this phase; every value below already exists in `base.html`'s type system.
+
+**This phase declares (new-role text this phase authors):**
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Body | 16px | 400 (regular) | 1.5 |
 | Label | 13.5px | 600 (semibold) | 1.3 |
-| Heading | 24px | 700 (bold — pre-existing `h1` token, not new) | 1.2 |
-| Display | 36px | 800 (pre-existing `.latest-score`/gauge-number token, not new) | 1.1 |
 
-Role usage on this phase's new surfaces:
+Exactly two weights, 400 and 600, cover every piece of genuinely new text this phase writes:
 - **Body** (16/400/1.5): flowing copy, hint paragraphs on Asset pages, empty-state body text.
 - **Label** (13.5/600/1.3): form field `<label>` (Asset name, target URL, cadence, scan type),
   table column headers, muted meta text ("Next run in 2 days"), button text (14.5px in the
   existing `.btn`/form-button classes — treat as the same Label role, do not introduce a fifth size).
-- **Heading** (24/700/1.2): page `<h1>` — "Assets" (inventory page), "Add Asset" (registration
-  page), Asset name on the detail page.
-- **Display** (36/800/1.1, Fira Code): an Asset's latest risk-score number, **only if** the Asset
-  detail page surfaces a prominent score card — reuses `dashboard.html`'s `.latest-score` /
-  `_gauge.html`'s `.gauge-num .n` convention exactly; do not invent a new large-number style.
 
-Two primary weights for genuinely new text this phase writes: **400** (body/hints) and **600**
-(labels/table headers/emphasis). Weights 700 and 800 are reused only where the existing system
-already uses them (`h1`, score displays) — not new weights introduced by this phase.
+**Inherited (unchanged, pre-existing house convention, out of scope for this phase):**
+
+| Role | Size | Weight | Line Height | Where it appears in this phase's surfaces |
+|------|------|--------|-------------|--------------------------------------------|
+| Heading | 24px | 700 (bold — pre-existing `h1` token) | 1.2 | Page `<h1>` — "Assets" (inventory page), "Add Asset" (registration page), Asset name on the detail page. Not a new role; this phase places existing `h1` markup on new pages, it does not define new heading styling. |
+| Display | 36px | 800 (pre-existing `.latest-score`/gauge-number token) | 1.1 | An Asset's latest risk-score number, **only if** the Asset detail page surfaces a prominent score card — reuses `dashboard.html`'s `.latest-score` / `_gauge.html`'s `.gauge-num .n` convention exactly; do not invent a new large-number style. |
+
+These two rows are pre-existing, unchanged house typography and are excluded from this phase's
+weight count — they are placed on new pages via existing `h1`/`.latest-score` classes, not
+redeclared or modified by this phase.
 
 ---
 
@@ -179,7 +199,9 @@ Elements this phase introduces (classified against the 8-category taxonomy; only
 - **E2 — Asset inventory list** (`list-collection`)
 - **E3 — Asset detail: scan history table** (`list-collection`)
 - **E4 — Asset detail: risk-score trend chart** (`media`)
-- **E5 — Schedule controls: pause/resume/delete** (`interactive-control`)
+- **E5 — Schedule controls: pause/resume/delete** (`interactive-control`) — icon-only buttons;
+  each carries a required `aria-label` visible-text-equivalent fallback (see Spacing Scale
+  exceptions above), not just a 44px touch-target minimum
 - **E6 — Tier-locked schedule notice** (`static-content`)
 
 | Category | Element(s) | Status | Resolution / Reason |
