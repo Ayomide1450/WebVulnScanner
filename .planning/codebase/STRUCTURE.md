@@ -1,0 +1,170 @@
+# Codebase Structure
+
+**Analysis Date:** 2026-08-10
+
+## Directory Layout
+
+```
+WebVulnScanner/
+├── webvulnscanner/          # Application package: blueprints + business logic (4403 lines total)
+│   ├── __init__.py          # App factory: create_app()
+│   ├── config.py            # Env-var driven Config class
+│   ├── extensions.py        # db/login_manager/csrf/limiter/migrate singletons
+│   ├── models.py            # SQLAlchemy ORM models + enums
+│   ├── decorators.py        # @org_admin_required
+│   ├── auth_routes.py       # Blueprint "auth": signup/login/logout/verify/reset
+│   ├── org_routes.py        # Blueprint "org": org admin, invites, domain verify UI
+│   ├── domain_verification.py # DNS TXT / meta-tag domain-ownership verification logic
+│   ├── billing_routes.py    # Blueprint "billing_bp": checkout/portal/webhook
+│   ├── billing.py           # Stripe / crypto-invoice subscription logic
+│   ├── entitlements.py      # Tier enum, FEATURE_REQUIREMENTS, effective_tier()
+│   ├── scan_routes.py       # Blueprint "scan": /dashboard, /scan/*, SSE events (630 lines)
+│   ├── scan_engine.py       # run_scan/run_advanced_scan/run_media_scan/run_api_scan orchestrators (465 lines)
+│   ├── checks.py            # Individual vulnerability check functions (1523 lines, largest module)
+│   ├── ai_summary.py        # Groq-backed remediation summary (optional/degrades gracefully)
+│   └── email_stub.py        # Pluggable email sender (stub / Resend)
+├── templates/                # Jinja2 templates, server-rendered, dark theme
+│   ├── base.html            # Shared layout/nav/footer
+│   ├── marketing.html, dashboard.html, login.html, signup.html, ...
+│   ├── scan_new*.html       # 5 templates: chooser + base/advanced/media/api forms
+│   ├── scan_progress.html   # SSE-driven live scan view
+│   ├── scan_report.html, scan_compare.html
+│   ├── org_admin.html, org_verify_domain.html, billing.html
+│   └── 404.html, 429.html, 500.html # Themed error pages
+├── tests/                    # pytest test suite (mirrors blueprint/module names)
+│   ├── conftest.py          # App/test fixtures
+│   ├── test_auth_flows.py, test_org_routes.py, test_billing.py, test_billing_routes.py
+│   ├── test_scan_routes.py, test_scan_events.py, test_scan_ownership.py
+│   ├── test_entitlements.py, test_ssrf_guard.py, test_public_routes.py
+│   └── test_config.py, test_email_stub.py
+├── migrations/                # Alembic migrations (schema owned here, not db.create_all())
+│   ├── alembic.ini, env.py, script.py.mako
+│   └── versions/             # Individual migration scripts
+├── scripts/                   # One-off/maintenance scripts
+│   └── cleanup_ui_review_org.py
+├── docs/                       # Project docs
+│   ├── env-vars.md          # Documents required environment variables
+│   └── vercel-migration.md  # Notes on Vercel deployment adaptation
+├── api/                        # Vercel serverless entry point
+│   └── index.py             # Adapts Flask app for Vercel's Python runtime
+├── reports/                    # Generated at runtime: JSON scan report output (checks.py's REPORTS_DIR)
+├── downloads/                   # Generated at runtime: media-scan downloaded files (checks.py's DOWNLOADS_DIR)
+├── app.py                      # Thin WSGI entry: from webvulnscanner import create_app
+├── config files                # pytest.ini, render.yaml, vercel.json, Procfile, requirements*.txt
+└── .planning/                   # GSD planning artifacts (not app code)
+```
+
+## Directory Purposes
+
+**`webvulnscanner/`:**
+- Purpose: All application code — the entire Flask app package.
+- Contains: Blueprints (`*_routes.py`), business logic modules, models, extensions, config.
+- Key files: `__init__.py` (app factory), `models.py` (schema), `checks.py` (largest single module at 1523 lines).
+
+**`templates/`:**
+- Purpose: Server-rendered Jinja2 HTML, referenced by `render_template()` calls in route functions.
+- Contains: Page templates plus underscore-prefixed partial/style includes (`_admin_form_styles.html`, `_auth_form_styles.html`, `_gauge.html`, `_legal_styles.html`, `_scan_form_styles.html`).
+- Key files: `base.html` (shared nav/footer, injects `Role` enum and `current_year` via `create_app()`'s `context_processor`).
+
+**`tests/`:**
+- Purpose: pytest suite; file names mirror the module/blueprint under test (e.g., `test_scan_routes.py` ↔ `webvulnscanner/scan_routes.py`).
+- Contains: `conftest.py` fixtures plus one `test_*.py` per concern (auth flows, billing, entitlements, org routes, scan ownership/events, SSRF guard, public routes, config, email stub).
+- Config: `pytest.ini` at repo root.
+
+**`migrations/`:**
+- Purpose: Alembic-managed schema migrations — the sanctioned way to change `models.py`'s schema (`flask db migrate` / `flask db upgrade`), replacing an earlier implicit `db.create_all()`-only approach.
+- Contains: `alembic.ini`, `env.py`, `script.py.mako`, and `versions/` with individual migration files.
+- Generated: `versions/*.py` files are generated by `flask db migrate` then hand-reviewed; not manually hand-written from scratch.
+
+**`scripts/`:**
+- Purpose: Operational/maintenance one-off scripts run outside the request/response cycle.
+- Contains: `cleanup_ui_review_org.py`.
+
+**`docs/`:**
+- Purpose: Supplementary project documentation not part of `.planning/`.
+- Contains: `env-vars.md` (required environment variables reference), `vercel-migration.md` (Vercel deployment notes), `superpowers/` subdirectory.
+
+**`api/`:**
+- Purpose: Vercel serverless function entry point, an alternate deployment target alongside Render (`render.yaml`, `Procfile`).
+- Contains: `index.py`, which imports and exposes the same `create_app()`-built Flask app for Vercel's Python runtime.
+
+**`reports/` and `downloads/`:**
+- Purpose: Runtime-generated output directories, created via `os.makedirs(..., exist_ok=True)` in `webvulnscanner/checks.py` (`REPORTS_DIR`, `DOWNLOADS_DIR` constants).
+- Generated: Yes — JSON scan reports (`reports/`) and media-scan downloaded files (`downloads/`).
+- Committed: No (runtime artifacts, not source).
+
+## Key File Locations
+
+**Entry Points:**
+- `app.py`: WSGI entry for local/gunicorn/Render — thin shim calling `create_app()`.
+- `api/index.py`: Vercel serverless entry.
+- `webvulnscanner/__init__.py::create_app()`: actual app factory doing all wiring.
+
+**Configuration:**
+- `webvulnscanner/config.py`: `Config` class, env-var driven (DB URL, `TRUST_PROXY_HOPS`, `SQLALCHEMY_ENGINE_OPTIONS`, `EMAIL_MODE`, `GROQ_API_KEY`/`GROQ_MODEL`, `SENTRY_DSN`, etc.).
+- `.env.example`: documents expected env vars (never read actual `.env` contents — see forbidden-files policy).
+- `docs/env-vars.md`: prose reference for environment variables.
+
+**Core Logic:**
+- `webvulnscanner/checks.py`: individual vulnerability checks + `Finding` dataclass + SSRF guard (`is_ssrf_safe_hostname`).
+- `webvulnscanner/scan_engine.py`: orchestrators that assemble check results into a report.
+- `webvulnscanner/entitlements.py`: tier gating (`Tier`, `FEATURE_REQUIREMENTS`, `effective_tier`, `allowed_checks`).
+
+**Testing:**
+- `tests/conftest.py`: shared fixtures (test app/client/db).
+- `pytest.ini`: pytest configuration at repo root.
+
+## Naming Conventions
+
+**Files:**
+- Blueprint modules: `<feature>_routes.py` (e.g., `auth_routes.py`, `org_routes.py`, `billing_routes.py`, `scan_routes.py`) except `public_routes.py` which also follows the pattern.
+- Supporting business-logic modules: bare feature name, no `_routes` suffix (`billing.py`, `checks.py`, `scan_engine.py`, `entitlements.py`, `domain_verification.py`, `ai_summary.py`, `email_stub.py`).
+- Test files: `test_<module_or_concern>.py`, one per blueprint/module or cross-cutting concern (e.g., `test_scan_ownership.py`, `test_ssrf_guard.py`).
+- Template partials meant for `{% include %}` are prefixed with `_` (e.g., `_gauge.html`).
+
+**Directories:**
+- Flat single-package layout — no nested subpackages inside `webvulnscanner/`; all ~16 modules live directly in the package root.
+
+## Where to Add New Code
+
+**New Feature (new page/blueprint):**
+- Create `webvulnscanner/<feature>_routes.py` following the `Blueprint("<name>", __name__)` pattern seen in `auth_routes.py`/`org_routes.py`/`scan_routes.py`.
+- Register it inside `create_app()` (`webvulnscanner/__init__.py`) via a local import + `app.register_blueprint(...)`, matching the existing 5-blueprint pattern.
+- Add corresponding template(s) to `templates/`.
+- Add `tests/test_<feature>_routes.py` mirroring existing test file naming.
+
+**New vulnerability check:**
+- Add a `check_<name>(session, ...)` function to `webvulnscanner/checks.py` returning `(raw_data, [Finding, ...])`, matching the existing per-check function contract.
+- Wire it into the appropriate orchestrator in `webvulnscanner/scan_engine.py` (`run_scan`/`run_advanced_scan`/`run_media_scan`/`run_api_scan`).
+- Add a `FEATURE_REQUIREMENTS["<name>"] = Tier.<TIER>` entry in `webvulnscanner/entitlements.py` — the module warns at runtime if a check name is missing from this map.
+
+**Business logic:**
+- Domain-agnostic, DB-free logic belongs in `checks.py`/`scan_engine.py` (explicitly kept free of `models.py`/Flask-Login coupling).
+- Anything that needs to bridge DB models (`Plan`, `DomainVerification`) with tier logic belongs in `entitlements.py`, the sanctioned single bridge point.
+
+**Utilities:**
+- No dedicated `utils.py` exists; small shared helpers currently live inline in the module that needs them (e.g., `_safe_next()` in `auth_routes.py`, `_unsafe_target_error()` in `scan_routes.py`). Follow that precedent for new small helpers unless genuinely shared across 3+ modules.
+
+**Database schema changes:**
+- Edit `webvulnscanner/models.py`, then run `flask db migrate` to generate a new file under `migrations/versions/`, then `flask db upgrade`. Do not rely on `db.create_all()` for schema changes to an existing DB.
+
+## Special Directories
+
+**`reports/`:**
+- Purpose: JSON scan report output, one file per completed scan (`save_report()` in `webvulnscanner/scan_engine.py`).
+- Generated: Yes, at runtime.
+- Committed: No.
+
+**`downloads/`:**
+- Purpose: Files downloaded during a media scan (`check_media()` in `webvulnscanner/checks.py`).
+- Generated: Yes, at runtime.
+- Committed: No.
+
+**`migrations/versions/`:**
+- Purpose: Ordered Alembic migration scripts, the authoritative schema-change history.
+- Generated: Yes, via `flask db migrate` (then hand-reviewed).
+- Committed: Yes — this is source-controlled, unlike `reports/`/`downloads/`.
+
+---
+
+*Structure analysis: 2026-08-10*
