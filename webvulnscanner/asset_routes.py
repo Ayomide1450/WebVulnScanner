@@ -170,3 +170,43 @@ def update_schedule(asset_id):
     db.session.commit()
 
     return redirect(url_for("asset.asset_detail", asset_id=a.id))
+
+
+@asset.route("/<int:asset_id>/pause", methods=["POST"])
+@login_required
+def pause_asset(asset_id):
+    a = Asset.query.get_or_404(asset_id)
+    _check_asset_access(a)
+    a.is_paused = True
+    db.session.commit()
+    return redirect(url_for("asset.asset_detail", asset_id=a.id))
+
+
+@asset.route("/<int:asset_id>/resume", methods=["POST"])
+@login_required
+def resume_asset(asset_id):
+    a = Asset.query.get_or_404(asset_id)
+    _check_asset_access(a)
+    # next_run_at is deliberately left untouched: a stale, already-past
+    # next_run_at just means the Asset is due on the very next scheduler
+    # tick after resuming - "catch up promptly" is the correct behavior
+    # here, not a bug to special-case.
+    a.is_paused = False
+    db.session.commit()
+    return redirect(url_for("asset.asset_detail", asset_id=a.id))
+
+
+@asset.route("/<int:asset_id>/delete", methods=["POST"])
+@login_required
+def delete_asset(asset_id):
+    a = Asset.query.get_or_404(asset_id)
+    _check_asset_access(a)
+    # Soft-delete only - deleted_at is what scheduler._tick's WHERE clause
+    # and _scoped_asset_query() both already filter on, so past Scan
+    # history for this Asset stays queryable/intact. is_paused=True too
+    # (belt-and-suspenders): the row's own state stays self-explanatory
+    # without needing to reason about two columns' interaction.
+    a.deleted_at = datetime.now(timezone.utc)
+    a.is_paused = True
+    db.session.commit()
+    return redirect(url_for("asset.list_assets"))

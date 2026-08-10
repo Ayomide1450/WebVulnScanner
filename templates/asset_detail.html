@@ -5,12 +5,14 @@
   /* h1/h2.section/.card/table/th/td come from base.html - see its comments.
      This page only needs the same top-margin bump dashboard.html already
      uses, plus a handful of new, page-scoped rules for the schedule form
-     (not promoted into base.html - see _scan_form_styles.html's own comment
-     on why unscoped label/select selectors stay out of the shared file). */
+     and the icon-only row-action buttons (not promoted into base.html - see
+     _scan_form_styles.html's own comment on why unscoped label/select
+     selectors stay out of the shared file). */
   h1 { margin-top: 20px; }
   h2.section { margin-top: 28px; }
   a.row-link { color: var(--accent); text-decoration:none; }
   .header-row { display:flex; justify-content:space-between; align-items:flex-start; gap: var(--space-4); flex-wrap:wrap; margin-top:14px; }
+  .actions-row { display:flex; gap: var(--space-2); align-items:center; }
   .meta { color: var(--muted); font-size: 13.5px; margin: 6px 0 0; }
   .latest-score { font-size:36px; font-weight:800; }
   .sparkline-card .hint { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
@@ -24,6 +26,15 @@
   }
   .schedule-form select:focus { border-color: var(--accent); background: rgba(34,197,94,.04); }
   .schedule-form .btn { margin-top: var(--space-5); }
+
+  /* Icon-only row controls (pause/resume/delete): 44px minimum touch
+     target per 01-UI-SPEC.md's Spacing Scale exception. Pause/resume reuse
+     .btn.secondary (never accent - a schedule toggle isn't a conversion
+     action); delete reuses .error-box's exact rgba treatment as its
+     destructive color, per 01-UI-SPEC.md's Color contract. */
+  .icon-btn { min-width: 44px; min-height: 44px; padding: 0; justify-content:center; }
+  .icon-btn .icon { width:18px; height:18px; }
+  .btn.destructive { background: rgba(248,113,113,.09); border: 1px solid rgba(248,113,113,.35); color: var(--critical); }
 
   /* Reused verbatim from _scan_form_styles.html's button:disabled rule -
      every form on this page is a server-rendered POST+redirect with no
@@ -40,6 +51,29 @@
     <div>
       <h1 style="margin:0 0 4px;">{{ asset.name }}</h1>
       <p class="meta"><code>{{ asset.target_url }}</code></p>
+    </div>
+    <div class="actions-row">
+      {% if asset.is_paused %}
+      <form id="resume-asset-form" method="POST" action="{{ url_for('asset.resume_asset', asset_id=asset.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn secondary icon-btn" aria-label="Resume schedule for {{ asset.name }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-play"/></svg>
+        </button>
+      </form>
+      {% else %}
+      <form id="pause-asset-form" method="POST" action="{{ url_for('asset.pause_asset', asset_id=asset.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn secondary icon-btn" aria-label="Pause schedule for {{ asset.name }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-pause"/></svg>
+        </button>
+      </form>
+      {% endif %}
+      <form id="delete-asset-form" method="POST" action="{{ url_for('asset.delete_asset', asset_id=asset.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn destructive icon-btn" aria-label="Delete {{ asset.name }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-trash"/></svg>
+        </button>
+      </form>
     </div>
   </div>
 
@@ -180,14 +214,27 @@
 </div>
 <script>
   (function () {
-    // Disable the button that owns the schedule-form submit while it's in
-    // flight - the same server-rendered POST+redirect + button:disabled
-    // pattern every other form in this app already uses, not a new AJAX
-    // loading indicator.
-    var f = document.getElementById('schedule-form');
-    if (f) {
+    // Disable the button that owns each in-flight form submit - the same
+    // server-rendered POST+redirect + button:disabled pattern every other
+    // form in this app already uses, not a new AJAX loading indicator.
+    ['pause-asset-form', 'resume-asset-form', 'schedule-form'].forEach(function (id) {
+      var f = document.getElementById(id);
+      if (!f) return;
       f.addEventListener('submit', function () {
         var btn = f.querySelector('button[type=submit]');
+        if (btn) btn.disabled = true;
+      });
+    });
+
+    var deleteForm = document.getElementById('delete-asset-form');
+    if (deleteForm) {
+      var confirmMessage = {{ ("Delete " ~ asset.name ~ "? This stops all scheduled scans for this target. Past scan history is kept for your records.") | tojson }};
+      deleteForm.addEventListener('submit', function (e) {
+        if (!confirm(confirmMessage)) {
+          e.preventDefault();
+          return;
+        }
+        var btn = deleteForm.querySelector('button[type=submit]');
         if (btn) btn.disabled = true;
       });
     }

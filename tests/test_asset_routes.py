@@ -1,7 +1,8 @@
 """
 Tests for webvulnscanner/asset_routes.py - Asset registration + inventory
 list routes (Phase 1, ASSET-01/02, tracer plan 01-01) and Asset detail /
-schedule-editing routes (Phase 1, ASSET-03/05, plan 01-02).
+schedule-editing / pause / resume / delete routes (Phase 1,
+ASSET-03/05/06, plan 01-02).
 """
 import socket
 from datetime import datetime, timedelta, timezone
@@ -347,3 +348,98 @@ def test_schedule_tier_locked_hint_absent_for_base_schedule_type(db, client):
 
     assert resp.status_code == 200
     assert b"requires a" not in resp.data
+
+
+# --------------------------------------------------------------------------
+# ASSET-06: pause / resume / delete controls (plan 01-02).
+# --------------------------------------------------------------------------
+
+def test_pause_resume_delete_pause_excludes_asset_from_due_query(db, client):
+    org = make_org(plan=Plan.PAID, name="Pause Org")
+    user = make_user("pause-owner@example.com", org=org)
+    a = make_asset(org, user, next_run_at=datetime.now(timezone.utc) - timedelta(minutes=5))
+    db.session.commit()
+    asset_id = a.id
+
+    login(client, "pause-owner@example.com")
+    resp = client.post(f"/assets/{asset_id}/pause", follow_redirects=False)
+
+    assert resp.status_code == 302
+    updated = Asset.query.get(asset_id)
+    assert updated.is_paused is True
+
+    now = datetime.now(timezone.utc)
+    due = Asset.query.filter(
+        Asset.is_paused.is_(False), Asset.deleted_at.is_(None), Asset.next_run_at <= now,
+    ).all()
+    assert asset_id not in [x.id for x in due]
+
+
+def test_pause_resume_delete_resume_reincludes_asset_in_due_query(db, client):
+    org = make_org(plan=Plan.PAID, name="Resume Org")
+    user = make_user("resume-owner@example.com", org=org)
+    a = make_asset(
+        org, user, is_paused=True,
+        next_run_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+    )
+    db.session.commit()
+    asset_id = a.id
+
+    login(client, "resume-owner@example.com")
+    resp = client.post(f"/assets/{asset_id}/resume", follow_redirects=False)
+
+    assert resp.status_code == 302
+    updated = Asset.query.get(asset_id)
+    assert updated.is_paused is False
+
+    now = datetime.now(timezone.utc)
+    due = Asset.query.filter(
+        Asset.is_paused.is_(False), Asset.deleted_at.is_(None), Asset.next_run_at <= now,
+    ).all()
+    assert asset_id in [x.id for x in due]
+
+
+def test_pause_resume_delete_delete_soft_deletes_and_keeps_scan_history(db, client):
+    org = make_org(plan=Plan.PAID, name="Delete Org")
+    user = make_user("delete-owner@example.com", org=org)
+    a = make_asset(org, user, name="Doomed Asset")
+    s = Scan(
+        asset_id=a.id, user_id=user.id, org_id=org.id,
+        target_url=a.target_url, scan_type="base",
+        status=ScanStatus.COMPLETED, risk_score=70,
+    )
+    db.session.add(s)
+    db.session.commit()
+    asset_id = a.id
+    scan_id = s.id
+
+    login(client, "delete-owner@example.com")
+    resp = client.post(f"/assets/{asset_id}/delete", follow_redirects=False)
+
+    assert resp.status_code == 302
+    updated = Asset.query.get(asset_id)
+    assert updated.deleted_at is not None
+
+    list_resp = client.get("/assets")
+    assert b"Doomed Asset" not in list_resp.data
+
+    kept_scan = Scan.query.filter_by(asset_id=asset_id).first()
+    assert kept_scan is not None
+    assert kept_scan.id == scan_id
+
+
+def test_pause_resume_delete_all_three_404_for_non_owning_org(db, client):
+    org_a = make_org(plan=Plan.PAID, name="Owner Org 2")
+    user_a = make_user("owner2@example.com", org=org_a)
+    a = make_asset(org_a, user_a, name="Protected Asset")
+
+    org_b = make_org(plan=Plan.PAID, name="Intruder Org")
+    make_user("intruder@example.com", org=org_b)
+    db.session.commit()
+    asset_id = a.id
+
+    login(client, "intruder@example.com")
+
+    assert client.post(f"/assets/{asset_id}/pause", follow_redirects=False).status_code == 404
+    assert client.post(f"/assets/{asset_id}/resume", follow_redirects=False).status_code == 404
+    assert client.post(f"/assets/{asset_id}/delete", follow_redirects=False).status_code == 404
