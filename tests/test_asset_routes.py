@@ -1,14 +1,28 @@
 """
 Tests for webvulnscanner/asset_routes.py - Asset registration + inventory
-list routes (Phase 1, ASSET-01/02, tracer plan 01-01).
+list routes (Phase 1, ASSET-01/02, tracer plan 01-01) and Asset detail /
+schedule-editing routes (Phase 1, ASSET-03/05, plan 01-02).
 """
 import socket
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from webvulnscanner.models import Asset, Plan
+from webvulnscanner.models import Asset, Plan, Scan, ScanStatus
 
 from tests.conftest import login, make_asset, make_org, make_user
+
+
+def _as_aware(dt):
+    """SQLite (unlike Postgres) doesn't preserve tzinfo on round-trip
+    through a DateTime(timezone=True) column - a value read back after a
+    commit comes back naive even though it was written tz-aware. Test-only
+    normalization so assertions can safely compare against a fresh
+    tz-aware datetime.now(timezone.utc). Same convention as
+    tests/test_scheduler.py's _as_aware helper."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 @pytest.fixture()
@@ -186,3 +200,150 @@ def test_two_solo_users_never_see_each_others_assets(db, client):
 
     assert b"Solo A Asset" in resp.data
     assert b"Solo B Asset" not in resp.data
+
+
+# --------------------------------------------------------------------------
+# ASSET-03/05: Asset detail page - schedule editing + scan history/trend
+# (plan 01-02).
+# --------------------------------------------------------------------------
+
+def test_get_asset_detail_shows_schedule_and_empty_history(db, client):
+    org = make_org(plan=Plan.PAID, name="Detail Org")
+    user = make_user("detail-owner@example.com", org=org)
+    make_asset(org, user, name="Empty History Asset", cadence="weekly", schedule_scan_type="base")
+    db.session.commit()
+
+    login(client, "detail-owner@example.com")
+    a = Asset.query.filter_by(name="Empty History Asset").first()
+    resp = client.get(f"/assets/{a.id}")
+
+    assert resp.status_code == 200
+    assert b"Empty History Asset" in resp.data
+    assert b"hasn" in resp.data and b"scanned yet" in resp.data
+    assert b"Weekly" in resp.data
+
+
+def test_get_asset_detail_shows_populated_scan_history(db, client):
+    org = make_org(plan=Plan.PAID, name="Detail Org 2")
+    user = make_user("detail-owner2@example.com", org=org)
+    a = make_asset(org, user, name="Populated Asset")
+    s = Scan(
+        asset_id=a.id, user_id=user.id, org_id=org.id,
+        target_url=a.target_url, scan_type="base",
+        status=ScanStatus.COMPLETED, risk_score=88,
+    )
+    db.session.add(s)
+    db.session.commit()
+
+    login(client, "detail-owner2@example.com")
+    resp = client.get(f"/assets/{a.id}")
+
+    assert resp.status_code == 200
+    assert b"88" in resp.data
+    assert b"completed" in resp.data.lower()
+
+
+def test_get_asset_detail_for_other_org_is_404(db, client):
+    org_a = make_org(plan=Plan.PAID, name="Owner Org")
+    user_a = make_user("owner@example.com", org=org_a)
+    a = make_asset(org_a, user_a, name="Owner Asset")
+
+    org_b = make_org(plan=Plan.PAID, name="Other Org")
+    make_user("other@example.com", org=org_b)
+    db.session.commit()
+    asset_id = a.id
+
+    login(client, "other@example.com")
+    resp = client.get(f"/assets/{asset_id}")
+
+    assert resp.status_code == 404
+
+
+def test_post_schedule_valid_update_persists_and_recomputes_next_run(db, client):
+    org = make_org(plan=Plan.PAID, name="Schedule Org")
+    user = make_user("schedule-owner@example.com", org=org)
+    a = make_asset(
+        org, user, cadence="daily", schedule_scan_type="base",
+        next_run_at=datetime.now(timezone.utc) - timedelta(days=1),
+    )
+    db.session.commit()
+    asset_id = a.id
+
+    login(client, "schedule-owner@example.com")
+    resp = client.post(
+        f"/assets/{asset_id}/schedule",
+        data={"cadence": "monthly", "schedule_scan_type": "media"},
+        follow_redirects=False,
+    )
+
+    assert resp.status_code == 302
+    updated = Asset.query.get(asset_id)
+    assert updated.cadence == "monthly"
+    assert updated.schedule_scan_type == "media"
+    assert _as_aware(updated.next_run_at) > datetime.now(timezone.utc) + timedelta(days=20)
+
+
+def test_post_schedule_invalid_value_rejected_and_row_unchanged(db, client):
+    org = make_org(plan=Plan.PAID, name="Schedule Org 2")
+    user = make_user("schedule-owner2@example.com", org=org)
+    a = make_asset(org, user, cadence="daily", schedule_scan_type="base")
+    db.session.commit()
+    asset_id = a.id
+    original_cadence = a.cadence
+    original_scan_type = a.schedule_scan_type
+
+    login(client, "schedule-owner2@example.com")
+    resp = client.post(
+        f"/assets/{asset_id}/schedule",
+        data={"cadence": "hourly", "schedule_scan_type": "base"},
+        follow_redirects=False,
+    )
+
+    assert resp.status_code == 200
+    assert b"Choose a valid cadence and scan type." in resp.data
+    unchanged = Asset.query.get(asset_id)
+    assert unchanged.cadence == original_cadence
+    assert unchanged.schedule_scan_type == original_scan_type
+
+
+def test_schedule_tier_locked_hint_renders_when_over_org_tier(db, client):
+    org = make_org(plan=Plan.FREE, name="Free Org")
+    user = make_user("free-owner@example.com", org=org)
+    a = make_asset(org, user, cadence="daily", schedule_scan_type="media")
+    db.session.commit()
+
+    login(client, "free-owner@example.com")
+    resp = client.get(f"/assets/{a.id}")
+
+    assert resp.status_code == 200
+    assert b"requires a" in resp.data
+    assert b"Paid" in resp.data
+
+
+def test_schedule_tier_locked_hint_absent_when_within_org_tier(db, client):
+    org = make_org(plan=Plan.PAID, name="Paid Org")
+    user = make_user("paid-owner@example.com", org=org)
+    a = make_asset(org, user, cadence="daily", schedule_scan_type="media")
+    db.session.commit()
+
+    login(client, "paid-owner@example.com")
+    resp = client.get(f"/assets/{a.id}")
+
+    assert resp.status_code == 200
+    assert b"requires a" not in resp.data
+
+
+def test_schedule_tier_locked_hint_absent_for_base_schedule_type(db, client):
+    # "base" has no single FEATURE_REQUIREMENTS entry (individual checks
+    # within a base scan are gated separately) - the hint must never raise
+    # a KeyError or render for it, even on a FREE org.
+    org = make_org(plan=Plan.FREE, name="Free Org Base")
+    user = make_user("free-base-owner@example.com", org=org)
+    a = make_asset(org, user, cadence="daily", schedule_scan_type="base")
+    db.session.commit()
+
+    login(client, "free-base-owner@example.com")
+    resp = client.get(f"/assets/{a.id}")
+
+    assert resp.status_code == 200
+    assert b"requires a" not in resp.data

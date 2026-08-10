@@ -22,13 +22,17 @@ from flask import Blueprint, abort, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from webvulnscanner.checks import is_ssrf_safe_hostname, normalize_target
+from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, effective_tier_for_org
 from webvulnscanner.extensions import db
-from webvulnscanner.models import Asset
+from webvulnscanner.models import Asset, Scan
+from webvulnscanner.scheduler import CADENCE_INTERVALS
 
 asset = Blueprint("asset", __name__, url_prefix="/assets")
 
 CADENCE_CHOICES = ("daily", "weekly", "monthly")
 SCHEDULE_SCAN_TYPE_CHOICES = ("base", "media", "api")
+# Display names for the tier-locked schedule hint on asset_detail.html.
+TIER_LABELS = {Tier.FREE: "Free", Tier.PAID: "Paid", Tier.ORG_VERIFIED: "Org-verified"}
 
 
 def _check_asset_access(a):
@@ -122,3 +126,47 @@ def new_asset():
     db.session.commit()
 
     return redirect(url_for("asset.list_assets"))
+
+
+def _render_asset_detail(a, **extra):
+    scans = Scan.query.filter_by(asset_id=a.id).order_by(Scan.created_at.desc()).all()
+    tier = effective_tier_for_org(a.organization)
+    return render_template(
+        "asset_detail.html", asset=a, scans=scans, tier=tier,
+        FEATURE_REQUIREMENTS=FEATURE_REQUIREMENTS,
+        TIER_LABELS=TIER_LABELS,
+        CADENCE_CHOICES=CADENCE_CHOICES,
+        SCHEDULE_SCAN_TYPE_CHOICES=SCHEDULE_SCAN_TYPE_CHOICES,
+        **extra,
+    )
+
+
+@asset.route("/<int:asset_id>")
+@login_required
+def asset_detail(asset_id):
+    a = Asset.query.get_or_404(asset_id)
+    _check_asset_access(a)
+    return _render_asset_detail(a)
+
+
+@asset.route("/<int:asset_id>/schedule", methods=["POST"])
+@login_required
+def update_schedule(asset_id):
+    a = Asset.query.get_or_404(asset_id)
+    _check_asset_access(a)
+
+    cadence = request.form.get("cadence", "")
+    schedule_scan_type = request.form.get("schedule_scan_type", "")
+    if cadence not in CADENCE_CHOICES or schedule_scan_type not in SCHEDULE_SCAN_TYPE_CHOICES:
+        return _render_asset_detail(a, error="Choose a valid cadence and scan type.")
+
+    # Single rule for every edit: unconditionally re-derive next_run_at from
+    # "now" using the new cadence, rather than trying to preserve/adjust the
+    # old cadence's remaining interval - avoids a stale next_run_at left over
+    # from math done against a cadence that no longer applies.
+    a.cadence = cadence
+    a.schedule_scan_type = schedule_scan_type
+    a.next_run_at = datetime.now(timezone.utc) + CADENCE_INTERVALS[cadence]
+    db.session.commit()
+
+    return redirect(url_for("asset.asset_detail", asset_id=a.id))

@@ -28,7 +28,7 @@
       {% for a in assets %}
       {% set latest = a.scans|sort(attribute='created_at')|last if a.scans else None %}
       <tr>
-        <td>{{ a.name }}</td>
+        <td><a class="row-link" href="{{ url_for('asset.asset_detail', asset_id=a.id) }}">{{ a.name }}</a></td>
         <td><code>{{ a.target_url }}</code></td>
         <td>{{ a.cadence }}</td>
         <td>{{ a.next_run_at }}</td>
@@ -39,7 +39,7 @@
           -
           {% endif %}
         </td>
-        <td>-</td>
+        <td><a class="row-link" href="{{ url_for('asset.asset_detail', asset_id=a.id) }}">View &rarr;</a></td>
       </tr>
       {% endfor %}
     </table>
