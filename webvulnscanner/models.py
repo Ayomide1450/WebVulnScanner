@@ -182,6 +182,28 @@ class Asset(db.Model):
     scans = db.relationship("Scan", back_populates="asset")
 
 
+class ApiToken(db.Model):
+    """A user-scoped, hash-only API token (Phase 2, API-01/D-01..D-04). Acts
+    as the exact user who created it - no independent authorization model,
+    see entitlements.py/asset_routes.py's existing checks, all reused
+    unchanged for token-authenticated requests via
+    login_manager.request_loader (extensions.py). Only token_hash is ever
+    persisted - the raw token exists only as a local variable in
+    api_tokens_routes.create_token, shown to the user exactly once (D-01)."""
+    __tablename__ = "api_tokens"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(255), nullable=False)  # D-04: user-facing label, e.g. "CI pipeline"
+    token_hash = db.Column(db.String(64), unique=True, nullable=False)  # sha256 hexdigest, D-01
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+    last_used_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    # NULL = active. Soft-revoke only (D-03), mirrors Asset.deleted_at's convention exactly.
+    revoked_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
+    user = db.relationship("User")
+
+
 class Scan(db.Model):
     __tablename__ = "scans"
     __table_args__ = (

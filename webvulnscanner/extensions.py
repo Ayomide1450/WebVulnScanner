@@ -4,6 +4,9 @@ Flask extension instances, created uninitialized here and wired up via
 Kept in their own module so other modules (models, routes) can import them
 without triggering circular imports with the app factory.
 """
+import hashlib
+
+import flask
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
@@ -40,3 +43,52 @@ def load_user(user_id):
     from webvulnscanner.models import User
 
     return User.query.get(int(user_id))
+
+
+# Phase 2 (API-01..05, D-01..D-04): a second, parallel authentication path -
+# hash-only Bearer tokens - alongside the session-cookie auth above.
+# request_loader is Flask-Login's own documented mechanism for this and is
+# checked on every request that has no session-authenticated user, so it
+# must never touch the DB unless an Authorization: Bearer header is actually
+# present (Pitfall 2, 02-RESEARCH.md) - otherwise every anonymous page load
+# pays an extra query. ApiToken is imported lazily, same reason load_user
+# above imports User lazily: avoids a models.py <-> extensions.py circular
+# import at module load time.
+@login_manager.request_loader
+def load_user_from_request(request):
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    raw_token = auth_header[len("Bearer "):].strip()
+    if not raw_token:
+        return None
+
+    from datetime import datetime, timezone
+
+    from webvulnscanner.models import ApiToken
+
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    row = ApiToken.query.filter_by(token_hash=token_hash, revoked_at=None).first()
+    if row is None:
+        return None
+
+    row.last_used_at = datetime.now(timezone.utc)
+    db.session.commit()
+    # Consumed by _ApiAwareSessionInterface.save_session below - a Bearer
+    # token-authenticated request must never receive a Set-Cookie session
+    # header back (Flask-Login's own documented "Disabling Session Cookie
+    # for APIs" recommendation, CITED in 02-RESEARCH.md).
+    flask.g.login_via_request = True
+    return row.user
+
+
+class _ApiAwareSessionInterface(flask.sessions.SecureCookieSessionInterface):
+    """Skips writing a Set-Cookie session header for token-authenticated
+    requests (flask.g.login_via_request), otherwise behaves exactly like
+    Flask's default session interface. Wired in create_app() via
+    `app.session_interface = _ApiAwareSessionInterface()`."""
+
+    def save_session(self, app, session, response):
+        if getattr(flask.g, "login_via_request", False):
+            return
+        return super().save_session(app, session, response)

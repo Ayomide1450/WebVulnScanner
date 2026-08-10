@@ -14,7 +14,14 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from webvulnscanner.config import Config
 from webvulnscanner.email_stub import make_email_sender
-from webvulnscanner.extensions import csrf, db, limiter, login_manager, migrate
+from webvulnscanner.extensions import (
+    _ApiAwareSessionInterface,
+    csrf,
+    db,
+    limiter,
+    login_manager,
+    migrate,
+)
 
 
 def _maybe_start_scheduler(app):
@@ -82,6 +89,11 @@ def create_app(config_class=Config):
 
     db.init_app(app)
     login_manager.init_app(app)
+    # A Bearer-token-authenticated request (Phase 2, login_manager.request_loader
+    # in extensions.py) must never receive a Set-Cookie session header back -
+    # Flask-Login's own documented recommendation. Set once, right after
+    # login_manager.init_app(app), per 02-RESEARCH.md's Pattern 1 caveat.
+    app.session_interface = _ApiAwareSessionInterface()
     csrf.init_app(app)
     limiter.init_app(app)
     migrate.init_app(app, db)
@@ -116,6 +128,14 @@ def create_app(config_class=Config):
     from webvulnscanner.public_routes import public as public_blueprint
 
     app.register_blueprint(public_blueprint)
+
+    from webvulnscanner.api_tokens_routes import api_tokens as api_tokens_blueprint
+
+    app.register_blueprint(api_tokens_blueprint)
+
+    from webvulnscanner.api_routes import api as api_blueprint
+
+    app.register_blueprint(api_blueprint)
 
     from webvulnscanner.models import Role
 

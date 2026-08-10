@@ -23,7 +23,7 @@ from werkzeug.security import generate_password_hash
 from webvulnscanner import create_app
 from webvulnscanner.config import Config
 from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import Asset, Organization, Plan, Role, Scan, ScanStatus, User
+from webvulnscanner.models import ApiToken, Asset, Organization, Plan, Role, Scan, ScanStatus, User
 
 
 class TestConfig(Config):
@@ -146,6 +146,29 @@ def make_asset(org, user, name="Test Asset", target_url="https://example.com",
     _db.session.add(a)
     _db.session.flush()
     return a
+
+
+def make_api_token(user, name="test", revoked=False):
+    """Mirrors make_asset's shape: generates a raw token inline exactly like
+    the real api_tokens_routes.create_token route does, hashes it, creates
+    the ApiToken row, and returns BOTH the row and the raw token string so
+    tests can authenticate as `Authorization: Bearer <raw_token>` without
+    going through the HTML create-route first."""
+    import hashlib
+    import secrets
+    from datetime import datetime, timezone
+
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    t = ApiToken(
+        user_id=user.id,
+        name=name,
+        token_hash=token_hash,
+        revoked_at=datetime.now(timezone.utc) if revoked else None,
+    )
+    _db.session.add(t)
+    _db.session.flush()
+    return t, raw_token
 
 
 def login(client, email, password="password123"):
