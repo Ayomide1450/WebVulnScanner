@@ -65,6 +65,28 @@ below).
   reversible — collapsing to single-token-per-user later is a UI/validation constraint change, not
   a data-model rewrite (the schema already supports multiple rows per user).
 
+### Token Creation Authority (resolved post-research)
+
+- **D-05:** Any authenticated org member can self-service generate/revoke their own API token —
+  not gated to `Role.ORG_ADMIN`. This resolves a tension the researcher flagged between
+  REQUIREMENTS.md's API-01 literal text ("org admin can generate...tokens") and D-02's
+  user-scoped model: API-01 is reinterpreted as "any user acting within their org," matching
+  D-02's premise that a token simply acts as the user who created it — there is no separate
+  admin-gated token-issuance authority to build. — **Reversibility:** reversible — adding an
+  admin-only restriction later is a single added authorization check on the create-token route,
+  not a data-model or existing-token-semantics change.
+
+### Ownership-Check Mismatch (flagged by research, scoped to this phase)
+
+The researcher found a pre-existing Phase 1 gap: `scan_routes._check_ownership` attributes
+Asset-fired Scans to `asset.created_by_user_id`, which disagrees with `asset_routes.
+_check_asset_access`'s org-shared ownership model. API-04 (fetch report via API) would inherit
+this gap unless addressed. Left to planner discretion whether to fix it narrowly (route API-04's
+report-fetch through `_check_asset_access(scan.asset)` instead of the mismatched
+`_check_ownership`) or flag it as a cross-cutting fix for a later phase — the narrow, in-scope fix
+is preferred since it's directly in this phase's new code path and low-risk, but do not expand
+this into an app-wide `_check_ownership` refactor (out of scope for this phase).
+
 ### Claude's Discretion
 
 The following areas were surfaced as gray areas but not deep-dived; researcher/planner have
