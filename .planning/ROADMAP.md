@@ -83,7 +83,10 @@ instead of manually resubmitting the same target for every scan.
      latest single scan.
   5. User can pause, resume, or delete an Asset's schedule; a Free-tier Asset's scheduled scan
      never silently runs Paid/Org-verified-only checks.
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 01-01-PLAN.md — Tracer: Asset registration + automatic first scheduled fire, end-to-end (ASSET-01/02/04/07/08, initial ASSET-03)
+- [ ] 01-02-PLAN.md — Asset detail: schedule editing, scan history/trend, pause/resume/delete (ASSET-03/05/06)
 **UI hint**: yes
 
 ### Phase 2: API & CLI Access
@@ -142,7 +145,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Asset Inventory & Continuous Scanning | 0/TBD | Not started | - |
+| 1. Asset Inventory & Continuous Scanning | 0/2 | Planned | - |
 | 2. API & CLI Access | 0/TBD | Not started | - |
 | 3. Compliance & Framework Reporting | 0/TBD | Not started | - |
 | 4. Production Hardening & Reliability | 0/TBD | Not started | - |
