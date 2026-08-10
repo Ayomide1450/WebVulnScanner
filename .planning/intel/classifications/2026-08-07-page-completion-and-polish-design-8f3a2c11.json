@@ -1,0 +1,13 @@
+{
+  "source_path": "C:\\Users\\Arktech_Designs\\Documents\\WebVulnScanner\\.claude\\worktrees\\lazy-drifting-quilt\\docs\\superpowers\\specs\\2026-08-07-page-completion-and-polish-design.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Page completion & visual polish pass — design",
+  "summary": "Technical design for fixing render/reliability bugs, adding missing pages, and polishing UI to match existing design system.",
+  "scope": ["config.py", "marketing.html", "dashboard.html", "terms.html", "privacy.html", "public_routes.py", "design system", "Render deployment", "keep-alive heartbeat"],
+  "cross_refs": ["handoff.md"],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}
