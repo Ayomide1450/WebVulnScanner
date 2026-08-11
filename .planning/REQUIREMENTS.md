@@ -59,7 +59,7 @@ to exactly one roadmap phase.
 
 ### Compliance & Framework Reporting (COMP)
 
-- [ ] **COMP-01**: Each check/finding category is tagged with the OWASP Top 10 category (and/or
+- [x] **COMP-01**: Each check/finding category is tagged with the OWASP Top 10 category (and/or
       ASVS control) it maps to.
 
 - [ ] **COMP-02**: A scan report includes a compliance-framework view — findings grouped/filterable
@@ -68,7 +68,7 @@ to exactly one roadmap phase.
 - [ ] **COMP-03**: User can view a per-Asset compliance-coverage summary across its scan history
       (which framework categories have been checked, and which are currently failing).
 
-- [ ] **COMP-04**: Compliance mapping data is maintained per check in a way that stays in sync as
+- [x] **COMP-04**: Compliance mapping data is maintained per check in a way that stays in sync as
       new checks are added, following the same coverage-regression-test convention already used
       for `CHECK_LABELS`/`CHECK_CATEGORY`.
 
@@ -142,10 +142,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | API-04 | Phase 2 | Complete |
 | API-05 | Phase 2 | Complete |
 | API-06 | Phase 2 | Complete |
-| COMP-01 | Phase 3 | Pending |
+| COMP-01 | Phase 3 | Complete |
 | COMP-02 | Phase 3 | Pending |
 | COMP-03 | Phase 3 | Pending |
-| COMP-04 | Phase 3 | Pending |
+| COMP-04 | Phase 3 | Complete |
 | HARD-01 | Phase 4 | Pending |
 | HARD-02 | Phase 4 | Pending |
 | HARD-03 | Phase 4 | Pending |
