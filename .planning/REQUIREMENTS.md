@@ -45,13 +45,13 @@ to exactly one roadmap phase.
 - [x] **API-02**: Authenticated API requests can list an org's Assets and each Asset's latest scan
       status/report summary.
 
-- [ ] **API-03**: Authenticated API requests can trigger a new scan against an existing Asset,
+- [x] **API-03**: Authenticated API requests can trigger a new scan against an existing Asset,
       subject to the same authorization/SSRF/tier gating as the web UI.
 
-- [ ] **API-04**: Authenticated API requests can retrieve a completed scan's full report
+- [x] **API-04**: Authenticated API requests can retrieve a completed scan's full report
       (findings, score) as structured JSON.
 
-- [ ] **API-05**: API endpoints are rate-limited and tier-gated consistent with existing
+- [x] **API-05**: API endpoints are rate-limited and tier-gated consistent with existing
       entitlement rules — no API path that bypasses tier restrictions enforced elsewhere.
 
 - [ ] **API-06**: A CLI tool (thin wrapper over the API) lets a user authenticate, list assets,
@@ -138,9 +138,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ASSET-08 | Phase 1 | Complete |
 | API-01 | Phase 2 | Complete |
 | API-02 | Phase 2 | Complete |
-| API-03 | Phase 2 | Pending |
-| API-04 | Phase 2 | Pending |
-| API-05 | Phase 2 | Pending |
+| API-03 | Phase 2 | Complete |
+| API-04 | Phase 2 | Complete |
+| API-05 | Phase 2 | Complete |
 | API-06 | Phase 2 | Pending |
 | COMP-01 | Phase 3 | Pending |
 | COMP-02 | Phase 3 | Pending |
