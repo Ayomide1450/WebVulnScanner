@@ -15,6 +15,8 @@ org_id equality - two different solo users both have org_id = None, so a
 naive `a.org_id == current_user.org_id` comparison would match NULL == NULL
 and leak one solo user's Assets to another.
 """
+import json
+import os
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
@@ -24,6 +26,7 @@ from flask_login import current_user, login_required
 from webvulnscanner.checks import (
     CHECK_COMPLIANCE,
     CHECK_LABELS,
+    REPORTS_DIR,
     SCAN_TYPE_CHECK_NAMES,
     SEVERITY_ORDER,
     is_ssrf_safe_hostname,
@@ -31,7 +34,7 @@ from webvulnscanner.checks import (
 )
 from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, effective_tier_for_org
 from webvulnscanner.extensions import db
-from webvulnscanner.models import Asset, Scan
+from webvulnscanner.models import Asset, Scan, ScanStatus
 from webvulnscanner.scheduler import CADENCE_INTERVALS
 
 asset = Blueprint("asset", __name__, url_prefix="/assets")
@@ -251,11 +254,61 @@ def summarize_compliance(reports_by_scan_type):
     return rows
 
 
+def compliance_coverage(asset):
+    """Aggregates `asset`'s most recent COMPLETED scan of each scan_type it
+    has ever run into a per-OWASP-category coverage summary, via
+    summarize_compliance() above.
+
+    Performs NO authorization of its own - it takes the already-authorized
+    `asset` object and queries strictly by `asset.id`; no scan id, asset id,
+    or scan type is ever read from the request. Callers MUST call
+    _check_asset_access(asset) first (see _render_asset_detail below) -
+    without that guard this would be the phase's one real IDOR surface
+    (03-RESEARCH.md Security Domain).
+
+    Reads at most one report JSON file per scan_type present in `asset`'s
+    completed-scan history (at most 4: base/advanced/media/api), newest
+    scan of each type first. A scan whose report file is missing, unreadable,
+    or not valid JSON is skipped - the remaining scan types still contribute
+    - matching this codebase's "one check's failure never breaks the whole
+    page" convention.
+    """
+    scans = (
+        Scan.query.filter_by(asset_id=asset.id)
+        .filter(Scan.status == ScanStatus.COMPLETED)
+        .order_by(Scan.created_at.desc())
+        .all()
+    )
+    scan_types_present = {s.scan_type for s in scans}
+
+    kept = {}
+    for s in scans:
+        if len(kept) == len(scan_types_present):
+            break
+        if s.scan_type in kept or s.report is None:
+            continue
+        kept[s.scan_type] = s
+
+    reports_by_scan_type = {}
+    for scan_type, s in kept.items():
+        try:
+            with open(os.path.join(REPORTS_DIR, s.report.json_path), encoding="utf-8") as f:
+                reports_by_scan_type[scan_type] = json.load(f)
+        except (OSError, ValueError):
+            continue
+
+    return {
+        "rows": summarize_compliance(reports_by_scan_type),
+        "scan_types": sorted(reports_by_scan_type),
+    }
+
+
 def _render_asset_detail(a, **extra):
     scans = Scan.query.filter_by(asset_id=a.id).order_by(Scan.created_at.desc()).all()
     tier = effective_tier_for_org(a.organization)
+    coverage = compliance_coverage(a)
     return render_template(
-        "asset_detail.html", asset=a, scans=scans, tier=tier,
+        "asset_detail.html", asset=a, scans=scans, tier=tier, coverage=coverage,
         FEATURE_REQUIREMENTS=FEATURE_REQUIREMENTS,
         TIER_LABELS=TIER_LABELS,
         CADENCE_CHOICES=CADENCE_CHOICES,

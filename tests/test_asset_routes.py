@@ -4,15 +4,33 @@ list routes (Phase 1, ASSET-01/02, tracer plan 01-01) and Asset detail /
 schedule-editing / pause / resume / delete routes (Phase 1,
 ASSET-03/05/06, plan 01-02).
 """
+import json
+import os
 import socket
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from webvulnscanner.asset_routes import summarize_compliance
-from webvulnscanner.models import Asset, Plan, Scan, ScanStatus
+from webvulnscanner.asset_routes import compliance_coverage, summarize_compliance
+from webvulnscanner.checks import REPORTS_DIR
+from webvulnscanner.extensions import db as _db
+from webvulnscanner.models import Asset, Plan, Report, Scan, ScanStatus
 
 from tests.conftest import login, make_asset, make_org, make_user
+
+
+def _write_report(scan, report_dict):
+    """Writes a real report JSON file to REPORTS_DIR and creates the linking
+    Report row - mirrors tests/test_api_routes.py's _make_report helper, so
+    compliance_coverage()'s file-read path is exercised for real, not
+    mocked."""
+    fname = f"test_asset_report_{scan.id}_{scan.scan_type}.json"
+    with open(os.path.join(REPORTS_DIR, fname), "w", encoding="utf-8") as f:
+        json.dump(report_dict, f)
+    r = Report(scan_id=scan.id, json_path=fname)
+    _db.session.add(r)
+    _db.session.commit()
+    return fname
 
 
 def _as_aware(dt):
@@ -579,3 +597,137 @@ def test_summarize_compliance_only_present_scan_types_contribute_candidate_rows(
     assert A05 not in owasp_values
     assert A06 not in owasp_values
     assert all(r["status"] == "passing" for r in rows)
+
+
+# --------------------------------------------------------------------------
+# COMP-03: compliance_coverage() - load the newest completed report per scan
+# type behind the existing _check_asset_access guard (plan 03-03, Task 2).
+# --------------------------------------------------------------------------
+
+def test_compliance_coverage_loads_newest_completed_base_report(db):
+    org = make_org(plan=Plan.PAID, name="Coverage Org")
+    user = make_user("coverage-owner@example.com", org=org)
+    a = make_asset(org, user, name="Coverage Asset")
+    _db.session.commit()
+
+    scan = Scan(
+        asset_id=a.id, user_id=user.id, org_id=org.id,
+        target_url=a.target_url, scan_type="base",
+        status=ScanStatus.COMPLETED, risk_score=95,
+    )
+    _db.session.add(scan)
+    _db.session.commit()
+    _write_report(scan, {
+        "findings": [{"check_name": "xss_sqli", "severity": "high", "title": "XSS"}],
+        "locked_checks": [],
+    })
+
+    coverage = compliance_coverage(a)
+
+    assert coverage["scan_types"] == ["base"]
+    by_owasp = {r["owasp"]: r for r in coverage["rows"]}
+    assert by_owasp["A03:2021-Injection"]["status"] == "failing"
+
+
+def test_compliance_coverage_skips_scan_whose_report_file_is_missing(db):
+    org = make_org(plan=Plan.PAID, name="Missing File Org")
+    user = make_user("missing-owner@example.com", org=org)
+    a = make_asset(org, user, name="Missing File Asset")
+    _db.session.commit()
+
+    scan = Scan(
+        asset_id=a.id, user_id=user.id, org_id=org.id,
+        target_url=a.target_url, scan_type="base",
+        status=ScanStatus.COMPLETED, risk_score=95,
+    )
+    _db.session.add(scan)
+    _db.session.commit()
+    r = Report(scan_id=scan.id, json_path="does_not_exist_on_disk.json")
+    _db.session.add(r)
+    _db.session.commit()
+
+    coverage = compliance_coverage(a)
+
+    assert coverage["rows"] == []
+    assert coverage["scan_types"] == []
+
+
+def test_compliance_coverage_aggregates_base_and_api_scan_types(db):
+    org = make_org(plan=Plan.PAID, name="Multi-type Org")
+    user = make_user("multi-owner@example.com", org=org)
+    a = make_asset(org, user, name="Multi-type Asset")
+    _db.session.commit()
+
+    base_scan = Scan(
+        asset_id=a.id, user_id=user.id, org_id=org.id,
+        target_url=a.target_url, scan_type="base",
+        status=ScanStatus.COMPLETED, risk_score=95,
+    )
+    api_scan = Scan(
+        asset_id=a.id, user_id=user.id, org_id=org.id,
+        target_url=a.target_url, scan_type="api",
+        status=ScanStatus.COMPLETED, risk_score=90,
+    )
+    _db.session.add_all([base_scan, api_scan])
+    _db.session.commit()
+    _write_report(base_scan, {"findings": [], "locked_checks": []})
+    _write_report(api_scan, {
+        "findings": [{"check_name": "wordlist", "severity": "medium", "title": "Exposed"}],
+        "results": {"schema": {}, "wordlist": {}, "js_discovery": {}},
+    })
+
+    coverage = compliance_coverage(a)
+
+    assert coverage["scan_types"] == ["api", "base"]
+    by_owasp = {r["owasp"]: r for r in coverage["rows"]}
+    assert by_owasp["A01:2021-Broken Access Control"]["status"] == "failing"
+
+
+def test_get_asset_detail_route_200_with_completed_scan_and_report(db, client):
+    org = make_org(plan=Plan.PAID, name="Route Coverage Org")
+    user = make_user("route-owner@example.com", org=org)
+    a = make_asset(org, user, name="Route Coverage Asset")
+    db.session.commit()
+
+    scan = Scan(
+        asset_id=a.id, user_id=user.id, org_id=org.id,
+        target_url=a.target_url, scan_type="base",
+        status=ScanStatus.COMPLETED, risk_score=95,
+    )
+    db.session.add(scan)
+    db.session.commit()
+    _write_report(scan, {"findings": [], "locked_checks": []})
+
+    login(client, "route-owner@example.com")
+    resp = client.get(f"/assets/{a.id}")
+
+    assert resp.status_code == 200
+
+
+def test_get_asset_detail_compliance_coverage_cross_org_is_404_and_leaks_no_category(db, client):
+    org_a = make_org(plan=Plan.PAID, name="Coverage Owner Org")
+    user_a = make_user("coverage-owner-a@example.com", org=org_a)
+    a = make_asset(org_a, user_a, name="Coverage Owner Asset")
+
+    org_b = make_org(plan=Plan.PAID, name="Coverage Intruder Org")
+    make_user("coverage-intruder@example.com", org=org_b)
+    db.session.commit()
+
+    scan = Scan(
+        asset_id=a.id, user_id=user_a.id, org_id=org_a.id,
+        target_url=a.target_url, scan_type="base",
+        status=ScanStatus.COMPLETED, risk_score=40,
+    )
+    db.session.add(scan)
+    db.session.commit()
+    _write_report(scan, {
+        "findings": [{"check_name": "xss_sqli", "severity": "critical", "title": "XSS"}],
+        "locked_checks": [],
+    })
+    asset_id = a.id
+
+    login(client, "coverage-intruder@example.com")
+    resp = client.get(f"/assets/{asset_id}")
+
+    assert resp.status_code == 404
+    assert b"A03:2021-Injection" not in resp.data
