@@ -50,7 +50,14 @@ from flask import Blueprint, Response, abort, current_app, redirect, render_temp
 from flask_login import current_user, login_required
 
 from webvulnscanner.ai_summary import generate_remediation_summary
-from webvulnscanner.checks import CHECK_CATEGORY, CHECK_LABELS, REPORTS_DIR, is_ssrf_safe_hostname, normalize_target
+from webvulnscanner.checks import (
+    CHECK_CATEGORY,
+    CHECK_COMPLIANCE,
+    CHECK_LABELS,
+    REPORTS_DIR,
+    is_ssrf_safe_hostname,
+    normalize_target,
+)
 from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, domain_is_org_verified, effective_tier
 from webvulnscanner.extensions import db
 from webvulnscanner.models import Report, Role, Scan, ScanEvent, ScanEventPhase, ScanStatus
@@ -566,6 +573,7 @@ def scan_report(scan_id):
 
     return render_template(
         "scan_report.html", scan=s, r=report, locked=report.get("locked_checks", []),
+        CHECK_COMPLIANCE=CHECK_COMPLIANCE,
     )
 
 

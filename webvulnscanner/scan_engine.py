@@ -287,6 +287,10 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
 
     header_data, f1 = check_headers(home_resp)
     cookie_rows, f2 = check_cookies(home_resp)
+    for f in f1:
+        f.check_name = "headers"
+    for f in f2:
+        f.check_name = "cookies"
 
     # Only open_redirect (PAID) and xss_sqli (ORG_VERIFIED) consume the crawl
     # output - no FREE-tier check does, so skip the crawl entirely rather
@@ -367,6 +371,8 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
             except Exception as e:
                 data, findings = {"error": str(e)}, []
                 phase, detail = "failed", str(e)[:255]
+            for f in findings:
+                f.check_name = name
             results[name] = data
             all_findings.extend(findings)
             done += 1
@@ -376,6 +382,8 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
 
     if FEATURE_REQUIREMENTS["open_ports"] <= tier:
         ports, resolved_ip, f_ports = check_open_ports(hostname)
+        for f in f_ports:
+            f.check_name = "open_ports"
         results["open_ports"] = ports
         all_findings.extend(f_ports)
         open_ports_phase = "completed"

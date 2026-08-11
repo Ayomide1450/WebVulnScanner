@@ -120,6 +120,9 @@
     {% endif %}
     <div class="finding {{ f.severity }}">
       <span class="badge {{ f.severity }}">{{ f.severity }}</span>
+      {% set compliance_entry = CHECK_COMPLIANCE.get(f.get('check_name', ''), {}) %}
+      <span class="pill compliance">{{ compliance_entry.get('owasp') or 'Uncategorized' }}</span>
+      {% if compliance_entry.get('asvs') %}<span class="cat">ASVS {{ compliance_entry.get('asvs') }}</span>{% endif %}
       <div class="body">
         <b>{{ f.title }}</b>
         <div class="detail">{{ f.detail }}</div>

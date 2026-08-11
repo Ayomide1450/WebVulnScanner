@@ -86,6 +86,72 @@ CHECK_CATEGORY = {
     "vulnerable_js": "bug", "xss_sqli": "bug",
 }
 
+# Check names each orchestrator can dispatch, grouped by scan_type - the
+# full check-name space CHECK_COMPLIANCE below must cover (unlike
+# CHECK_LABELS/CHECK_CATEGORY above, which are base-scan-only). "base" is
+# derived from CHECK_LABELS itself (same key set, can't drift). "api"'s
+# three names are run_api_scan()'s own `results` dict sub-keys
+# (scan_engine.py's check_api_schema_exposure/check_api_wordlist/
+# check_api_js_discovery collection points) - deliberately NOT the single
+# "api" bucket entitlements.FEATURE_REQUIREMENTS uses for route-level tier
+# gating, since that single bucket would collapse "API docs/schema exposed"
+# and "unauthenticated endpoint data exposed" into one indistinguishable
+# compliance tag (see CHECK_COMPLIANCE's header comment below).
+SCAN_TYPE_CHECK_NAMES = {
+    "base": set(CHECK_LABELS),
+    "advanced": {"sqli_login", "bruteforce", "sqli_union", "xss_stored", "idor"},
+    "media": {"media"},
+    "api": {"schema", "wordlist", "js_discovery"},
+}
+
+# OWASP Top 10:2021 (+ optional OWASP ASVS 4.0.3 chapter reference) mapping
+# for every check name across all 4 orchestrators (base/advanced/media/api -
+# the union of SCAN_TYPE_CHECK_NAMES's values above, NOT just run_scan()'s
+# jobs dict like CHECK_LABELS/CHECK_CATEGORY). `owasp` is required on every
+# entry (a compliance-facing tag must always have a primary category);
+# `asvs` is optional (None where it doesn't add real audit value) per D-01.
+# A check_name missing from this dict degrades to the literal "Uncategorized"
+# at render time rather than raising - same graceful-degradation convention
+# as CHECK_LABELS's title-cased fallback and CHECK_CATEGORY's "shield"
+# fallback above. Every value below is this project's own judgment mapping,
+# not sourced from an authoritative external document (03-RESEARCH.md
+# Assumptions Log A1/A2/A4) - keep this dict in sync with
+# SCAN_TYPE_CHECK_NAMES's key-set union; tests/test_compliance.py asserts
+# this stays true as checks are added/removed/renamed in any orchestrator.
+CHECK_COMPLIANCE = {
+    # base scan
+    "headers":          {"owasp": "A05:2021-Security Misconfiguration", "asvs": "V14.4"},
+    "cookies":           {"owasp": "A05:2021-Security Misconfiguration", "asvs": "V3.4"},
+    "tls":               {"owasp": "A02:2021-Cryptographic Failures",    "asvs": "V9.1"},
+    "https_redirect":    {"owasp": "A02:2021-Cryptographic Failures",    "asvs": "V9.1"},
+    "sensitive_paths":   {"owasp": "A05:2021-Security Misconfiguration", "asvs": None},
+    "robots_sitemap":    {"owasp": "Uncategorized",                      "asvs": None},
+    "open_ports":        {"owasp": "A05:2021-Security Misconfiguration", "asvs": None},
+    "cors":              {"owasp": "A05:2021-Security Misconfiguration", "asvs": None},
+    "http_methods":      {"owasp": "A05:2021-Security Misconfiguration", "asvs": None},
+    "open_redirect":     {"owasp": "A01:2021-Broken Access Control",     "asvs": None},
+    "directory_listing": {"owasp": "A05:2021-Security Misconfiguration", "asvs": None},
+    "mixed_content":     {"owasp": "A02:2021-Cryptographic Failures",    "asvs": None},
+    "dns_email":         {"owasp": "A05:2021-Security Misconfiguration", "asvs": None},
+    "vulnerable_js":     {"owasp": "A06:2021-Vulnerable and Outdated Components", "asvs": None},
+    "xss_sqli":          {"owasp": "A03:2021-Injection",                 "asvs": "V5.3"},
+    "secrets":           {"owasp": "A02:2021-Cryptographic Failures",    "asvs": "V6"},
+    "sri":               {"owasp": "A08:2021-Software and Data Integrity Failures", "asvs": "V14.2"},
+    # advanced scan
+    "sqli_login":        {"owasp": "A03:2021-Injection",                 "asvs": "V5.3"},
+    "bruteforce":        {"owasp": "A07:2021-Identification and Authentication Failures", "asvs": "V2.2"},
+    "sqli_union":        {"owasp": "A03:2021-Injection",                 "asvs": "V5.3"},
+    "xss_stored":        {"owasp": "A03:2021-Injection",                 "asvs": "V5.3"},
+    "idor":              {"owasp": "A01:2021-Broken Access Control",     "asvs": "V4.2"},
+    # media scan
+    "media":             {"owasp": "A01:2021-Broken Access Control",     "asvs": "V8.3"},
+    # api scan (matches run_api_scan()'s own `results` dict sub-keys, not
+    # entitlements.FEATURE_REQUIREMENTS's single "api" tier-gating bucket)
+    "schema":            {"owasp": "A05:2021-Security Misconfiguration", "asvs": "V13"},
+    "wordlist":          {"owasp": "A01:2021-Broken Access Control",     "asvs": "V13"},
+    "js_discovery":      {"owasp": "A01:2021-Broken Access Control",     "asvs": "V13"},
+}
+
 # (label, regex, severity). High-confidence formats (AWS/Stripe/GitHub/private
 # keys) are critical/high; ambiguous generic patterns are medium to keep the
 # false-positive rate manageable; publishable keys/JWTs are info since those
@@ -149,6 +215,13 @@ class Finding:
     severity: str  # critical | high | medium | low | info | pass
     detail: str
     recommendation: str = ""
+    # Which check produced this finding (e.g. "headers", "sqli_login"). Left
+    # unset (default "") at all ~50 Finding(...) construction sites in this
+    # file - it is assigned centrally, once per check, by each of the 4
+    # scan_engine.py orchestrators at the point they collect that check's
+    # (data, findings) return value. See CHECK_COMPLIANCE below, which is
+    # keyed on this same string.
+    check_name: str = ""
 
 
 SENSITIVE_PATHS = [

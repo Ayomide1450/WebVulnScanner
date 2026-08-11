@@ -64,6 +64,10 @@
   .pill.low, .badge.low, .dot.low { background: rgba(96,165,250,.14); color: var(--low); }
   .pill.info, .badge.info, .dot.info { background: rgba(139,150,173,.14); color: var(--info); }
   .pill.pass, .badge.pass, .dot.pass { background: rgba(34,197,94,.14); color: var(--pass); }
+  /* Deliberately neutral, non-severity, non-accent variant - an OWASP/ASVS
+     compliance-category tag is not a severity signal, so it must not reuse
+     any of the severity-colored .pill variants above (03-UI-SPEC.md Color). */
+  .pill.compliance { background: rgba(139,150,173,.14); color: var(--muted); }
 
   /* Scan-status pill - sibling component to .pill above, shared by
      dashboard.html's "Your scans" table and org_admin.html's "Org scan
