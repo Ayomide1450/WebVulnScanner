@@ -117,12 +117,12 @@ enabling CI/CD and internal-tooling integration instead of requiring the web UI 
 
   4. A CLI command authenticates with an API token and can list assets, start a scan, and print a
      report without opening a browser.
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans executed
 Plans:
 
 - [x] 02-01-PLAN.md — Tracer: token auth end-to-end (generate/revoke UI, API-01) + first authenticated JSON route (GET /api/v1/assets, API-02)
 - [x] 02-02-PLAN.md — Trigger scan (API-03) + fetch report with ownership-mismatch fix (API-04) + rate-limit/tier-gate proof (API-05)
-- [ ] 02-03-PLAN.md — CLI: login, assets list, scan start, report get (API-06)
+- [x] 02-03-PLAN.md — CLI: login, assets list, scan start, report get (API-06)
 
 **UI hint**: yes
 
@@ -174,6 +174,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Asset Inventory & Continuous Scanning | 2/2 | In Progress|  |
-| 2. API & CLI Access | 2/3 | In Progress|  |
+| 2. API & CLI Access | 3/3 | In Progress|  |
 | 3. Compliance & Framework Reporting | 0/TBD | Not started | - |
 | 4. Production Hardening & Reliability | 0/TBD | Not started | - |
