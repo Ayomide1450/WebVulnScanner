@@ -140,7 +140,12 @@ Top 10 / ASVS) for audit and reporting purposes, not just a flat severity list.
   2. User can filter or group a report's findings by compliance category, not only by severity.
   3. User can view a per-Asset compliance-coverage summary across its scan history — which
      categories have been checked, and which are currently failing.
-**Plans**: TBD
+**Plans**: 2/3 plans executed
+
+- [x] 03-01-PLAN.md
+- [x] 03-02-PLAN.md
+- [ ] 03-03-PLAN.md
+
 **UI hint**: yes
 
 ### Phase 4: Production Hardening & Reliability
@@ -175,5 +180,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Asset Inventory & Continuous Scanning | 2/2 | In Progress|  |
 | 2. API & CLI Access | 3/3 | In Progress|  |
-| 3. Compliance & Framework Reporting | 0/TBD | Not started | - |
+| 3. Compliance & Framework Reporting | 2/3 | In Progress|  |
 | 4. Production Hardening & Reliability | 0/TBD | Not started | - |
