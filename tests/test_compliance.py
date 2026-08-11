@@ -24,6 +24,7 @@ from types import SimpleNamespace
 from webvulnscanner import scan_engine
 from webvulnscanner.checks import CHECK_COMPLIANCE, SCAN_TYPE_CHECK_NAMES, Finding
 from webvulnscanner.entitlements import Tier
+from webvulnscanner.scan_routes import GROUPING_MODES, group_findings_by_compliance
 
 from tests.conftest import login, make_scan, make_user
 from tests.test_api_routes import _make_report
@@ -315,3 +316,108 @@ def test_check_compliance_every_entry_has_owasp_and_valid_asvs():
         assert asvs is None or (isinstance(asvs, str) and asvs), (
             f"{name}'s asvs must be a non-empty string or None (never an empty string), got {asvs!r}"
         )
+
+
+# --------------------------------------------------------------------------
+# Plan 03-02: GROUPING_MODES allowlist + group_findings_by_compliance()
+# --------------------------------------------------------------------------
+
+_MAPPING = {
+    "headers": {"owasp": "A05:2021-Security Misconfiguration", "asvs": "V14.4"},
+    "tls": {"owasp": "A02:2021-Cryptographic Failures", "asvs": "V9.1"},
+    "cookies": {"owasp": "A05:2021-Security Misconfiguration", "asvs": None},
+}
+
+
+def test_grouping_modes_allowlist_is_severity_and_compliance():
+    assert GROUPING_MODES == ("severity", "compliance")
+
+
+def test_group_findings_by_compliance_empty_input_returns_empty_list():
+    assert group_findings_by_compliance([], _MAPPING) == []
+
+
+def test_group_findings_by_compliance_two_findings_share_a_category():
+    findings = [
+        {"check_name": "headers", "title": "a"},
+        {"check_name": "cookies", "title": "b"},
+    ]
+    out = group_findings_by_compliance(findings, _MAPPING)
+    assert out == [("A05:2021-Security Misconfiguration", findings)]
+
+
+def test_group_findings_by_compliance_unmapped_check_name_is_uncategorized():
+    findings = [{"check_name": "nope", "title": "c"}]
+    out = group_findings_by_compliance(findings, _MAPPING)
+    assert out == [("Uncategorized", findings)]
+
+
+def test_group_findings_by_compliance_missing_check_name_key_is_uncategorized():
+    findings = [{"title": "d"}]
+    out = group_findings_by_compliance(findings, _MAPPING)
+    assert out == [("Uncategorized", findings)]
+
+
+def test_group_findings_by_compliance_uncategorized_group_is_always_last():
+    mapped = {"check_name": "headers", "title": "a"}
+    unmapped = {"title": "b"}
+    tls_mapped = {"check_name": "tls", "title": "c"}
+    out = group_findings_by_compliance([unmapped, mapped, tls_mapped], _MAPPING)
+    labels = [category for category, _ in out]
+    # Mapped categories sorted ascending by their OWASP string; Uncategorized last.
+    assert labels == [
+        "A02:2021-Cryptographic Failures",
+        "A05:2021-Security Misconfiguration",
+        "Uncategorized",
+    ]
+    assert out[-1][0] == "Uncategorized"
+    assert out[-1][1] == [unmapped]
+    # Arrival order preserved within a group.
+    assert out[1][1] == [mapped]
+
+
+# --------------------------------------------------------------------------
+# scan_report() route: ?group= allowlisting/coercion
+# --------------------------------------------------------------------------
+
+def _report_with_two_categories():
+    return _minimal_report([
+        {
+            "category": "Headers", "title": "Missing CSP", "severity": "medium",
+            "detail": "d", "recommendation": "", "check_name": "headers",
+        },
+        {
+            "category": "Cookies", "title": "Missing Secure flag", "severity": "low",
+            "detail": "d", "recommendation": "", "check_name": "nope-not-mapped",
+        },
+    ])
+
+
+def test_scan_report_group_param_matrix_returns_200(client, db):
+    user = make_user("grouping@example.com")
+    db.session.commit()
+    scan = make_scan(user, scan_type="other")
+    _make_report(db, scan, _report_with_two_categories())
+
+    login(client, "grouping@example.com")
+    for query in ("", "?group=severity", "?group=banana", "?group=compliance"):
+        resp = client.get(f"/scan/{scan.id}/report{query}")
+        assert resp.status_code == 200, query
+
+
+def test_scan_report_unrecognized_group_value_matches_no_param_grouping_mode(client, db):
+    user = make_user("grouping2@example.com")
+    db.session.commit()
+    scan = make_scan(user, scan_type="other")
+    _make_report(db, scan, _report_with_two_categories())
+
+    login(client, "grouping2@example.com")
+    no_param = client.get(f"/scan/{scan.id}/report").get_data(as_text=True)
+    garbage = client.get(f"/scan/{scan.id}/report?group=banana").get_data(as_text=True)
+
+    # Both render in severity mode: the severity-view's per-category
+    # <summary> headings ("Headers"/"Cookies") appear in both responses
+    # identically - a compliance-mode response would show OWASP category
+    # strings and "Uncategorized" as headings instead.
+    assert ("<summary>Headers" in no_param) == ("<summary>Headers" in garbage)
+    assert ("<summary>Cookies" in no_param) == ("<summary>Cookies" in garbage)
