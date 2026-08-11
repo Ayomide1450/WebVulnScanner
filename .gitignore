@@ -11,3 +11,4 @@ instance/
 .env
 handoff.md
 .pytest_cache/
+.cache/
