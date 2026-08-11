@@ -421,3 +421,103 @@ def test_scan_report_unrecognized_group_value_matches_no_param_grouping_mode(cli
     # strings and "Uncategorized" as headings instead.
     assert ("<summary>Headers" in no_param) == ("<summary>Headers" in garbage)
     assert ("<summary>Cookies" in no_param) == ("<summary>Cookies" in garbage)
+
+
+# --------------------------------------------------------------------------
+# Plan 03-02 Task 2: report page grouping toggle + compliance-grouped
+# accordion (finding_card() macro, both branches).
+# --------------------------------------------------------------------------
+
+def test_scan_report_compliance_mode_shows_owasp_heading_and_finding_title(client, db):
+    user = make_user("toggle1@example.com")
+    db.session.commit()
+    scan = make_scan(user, scan_type="other")
+    _make_report(db, scan, _report_with_two_categories())
+
+    login(client, "toggle1@example.com")
+    resp = client.get(f"/scan/{scan.id}/report?group=compliance")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert CHECK_COMPLIANCE["headers"]["owasp"] in body
+    assert "Missing CSP" in body
+
+
+def test_scan_report_compliance_mode_shows_uncategorized_heading_for_unmapped_finding(client, db):
+    user = make_user("toggle2@example.com")
+    db.session.commit()
+    scan = make_scan(user, scan_type="other")
+    _make_report(db, scan, _report_with_two_categories())
+
+    login(client, "toggle2@example.com")
+    resp = client.get(f"/scan/{scan.id}/report?group=compliance")
+
+    assert resp.status_code == 200
+    assert "Uncategorized" in resp.get_data(as_text=True)
+
+
+def test_scan_report_compliance_mode_omits_uncategorized_heading_when_all_mapped(client, db):
+    user = make_user("toggle3@example.com")
+    db.session.commit()
+    scan = make_scan(user, scan_type="other")
+    report_dict = _minimal_report([
+        {
+            "category": "Headers", "title": "Missing CSP", "severity": "medium",
+            "detail": "d", "recommendation": "", "check_name": "headers",
+        },
+    ])
+    _make_report(db, scan, report_dict)
+
+    login(client, "toggle3@example.com")
+    resp = client.get(f"/scan/{scan.id}/report?group=compliance")
+
+    assert resp.status_code == 200
+    assert "Uncategorized" not in resp.get_data(as_text=True)
+
+
+def test_scan_report_compliance_pill_appears_in_both_grouping_modes(client, db):
+    user = make_user("toggle4@example.com")
+    db.session.commit()
+    scan = make_scan(user, scan_type="other")
+    report_dict = _minimal_report([
+        {
+            "category": "Headers", "title": "Missing CSP", "severity": "medium",
+            "detail": "d", "recommendation": "", "check_name": "headers",
+        },
+    ])
+    _make_report(db, scan, report_dict)
+
+    login(client, "toggle4@example.com")
+    severity_body = client.get(f"/scan/{scan.id}/report").get_data(as_text=True)
+    compliance_body = client.get(f"/scan/{scan.id}/report?group=compliance").get_data(as_text=True)
+
+    assert CHECK_COMPLIANCE["headers"]["owasp"] in severity_body
+    assert CHECK_COMPLIANCE["headers"]["owasp"] in compliance_body
+
+
+def test_scan_report_zero_findings_shows_no_findings_and_no_toggle(client, db):
+    user = make_user("toggle5@example.com")
+    db.session.commit()
+    scan = make_scan(user, scan_type="other")
+    _make_report(db, scan, _minimal_report([]))
+
+    login(client, "toggle5@example.com")
+    resp = client.get(f"/scan/{scan.id}/report")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "No findings." in body
+    assert "Group by:" not in body
+
+
+def test_scan_report_non_owner_gets_ownership_response_for_compliance_mode(client, db):
+    owner = make_user("owner-toggle@example.com")
+    other = make_user("other-toggle@example.com")
+    db.session.commit()
+    scan = make_scan(owner, scan_type="other")
+    _make_report(db, scan, _report_with_two_categories())
+
+    login(client, "other-toggle@example.com")
+    resp = client.get(f"/scan/{scan.id}/report?group=compliance")
+
+    assert resp.status_code != 200
