@@ -61,9 +61,9 @@ observable capability, per this project's granularity setting.
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Asset Inventory & Continuous Scanning** - Targets become persistent Assets that can be scanned on a recurring schedule, not just one-shot submissions.
-- [ ] **Phase 2: API & CLI Access** - Security teams can manage assets and scans programmatically instead of only through the web UI.
-- [ ] **Phase 3: Compliance & Framework Reporting** - Findings are mapped to OWASP Top 10/ASVS categories for audit-usable reporting.
+- [x] **Phase 1: Asset Inventory & Continuous Scanning** - Targets become persistent Assets that can be scanned on a recurring schedule, not just one-shot submissions.
+- [x] **Phase 2: API & CLI Access** - Security teams can manage assets and scans programmatically instead of only through the web UI.
+- [x] **Phase 3: Compliance & Framework Reporting** - Findings are mapped to OWASP Top 10/ASVS categories for audit-usable reporting.
 - [ ] **Phase 4: Production Hardening & Reliability** - The platform holds up under real multi-worker production load with test coverage and visual consistency matching a "production ready" bar.
 
 ## Phase Details
@@ -178,7 +178,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Asset Inventory & Continuous Scanning | 2/2 | In Progress|  |
-| 2. API & CLI Access | 3/3 | In Progress|  |
-| 3. Compliance & Framework Reporting | 3/3 | In Progress|  |
+| 1. Asset Inventory & Continuous Scanning | 2/2 | Complete | 2026-08-11 |
+| 2. API & CLI Access | 3/3 | Complete | 2026-08-11 |
+| 3. Compliance & Framework Reporting | 3/3 | Complete | 2026-08-11 |
 | 4. Production Hardening & Reliability | 0/TBD | Not started | - |
