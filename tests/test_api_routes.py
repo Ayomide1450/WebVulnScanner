@@ -7,7 +7,7 @@ revoked-token/tier-gate/rate-limit proof (API-05).
 """
 import pytest
 
-from webvulnscanner.models import Plan, Role, Scan, ScanStatus
+from webvulnscanner.models import Plan, Report, Role, Scan, ScanStatus
 
 from tests.conftest import make_api_token, make_asset, make_org, make_scan, make_user
 
@@ -256,3 +256,138 @@ def test_trigger_scan_free_tier_media_asset_gets_failed_status(client, db, spawn
     assert scan.status == ScanStatus.FAILED
     assert "higher plan" in scan.error_message
     assert len(spawned) == 0
+
+
+# --------------------------------------------------------------------------
+# API-04: GET /api/v1/scans/<id>/report - fetch a completed scan's report
+# as JSON, fixing the ownership-check mismatch (02-RESEARCH.md Pitfall 1)
+# for this new route specifically.
+# --------------------------------------------------------------------------
+
+def _make_report(db, scan, report_dict=None):
+    """Writes a real report JSON file to REPORTS_DIR (matching
+    scan_engine.save_report()'s on-disk shape) and creates the linking
+    Report row - so fetch_report's file-read path is exercised for real,
+    not mocked."""
+    import json as _json
+    import os as _os
+
+    from webvulnscanner.checks import REPORTS_DIR
+
+    report_dict = report_dict if report_dict is not None else {"score": 91, "findings": []}
+    fname = f"test_report_{scan.id}.json"
+    with open(_os.path.join(REPORTS_DIR, fname), "w", encoding="utf-8") as f:
+        _json.dump(report_dict, f)
+    r = Report(scan_id=scan.id, json_path=fname)
+    db.session.add(r)
+    db.session.commit()
+    return report_dict, fname
+
+
+def test_fetch_report_returns_exact_on_disk_json_for_owner(client, db):
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+    a = make_asset(org, user, name="Asset")
+    scan = make_scan(user, org=org, status=ScanStatus.COMPLETED)
+    scan.asset_id = a.id
+    db.session.commit()
+    report_dict, _ = _make_report(db, scan)
+
+    resp = client.get(f"/api/v1/scans/{scan.id}/report", headers=_auth_headers(raw_token))
+
+    assert resp.status_code == 200
+    assert resp.get_json() == report_dict
+
+
+def test_fetch_report_non_admin_non_creator_org_member_gets_200(client, db):
+    # Directly confirms the Pitfall 1 fix: User B (non-admin, same org, did
+    # NOT create the Asset) triggers a scan via their own token and can
+    # fetch its report.
+    org = make_org(plan=Plan.PAID, name="Org")
+    creator = make_user("creator@example.com", org=org, role=Role.ORG_ADMIN)
+    member = make_user("member@example.com", org=org, role=Role.MEMBER)
+    db.session.commit()
+    _, raw_token = make_api_token(member, name="member-tok")
+    a = make_asset(org, creator, name="Shared asset")
+    # scheduler._fire() always attributes the Scan to asset.created_by_user_id
+    # - creator, not member - mirroring real trigger_scan() behavior.
+    scan = make_scan(creator, org=org, status=ScanStatus.COMPLETED)
+    scan.asset_id = a.id
+    db.session.commit()
+    report_dict, _ = _make_report(db, scan)
+
+    resp = client.get(f"/api/v1/scans/{scan.id}/report", headers=_auth_headers(raw_token))
+
+    assert resp.status_code == 200
+    assert resp.get_json() == report_dict
+
+
+def test_fetch_report_different_org_gets_404(client, db):
+    org_a = make_org(plan=Plan.PAID, name="Org A")
+    org_b = make_org(plan=Plan.PAID, name="Org B")
+    user_a = make_user("a@example.com", org=org_a)
+    user_b = make_user("b@example.com", org=org_b)
+    db.session.commit()
+    _, raw_token_b = make_api_token(user_b, name="b-tok")
+    a = make_asset(org_a, user_a, name="Asset")
+    scan = make_scan(user_a, org=org_a, status=ScanStatus.COMPLETED)
+    scan.asset_id = a.id
+    db.session.commit()
+    _make_report(db, scan)
+
+    resp = client.get(f"/api/v1/scans/{scan.id}/report", headers=_auth_headers(raw_token_b))
+
+    assert resp.status_code == 404
+
+
+def test_fetch_report_manual_scan_still_uses_check_ownership(client, db):
+    # A manually-submitted (no asset_id) scan keeps the original
+    # creator-or-org-admin _check_ownership rule unchanged - a non-owning,
+    # non-admin member still gets 404, confirming the Asset-linked branch
+    # didn't accidentally loosen this route's semantics for manual scans.
+    org = make_org(plan=Plan.PAID, name="Org")
+    owner = make_user("owner@example.com", org=org, role=Role.MEMBER)
+    other_member = make_user("other@example.com", org=org, role=Role.MEMBER)
+    db.session.commit()
+    _, raw_token = make_api_token(other_member, name="tok")
+    scan = make_scan(owner, org=org, status=ScanStatus.COMPLETED)  # no asset_id
+    db.session.commit()
+    _make_report(db, scan)
+
+    resp = client.get(f"/api/v1/scans/{scan.id}/report", headers=_auth_headers(raw_token))
+
+    assert resp.status_code == 404
+
+
+def test_fetch_report_org_admin_can_view_manual_scan(client, db):
+    org = make_org(plan=Plan.PAID, name="Org")
+    owner = make_user("owner@example.com", org=org, role=Role.MEMBER)
+    admin = make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
+    db.session.commit()
+    _, raw_token = make_api_token(admin, name="admin-tok")
+    scan = make_scan(owner, org=org, status=ScanStatus.COMPLETED)  # no asset_id
+    db.session.commit()
+    report_dict, _ = _make_report(db, scan)
+
+    resp = client.get(f"/api/v1/scans/{scan.id}/report", headers=_auth_headers(raw_token))
+
+    assert resp.status_code == 200
+    assert resp.get_json() == report_dict
+
+
+def test_fetch_report_no_report_row_yet_gets_404_json(client, db):
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+    a = make_asset(org, user, name="Asset")
+    scan = make_scan(user, org=org, status=ScanStatus.RUNNING)
+    scan.asset_id = a.id
+    db.session.commit()
+
+    resp = client.get(f"/api/v1/scans/{scan.id}/report", headers=_auth_headers(raw_token))
+
+    assert resp.status_code == 404
+    assert resp.is_json

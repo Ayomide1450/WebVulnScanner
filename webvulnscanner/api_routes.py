@@ -7,18 +7,23 @@ authenticated via login_manager.request_loader's Bearer-token lookup
 behavior - api_login_required (below) gives a JSON-appropriate 401 instead.
 
 D-02: a token acts as the exact user who created it - every route below
-reuses asset_routes._scoped_asset_query()/_check_asset_access() directly
-rather than re-implementing org/solo scoping, so a token can never see more
-than its creating user's session already could.
+reuses asset_routes._scoped_asset_query()/_check_asset_access() and
+scan_routes._check_ownership() directly rather than re-implementing org/
+solo scoping, so a token can never see more than its creating user's
+session already could.
 """
+import json
+import os
 from functools import wraps
 
 from flask import Blueprint, jsonify
 from flask_login import current_user
 
 from webvulnscanner.asset_routes import _check_asset_access, _scoped_asset_query
+from webvulnscanner.checks import REPORTS_DIR
 from webvulnscanner.extensions import csrf, limiter
 from webvulnscanner.models import Asset, Scan
+from webvulnscanner.scan_routes import _check_ownership
 from webvulnscanner.scheduler import _fire
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
@@ -123,3 +128,35 @@ def trigger_scan(asset_id):
     _check_asset_access(a)
     s = _fire(a)
     return jsonify(scan_id=s.id, status=s.status.value), 202
+
+
+@api.route("/scans/<int:scan_id>/report")
+@api_login_required
+@limiter.limit("60 per minute", key_func=_api_rate_limit_key)
+def fetch_report(scan_id):
+    """API-04: fetch a completed scan's report as JSON - the exact on-disk
+    JSON scan_engine.save_report() wrote, same file scan_routes.scan_report
+    renders into HTML.
+
+    Ownership branches on whether the scan is Asset-linked (the Pitfall 1
+    fix, scoped to this new route only - see 02-CONTEXT.md's "Ownership-
+    Check Mismatch" resolution, scan_routes.py's web-UI routes are
+    unchanged): scheduler._fire()/trigger_scan() above always attribute the
+    Scan to asset.created_by_user_id, not the actual triggering user, so an
+    Asset-linked scan must be scoped the same org-shared way the Asset
+    itself is (_check_asset_access), not by scan_routes._check_ownership's
+    creator-or-org-admin-only rule. A manually-submitted (non-Asset) scan
+    keeps that original rule unchanged."""
+    s = Scan.query.get_or_404(scan_id)
+    if s.asset_id is not None:
+        _check_asset_access(s.asset)
+    else:
+        _check_ownership(s)
+
+    if s.report is None:
+        return jsonify(error="report not available"), 404
+
+    with open(os.path.join(REPORTS_DIR, s.report.json_path), encoding="utf-8") as f:
+        report = json.load(f)
+
+    return jsonify(report), 200
