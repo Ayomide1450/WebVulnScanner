@@ -124,3 +124,60 @@ def test_assets_list_explicit_flags_override_config(runner, isolated_config):
     _, kwargs = mock_get.call_args
     assert kwargs["headers"]["Authorization"] == "Bearer fresh"
     assert mock_get.call_args[0][0] == "http://fresh.test/api/v1/assets"
+
+
+# --- scan start ---
+
+
+def test_scan_start_success_prints_scan_id_status(runner, isolated_config):
+    with patch.object(
+        wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
+    ), patch.object(wvs.requests, "post") as mock_post:
+        mock_post.return_value = _FakeResponse(
+            202, json_body={"scan_id": 42, "status": "queued"}
+        )
+        result = runner.invoke(wvs.cli, ["scan", "start", "7"])
+
+    assert result.exit_code == 0
+    assert "Scan 42 started (status: queued)." in result.output
+    assert mock_post.call_args[0][0] == "http://example.test/api/v1/assets/7/scans"
+
+
+def test_scan_start_error_exits_nonzero_no_traceback(runner, isolated_config):
+    with patch.object(
+        wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
+    ), patch.object(wvs.requests, "post") as mock_post:
+        mock_post.return_value = _FakeResponse(404, json_body={"error": "not found"})
+        result = runner.invoke(wvs.cli, ["scan", "start", "999"])
+
+    assert result.exit_code != 0
+    assert "not found" in result.output
+    assert "Traceback" not in result.output
+
+
+# --- report get ---
+
+
+def test_report_get_success_pretty_prints_json(runner, isolated_config):
+    fake_report = {"score": 91, "grade": "A", "findings": []}
+    with patch.object(
+        wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
+    ), patch.object(wvs.requests, "get") as mock_get:
+        mock_get.return_value = _FakeResponse(200, json_body=fake_report)
+        result = runner.invoke(wvs.cli, ["report", "get", "42"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == fake_report
+    assert mock_get.call_args[0][0] == "http://example.test/api/v1/scans/42/report"
+
+
+def test_report_get_error_exits_nonzero_no_traceback(runner, isolated_config):
+    with patch.object(
+        wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
+    ), patch.object(wvs.requests, "get") as mock_get:
+        mock_get.return_value = _FakeResponse(404, json_body={"error": "report not available"})
+        result = runner.invoke(wvs.cli, ["report", "get", "42"])
+
+    assert result.exit_code != 0
+    assert "report not available" in result.output
+    assert "Traceback" not in result.output

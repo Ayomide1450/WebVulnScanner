@@ -4,6 +4,8 @@ the HTTP API, never imports Flask or webvulnscanner directly.
 Commands:
     wvs login                    - authenticate and persist a token locally
     wvs assets list               - list the caller's scoped Assets
+    wvs scan start <asset-id>     - trigger a scan against an Asset
+    wvs report get <scan-id>      - fetch a scan's structured JSON report
 
 Token/API-URL resolution precedence for every command: an explicit CLI flag,
 then the WVS_API_TOKEN/WVS_API_URL environment variable (both handled
@@ -150,6 +152,67 @@ def assets_list(token, api_url):
         else:
             status = f"{latest['status']} (risk_score={latest['risk_score']})"
         click.echo(f"{a['name']} ({a['target_url']}) - {status}")
+
+
+@cli.group()
+def scan():
+    """Trigger and inspect scans."""
+
+
+@scan.command("start")
+@click.argument("asset_id", type=int)
+@click.option("--token", envvar="WVS_API_TOKEN", default=None)
+@click.option("--api-url", envvar="WVS_API_URL", default=None)
+def scan_start(asset_id, token, api_url):
+    """Trigger a scan against an existing Asset and print the created
+    scan's id/status."""
+    token = _resolve_token(token)
+    api_url = _resolve_api_url(api_url)
+
+    try:
+        resp = requests.post(
+            f"{api_url}/api/v1/assets/{asset_id}/scans",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    except requests.RequestException as exc:
+        raise click.ClickException(f"Could not reach {api_url}: {exc}") from exc
+
+    if resp.status_code != 202:
+        _raise_for_error_response(resp)
+        return
+
+    body = resp.json()
+    click.echo(f"Scan {body['scan_id']} started (status: {body['status']}).")
+
+
+@cli.group()
+def report():
+    """Fetch scan reports."""
+
+
+@report.command("get")
+@click.argument("scan_id", type=int)
+@click.option("--token", envvar="WVS_API_TOKEN", default=None)
+@click.option("--api-url", envvar="WVS_API_URL", default=None)
+def report_get(scan_id, token, api_url):
+    """Fetch and pretty-print a scan's structured JSON report to stdout -
+    meant to be piped/redirected by CI tooling."""
+    token = _resolve_token(token)
+    api_url = _resolve_api_url(api_url)
+
+    try:
+        resp = requests.get(
+            f"{api_url}/api/v1/scans/{scan_id}/report",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    except requests.RequestException as exc:
+        raise click.ClickException(f"Could not reach {api_url}: {exc}") from exc
+
+    if resp.status_code != 200:
+        _raise_for_error_response(resp)
+        return
+
+    click.echo(json.dumps(resp.json(), indent=2))
 
 
 if __name__ == "__main__":
