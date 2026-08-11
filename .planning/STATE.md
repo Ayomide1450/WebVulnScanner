@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 1
-current_phase_name: Asset Inventory & Continuous Scanning
+current_phase: 02
+current_phase_name: api-cli-access
 status: executing
-stopped_at: Phase 2 planned and verified — 3 plans, ready for execution
-last_updated: "2026-08-10T17:16:37.778Z"
-last_activity: 2026-08-10
-last_activity_desc: Roadmap created from ingested intel (SYNTHESIS.md, codebase map,
+stopped_at: Phase 2 Wave 1 (02-01) bookkeeping backfilled; executing Wave 2 (02-02) next
+last_updated: "2026-08-11T07:41:58.984Z"
+last_activity: 2026-08-11
+last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 5
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -24,17 +24,17 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 
 **Core value:** Security engineers can trust WebVulnScanner to run safe, authorization-gated,
 non-destructive scans against their own infrastructure and get findings they can act on.
-**Current focus:** Phase 1 — Asset Inventory & Continuous Scanning
+**Current focus:** Phase 02 — api-cli-access
 
 ## Current Position
 
-Phase: 1 of 4 (Asset Inventory & Continuous Scanning)
-Plan: 2 of 2 in current phase
+Phase: 02 (api-cli-access) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-08-10 — Roadmap created from ingested intel (SYNTHESIS.md, codebase map,
+Last activity: 2026-08-11 — Phase 02 execution started
 PRODUCT.md) and prior strategic-direction context; awaiting user approval before planning begins.
 
-Progress: [██████████] 100%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ Progress: [██████████] 100%
 |------|----------|-------|-------|
 | Phase 01-asset-inventory-continuous-scanning P01 | 45min | 1 tasks | 13 files |
 | Phase 01 P02 | 40min | 2 tasks | 5 files |
+| Phase 02 P01 | 20min | 1 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,7 @@ Recent decisions affecting current work:
 - [Phase ?]: Split 01-02's two tasks into two atomic commits by temporarily reducing shared files (asset_routes.py/asset_detail.html) to Task-1-only scope, verifying, committing, then restoring Task-2 additions.
 - [Phase ?]: assets.html's previously-stubbed Actions/Name columns wired to the new asset_detail page (Rule 2) - otherwise unreachable via normal navigation.
 - [Phase ?]: Tier-locked hint uses FEATURE_REQUIREMENTS.get(schedule_scan_type, 0) instead of a direct index, since base-scheduled Assets have no whole-type tier entry (Rule 1 bug fix).
+- [Phase 02]: 02-01 (token auth) had real commits but no SUMMARY.md/STATE.md sync from a prior session - backfilled via execute-phase's safe_resume_gate instead of re-executing — Commit 5945262 matched the plan file list exactly and the full suite (187/187) still passes on current HEAD, so re-running the task would have duplicated work
 
 ### Pending Todos
 
@@ -117,7 +119,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-10T17:16:37.645Z
-Stopped at: Phase 2 planned and verified — 3 plans, ready for execution
+Last session: 2026-08-11T07:36:17.921Z
+Stopped at: Phase 2 Wave 1 (02-01) bookkeeping backfilled; executing Wave 2 (02-02) next
 awaiting user approval of the roadmap draft before `/gsd-plan-phase 1`.
-Resume file: .planning/phases/02-api-cli-access/02-01-PLAN.md
+Resume file: .planning/phases/02-api-cli-access/02-02-PLAN.md

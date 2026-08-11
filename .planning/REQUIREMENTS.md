@@ -39,10 +39,10 @@ to exactly one roadmap phase.
 
 ### API & CLI Access (API)
 
-- [ ] **API-01**: Org admin can generate and revoke API tokens scoped to their org, separate from
+- [x] **API-01**: Org admin can generate and revoke API tokens scoped to their org, separate from
       session-cookie auth.
 
-- [ ] **API-02**: Authenticated API requests can list an org's Assets and each Asset's latest scan
+- [x] **API-02**: Authenticated API requests can list an org's Assets and each Asset's latest scan
       status/report summary.
 
 - [ ] **API-03**: Authenticated API requests can trigger a new scan against an existing Asset,
@@ -136,8 +136,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ASSET-06 | Phase 1 | Complete |
 | ASSET-07 | Phase 1 | Complete |
 | ASSET-08 | Phase 1 | Complete |
-| API-01 | Phase 2 | Pending |
-| API-02 | Phase 2 | Pending |
+| API-01 | Phase 2 | Complete |
+| API-02 | Phase 2 | Complete |
 | API-03 | Phase 2 | Pending |
 | API-04 | Phase 2 | Pending |
 | API-05 | Phase 2 | Pending |
