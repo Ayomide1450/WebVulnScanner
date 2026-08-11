@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from webvulnscanner.asset_routes import summarize_compliance
 from webvulnscanner.models import Asset, Plan, Scan, ScanStatus
 
 from tests.conftest import login, make_asset, make_org, make_user
@@ -443,3 +444,138 @@ def test_pause_resume_delete_all_three_404_for_non_owning_org(db, client):
     assert client.post(f"/assets/{asset_id}/pause", follow_redirects=False).status_code == 404
     assert client.post(f"/assets/{asset_id}/resume", follow_redirects=False).status_code == 404
     assert client.post(f"/assets/{asset_id}/delete", follow_redirects=False).status_code == 404
+
+
+# --------------------------------------------------------------------------
+# COMP-03: summarize_compliance() - the pure checked/failing/not-checked
+# aggregation (plan 03-03, Task 1). No DB, no filesystem - hand-built report
+# dicts, following this module's existing plain-function test style.
+# --------------------------------------------------------------------------
+
+A01 = "A01:2021-Broken Access Control"
+A02 = "A02:2021-Cryptographic Failures"
+A03 = "A03:2021-Injection"
+A05 = "A05:2021-Security Misconfiguration"
+A06 = "A06:2021-Vulnerable and Outdated Components"
+A07 = "A07:2021-Identification and Authentication Failures"
+
+# All 8 base-scan check names CHECK_COMPLIANCE maps to A05 - locking every
+# one of them is how these tests simulate "no other executed check maps to
+# that category" for a single-category not_checked/locked assertion.
+A05_BASE_CHECK_NAMES = [
+    "headers", "cookies", "sensitive_paths", "open_ports",
+    "cors", "http_methods", "directory_listing", "dns_email",
+]
+
+
+def test_summarize_compliance_empty_input_returns_empty_list():
+    assert summarize_compliance({}) == []
+
+
+def test_summarize_compliance_clean_base_report_all_categories_passing():
+    rows = summarize_compliance({"base": {"findings": [], "locked_checks": []}})
+
+    assert rows
+    assert all(r["status"] == "passing" for r in rows)
+    # robots_sitemap's own CHECK_COMPLIANCE entry is the literal owasp value
+    # "Uncategorized" - a legitimate, always-checked candidate category, not
+    # a missing-mapping fallback - so it appears here too, as passing.
+    assert any(r["owasp"] == "Uncategorized" for r in rows)
+
+
+def test_summarize_compliance_one_finding_yields_failing_row_others_stay_passing():
+    rows = summarize_compliance({
+        "base": {
+            "findings": [{"check_name": "xss_sqli", "severity": "high", "title": "XSS"}],
+            "locked_checks": [],
+        },
+    })
+    by_owasp = {r["owasp"]: r for r in rows}
+
+    assert by_owasp[A03]["status"] == "failing"
+    assert by_owasp[A03]["finding_count"] == 1
+    assert by_owasp[A03]["top_severity"] == "high"
+    assert by_owasp[A05]["status"] == "passing"
+
+
+def test_summarize_compliance_two_findings_same_category_count_and_worst_severity():
+    rows = summarize_compliance({
+        "base": {
+            "findings": [
+                {"check_name": "xss_sqli", "severity": "medium", "title": "a"},
+                {"check_name": "xss_sqli", "severity": "critical", "title": "b"},
+            ],
+            "locked_checks": [],
+        },
+    })
+    by_owasp = {r["owasp"]: r for r in rows}
+
+    assert by_owasp[A03]["status"] == "failing"
+    assert by_owasp[A03]["finding_count"] == 2
+    assert by_owasp[A03]["top_severity"] == "critical"
+
+
+def test_summarize_compliance_all_checks_for_a_category_locked_is_not_checked_and_locked():
+    rows = summarize_compliance({
+        "base": {"findings": [], "locked_checks": A05_BASE_CHECK_NAMES},
+    })
+    by_owasp = {r["owasp"]: r for r in rows}
+
+    assert by_owasp[A05]["status"] == "not_checked"
+    assert by_owasp[A05]["locked"] is True
+    # tls (A02) wasn't locked, so it must not be dragged into not_checked too.
+    assert by_owasp[A02]["status"] == "passing"
+
+
+def test_summarize_compliance_untagged_finding_makes_whole_report_not_checked():
+    rows = summarize_compliance({
+        "base": {
+            "findings": [{"check_name": "", "severity": "high", "title": "legacy"}],
+            "locked_checks": [],
+        },
+    })
+
+    assert rows
+    assert not any(r["status"] == "passing" for r in rows)
+    assert all(r["status"] == "not_checked" for r in rows)
+
+
+def test_summarize_compliance_unmapped_check_name_lands_in_uncategorized_last():
+    rows = summarize_compliance({
+        "base": {
+            "findings": [{"check_name": "nosuchcheck", "severity": "low", "title": "t"}],
+            "locked_checks": [],
+        },
+    })
+
+    assert rows[-1]["owasp"] == "Uncategorized"
+    assert rows[-1]["status"] == "failing"
+    assert rows[-1]["finding_count"] == 1
+    # ascending order for every mapped category before the trailing Uncategorized row.
+    mapped = [r["owasp"] for r in rows[:-1]]
+    assert mapped == sorted(mapped)
+
+
+def test_summarize_compliance_no_finding_maps_to_uncategorized_omits_the_row():
+    rows = summarize_compliance({
+        "advanced": {"ran": ["idor"], "locked_checks": [], "findings": []},
+    })
+
+    assert not any(r["owasp"] == "Uncategorized" for r in rows)
+
+
+def test_summarize_compliance_only_present_scan_types_contribute_candidate_rows():
+    rows = summarize_compliance({
+        "advanced": {
+            "ran": ["sqli_login", "bruteforce", "sqli_union", "xss_stored", "idor"],
+            "locked_checks": [], "findings": [],
+        },
+    })
+    owasp_values = {r["owasp"] for r in rows}
+
+    # sqli_login/sqli_union/xss_stored all map to A03, bruteforce to A07,
+    # idor to A01 - three distinct categories, none of them base-only ones.
+    assert owasp_values == {A01, A03, A07}
+    assert A05 not in owasp_values
+    assert A06 not in owasp_values
+    assert all(r["status"] == "passing" for r in rows)

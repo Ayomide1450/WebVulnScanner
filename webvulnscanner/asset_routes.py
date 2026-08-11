@@ -21,7 +21,14 @@ from urllib.parse import urlparse
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from webvulnscanner.checks import is_ssrf_safe_hostname, normalize_target
+from webvulnscanner.checks import (
+    CHECK_COMPLIANCE,
+    CHECK_LABELS,
+    SCAN_TYPE_CHECK_NAMES,
+    SEVERITY_ORDER,
+    is_ssrf_safe_hostname,
+    normalize_target,
+)
 from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, effective_tier_for_org
 from webvulnscanner.extensions import db
 from webvulnscanner.models import Asset, Scan
@@ -126,6 +133,122 @@ def new_asset():
     db.session.commit()
 
     return redirect(url_for("asset.list_assets"))
+
+
+def _category_for_check(check_name):
+    """OWASP category string for `check_name`, per CHECK_COMPLIANCE, falling
+    back to the literal "Uncategorized" for a check_name that isn't a
+    CHECK_COMPLIANCE key at all - same graceful-degradation convention
+    CHECK_COMPLIANCE's own module comment documents (checks.py). Note this
+    is distinct from a check_name whose CHECK_COMPLIANCE entry's `owasp`
+    value is itself the literal string "Uncategorized" (e.g. robots_sitemap)
+    - both produce the same rendered text but the latter is a legitimate,
+    always-present candidate category, not a missing-mapping fallback."""
+    entry = CHECK_COMPLIANCE.get(check_name)
+    return entry["owasp"] if entry else "Uncategorized"
+
+
+def summarize_compliance(reports_by_scan_type):
+    """Pure aggregation: turns `{scan_type: report_dict}` - each report being
+    the most recent COMPLETED report of that scan_type an Asset has run -
+    into an ordered list of compliance-coverage rows: `{owasp, status,
+    finding_count, top_severity, locked}`, `status` one of
+    "passing"/"failing"/"not_checked" (COMP-03).
+
+    Deliberately DB-free and Flask-free (no query, no request, no
+    current_user) - unit-testable directly against hand-built report dicts,
+    same shape as scan_routes.diff_reports()/index_by_key(). This function
+    performs no authorization; compliance_coverage() below is its only
+    caller and is itself only ever reachable behind _check_asset_access.
+
+    Coverage ("was this category checked") is derived from which check
+    names actually EXECUTED in each report - never from findings alone - so
+    a clean scan (zero findings) still reports full coverage rather than
+    zero coverage (03-RESEARCH.md Pitfall 3). Each scan_type reports its
+    executed-check set differently: base reports carry `locked_checks`
+    (everything in CHECK_LABELS not in that list ran); advanced reports
+    carry an explicit `ran` list; api reports carry a `results` dict whose
+    keys are the executed check names; media reports carry neither - a
+    completed media scan means its one check ("media") ran.
+
+    A report whose findings contain ANY entry with no non-empty check_name
+    is a report written before per-finding check_name tagging shipped
+    (03-01) - its findings cannot be attributed to any check, so the whole
+    report contributes no executed checks and no findings; its scan_type's
+    categories still appear as "not_checked" candidate rows (never
+    "passing", per this plan's prohibition: absence of findings is not
+    evidence of passing when the report can't even say which checks ran).
+    """
+    tally = {}  # owasp category -> {"count": int, "severities": [str, ...]}
+    executed_names = set()
+    locked_names = set()
+    candidate_names_by_category = {}
+
+    for scan_type, report in reports_by_scan_type.items():
+        for check_name in SCAN_TYPE_CHECK_NAMES.get(scan_type, ()):
+            category = _category_for_check(check_name)
+            candidate_names_by_category.setdefault(category, set()).add(check_name)
+
+        findings = report.get("findings", [])
+        if any(not f.get("check_name") for f in findings):
+            continue  # untaggable legacy report - see docstring above
+
+        if scan_type == "base":
+            report_locked = set(report.get("locked_checks", []))
+            report_executed = set(CHECK_LABELS) - report_locked
+        elif scan_type == "advanced":
+            report_locked = set(report.get("locked_checks", []))
+            report_executed = set(report.get("ran", []))
+        elif scan_type == "api":
+            report_locked = set()
+            report_executed = set(report.get("results", {}))
+        elif scan_type == "media":
+            report_locked = set()
+            report_executed = {"media"}
+        else:
+            report_locked = set()
+            report_executed = set()
+
+        executed_names |= report_executed
+        locked_names |= report_locked
+
+        for f in findings:
+            if f.get("severity") == "pass":
+                continue
+            category = _category_for_check(f.get("check_name", ""))
+            entry = tally.setdefault(category, {"count": 0, "severities": []})
+            entry["count"] += 1
+            entry["severities"].append(f.get("severity"))
+
+    checked_categories = {_category_for_check(name) for name in executed_names}
+    all_categories = set(candidate_names_by_category) | set(tally)
+
+    def _row(category):
+        if category in tally:
+            severities = tally[category]["severities"]
+            top_severity = min(severities, key=SEVERITY_ORDER.index)
+            return {
+                "owasp": category, "status": "failing",
+                "finding_count": tally[category]["count"],
+                "top_severity": top_severity, "locked": False,
+            }
+        if category in checked_categories:
+            return {
+                "owasp": category, "status": "passing",
+                "finding_count": 0, "top_severity": None, "locked": False,
+            }
+        names = candidate_names_by_category.get(category, set())
+        return {
+            "owasp": category, "status": "not_checked",
+            "finding_count": 0, "top_severity": None,
+            "locked": bool(names) and names <= locked_names,
+        }
+
+    mapped = sorted(c for c in all_categories if c != "Uncategorized")
+    rows = [_row(c) for c in mapped]
+    if "Uncategorized" in all_categories:
+        rows.append(_row("Uncategorized"))
+    return rows
 
 
 def _render_asset_detail(a, **extra):
