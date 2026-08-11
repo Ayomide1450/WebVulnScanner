@@ -5,6 +5,8 @@ mechanism (401s, no Set-Cookie) end-to-end; this file also covers 02-02's
 trigger-scan (API-03), fetch-report (API-04), and the cross-cutting
 revoked-token/tier-gate/rate-limit proof (API-05).
 """
+from datetime import datetime, timezone
+
 import pytest
 
 from webvulnscanner.models import Plan, Report, Role, Scan, ScanStatus
@@ -391,3 +393,73 @@ def test_fetch_report_no_report_row_yet_gets_404_json(client, db):
 
     assert resp.status_code == 404
     assert resp.is_json
+
+
+# --------------------------------------------------------------------------
+# API-05: cross-cutting proof - revoked token gets 401 on all three routes;
+# rate-limit 429 actually trips (not just registered). No new production
+# code here - proves Task 1/Task 2/02-01's existing gating under real
+# requests.
+# --------------------------------------------------------------------------
+
+def test_revoked_token_gets_401_on_all_three_routes(client, db, spawned):
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    token, raw_token = make_api_token(user, name="tok")
+    a = make_asset(org, user, name="Asset")
+    scan = make_scan(user, org=org, status=ScanStatus.COMPLETED)
+    scan.asset_id = a.id
+    db.session.commit()
+    _make_report(db, scan)
+
+    token.revoked_at = datetime.now(timezone.utc)
+    db.session.commit()
+
+    headers = _auth_headers(raw_token)
+    resp_list = client.get("/api/v1/assets", headers=headers)
+    resp_trigger = client.post(f"/api/v1/assets/{a.id}/scans", headers=headers)
+    resp_report = client.get(f"/api/v1/scans/{scan.id}/report", headers=headers)
+
+    for resp in (resp_list, resp_trigger, resp_report):
+        assert resp.status_code == 401
+        assert resp.is_json
+        assert resp.content_type.startswith("application/json")
+    assert len(spawned) == 0
+
+
+def test_rate_limit_trips_429_on_list_assets(tmp_path):
+    # Mirrors tests/test_auth_flows.py::test_login_rate_limit_is_enforced's
+    # exact pattern: a dedicated app with RATELIMIT_ENABLED=True and its own
+    # DB, proving _api_rate_limit_key's wiring actually enforces a limit,
+    # not just that the decorator is present.
+    from webvulnscanner import create_app
+    from webvulnscanner.extensions import limiter as _limiter
+    from tests.conftest import TestConfig
+
+    class _RateLimitedConfig(TestConfig):
+        RATELIMIT_ENABLED = True
+        SQLALCHEMY_DATABASE_URI = f"sqlite:///{tmp_path / 'ratelimit_api.db'}"
+
+    rl_app = create_app(_RateLimitedConfig)
+    with rl_app.app_context():
+        from webvulnscanner.extensions import db as _db
+
+        _db.create_all()
+        org = make_org(plan=Plan.PAID, name="Org")
+        user = make_user("ratelimited@example.com", org=org)
+        _db.session.commit()
+        _, raw_token = make_api_token(user, name="tok")
+        _db.session.commit()
+
+    _limiter.reset()
+    try:
+        rl_client = rl_app.test_client()
+        headers = _auth_headers(raw_token)
+        statuses = []
+        for _ in range(61):
+            resp = rl_client.get("/api/v1/assets", headers=headers)
+            statuses.append(resp.status_code)
+        assert 429 in statuses, f"expected a 429 within 61 requests against a 60/minute limit, got {statuses}"
+    finally:
+        _limiter.reset()
