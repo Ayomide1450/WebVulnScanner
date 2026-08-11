@@ -54,7 +54,7 @@ to exactly one roadmap phase.
 - [x] **API-05**: API endpoints are rate-limited and tier-gated consistent with existing
       entitlement rules — no API path that bypasses tier restrictions enforced elsewhere.
 
-- [ ] **API-06**: A CLI tool (thin wrapper over the API) lets a user authenticate, list assets,
+- [x] **API-06**: A CLI tool (thin wrapper over the API) lets a user authenticate, list assets,
       trigger a scan, and fetch a report from the command line.
 
 ### Compliance & Framework Reporting (COMP)
@@ -141,7 +141,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | API-03 | Phase 2 | Complete |
 | API-04 | Phase 2 | Complete |
 | API-05 | Phase 2 | Complete |
-| API-06 | Phase 2 | Pending |
+| API-06 | Phase 2 | Complete |
 | COMP-01 | Phase 3 | Pending |
 | COMP-02 | Phase 3 | Pending |
 | COMP-03 | Phase 3 | Pending |
