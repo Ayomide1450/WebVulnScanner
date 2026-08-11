@@ -16,7 +16,7 @@ import json
 import os
 from functools import wraps
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, abort, jsonify
 from flask_login import current_user
 
 from webvulnscanner.asset_routes import _check_asset_access, _scoped_asset_query
@@ -123,8 +123,12 @@ def trigger_scan(asset_id):
     _fire() internally produced a FAILED scan (SSRF-unsafe or
     tier-insufficient), since scan *creation* itself succeeded; the caller
     inspects the returned status field, exactly mirroring how the
-    scheduler's own tick handles those same two failure branches."""
-    a = Asset.query.get_or_404(asset_id)
+    scheduler's own tick handles those same two failure branches.
+
+    WR-01: excludes soft-deleted Assets (deleted_at is not None), matching
+    _scoped_asset_query()'s own filter - a caller must not be able to keep
+    firing scans against an Asset that was "deleted" through the web UI."""
+    a = Asset.query.filter_by(id=asset_id, deleted_at=None).first_or_404()
     _check_asset_access(a)
     s = _fire(a)
     return jsonify(scan_id=s.id, status=s.status.value), 202
@@ -146,9 +150,16 @@ def fetch_report(scan_id):
     Asset-linked scan must be scoped the same org-shared way the Asset
     itself is (_check_asset_access), not by scan_routes._check_ownership's
     creator-or-org-admin-only rule. A manually-submitted (non-Asset) scan
-    keeps that original rule unchanged."""
+    keeps that original rule unchanged.
+
+    WR-01: an Asset-linked scan whose Asset has since been soft-deleted
+    (deleted_at is not None) 404s here too, matching trigger_scan's own
+    deleted_at=None filter - a caller must not be able to keep pulling
+    reports for an Asset that was "deleted" through the web UI."""
     s = Scan.query.get_or_404(scan_id)
     if s.asset_id is not None:
+        if s.asset.deleted_at is not None:
+            abort(404)
         _check_asset_access(s.asset)
     else:
         _check_ownership(s)

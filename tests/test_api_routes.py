@@ -267,6 +267,27 @@ def test_trigger_scan_non_admin_org_member_can_trigger_shared_asset(client, db, 
     assert Scan.query.filter_by(asset_id=a.id).count() == 1
 
 
+def test_trigger_scan_soft_deleted_asset_gets_404_no_scan_created(client, db, spawned):
+    # WR-01 regression: a machine credential must not be able to keep
+    # firing scans against an Asset that was "deleted" through the web UI.
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+    a = make_asset(
+        org, user, name="Deleted asset",
+        deleted_at=datetime.now(timezone.utc),
+    )
+    db.session.commit()
+
+    resp = client.post(f"/api/v1/assets/{a.id}/scans", headers=_auth_headers(raw_token))
+
+    assert resp.status_code == 404
+    assert resp.is_json
+    assert Scan.query.filter_by(asset_id=a.id).count() == 0
+    assert len(spawned) == 0
+
+
 def test_trigger_scan_free_tier_media_asset_gets_failed_status(client, db, spawned):
     org = make_org(plan=Plan.FREE, name="Free Org")
     user = make_user("free@example.com", org=org)
@@ -403,6 +424,28 @@ def test_fetch_report_org_admin_can_view_manual_scan(client, db):
 
     assert resp.status_code == 200
     assert resp.get_json() == report_dict
+
+
+def test_fetch_report_soft_deleted_asset_gets_404(client, db):
+    # WR-01 regression: an Asset-linked scan whose Asset has since been
+    # soft-deleted through the web UI must not still be fetchable here.
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+    a = make_asset(
+        org, user, name="Deleted asset",
+        deleted_at=datetime.now(timezone.utc),
+    )
+    scan = make_scan(user, org=org, status=ScanStatus.COMPLETED)
+    scan.asset_id = a.id
+    db.session.commit()
+    _make_report(db, scan)
+
+    resp = client.get(f"/api/v1/scans/{scan.id}/report", headers=_auth_headers(raw_token))
+
+    assert resp.status_code == 404
+    assert resp.is_json
 
 
 def test_fetch_report_no_report_row_yet_gets_404_json(client, db):
