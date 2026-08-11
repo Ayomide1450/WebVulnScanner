@@ -15,7 +15,15 @@
   .actions-row { display:flex; gap: var(--space-2); align-items:center; }
   .meta { color: var(--muted); font-size: 13.5px; margin: 6px 0 0; }
   .latest-score { font-size:36px; font-weight:800; }
-  .sparkline-card .hint { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
+  .sparkline-card .hint, .compliance-card .hint { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
+
+  /* COMP-03's coverage-summary "not_checked" status badge reuses
+     scan_report.html's .finding.locked-card treatment (opacity .65 + the
+     same muted rgba background) rather than inventing a new visual
+     language for "unavailable/not yet run" (03-UI-SPEC Color contract). */
+  .pill.not-checked { opacity: .65; background: rgba(147,160,201,.15); color: var(--muted); }
+  .compliance-card td { vertical-align: top; }
+  .compliance-card .upgrade-hint { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
 
   .schedule-form label { display:block; margin-top: var(--space-4); font-weight:600; font-size:13.5px; color: var(--text); }
   .schedule-form label:first-child { margin-top: 0; }
@@ -148,6 +156,43 @@
       </svg>
       {% else %}
       <p class="hint" style="margin:0;">Not enough completed scans yet for a trend line.</p>
+      {% endif %}
+    </div>
+
+    <h2 class="section">Compliance coverage</h2>
+    <div class="card compliance-card">
+      {% if coverage.rows %}
+      <p class="hint">
+        As of the most recent completed scan of each scan type this Asset has run
+        ({{ coverage.scan_types|join(', ') }}) &mdash; not this Asset's all-time history.
+      </p>
+      <div class="table-scroll">
+      <table>
+        <tr><th>OWASP Top 10 category</th><th>Status</th></tr>
+        {% for row in coverage.rows %}
+        <tr>
+          <td>{{ row.owasp }}</td>
+          <td>
+            {% if row.status == 'passing' %}
+            <span class="pill pass">Passing</span>
+            {% elif row.status == 'failing' %}
+            <span class="pill {{ row.top_severity }}">{{ row.finding_count }} finding{{ 's' if row.finding_count != 1 else '' }}, highest: {{ row.top_severity }}</span>
+            {% else %}
+            <span class="pill not-checked">Not checked</span>
+            {% if row.locked %}
+            <div class="upgrade-hint">
+              Requires the <b>Paid</b> plan to unlock this check.
+              <a href="{{ url_for('billing.view') }}">Upgrade to Paid</a>
+            </div>
+            {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      </div>
+      {% else %}
+      <p class="hint" style="margin:0;">Not enough completed scans yet to show compliance coverage.</p>
       {% endif %}
     </div>
   {% else %}

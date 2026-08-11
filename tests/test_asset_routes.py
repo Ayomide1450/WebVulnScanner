@@ -731,3 +731,81 @@ def test_get_asset_detail_compliance_coverage_cross_org_is_404_and_leaks_no_cate
 
     assert resp.status_code == 404
     assert b"A03:2021-Injection" not in resp.data
+
+
+# --------------------------------------------------------------------------
+# COMP-03: "Compliance coverage" card on the asset detail page (plan 03-03,
+# Task 3).
+# --------------------------------------------------------------------------
+
+def test_asset_detail_renders_compliance_coverage_heading_category_and_scope_hint(db, client):
+    org = make_org(plan=Plan.PAID, name="Card Org")
+    user = make_user("card-owner@example.com", org=org)
+    a = make_asset(org, user, name="Card Asset")
+    db.session.commit()
+
+    scan = Scan(
+        asset_id=a.id, user_id=user.id, org_id=org.id,
+        target_url=a.target_url, scan_type="base",
+        status=ScanStatus.COMPLETED, risk_score=90,
+    )
+    db.session.add(scan)
+    db.session.commit()
+    _write_report(scan, {
+        "findings": [{"check_name": "xss_sqli", "severity": "high", "title": "XSS"}],
+        "locked_checks": [],
+    })
+
+    login(client, "card-owner@example.com")
+    resp = client.get(f"/assets/{a.id}")
+
+    assert resp.status_code == 200
+    assert b"Compliance coverage" in resp.data
+    assert b"A03:2021-Injection" in resp.data
+    assert b"most recent completed scan" in resp.data
+
+
+def test_asset_detail_all_scans_queued_shows_not_enough_scans_hint_no_category(db, client):
+    org = make_org(plan=Plan.PAID, name="Queued Org")
+    user = make_user("queued-owner@example.com", org=org)
+    a = make_asset(org, user, name="Queued Asset")
+    db.session.commit()
+
+    scan = Scan(
+        asset_id=a.id, user_id=user.id, org_id=org.id,
+        target_url=a.target_url, scan_type="base",
+        status=ScanStatus.QUEUED,
+    )
+    db.session.add(scan)
+    db.session.commit()
+
+    login(client, "queued-owner@example.com")
+    resp = client.get(f"/assets/{a.id}")
+
+    assert resp.status_code == 200
+    assert b"Not enough completed scans yet to show compliance coverage." in resp.data
+    assert b"A03:2021-Injection" not in resp.data
+    assert b"A05:2021-Security Misconfiguration" not in resp.data
+
+
+def test_asset_detail_tier_locked_category_shows_not_checked_not_passing(db, client):
+    org = make_org(plan=Plan.PAID, name="Locked Org")
+    user = make_user("locked-owner@example.com", org=org)
+    a = make_asset(org, user, name="Locked Asset")
+    db.session.commit()
+
+    scan = Scan(
+        asset_id=a.id, user_id=user.id, org_id=org.id,
+        target_url=a.target_url, scan_type="base",
+        status=ScanStatus.COMPLETED, risk_score=90,
+    )
+    db.session.add(scan)
+    db.session.commit()
+    _write_report(scan, {"findings": [], "locked_checks": A05_BASE_CHECK_NAMES})
+
+    login(client, "locked-owner@example.com")
+    resp = client.get(f"/assets/{a.id}")
+
+    assert resp.status_code == 200
+    assert b"Not checked" in resp.data
+    assert b"Upgrade to Paid" in resp.data
