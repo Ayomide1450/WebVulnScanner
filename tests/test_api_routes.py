@@ -426,6 +426,31 @@ def test_fetch_report_org_admin_can_view_manual_scan(client, db):
     assert resp.get_json() == report_dict
 
 
+def test_fetch_report_missing_file_gets_500_json_not_html(client, db):
+    # WR-02 regression: a Report row whose on-disk json_path doesn't exist
+    # (e.g. reports/ cleaned up, or not persisted across a redeploy) must
+    # still return a JSON error body, not fall through to the app's global
+    # HTML 500 page - cli/wvs.py's _raise_for_error_response always expects
+    # JSON.
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+    a = make_asset(org, user, name="Asset")
+    scan = make_scan(user, org=org, status=ScanStatus.COMPLETED)
+    scan.asset_id = a.id
+    db.session.commit()
+    r = Report(scan_id=scan.id, json_path="this-file-does-not-exist.json")
+    db.session.add(r)
+    db.session.commit()
+
+    resp = client.get(f"/api/v1/scans/{scan.id}/report", headers=_auth_headers(raw_token))
+
+    assert resp.status_code == 500
+    assert resp.is_json
+    assert resp.get_json()["error"]
+
+
 def test_fetch_report_soft_deleted_asset_gets_404(client, db):
     # WR-01 regression: an Asset-linked scan whose Asset has since been
     # soft-deleted through the web UI must not still be fetchable here.
