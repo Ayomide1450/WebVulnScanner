@@ -130,6 +130,32 @@ def test_revoked_token_gets_401_json(client, db):
 
 
 # --------------------------------------------------------------------------
+# CR-01 regression: load_user_from_request (extensions.py's
+# login_manager.request_loader) must only ever authenticate /api/v1/*
+# requests - a valid Bearer token with no session cookie must NOT grant
+# access to any other @login_required route (dashboard, assets, billing,
+# org admin, etc.). Before the fix, Flask-Login's request_loader mechanism
+# has no notion of blueprint scoping, so a leaked API token authenticated
+# the entire HTML app, unthrottled by the api blueprint's rate limits.
+# --------------------------------------------------------------------------
+
+def test_bearer_token_does_not_authenticate_non_api_route(client, db):
+    org = make_org(name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+    db.session.commit()
+
+    resp = client.get("/dashboard", headers=_auth_headers(raw_token))
+
+    # Not authenticated via the session cookie and the Bearer token must be
+    # ignored outside /api/v1/* - Flask-Login falls through to its normal
+    # unauthenticated behavior: a redirect to the login page, never a 200.
+    assert resp.status_code == 302
+    assert "/login" in resp.headers.get("Location", "")
+
+
+# --------------------------------------------------------------------------
 # No Set-Cookie header on a token-authenticated response (D-03/T-02-05).
 # --------------------------------------------------------------------------
 

@@ -54,8 +54,20 @@ def load_user(user_id):
 # pays an extra query. ApiToken is imported lazily, same reason load_user
 # above imports User lazily: avoids a models.py <-> extensions.py circular
 # import at module load time.
+#
+# CR-01 fix: request_loader has no notion of "which blueprint" - Flask-Login
+# invokes it for *any* @login_required route with no session-authenticated
+# user, not just /api/v1/*. Without this path scope, a leaked Bearer token
+# would authenticate the token owner against every other @login_required
+# route in the app (dashboard, assets, billing, org admin, HTML scan/report
+# pages) - none of which carry the api blueprint's rate limits. Restricting
+# this callback to /api/v1/* means a Bearer header is silently ignored
+# everywhere else, so Flask-Login falls through to its normal
+# session-cookie-only behavior (redirect to login) for every non-API route.
 @login_manager.request_loader
 def load_user_from_request(request):
+    if not request.path.startswith("/api/v1/"):
+        return None
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         return None
