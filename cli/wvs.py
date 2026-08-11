@@ -22,6 +22,15 @@ import requests
 
 DEFAULT_API_URL = "http://127.0.0.1:5000"
 CONFIG_PATH = pathlib.Path.home() / ".wvs" / "config.json"
+# WR-03: every requests.get/requests.post call below passes timeout= this
+# value - without it, an unresponsive server, dropped connection, or
+# misconfigured --api-url makes any wvs command hang indefinitely, which is
+# a real problem for a tool meant to be piped/redirected by CI tooling (CI
+# pipelines need bounded-time failures, not indefinite hangs).
+# requests.Timeout is already a subclass of requests.RequestException, so
+# the existing `except requests.RequestException` blocks below already
+# catch it, but only once timeout= is actually supplied.
+REQUEST_TIMEOUT_SECONDS = 15
 
 
 def _load_config():
@@ -103,6 +112,7 @@ def login(token, api_url):
         resp = requests.get(
             f"{api_url}/api/v1/assets",
             headers={"Authorization": f"Bearer {token}"},
+            timeout=REQUEST_TIMEOUT_SECONDS,
         )
     except requests.RequestException as exc:
         raise click.ClickException(f"Could not reach {api_url}: {exc}") from exc
@@ -137,6 +147,7 @@ def assets_list(token, api_url):
         resp = requests.get(
             f"{api_url}/api/v1/assets",
             headers={"Authorization": f"Bearer {token}"},
+            timeout=REQUEST_TIMEOUT_SECONDS,
         )
     except requests.RequestException as exc:
         raise click.ClickException(f"Could not reach {api_url}: {exc}") from exc
@@ -173,6 +184,7 @@ def scan_start(asset_id, token, api_url):
         resp = requests.post(
             f"{api_url}/api/v1/assets/{asset_id}/scans",
             headers={"Authorization": f"Bearer {token}"},
+            timeout=REQUEST_TIMEOUT_SECONDS,
         )
     except requests.RequestException as exc:
         raise click.ClickException(f"Could not reach {api_url}: {exc}") from exc
@@ -204,6 +216,7 @@ def report_get(scan_id, token, api_url):
         resp = requests.get(
             f"{api_url}/api/v1/scans/{scan_id}/report",
             headers={"Authorization": f"Bearer {token}"},
+            timeout=REQUEST_TIMEOUT_SECONDS,
         )
     except requests.RequestException as exc:
         raise click.ClickException(f"Could not reach {api_url}: {exc}") from exc

@@ -181,3 +181,46 @@ def test_report_get_error_exits_nonzero_no_traceback(runner, isolated_config):
     assert result.exit_code != 0
     assert "report not available" in result.output
     assert "Traceback" not in result.output
+
+
+# --- WR-03: every HTTP call site passes timeout= ---
+
+
+def test_login_passes_request_timeout(runner, isolated_config):
+    with patch.object(wvs.requests, "get") as mock_get:
+        mock_get.return_value = _FakeResponse(200, json_body={"assets": []})
+        runner.invoke(
+            wvs.cli, ["login", "--token", "sekrit", "--api-url", "http://example.test"],
+        )
+
+    assert mock_get.call_args.kwargs["timeout"] == wvs.REQUEST_TIMEOUT_SECONDS
+
+
+def test_assets_list_passes_request_timeout(runner, isolated_config):
+    with patch.object(
+        wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
+    ), patch.object(wvs.requests, "get") as mock_get:
+        mock_get.return_value = _FakeResponse(200, json_body={"assets": []})
+        runner.invoke(wvs.cli, ["assets", "list"])
+
+    assert mock_get.call_args.kwargs["timeout"] == wvs.REQUEST_TIMEOUT_SECONDS
+
+
+def test_scan_start_passes_request_timeout(runner, isolated_config):
+    with patch.object(
+        wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
+    ), patch.object(wvs.requests, "post") as mock_post:
+        mock_post.return_value = _FakeResponse(202, json_body={"scan_id": 1, "status": "queued"})
+        runner.invoke(wvs.cli, ["scan", "start", "7"])
+
+    assert mock_post.call_args.kwargs["timeout"] == wvs.REQUEST_TIMEOUT_SECONDS
+
+
+def test_report_get_passes_request_timeout(runner, isolated_config):
+    with patch.object(
+        wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
+    ), patch.object(wvs.requests, "get") as mock_get:
+        mock_get.return_value = _FakeResponse(200, json_body={"score": 1})
+        runner.invoke(wvs.cli, ["report", "get", "42"])
+
+    assert mock_get.call_args.kwargs["timeout"] == wvs.REQUEST_TIMEOUT_SECONDS
