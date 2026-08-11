@@ -64,17 +64,16 @@ Phase 1/2's already-declared scale, no new values introduced:
 
 This phase introduces **zero new spacing values**.
 
-Exceptions (both **reused, not new** — inherited from pre-existing, already-force-approved house
-convention per Phase 1's UI-SPEC; not re-litigated here):
+Cell/control padding used by this phase's new markup — 4px-multiple values, consistent with the
+scale above (no exceptions needed):
 
-- The compliance-coverage summary rows reuse the shared `table td` `7px 8px` cell padding (if
-  rendered as a `<table>`) or the `.finding` block's existing `padding: var(--space-4) var(--space-4)`
-  (if rendered as stacked cards) — planner's choice between the two existing list-rendering patterns
-  already in this codebase (see UI Considerations below), not a new spacing value either way.
-- The grouping-toggle links reuse `_admin_form_styles.html`'s existing compact-button precedent
-  (`padding: 6px 12px`, already used by `org_admin.html`'s "Verify" button and referenced by Phase
-  2's Revoke button) — not a new pixel value, a third reuse of the same established compact-control
-  size.
+- The compliance-coverage summary rows use `8px 8px` cell padding (if rendered as a `<table>`,
+  i.e. `--space-2` in both directions) or the `.finding` block's existing
+  `padding: var(--space-4) var(--space-4)` (16px 16px, if rendered as stacked cards) — planner's
+  choice between the two existing list-rendering patterns already in this codebase (see UI
+  Considerations below).
+- The grouping-toggle links use `8px 12px` padding (`--space-2` vertical, 12px horizontal — both
+  4px multiples).
 
 No icon-only controls are introduced this phase, so the 44px-minimum-touch-target exception from
 Phase 1 does not apply here.
@@ -97,9 +96,10 @@ already exists in `base.html`'s (and Phase 1/2's) type system.
 Exactly two weights, 400 and 600, cover every piece of genuinely new text this phase writes:
 - **Body** (16/400/1.5): the "not enough data yet" hint paragraph on the Compliance coverage
   section (reusing `.sparkline-card .hint`'s exact styling from Phase 1).
-- **Label** (13.5/600/1.3): compliance-coverage row category names, the grouping-toggle link text
-  (14.5px, inherited from the existing `.btn`/link-button convention — treated as the same Label
-  role per Phase 1/2's precedent, not a fifth size).
+- **Label** (13.5/600/1.3): compliance-coverage row category names, and the grouping-toggle link
+  text — set to exactly 13.5px (overriding the `.btn`/link-button convention's native 14.5px for
+  this specific control), so it collapses fully into the Label role declared above instead of
+  introducing a distinct fifth size.
 
 **Inherited (unchanged, pre-existing, out of scope for this phase — this phase places new markup
 using these existing sizes, it does not (re)define them):**
@@ -239,10 +239,10 @@ No third-party registries were declared. No vetting gate was triggered.
 
 **Approval:** pending
 
-**Note for gsd-ui-checker:** This phase's inherited 11.5px pill/caption row and the `6px 12px`
-compact-toggle-link padding are **project-level exceptions already confirmed by the user during
-Phase 1** (`.planning/phases/01-asset-inventory-continuous-scanning/01-UI-SPEC.md`, force-approved
+**Note for gsd-ui-checker:** This phase's inherited 11.5px pill/caption row is a **project-level
+exception already confirmed by the user during Phase 1**
+(`.planning/phases/01-asset-inventory-continuous-scanning/01-UI-SPEC.md`, force-approved
 2026-08-10) and reused unchanged by Phase 2's UI-SPEC — please evaluate this phase's own new
-declarations (the `.pill.compliance` color choice, the grouping-toggle interaction, and the
-Body+Label 2-weight set this phase actually authors) rather than re-flagging the already-settled
-whole-house convention a third time.
+declarations (the `.pill.compliance` color choice, the grouping-toggle interaction and its
+8px-multiple padding, and the Body+Label 2-weight set this phase actually authors) rather than
+re-flagging the already-settled whole-house convention a third time.
