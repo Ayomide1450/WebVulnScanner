@@ -7,18 +7,19 @@ authenticated via login_manager.request_loader's Bearer-token lookup
 behavior - api_login_required (below) gives a JSON-appropriate 401 instead.
 
 D-02: a token acts as the exact user who created it - every route below
-reuses asset_routes._scoped_asset_query() directly rather than
-re-implementing org/solo scoping, so a token can never see more than its
-creating user's session already could.
+reuses asset_routes._scoped_asset_query()/_check_asset_access() directly
+rather than re-implementing org/solo scoping, so a token can never see more
+than its creating user's session already could.
 """
 from functools import wraps
 
 from flask import Blueprint, jsonify
 from flask_login import current_user
 
-from webvulnscanner.asset_routes import _scoped_asset_query
+from webvulnscanner.asset_routes import _check_asset_access, _scoped_asset_query
 from webvulnscanner.extensions import csrf, limiter
 from webvulnscanner.models import Asset, Scan
+from webvulnscanner.scheduler import _fire
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
 
@@ -100,3 +101,25 @@ def _serialize_asset(a):
 def list_assets():
     assets = _scoped_asset_query().order_by(Asset.created_at.desc()).all()
     return jsonify(assets=[_serialize_asset(a) for a in assets])
+
+
+@api.route("/assets/<int:asset_id>/scans", methods=["POST"])
+@api_login_required
+@limiter.limit("30 per minute", key_func=_api_rate_limit_key)
+def trigger_scan(asset_id):
+    """API-03: trigger a new scan against an existing Asset. 100% reuse of
+    scheduler._fire(asset) - no parallel dispatch/SSRF/tier-check logic
+    exists here (02-RESEARCH.md Pattern 3). _check_asset_access is the same
+    org-shared, 404-not-403 ownership check the web UI's /assets/<id> route
+    uses, so a non-admin org member can trigger a scan on a shared Asset
+    they didn't create.
+
+    Always returns 202 with the created Scan's id/status - even when
+    _fire() internally produced a FAILED scan (SSRF-unsafe or
+    tier-insufficient), since scan *creation* itself succeeded; the caller
+    inspects the returned status field, exactly mirroring how the
+    scheduler's own tick handles those same two failure branches."""
+    a = Asset.query.get_or_404(asset_id)
+    _check_asset_access(a)
+    s = _fire(a)
+    return jsonify(scan_id=s.id, status=s.status.value), 202

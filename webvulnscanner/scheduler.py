@@ -73,32 +73,40 @@ def _fire(asset):
     Pitfall 1/5). Neither failure path below touches is_paused/next_run_at
     beyond what _try_claim already advanced (D-04: a failed scheduled scan
     keeps ticking at its normal cadence, it never pauses or otherwise
-    changes the Asset's schedule state)."""
+    changes the Asset's schedule state).
+
+    Returns the created Scan row on every branch (success, SSRF-failure,
+    tier-failure) - Phase 2 API-03's trigger_scan route (api_routes.py)
+    relies on this return value to report scan_id/status back to the
+    caller; _tick() (the only pre-existing caller) already ignores the
+    return value, so this is a backward-compatible addition."""
     tier = effective_tier_for_org(asset.organization)
     org_verified = domain_is_org_verified(asset.organization, asset.target_url)
 
     if not is_ssrf_safe_hostname(asset.hostname):
-        db.session.add(Scan(
+        s = Scan(
             asset_id=asset.id, user_id=asset.created_by_user_id, org_id=asset.org_id,
             target_url=asset.target_url, scan_type=asset.schedule_scan_type,
             status=ScanStatus.FAILED,
             error_message="This target resolves to a private, internal, or unreachable "
                           "address and cannot be scanned.",
-        ))
+        )
+        db.session.add(s)
         db.session.commit()
-        return
+        return s
 
     if (asset.schedule_scan_type in ("media", "api")
             and FEATURE_REQUIREMENTS[asset.schedule_scan_type] > tier):
-        db.session.add(Scan(
+        s = Scan(
             asset_id=asset.id, user_id=asset.created_by_user_id, org_id=asset.org_id,
             target_url=asset.target_url, scan_type=asset.schedule_scan_type,
             status=ScanStatus.FAILED,
             error_message="This schedule requires a higher plan than your org's current "
                           "plan. Upgrade in Billing to resume this scan type.",
-        ))
+        )
+        db.session.add(s)
         db.session.commit()
-        return
+        return s
 
     s = Scan(
         asset_id=asset.id, user_id=asset.created_by_user_id, org_id=asset.org_id,
@@ -122,6 +130,8 @@ def _fire(asset):
         )
     elif asset.schedule_scan_type == "api":
         _spawn_scan_thread(s.id, "api", base_url=asset.target_url, tier=tier)
+
+    return s
 
 
 def _tick(app):
