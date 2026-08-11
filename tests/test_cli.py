@@ -55,6 +55,25 @@ def test_login_success_writes_config(runner, isolated_config):
     assert saved == {"token": "sekrit", "api_url": "http://example.test"}
 
 
+def test_login_without_api_url_reuses_previously_saved_api_url(runner, isolated_config):
+    # WR-04 regression: re-running `wvs login` without --api-url must not
+    # silently reset a previously-saved custom api_url back to
+    # DEFAULT_API_URL - it should reuse the stored config's api_url, same
+    # precedence _resolve_api_url() already uses for every other command.
+    isolated_config.parent.mkdir(parents=True, exist_ok=True)
+    isolated_config.write_text(
+        json.dumps({"token": "old-token", "api_url": "https://scanner.example.com"})
+    )
+    with patch.object(wvs.requests, "get") as mock_get:
+        mock_get.return_value = _FakeResponse(200, json_body={"assets": []})
+        result = runner.invoke(wvs.cli, ["login", "--token", "new-token"])
+
+    assert result.exit_code == 0
+    assert mock_get.call_args[0][0] == "https://scanner.example.com/api/v1/assets"
+    saved = json.loads(isolated_config.read_text())
+    assert saved == {"token": "new-token", "api_url": "https://scanner.example.com"}
+
+
 def test_login_failure_writes_no_config(runner, isolated_config):
     with patch.object(wvs.requests, "get") as mock_get:
         mock_get.return_value = _FakeResponse(

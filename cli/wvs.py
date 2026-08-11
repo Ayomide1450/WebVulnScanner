@@ -106,7 +106,12 @@ def login(token, api_url):
     if not token:
         token = click.prompt("API token", hide_input=True)
     if not api_url:
-        api_url = DEFAULT_API_URL
+        # WR-04: fall back to a previously-saved api_url (same precedence
+        # _resolve_api_url() already uses for every other command) before
+        # DEFAULT_API_URL - otherwise a plain `wvs login` re-run (e.g. to
+        # rotate an expiring token) silently overwrites a previously
+        # configured custom --api-url with http://127.0.0.1:5000.
+        api_url = _load_config().get("api_url") or DEFAULT_API_URL
 
     try:
         resp = requests.get(
