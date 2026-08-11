@@ -66,6 +66,8 @@ from webvulnscanner.checks import (
 def run_media_scan(base_url, download, max_files):
     session = _mk_session()
     data, findings = check_media(session, base_url, download, max_files)
+    for f in findings:
+        f.check_name = "media"
 
     score = 100
     for f in findings:
@@ -107,14 +109,20 @@ def run_api_scan(base_url):
     all_findings = []
 
     data, findings = check_api_schema_exposure(base_url, session)
+    for f in findings:
+        f.check_name = "schema"
     results["schema"] = data
     all_findings.extend(findings)
 
     data, findings = check_api_wordlist(base_url, session)
+    for f in findings:
+        f.check_name = "wordlist"
     results["wordlist"] = data
     all_findings.extend(findings)
 
     data, findings = check_api_js_discovery(session, base_url, home_html)
+    for f in findings:
+        f.check_name = "js_discovery"
     results["js_discovery"] = data
     all_findings.extend(findings)
 
@@ -175,6 +183,8 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
         targets.append(advanced["login_url"])
         data, findings = check_sqli_login(session, advanced["login_url"], advanced["user_field"],
                                            advanced["pass_field"], advanced["fail_text"])
+        for f in findings:
+            f.check_name = "sqli_login"
         results["sqli_login"] = data
         all_findings.extend(findings)
     elif has_login_fields:
@@ -184,6 +194,8 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
         data, findings = check_bruteforce(session, advanced["login_url"], advanced["user_field"],
                                            advanced["pass_field"], advanced["bruteforce_username"],
                                            advanced["bruteforce_passwords"], advanced["fail_text"])
+        for f in findings:
+            f.check_name = "bruteforce"
         results["bruteforce"] = data
         all_findings.extend(findings)
     elif has_bruteforce_fields:
@@ -193,6 +205,8 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
             and FEATURE_REQUIREMENTS["sqli_union"] <= tier and org_verified_for_domain:
         targets.append(advanced["sqli_union_url"])
         data, findings = check_sqli_union(session, advanced["sqli_union_url"], advanced["sqli_union_param"])
+        for f in findings:
+            f.check_name = "sqli_union"
         results["sqli_union"] = data
         all_findings.extend(findings)
     elif advanced.get("sqli_union_url") and advanced.get("sqli_union_param"):
@@ -204,6 +218,8 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
         targets.append(advanced["stored_xss_submit_url"])
         data, findings = check_xss_stored(session, advanced["stored_xss_submit_url"], advanced["stored_xss_field"],
                                            advanced["stored_xss_view_url"], advanced["stored_xss_cookie"])
+        for f in findings:
+            f.check_name = "xss_stored"
         results["xss_stored"] = data
         all_findings.extend(findings)
     elif advanced.get("stored_xss_submit_url") and advanced.get("stored_xss_field") and \
@@ -216,6 +232,8 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
         targets.append(advanced["idor_url_template"])
         data, findings = check_idor(session, advanced["idor_url_template"], advanced["idor_ids"],
                                      advanced["idor_cookie_a"], advanced["idor_cookie_b"])
+        for f in findings:
+            f.check_name = "idor"
         results["idor"] = data
         all_findings.extend(findings)
     elif advanced.get("idor_url_template") and advanced.get("idor_ids") and \

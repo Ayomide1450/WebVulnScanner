@@ -10,20 +10,24 @@ this codebase's existing precedent that a per-check coverage-regression test
 doesn't have to live beside the dict it tests (CHECK_LABELS's own coverage
 test lives in tests/test_scan_events.py, not webvulnscanner/checks.py).
 
-This module (Task 1) covers only run_scan()'s tagging plus the
-report-page-rendering behaviors (mapped finding, legacy/unmapped finding,
-HTML-escaping). Task 3 extends this module with the remaining 3
-orchestrators' tagging tests and the full COMP-04 key-set coverage
-regression tests.
+Covers: run_scan()'s tagging plus the report-page-rendering behaviors
+(mapped finding, legacy/unmapped finding, HTML-escaping) [Task 1]; the
+remaining 3 orchestrators' (run_media_scan/run_api_scan/run_advanced_scan)
+tagging tests, plus the full COMP-04 key-set coverage regression tests
+that read scan_engine.py's live source rather than a hand-maintained list
+[Task 3].
 """
+import re
+from pathlib import Path
 from types import SimpleNamespace
 
 from webvulnscanner import scan_engine
-from webvulnscanner.checks import CHECK_COMPLIANCE, Finding
+from webvulnscanner.checks import CHECK_COMPLIANCE, SCAN_TYPE_CHECK_NAMES, Finding
 from webvulnscanner.entitlements import Tier
 
 from tests.conftest import login, make_scan, make_user
 from tests.test_api_routes import _make_report
+from tests.test_entitlements import ADVANCED_SCAN_CHECK_NAMES, OUT_OF_JOBS_DICT_NAMES, _run_scan_job_names
 
 
 def _stub_all_checks_with_findings(monkeypatch):
@@ -177,3 +181,137 @@ def test_scan_report_escapes_finding_title_containing_script_tag(client, db):
     body = resp.get_data(as_text=True)
     assert raw_tag not in body
     assert "&lt;script&gt;" in body
+
+
+# --------------------------------------------------------------------------
+# (f) run_media_scan() / run_api_scan() / run_advanced_scan() check_name
+# tagging - Task 3, the 3 orchestrators Task 1 didn't cover.
+# --------------------------------------------------------------------------
+
+def test_run_media_scan_tags_its_finding_with_check_name(monkeypatch):
+    finding = Finding(category="Media", title="Publicly accessible backup image", severity="medium", detail="d")
+    monkeypatch.setattr(scan_engine, "check_media", lambda *a, **k: ({"media_items": []}, [finding]))
+
+    report = scan_engine.run_media_scan("https://example.com", False, 10)
+
+    assert report["findings"], "stub should have contributed at least one finding to tag"
+    for f in report["findings"]:
+        assert f["check_name"] == "media"
+        assert f["check_name"] in CHECK_COMPLIANCE
+
+
+def test_run_api_scan_tags_each_of_its_three_findings_with_check_name(monkeypatch):
+    monkeypatch.setattr(scan_engine, "check_api_schema_exposure", lambda *a, **k: (
+        {}, [Finding(category="API", title="Swagger UI exposed", severity="medium", detail="d")],
+    ))
+    monkeypatch.setattr(scan_engine, "check_api_wordlist", lambda *a, **k: (
+        {}, [Finding(category="API", title="Unauthenticated endpoint exposed", severity="high", detail="d")],
+    ))
+    monkeypatch.setattr(scan_engine, "check_api_js_discovery", lambda *a, **k: (
+        {}, [Finding(category="API", title="JS-discovered endpoint exposed", severity="low", detail="d")],
+    ))
+    fake_session = SimpleNamespace(get=lambda *a, **k: SimpleNamespace(text="<html></html>"))
+    monkeypatch.setattr(scan_engine, "_mk_session", lambda: fake_session)
+
+    report = scan_engine.run_api_scan("https://example.com")
+
+    assert len(report["findings"]) == 3
+    check_names = {f["check_name"] for f in report["findings"]}
+    assert check_names == {"schema", "wordlist", "js_discovery"}
+    for name in check_names:
+        assert name in CHECK_COMPLIANCE
+
+
+def test_run_advanced_scan_tags_each_group_finding_with_check_name(monkeypatch):
+    monkeypatch.setattr(scan_engine, "check_sqli_login", lambda *a, **k: (
+        {}, [Finding(category="Auth", title="Auth bypass via SQLi", severity="critical", detail="d")],
+    ))
+    monkeypatch.setattr(scan_engine, "check_bruteforce", lambda *a, **k: (
+        {"cap": 5}, [Finding(category="Auth", title="Brute-force succeeded", severity="high", detail="d")],
+    ))
+    monkeypatch.setattr(scan_engine, "check_sqli_union", lambda *a, **k: (
+        {}, [Finding(category="SQL Injection", title="UNION-based SQLi", severity="critical", detail="d")],
+    ))
+    monkeypatch.setattr(scan_engine, "check_xss_stored", lambda *a, **k: (
+        {}, [Finding(category="XSS", title="Stored XSS confirmed", severity="high", detail="d")],
+    ))
+    monkeypatch.setattr(scan_engine, "check_idor", lambda *a, **k: (
+        {}, [Finding(category="IDOR", title="Cross-account resource exposed", severity="high", detail="d")],
+    ))
+
+    # Every field-presence gate in run_advanced_scan() must see a truthy
+    # value, and tier/org_verified_for_domain must both be satisfied, or
+    # the corresponding check group is skipped/locked instead of run.
+    advanced = {
+        "login_url": "https://example.com/login", "user_field": "user", "pass_field": "pass",
+        "fail_text": "invalid credentials",
+        "bruteforce_username": "admin", "bruteforce_passwords": "pw1\npw2",
+        "sqli_union_url": "https://example.com/items", "sqli_union_param": "id",
+        "stored_xss_submit_url": "https://example.com/comment", "stored_xss_field": "body",
+        "stored_xss_view_url": "https://example.com/view", "stored_xss_cookie": "session=abc",
+        "idor_url_template": "https://example.com/orders/{id}", "idor_ids": "1,2,3",
+        "idor_cookie_a": "session=a", "idor_cookie_b": "session=b",
+    }
+
+    report = scan_engine.run_advanced_scan(advanced, Tier.ORG_VERIFIED, True)
+
+    assert len(report["findings"]) == 5, report["locked_checks"]
+    check_names = {f["check_name"] for f in report["findings"]}
+    assert check_names == {"sqli_login", "bruteforce", "sqli_union", "xss_stored", "idor"}
+    for name in check_names:
+        assert name in CHECK_COMPLIANCE
+
+
+# --------------------------------------------------------------------------
+# COMP-04 regression coverage - CHECK_COMPLIANCE's key set stays in sync
+# with every check name dispatchable across all 4 orchestrators, read from
+# scan_engine.py's live source (same source-parsing technique already
+# proven in tests/test_entitlements.py) rather than a hand-maintained list
+# that could silently drift.
+# --------------------------------------------------------------------------
+
+def test_scan_type_check_names_base_matches_run_scan_jobs_and_out_of_band():
+    job_names = _run_scan_job_names()
+    assert job_names, "extraction found no job names - regex or scan_engine.py's jobs dict shape changed"
+    assert (job_names | OUT_OF_JOBS_DICT_NAMES) == SCAN_TYPE_CHECK_NAMES["base"]
+
+
+def test_advanced_and_api_results_assignments_are_covered_by_scan_type_check_names():
+    # Source-parses scan_engine.py for every literal `results["<name>"] =
+    # data` assignment (run_advanced_scan's 5 + run_api_scan's 3) - catches
+    # an advanced- or api-scan check added to an orchestrator without a
+    # matching SCAN_TYPE_CHECK_NAMES entry. Deliberately does NOT match
+    # run_scan()'s `results[name] = data` (a variable, not a literal string)
+    # or `results["open_ports"] = ports` (assigns `ports`, not `data`).
+    src = Path(scan_engine.__file__).read_text(encoding="utf-8")
+    found = set(re.findall(r'results\["(\w+)"\]\s*=\s*data', src))
+    assert found, "extraction found no results[...] = data assignments - scan_engine.py's shape changed"
+    assert found == (ADVANCED_SCAN_CHECK_NAMES | SCAN_TYPE_CHECK_NAMES["api"])
+
+    all_names = set().union(*SCAN_TYPE_CHECK_NAMES.values())
+    missing = found - all_names
+    assert not missing, (
+        f"scan_engine.py assigns results[...] for {missing} but SCAN_TYPE_CHECK_NAMES has no "
+        "matching entry for it"
+    )
+
+
+def test_check_compliance_covers_every_dispatchable_check_name():
+    all_names = set().union(*SCAN_TYPE_CHECK_NAMES.values())
+    missing = all_names - set(CHECK_COMPLIANCE)
+    assert not missing, f"CHECK_COMPLIANCE is missing entries for {missing}"
+
+
+def test_check_compliance_has_no_stale_keys():
+    all_names = set().union(*SCAN_TYPE_CHECK_NAMES.values())
+    stale = set(CHECK_COMPLIANCE) - all_names
+    assert not stale, f"CHECK_COMPLIANCE has stale entries for check names no longer dispatched: {stale}"
+
+
+def test_check_compliance_every_entry_has_owasp_and_valid_asvs():
+    for name, entry in CHECK_COMPLIANCE.items():
+        assert entry.get("owasp"), f"{name} has no owasp category (D-01: required on every mapped check)"
+        asvs = entry.get("asvs")
+        assert asvs is None or (isinstance(asvs, str) and asvs), (
+            f"{name}'s asvs must be a non-empty string or None (never an empty string), got {asvs!r}"
+        )
