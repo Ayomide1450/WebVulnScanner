@@ -78,14 +78,14 @@ to exactly one roadmap phase.
       correctly even when the app runs with more than one gunicorn worker (shared rate-limit
       backend, not in-memory-only).
 
-- [ ] **HARD-02**: `run_advanced_scan`, `run_media_scan`, and `run_api_scan` each have automated
+- [x] **HARD-02**: `run_advanced_scan`, `run_media_scan`, and `run_api_scan` each have automated
       test coverage for status transitions and error handling, matching what `run_scan` already
       has in `tests/test_scan_events.py`.
 
 - [ ] **HARD-03**: Org invite / role-change / domain-verification flows have automated test
       coverage beyond the current single rendering test in `tests/test_org_routes.py`.
 
-- [ ] **HARD-04**: Scoring logic (risk score, letter grade, `severity_counts`) is deduplicated into
+- [x] **HARD-04**: Scoring logic (risk score, letter grade, `severity_counts`) is deduplicated into
       a single shared helper used by all scan orchestrators, including any new scheduled-scan path
       from Phase 1.
 
@@ -147,9 +147,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMP-03 | Phase 3 | Complete |
 | COMP-04 | Phase 3 | Complete |
 | HARD-01 | Phase 4 | Pending |
-| HARD-02 | Phase 4 | Pending |
+| HARD-02 | Phase 4 | Complete |
 | HARD-03 | Phase 4 | Pending |
-| HARD-04 | Phase 4 | Pending |
+| HARD-04 | Phase 4 | Complete |
 | HARD-05 | Phase 4 | Pending |
 
 **Coverage:**
