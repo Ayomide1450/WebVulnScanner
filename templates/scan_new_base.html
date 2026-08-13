@@ -29,7 +29,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
       <label for="target">Target domain</label>
-      <input type="text" id="target" name="target" placeholder="www.example.com" required>
+      <input type="text" id="target" name="target" placeholder="www.example.com" value="{{ request.args.get('target', '') }}" required>
       <div class="hint">Just the domain, e.g. <code>example.com</code> or <code>https://www.example.com</code></div>
 
       <label for="test_url">Optional: seed URL with query parameters</label>
