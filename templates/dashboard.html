@@ -8,12 +8,19 @@
   h1 { margin-top: 20px; }
   h2.section { margin-top: 28px; }
   a.row-link { color: var(--accent); text-decoration:none; }
-  .cta { display:inline-block; margin: 4px 0 10px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff; text-decoration:none; padding: 10px 18px; border-radius: 10px; font-size:14px; font-weight:700; }
   .latest-score { font-size:36px; font-weight:800; }
   .sparkline-card .hint { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
 </style>
 {% endblock %}
 {% block content %}
+{# Shared "latest scan" status-pill renderer - used by both the scored and
+   unscored branches of the card below, which render the identical pill
+   markup for the same Scan.status field. Nests a pulsing state dot when
+   the scan is running/queued; completed/failed stay plain text (the dot
+   is additive, per base.html's .status-pill .dot comment). #}
+{% macro latest_status_pill(status) -%}
+<span class="status-pill {{ status }}">{% if status in ('running', 'queued') %}<span class="dot glow-pulse"></span>{% endif %}{{ status }}</span>
+{%- endmacro %}
 <div class="wrap">
   <h1>Dashboard</h1>
   <p style="color: var(--muted); font-size: 13.5px;">
@@ -26,7 +33,7 @@
   </p>
 
   {% if latest %}
-  <div class="card">
+  <div class="card hud-grid">
     {% if latest.risk_score is not none %}
       {% set score = latest.risk_score %}
       {% set risk_grade = 'A' if score >= 90 else ('B' if score >= 75 else ('C' if score >= 60 else ('D' if score >= 40 else 'F'))) %}
@@ -37,7 +44,7 @@
           <div style="color: var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.05em;">Latest scan</div>
           <div style="font-size:13.5px; margin-top:4px;">
             <code>{{ latest.target_url }}</code> &middot; {{ latest.scan_type }} scan &middot;
-            <span class="status-pill {{ latest.status.value }}">{{ latest.status.value }}</span>
+            {{ latest_status_pill(latest.status.value) }}
             {% if latest.status.value == 'completed' %}
             &middot; <a class="row-link" href="{{ url_for('scan.scan_report', scan_id=latest.id) }}">View report &rarr;</a>
             {% endif %}
@@ -47,7 +54,7 @@
     {% else %}
     <div style="color: var(--muted); font-size:13.5px;">
       <code>{{ latest.target_url }}</code> &middot; {{ latest.scan_type }} scan &middot;
-            <span class="status-pill {{ latest.status.value }}">{{ latest.status.value }}</span>
+            {{ latest_status_pill(latest.status.value) }}
       {% if latest.status.value != 'completed' %}
       &middot; <a class="row-link" href="{{ url_for('scan.scan_detail', scan_id=latest.id) }}">View progress &rarr;</a>
       {% endif %}
@@ -95,7 +102,7 @@
   </div>
   {% endif %}
 
-  <a class="cta" href="{{ url_for('scan.new_scan') }}">New scan</a>
+  <a class="btn primary" href="{{ url_for('scan.new_scan') }}">New scan</a>
 
   <h2 class="section">Your scans</h2>
   <div class="card">
@@ -107,7 +114,7 @@
       <tr>
         <td><code>{{ s.target_url }}</code></td>
         <td>{{ s.scan_type }}</td>
-        <td><span class="status-pill {{ s.status.value }}">{{ s.status.value }}</span></td>
+        <td><span class="status-pill {{ s.status.value }}">{% if s.status.value in ('running', 'queued') %}<span class="dot glow-pulse"></span>{% endif %}{{ s.status.value }}</span></td>
         <td>{{ s.risk_score if s.risk_score is not none else '-' }}</td>
         <td>{{ s.created_at }}</td>
         <td><a class="row-link" href="{{ url_for('scan.scan_detail', scan_id=s.id) }}">View &rarr;</a></td>
