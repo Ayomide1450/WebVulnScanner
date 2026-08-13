@@ -19,6 +19,7 @@ human-verification checkpoint instead (04-UI-SPEC.md's one backstop row).
 from webvulnscanner.models import ScanStatus
 
 from tests.conftest import login, make_org, make_scan, make_user
+from tests.test_billing_routes import make_pending_invoice
 
 
 # --------------------------------------------------------------------------
@@ -119,3 +120,177 @@ def test_dashboard_existing_queued_pill_class_string_unbroken(client, db):
 
     assert resp.status_code == 200
     assert 'class="status-pill queued"' in resp.get_data(as_text=True)
+
+
+# --------------------------------------------------------------------------
+# org_admin.html
+# --------------------------------------------------------------------------
+
+def _make_admin(org, email="orgadmin@example.com"):
+    from webvulnscanner.models import Role
+
+    return make_user(email, org=org, role=Role.ORG_ADMIN, verified=True)
+
+
+def test_org_admin_scan_history_card_is_the_one_textured_anchor(client, db):
+    org = make_org()
+    admin = _make_admin(org)
+    make_scan(admin, org=org, status=ScanStatus.COMPLETED)
+    db.session.commit()
+
+    login(client, "orgadmin@example.com")
+    resp = client.get("/org/admin")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert body.count('class="card hud-grid"') == 1
+
+
+def test_org_admin_running_scan_row_has_pulsing_dot(client, db):
+    org = make_org()
+    admin = _make_admin(org)
+    make_scan(admin, org=org, status=ScanStatus.RUNNING)
+    db.session.commit()
+
+    login(client, "orgadmin@example.com")
+    resp = client.get("/org/admin")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert 'class="status-pill running"><span class="dot glow-pulse">' in body
+
+
+def test_org_admin_completed_scan_row_has_no_dot(client, db):
+    org = make_org()
+    admin = _make_admin(org)
+    make_scan(admin, org=org, status=ScanStatus.COMPLETED)
+    db.session.commit()
+
+    login(client, "orgadmin@example.com")
+    resp = client.get("/org/admin")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert 'dot glow-pulse' not in body
+
+
+def test_org_admin_invite_button_uses_shared_primary_button(client, db):
+    org = make_org()
+    _make_admin(org)
+    db.session.commit()
+
+    login(client, "orgadmin@example.com")
+    resp = client.get("/org/admin")
+
+    assert resp.status_code == 200
+    assert 'class="btn primary"' in resp.get_data(as_text=True)
+
+
+def test_org_admin_members_and_domains_pills_unchanged(client, db):
+    org = make_org()
+    _make_admin(org)
+    db.session.commit()
+
+    login(client, "orgadmin@example.com")
+    resp = client.get("/org/admin")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert 'class="pill pass"' in body
+
+
+# --------------------------------------------------------------------------
+# billing.html
+# --------------------------------------------------------------------------
+
+def test_billing_current_plan_card_is_the_one_textured_anchor(client, db):
+    org = make_org()
+    make_user("billed@example.com", org=org)
+    db.session.commit()
+
+    login(client, "billed@example.com")
+    resp = client.get("/account/billing")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert body.count('class="card hud-grid"') == 1
+
+
+def test_billing_action_buttons_use_shared_primary_button(client, db):
+    org = make_org()
+    make_user("actions@example.com", org=org)
+    make_pending_invoice(org)
+    db.session.commit()
+
+    login(client, "actions@example.com")
+    resp = client.get("/account/billing")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert body.count('btn primary') == 2
+    assert 'class="btn primary verify-btn"' in body
+
+
+def test_billing_pending_invoice_shows_awaiting_payment_pill(client, db):
+    org = make_org()
+    make_user("pending@example.com", org=org)
+    make_pending_invoice(org)
+    db.session.commit()
+
+    login(client, "pending@example.com")
+    resp = client.get("/account/billing")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert 'Awaiting payment' in body
+    assert 'status-pill running' in body
+
+
+def test_billing_no_pending_invoices_shows_unchanged_empty_state(client, db):
+    org = make_org()
+    make_user("nopending@example.com", org=org)
+    db.session.commit()
+
+    login(client, "nopending@example.com")
+    resp = client.get("/account/billing")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "No pending invoices." in body
+    assert "Awaiting payment" not in body
+
+
+def test_billing_no_org_warning_uses_sprite_icon_not_emoji(client, db):
+    make_user("noorg@example.com", org=None)
+    db.session.commit()
+
+    login(client, "noorg@example.com")
+    resp = client.get("/account/billing")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert '#icon-warning' in body
+    assert '&#9888' not in body
+    assert '⚠' not in body
+
+
+def test_admin_form_partial_untouched_by_this_phase(client, db):
+    """Task 2 forbids editing the shared partial - a direct file read
+    guards against a future executor satisfying the button assertions by
+    editing the partial instead of the individual pages."""
+    import pathlib
+
+    partial = pathlib.Path("templates/_admin_form_styles.html").read_text(encoding="utf-8")
+    assert "button { margin-top: 16px; background: linear-gradient" in partial
+
+
+# --------------------------------------------------------------------------
+# scan_report.html
+# --------------------------------------------------------------------------
+
+def test_scan_report_no_longer_duplicates_table_rule(client, db):
+    import pathlib
+
+    text = pathlib.Path("templates/scan_report.html").read_text(encoding="utf-8")
+    assert "border-collapse" not in text
+    assert "h2.section" in text
