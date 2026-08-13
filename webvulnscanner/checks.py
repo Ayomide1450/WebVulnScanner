@@ -424,36 +424,69 @@ def _looks_like_baseline(fp, baseline):
     evidence the requested file actually exists. Uses several independent,
     individually-weak signals together (status, content-type, page title,
     response size within 15%) instead of one brittle exact match, per the
-    "avoid brittle exact string matching" requirement."""
+    "avoid brittle exact string matching" requirement.
+
+    content-type + size-within-15% alone are NOT enough: two short, wholly
+    unrelated pages (e.g. a real 404 page and a real, distinct redirect
+    target) are often coincidentally close in both once bodies are only a
+    few dozen bytes. At least one *strong* signal (identical status, or an
+    identical <title>) is required in addition to reaching the score
+    threshold, so a genuine soft-404/SPA-shell match still needs something
+    more specific than "both pages are small and HTML"."""
     if baseline is None:
         return False
     score = 0
+    strong = False
     if fp["status"] == baseline["status"]:
         score += 1
+        strong = True
     if fp["content_type"] and fp["content_type"] == baseline["content_type"]:
         score += 1
     if fp["title"] and fp["title"] == baseline["title"]:
         score += 2  # identical <title> across "different" pages is a strong soft-404 tell
+        strong = True
     if baseline["size"] > 0:
         diff_ratio = abs(fp["size"] - baseline["size"]) / baseline["size"]
         if diff_ratio < 0.15:
             score += 1
-    return score >= 2
+    return strong and score >= 2
+
+
+MAX_EVIDENCE_FRAGMENT_CHARS = 200
 
 
 def _content_signature_match(path, r):
-    """Returns (matched: bool, label: str|None) - whether the response body
-    actually contains the artifact `path` claims to be, not just that the
-    server returned 200 for it. Only inspects the first SIGNATURE_SCAN_BYTES
-    of the body and never retains it."""
+    """Returns (matched: bool, label: str|None, fragment: str|None) - whether
+    the response body actually contains the artifact `path` claims to be,
+    not just that the server returned 200 for it. Only inspects the first
+    SIGNATURE_SCAN_BYTES of the body and never retains the body itself -
+    `fragment` is at most the single matched substring, capped to
+    MAX_EVIDENCE_FRAGMENT_CHARS, which is the only piece of response
+    content this function (or its caller) ever hands back. Binary
+    signatures (archive magic bytes) have no meaningful text fragment to
+    surface, so fragment is None for those - there's no secret value to
+    reveal, just a structural match."""
     if path in BINARY_PATH_SIGNATURES:
         magic, label = BINARY_PATH_SIGNATURES[path]
-        return (r.content or b"")[:16].startswith(magic), label
+        return (r.content or b"")[:16].startswith(magic), label, None
     sig = PATH_SIGNATURES.get(path)
     if not sig:
-        return False, None
+        return False, None, None
     pattern, label = sig
-    return bool(pattern.search((r.text or "")[:SIGNATURE_SCAN_BYTES])), label
+    text = (r.text or "")[:SIGNATURE_SCAN_BYTES]
+    m = pattern.search(text)
+    if not m:
+        return False, label, None
+    # Surface the whole matched line (e.g. "DB_PASSWORD=hunter2"), not just
+    # the bare key= the regex anchors on - that's what makes the evidence
+    # meaningful to the report's owner ("what exactly leaked"), while still
+    # being a single capped line rather than the response body.
+    line_start = text.rfind("\n", 0, m.start()) + 1
+    line_end = text.find("\n", m.end())
+    if line_end == -1:
+        line_end = len(text)
+    fragment = text[line_start:line_end].strip()[:MAX_EVIDENCE_FRAGMENT_CHARS]
+    return True, label, fragment
 
 
 # Severity/remediation text keyed by path - used only when a path is
@@ -501,10 +534,19 @@ def check_sensitive_paths(base_url, session):
       a request to a randomly-generated, definitely-nonexistent URL - so a
       site that "soft-404s" with a 200 (a custom not-found page or SPA
       shell that answers every path) doesn't get reported as exposing every
-      sensitive file it was asked about. See _looks_like_baseline().
+      sensitive file it was asked about. See _looks_like_baseline(). This
+      baseline comparison also catches the "redirects everywhere to the
+      same login/shell page" case, since a genuinely-protected sensitive
+      path and the random nonexistent probe usually land on that same page.
     - A 403 is reported as NEEDS_REVIEW ("blocked"), never as evidence the
       file exists - it proves access is denied, not that the resource is
       actually there.
+    - A 429 is reported as NEEDS_REVIEW ("rate limited") - the scanner
+      cannot reliably tell whether the resource exists when the target is
+      throttling it, and does not retry (no request in this function is
+      ever repeated) so as to not add to the rate-limiting itself.
+    - A 5xx is reported as NEEDS_REVIEW ("server error") - inconclusive,
+      not evidence either way.
     - A 200 only becomes CONFIRMED exposure once the response body/bytes
       actually match a signature for that specific artifact (env-var
       syntax, Git config structure, a SQL dump header, ...) - see
@@ -512,6 +554,18 @@ def check_sensitive_paths(base_url, session):
       (and isn't a soft-404 match either) is reported as NEEDS_REVIEW rather
       than a confirmed vulnerability, per the "prefer 'not confirmed' over
       an unsupported claim" principle.
+
+    Evidence stored per row is deliberately minimal - status/URL/redirect
+    chain/content-type/size/timing, plus (only for a CONFIRMED text-based
+    match) a single capped line of the matched content as `secret_evidence`.
+    The full response body is never stored; at most SIGNATURE_SCAN_BYTES of
+    it is ever held in memory, and only for the duration of this function.
+    `secret_evidence["raw"]` is masked in the report UI by default and
+    revealed only behind the same ownership check that already gates the
+    whole report page (see scan_report.html) - it is never included in a
+    Finding's title/detail (which feed ai_summary.py's third-party LLM
+    call), never logged, and this function contains no print/logging calls
+    of its own to accidentally leak it through.
     """
     rows, findings = [], []
 
@@ -542,7 +596,8 @@ def check_sensitive_paths(base_url, session):
         group_id, group_label = group_of[path]
         row = {
             "path": "/" + path, "group": group_id, "group_label": group_label,
-            "evidence": {}, "classification": "", "severity": "info", "confidence": "high",
+            "evidence": {}, "secret_evidence": None,
+            "classification": "", "severity": "info", "confidence": "high",
             "title": "", "detail": "", "recommendation": "", "impact": "",
         }
 
@@ -553,9 +608,11 @@ def check_sensitive_paths(base_url, session):
             continue
 
         redirect_chain = [h.url for h in r.history]
+        initial_status = r.history[0].status_code if r.history else r.status_code
         fp = _fingerprint_response(r)
         row["evidence"] = {
-            "status": r.status_code, "final_url": r.url, "redirect_chain": redirect_chain,
+            "status": r.status_code, "initial_status": initial_status,
+            "final_url": r.url, "redirect_chain": redirect_chain,
             "content_type": fp["content_type"], "size": fp["size"],
             "response_time_ms": int(r.elapsed.total_seconds() * 1000),
         }
@@ -576,9 +633,8 @@ def check_sensitive_paths(base_url, session):
         if r.status_code == 403:
             row.update(classification="needs_review", severity="low", confidence="low",
                        title="Blocked / Access Denied",
-                       detail="The requested sensitive path returned HTTP 403. This indicates the server or a "
-                              "security layer is blocking access, but the response does not prove the "
-                              "underlying file exists.",
+                       detail="HTTP 403 prevented access. This indicates the server or a security layer is "
+                              "blocking the request, but resource existence could not be confirmed.",
                        recommendation="Verify that the sensitive file/path does not exist on the production "
                                        "server and that this blocking rule is intentional.")
             findings.append(Finding("Sensitive Path Exposure", f"Blocked path returned 403: /{path}", "low",
@@ -586,11 +642,26 @@ def check_sensitive_paths(base_url, session):
             rows.append(row)
             continue
 
+        if r.status_code == 429:
+            retry_after = r.headers.get("Retry-After")
+            if retry_after:
+                row["evidence"]["retry_after"] = retry_after
+            row.update(classification="needs_review", severity="info", confidence="low",
+                       title="Rate limited",
+                       detail="The target rate-limited the request (HTTP 429), so the scanner could not reliably "
+                              "determine whether the resource exists. The scanner does not retry a rate-limited "
+                              "path.",
+                       recommendation="Re-run the scan later, outside of any rate-limit window, or investigate "
+                                       "manually.")
+            rows.append(row)
+            continue
+
         if r.status_code >= 500:
             row.update(classification="needs_review", severity="info", confidence="low",
                        title="Server error",
-                       detail=f"The request returned HTTP {r.status_code}. This is inconclusive and may be a "
-                                "transient issue rather than evidence about the resource.",
+                       detail=f"The server returned HTTP {r.status_code} while this path was being tested. This "
+                                "is inconclusive - the scanner could not reliably determine whether the "
+                                "resource exists.",
                        recommendation="Re-run the scan later; investigate manually if the error persists.")
             rows.append(row)
             continue
@@ -607,29 +678,34 @@ def check_sensitive_paths(base_url, session):
             row.update(classification="passed", severity="info", confidence="high",
                        title="Not found (soft 404)",
                        detail="The response matched the site's own behavior for a known-nonexistent URL - this "
-                              "looks like a custom not-found page or SPA fallback, not the requested file.")
+                              "looks like a custom not-found page, an auth redirect, or an SPA fallback, not the "
+                              "requested file.")
             rows.append(row)
             continue
 
-        matched, sig_label = _content_signature_match(path, r)
+        matched, sig_label, fragment = _content_signature_match(path, r)
         if matched:
             sev = CONFIRMED_EXPOSURE_SEVERITY.get(path, "high")
             impact = CONFIRMED_EXPOSURE_IMPACT.get(path, DEFAULT_IMPACT)
             remediation = CONFIRMED_EXPOSURE_REMEDIATION.get(path, DEFAULT_REMEDIATION)
             row.update(classification="confirmed", severity=sev, confidence="high",
                        title="Confirmed exposure",
-                       detail=f"The endpoint returned HTTP {r.status_code} and the response body matched "
-                              f"{sig_label}.",
+                       detail=f"HTTP {r.status_code} response contained content matching {sig_label}.",
                        impact=impact, recommendation=remediation)
+            if fragment:
+                row["secret_evidence"] = {"masked": _redact_secret(fragment), "raw": fragment}
+            # Finding.detail/.title are the only fields ai_summary.py sends to
+            # the third-party LLM (see its docstring) - the matched fragment
+            # must never be included there, only the signature label.
             findings.append(Finding("Sensitive Path Exposure", f"Confirmed exposure: /{path}", sev,
                                      row["detail"] + " " + impact, remediation))
         else:
-            row.update(classification="needs_review", severity="medium", confidence="medium",
+            row.update(classification="needs_review", severity="medium", confidence="low",
                        title="Reachable, not confirmed",
-                       detail=f"The endpoint returned HTTP {r.status_code} but the response body did not match "
-                              "a known signature for this file type - this may be a false positive (e.g. a "
-                              "generic page served for every path).",
-                       recommendation="Manually verify whether the file is actually present at this path.")
+                       detail="The scanner detected an unusual response, but there was insufficient evidence to "
+                              "confirm that the requested sensitive resource exists.",
+                       recommendation="Verify the resource manually or review the production server "
+                                       "configuration.")
             findings.append(Finding("Sensitive Path Exposure", f"Unconfirmed reachable path: /{path}", "medium",
                                      row["detail"], row["recommendation"]))
         rows.append(row)
@@ -644,7 +720,7 @@ def check_sensitive_paths(base_url, session):
                          "group_label": "Security Policy", "classification": "informational",
                          "severity": "info", "confidence": "high", "title": "Security contact policy found",
                          "detail": "A security.txt document was published with a Contact field.",
-                         "recommendation": "", "impact": "",
+                         "recommendation": "", "impact": "", "secret_evidence": None,
                          "evidence": {"status": 200, "final_url": r.url, "redirect_chain": [],
                                       "content_type": (r.headers.get("Content-Type") or "").split(";")[0],
                                       "size": len(r.content or b""),
@@ -657,7 +733,7 @@ def check_sensitive_paths(base_url, session):
                          "detail": "No standard contact for responsible vulnerability disclosure was found.",
                          "recommendation": "Consider publishing /.well-known/security.txt with a contact email "
                                             "so security researchers know how to report issues.",
-                         "impact": "",
+                         "impact": "", "secret_evidence": None,
                          "evidence": {"status": r.status_code, "final_url": r.url, "redirect_chain": [],
                                       "content_type": "", "size": 0, "response_time_ms": 0}})
             findings.append(Finding("Sensitive Path Exposure", "No security.txt published", "info",

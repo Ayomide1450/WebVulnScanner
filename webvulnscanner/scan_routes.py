@@ -553,6 +553,89 @@ def scan_events(scan_id):
     return Response(generate(), mimetype="text/event-stream")
 
 
+# Bounds how many prior scans of the same target/type _sensitive_path_lifecycle
+# will open and inspect - read-time-computed, so this is a latency/cost cap,
+# not a data-retention limit. No schema change: lifecycle status is derived
+# from the existing Scan/Report rows every time the report page renders,
+# never persisted.
+MAX_LIFECYCLE_SCANS = 20
+
+
+def _ownership_scoped_history_query(s):
+    """Same scans-I-can-see scoping _check_ownership() enforces per-row,
+    expressed as a query filter: an individual's own scans, or (for an
+    ORG_ADMIN) every scan run under their org - reused so the lifecycle/
+    previous-scan lookups below can never surface another user's scan
+    history through this side channel."""
+    q = Scan.query.filter(Scan.target_url == s.target_url, Scan.scan_type == s.scan_type,
+                           Scan.status == ScanStatus.COMPLETED)
+    if s.org_id is not None and current_user.org_id == s.org_id and current_user.role == Role.ORG_ADMIN:
+        return q.filter(Scan.org_id == s.org_id)
+    return q.filter(Scan.user_id == s.user_id)
+
+
+def _load_report_json(scan_row):
+    if scan_row.report is None:
+        return None
+    try:
+        with open(os.path.join(REPORTS_DIR, scan_row.report.json_path), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _previous_completed_scan(s):
+    """Most recent completed scan of the same target+type before `s`, within
+    the caller's existing ownership scope - used for the report page's
+    "Compare with previous scan" link (feeds the existing scan_compare()/
+    diff_reports() below, not a new comparison mechanism)."""
+    return (_ownership_scoped_history_query(s)
+            .filter(Scan.id != s.id, Scan.created_at < s.created_at)
+            .order_by(Scan.created_at.desc()).first())
+
+
+def _sensitive_path_lifecycle(s, confirmed_paths):
+    """For each path currently CONFIRMED-exposed in scan `s`'s report,
+    returns {path: {"status": "new"|"active"|"reopened", "first_detected":
+    datetime}} by walking up to MAX_LIFECYCLE_SCANS prior completed scans of
+    the same target+type (read-only; nothing is persisted). A path with no
+    prior occurrence is "new"; one confirmed in the immediately-preceding
+    scan is "active"; one confirmed before but absent from the immediately-
+    preceding scan is "reopened". Paths not currently confirmed (e.g.
+    resolved since the last scan) aren't included - see the report page's
+    "Compare with previous scan" link (reusing the existing diff_reports())
+    for that side of the picture instead of duplicating it here."""
+    if not confirmed_paths:
+        return {}
+
+    history = (_ownership_scoped_history_query(s)
+               .filter(Scan.id != s.id, Scan.created_at < s.created_at)
+               .order_by(Scan.created_at.asc())
+               .limit(MAX_LIFECYCLE_SCANS).all())
+
+    # presence[path] = [was_confirmed_in_history_scan_0, ...], chronological.
+    presence = {path: [] for path in confirmed_paths}
+    for hs in history:
+        hreport = _load_report_json(hs)
+        seen_here = set()
+        if hreport:
+            seen_here = {row["path"] for row in (hreport.get("sensitive_paths") or {}).get("rows", [])
+                         if row.get("classification") == "confirmed"}
+        for path in confirmed_paths:
+            presence[path].append((hs.created_at, path in seen_here))
+
+    lifecycle = {}
+    for path, seq in presence.items():
+        prior_occurrences = [d for d, present in seq if present]
+        if not prior_occurrences:
+            lifecycle[path] = {"status": "new", "first_detected": s.created_at}
+        elif seq[-1][1]:  # present in the immediately-preceding scan too
+            lifecycle[path] = {"status": "active", "first_detected": prior_occurrences[0]}
+        else:
+            lifecycle[path] = {"status": "reopened", "first_detected": prior_occurrences[0]}
+    return lifecycle
+
+
 @scan.route("/scan/<int:scan_id>/report")
 @login_required
 def scan_report(scan_id):
@@ -564,8 +647,18 @@ def scan_report(scan_id):
     with open(os.path.join(REPORTS_DIR, s.report.json_path), encoding="utf-8") as f:
         report = json.load(f)
 
+    lifecycle = {}
+    sensitive_paths = report.get("sensitive_paths")
+    if isinstance(sensitive_paths, dict):
+        confirmed_paths = {row["path"] for row in sensitive_paths.get("rows", [])
+                            if row.get("classification") == "confirmed"}
+        lifecycle = _sensitive_path_lifecycle(s, confirmed_paths)
+
+    previous_scan = _previous_completed_scan(s)
+
     return render_template(
         "scan_report.html", scan=s, r=report, locked=report.get("locked_checks", []),
+        sensitive_path_lifecycle=lifecycle, previous_scan=previous_scan,
     )
 
 

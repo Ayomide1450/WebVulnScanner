@@ -150,3 +150,171 @@ def test_app_discovery_paths_never_produce_findings(soft_404_server):
         row = _row(data, path)
         assert row["classification"] == "informational"
     assert not any("api/health" in f.title or "webpack" in f.title for f in findings)
+
+
+def test_secret_evidence_is_masked_by_default_with_raw_available(soft_404_server):
+    """Confirmed findings must carry both a masked value (safe to show by
+    default) and the raw matched fragment (reveal-gated in the UI, never in
+    Finding.title/detail - see check_sensitive_paths' docstring)."""
+    data, _ = check_sensitive_paths(soft_404_server, _mk_session())
+    row = _row(data, "/.env")
+    assert row["secret_evidence"] is not None
+    assert row["secret_evidence"]["masked"] != row["secret_evidence"]["raw"]
+    assert "…" in row["secret_evidence"]["masked"]  # the "…" redaction marker
+    assert "DB_PASSWORD" in row["secret_evidence"]["raw"]
+    # The raw value must never leak into a Finding (title/detail feed the
+    # third-party AI-summary prompt - see ai_summary.py).
+    _, findings = check_sensitive_paths(soft_404_server, _mk_session())
+    env_findings = [f for f in findings if "/.env" in f.title]
+    assert env_findings
+    for f in env_findings:
+        assert "hunter2" not in f.title
+        assert "hunter2" not in f.detail
+
+
+class _EdgeCaseHandler(BaseHTTPRequestHandler):
+    """Covers the false-positive matrix from the task's testing checklist:
+    redirects (301/302, including an auth-redirect-shaped one), rate
+    limiting (429 + Retry-After), and upstream/server errors (502/503) -
+    none of these may be classified CONFIRMED."""
+
+    def log_message(self, *a):
+        pass
+
+    def _send(self, code, body=b"", headers=None):
+        self.send_response(code)
+        for k, v in (headers or {}).items():
+            self.send_header(k, v)
+        self.send_header("Content-Type", "text/html")
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
+
+    def do_GET(self):
+        path = self.path.lstrip("/")
+
+        if path == ".env":  # auth-redirect shape: 302 -> /login
+            self._send(302, headers={"Location": "/login"})
+            return
+        if path == "login":
+            self._send(200, b"<html><title>Login</title><body>Please sign in</body></html>")
+            return
+
+        if path == ".git/config":  # 301 -> an unrelated page
+            self._send(301, headers={"Location": "/some-page"})
+            return
+        if path == "some-page":
+            self._send(200, b"<html><title>Some Page</title><body>Nothing here</body></html>")
+            return
+
+        if path == "db.sql":  # rate limited
+            self._send(429, b"Too Many Requests", headers={"Retry-After": "30"})
+            return
+
+        if path == "docker-compose.yml":  # upstream/gateway error
+            self._send(502, b"Bad Gateway")
+            return
+
+        if path == "backup.zip":  # service unavailable
+            self._send(503, b"Service Unavailable")
+            return
+
+        # Genuine 404 for everything else, including the random baseline probe.
+        self._send(404, b"<html><title>Not Found</title></html>")
+
+
+@pytest.fixture(scope="module")
+def edge_case_server():
+    server = HTTPServer(("127.0.0.1", 0), _EdgeCaseHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield f"http://127.0.0.1:{server.server_port}"
+    server.shutdown()
+    thread.join(timeout=2)
+
+
+def test_redirect_to_login_is_not_confirmed_exposure(edge_case_server):
+    """/.env -> 302 -> /login must NOT be classified as exposed, and the
+    redirect chain must be recorded as evidence."""
+    data, _ = check_sensitive_paths(edge_case_server, _mk_session())
+    row = _row(data, "/.env")
+    assert row["classification"] != "confirmed"
+    assert row["evidence"]["initial_status"] == 302
+    assert row["evidence"]["redirect_chain"]
+    assert row["evidence"]["status"] == 200  # final, post-redirect status
+
+
+def test_redirect_to_unrelated_page_is_not_confirmed_exposure(edge_case_server):
+    """/.git/config -> 301 -> /some-page must NOT be automatically
+    classified as exposed, and the redirect must be recorded as evidence."""
+    data, _ = check_sensitive_paths(edge_case_server, _mk_session())
+    row = _row(data, "/.git/config")
+    assert row["classification"] != "confirmed"
+    assert row["evidence"]["initial_status"] == 301
+    assert row["evidence"]["redirect_chain"]
+
+
+def test_rate_limited_path_is_needs_review_not_passed_or_confirmed(edge_case_server):
+    data, _ = check_sensitive_paths(edge_case_server, _mk_session())
+    row = _row(data, "/db.sql")
+    assert row["classification"] == "needs_review"
+    assert row["classification"] != "confirmed"
+    assert row["evidence"]["status"] == 429
+    assert row["evidence"]["retry_after"] == "30"
+
+
+def test_bad_gateway_is_needs_review_not_confirmed(edge_case_server):
+    data, _ = check_sensitive_paths(edge_case_server, _mk_session())
+    row = _row(data, "/docker-compose.yml")
+    assert row["classification"] == "needs_review"
+    assert row["evidence"]["status"] == 502
+
+
+def test_service_unavailable_is_needs_review_not_confirmed(edge_case_server):
+    data, _ = check_sensitive_paths(edge_case_server, _mk_session())
+    row = _row(data, "/backup.zip")
+    assert row["classification"] == "needs_review"
+    assert row["evidence"]["status"] == 503
+
+
+def test_genuine_404_is_passed_high_confidence(edge_case_server):
+    data, _ = check_sensitive_paths(edge_case_server, _mk_session())
+    row = _row(data, "/config.json")
+    assert row["classification"] == "passed"
+    assert row["confidence"] == "high"
+    assert row["evidence"]["status"] == 404
+
+
+class _SpaFallbackHandler(BaseHTTPRequestHandler):
+    """Dedicated Next.js/SPA-fallback scenario: /.env returns HTTP 200 with
+    the exact same application shell as a random nonexistent URL - the
+    scanner must recognize this as a soft/fallback response, not treat the
+    200 as evidence that .env exists."""
+
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        body = b"<html><title>My Next App</title><body><div id=\"__next\">App Shell</div></body></html>"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(body)
+
+
+@pytest.fixture(scope="module")
+def spa_fallback_server():
+    server = HTTPServer(("127.0.0.1", 0), _SpaFallbackHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield f"http://127.0.0.1:{server.server_port}"
+    server.shutdown()
+    thread.join(timeout=2)
+
+
+def test_spa_fallback_env_is_not_confirmed_exposure(spa_fallback_server):
+    data, findings = check_sensitive_paths(spa_fallback_server, _mk_session())
+    row = _row(data, "/.env")
+    assert row["classification"] == "passed"
+    assert row["classification"] != "confirmed"
+    assert not any("/.env" in f.title and f.severity == "critical" for f in findings)

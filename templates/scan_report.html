@@ -75,6 +75,19 @@
   .sp-detail { font-size:13.5px; margin-bottom:4px; }
   .sp-impact, .sp-rec { font-size:13px; color: var(--muted); margin-top:4px; }
   .sp-rec b { color: var(--accent); }
+
+  .sp-lifecycle { font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:2px 8px; border-radius:999px; }
+  .sp-lifecycle-new { background: rgba(56,189,248,.14); color: var(--telemetry); }
+  .sp-lifecycle-active { background: rgba(248,113,113,.14); color: var(--critical); }
+  .sp-lifecycle-reopened { background: rgba(251,146,60,.14); color: var(--high); }
+  .sp-lifecycle-meta { font-size:12px; color: var(--muted); margin-bottom:6px; }
+
+  .sp-secret { margin-top:8px; padding-top:8px; border-top: 1px dashed var(--border); font-size:13px; }
+  .sp-secret-masked, .sp-secret-raw { font-size:12.5px; background: rgba(255,255,255,.05); padding:2px 6px; border-radius:5px; word-break: break-all; }
+  .sp-secret-raw { color: var(--critical); }
+  .sp-reveal-btn { margin-left:8px; font-size:11.5px; font-weight:700; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius:6px; padding:3px 9px; cursor:pointer; }
+  .sp-reveal-btn:hover { border-color: var(--accent); }
+  .sp-secret-note { margin-top:4px; }
 </style>
 {% endblock %}
 {% block content %}
@@ -102,6 +115,12 @@
   <div class="meta">
     Target: <code>{{ r.target or r.hostname }}</code> &middot; {{ r.scanned_at }}
     &middot; <a class="back" href="{{ url_for('scan.dashboard') }}">&larr; Back to dashboard</a>
+    {% if scan.scan_type == 'base' %}
+    &middot; <a class="back" href="{{ url_for('scan.new_scan_base', target=scan.target_url) }}">&#8635; Re-scan website</a>
+    {% endif %}
+    {% if previous_scan %}
+    &middot; <a class="back" href="{{ url_for('scan.scan_compare', scan_id=previous_scan.id, other_id=scan.id) }}">Compare with previous scan</a>
+    {% endif %}
   </div>
 
   {% set score = r.score %}
@@ -260,6 +279,7 @@
         {% if group_rows %}
         <h3 class="sp-group-title">{{ group_rows[0].group_label }}</h3>
         {% for p in group_rows %}
+        {% set lc = sensitive_path_lifecycle.get(p.path) if p.classification == 'confirmed' else None %}
         <div class="sp-card sp-{{ p.classification }}">
           <div class="sp-card-head">
             <code class="sp-path">{{ p.path }}</code>
@@ -269,20 +289,42 @@
               {% elif p.classification == 'needs_review' %}! NEEDS REVIEW
               {% else %}INFORMATIONAL{% endif %}
             </span>
+            {% if lc %}
+            <span class="sp-lifecycle sp-lifecycle-{{ lc.status }}">{{ lc.status|upper }}</span>
+            {% endif %}
             {% if p.confidence %}<span class="sp-confidence">{{ p.confidence|upper }} CONFIDENCE</span>{% endif %}
           </div>
+          {% if lc %}
+          <div class="sp-lifecycle-meta">
+            First detected {{ lc.first_detected.strftime('%b %d, %Y') if lc.first_detected else '?' }}
+            {% if lc.status == 'active' %} &middot; still unresolved{% elif lc.status == 'reopened' %} &middot; previously resolved, now reopened{% endif %}
+          </div>
+          {% endif %}
           {% if p.evidence %}
           <div class="sp-evidence">
-            HTTP {{ p.evidence.status if p.evidence.status is not none else 'error' }}
-            {% if p.evidence.redirect_chain %} &middot; redirected {{ p.evidence.redirect_chain|length }}x &rarr; {{ p.evidence.final_url }}{% endif %}
+            {% if p.evidence.redirect_chain %}
+              HTTP {{ p.evidence.initial_status }} &rarr; redirected {{ p.evidence.redirect_chain|length }}x &rarr; HTTP {{ p.evidence.status }} at {{ p.evidence.final_url }}
+            {% else %}
+              HTTP {{ p.evidence.status if p.evidence.status is not none else 'error' }}
+            {% endif %}
             {% if p.evidence.content_type %} &middot; {{ p.evidence.content_type }}{% endif %}
             {% if p.evidence.size %} &middot; {{ p.evidence.size }} bytes{% endif %}
             {% if p.evidence.response_time_ms %} &middot; {{ p.evidence.response_time_ms }}ms{% endif %}
+            {% if p.evidence.retry_after %} &middot; Retry-After: {{ p.evidence.retry_after }}{% endif %}
           </div>
           {% endif %}
           <div class="sp-detail">{{ p.detail }}</div>
           {% if p.impact %}<div class="sp-impact"><b>Impact:</b> {{ p.impact }}</div>{% endif %}
           {% if p.recommendation %}<div class="sp-rec"><b>Recommendation:</b> {{ p.recommendation }}</div>{% endif %}
+          {% if p.secret_evidence %}
+          <div class="sp-secret">
+            <b>Matched content:</b>
+            <code class="sp-secret-masked">{{ p.secret_evidence.masked }}</code>
+            <code class="sp-secret-raw" hidden>{{ p.secret_evidence.raw }}</code>
+            <button type="button" class="sp-reveal-btn" onclick="wvsToggleSecret(this)">Reveal</button>
+            <div class="note sp-secret-note">Visible only to you, inside this authenticated report. Never included in exports, notifications, or third-party integrations.</div>
+          </div>
+          {% endif %}
         </div>
         {% endfor %}
         {% endif %}
@@ -697,4 +739,21 @@
   </details>
   {% endif %}
 </div>
+<script>
+// Client-side only mask/reveal toggle for confirmed sensitive-path evidence
+// (scan_report.html's .sp-secret blocks). No network request - the value
+// is already present in this authenticated, ownership-checked page (see
+// scan_report()/​_check_ownership() in scan_routes.py); this only toggles
+// which of the two already-rendered <code> elements is visible. Never
+// logs or transmits the value anywhere.
+function wvsToggleSecret(btn) {
+  var wrap = btn.closest('.sp-secret');
+  var masked = wrap.querySelector('.sp-secret-masked');
+  var raw = wrap.querySelector('.sp-secret-raw');
+  var revealed = !raw.hidden;
+  raw.hidden = revealed;
+  masked.hidden = !revealed;
+  btn.textContent = revealed ? 'Reveal' : 'Hide';
+}
+</script>
 {% endblock %}
