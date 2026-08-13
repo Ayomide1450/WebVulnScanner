@@ -63,12 +63,22 @@ from webvulnscanner.checks import (
 )
 
 
-def run_media_scan(base_url, download, max_files):
-    session = _mk_session()
-    data, findings = check_media(session, base_url, download, max_files)
-    for f in findings:
-        f.check_name = "media"
+def _score_report(findings):
+    """The single scoring implementation shared by all four orchestrators
+    (`run_scan`/`run_advanced_scan`/`run_media_scan`/`run_api_scan`) - HARD-04,
+    D-09. Prior to this extraction the same block was copy-pasted four times,
+    identical except for the local variable name holding the findings list.
 
+    Folds in `findings_sorted` too (one value more than
+    `.planning/codebase/CONCERNS.md`'s suggested 3-tuple return), because that
+    sort line was ALSO duplicated verbatim at all four call sites immediately
+    after the score/grade/severity_counts block (04-RESEARCH.md A1).
+
+    Deliberately lets `SEVERITY_ORDER.index` raise a `ValueError` on a
+    `Finding.severity` value it doesn't recognise, rather than degrading
+    defensively - a malformed `Finding` is a programming error this suite
+    should surface, not silently absorb.
+    """
     score = 100
     for f in findings:
         score -= SEVERITY_WEIGHT.get(f.severity, 0)
@@ -79,7 +89,18 @@ def run_media_scan(base_url, download, max_files):
     severity_counts = {s: 0 for s in SEVERITY_WEIGHT}
     for f in findings:
         severity_counts[f.severity] = severity_counts.get(f.severity, 0) + 1
+
     findings_sorted = sorted(findings, key=lambda f: SEVERITY_ORDER.index(f.severity))
+    return score, risk_grade, severity_counts, findings_sorted
+
+
+def run_media_scan(base_url, download, max_files):
+    session = _mk_session()
+    data, findings = check_media(session, base_url, download, max_files)
+    for f in findings:
+        f.check_name = "media"
+
+    score, risk_grade, severity_counts, findings_sorted = _score_report(findings)
 
     return {
         "target": base_url,
