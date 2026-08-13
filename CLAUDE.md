@@ -75,6 +75,22 @@ for why `_run_scan_in_background` is called there with short-lived `with app.app
 blocks rather than the shared `db` fixture — holding an outer context open while calling it
 causes its otherwise-successful commits to read back stale through that same session, a broader
 instance of the concurrency caveat below).
+
+Phase 4 added: `tests/test_scan_engine.py` — the shared `_score_report` scoring helper and the
+three previously-untested orchestrators (`run_media_scan`/`run_api_scan`/`run_advanced_scan`),
+including safety-constraint regression locks on `check_bruteforce`'s attempt cap and
+`check_xss_stored`'s marker-only, no-cookie-exfiltration proof; `tests/test_ratelimit_storage.py`
+— the multi-worker rate-limit storage proof (two independent `Limiter` instances sharing a
+fakeredis-backed `redis://` counter) plus its in-memory negative control; `tests/test_org_invite.py`
+— the email-bound invite flow end to end (token round-trip, mismatch/tampered/expired rejection,
+org-binding, case normalization); `tests/test_domain_verification.py` — the domain-ownership
+verification flow (both proof methods, re-add reset, cross-org guard); `tests/test_scheduler.py`
+— the scheduler's entitled-plan media/api fire paths (dispatch kwargs, rescheduling, fire-time
+SSRF refusal) plus a source-parsing lock proving no `advanced` branch exists; `tests/test_scan_routes.py`
+— `_run_scan_in_background`'s per-scan-type Scan-row status transitions (COMPLETED/FAILED, report
+filename prefix) for media/api/advanced; and `tests/test_template_consistency.py` — rendered-HTML
+consistency assertions for the four pages' visual pass (dashboard/org-admin/billing/scan-report).
+
 **Gotcha**: `email_validator` (backing WTForms' `Email()` validator) statically rejects
 reserved TLDs (`.test`/`.invalid`/`.localhost`) even with deliverability checking off — use
 `.com`/`.org`/`.dev`-style fake domains for test fixture emails, not `.test`.
@@ -101,7 +117,7 @@ Everything else — models, blueprints, checks, orchestrators, entitlement gatin
 | Module | Responsibility |
 |---|---|
 | `webvulnscanner/auth_routes.py` | Signup, login, logout, email verification |
-| `webvulnscanner/org_routes.py`, `domain_verification.py` | Org admin, invites, domain-ownership verification (DNS TXT / well-known) |
+| `webvulnscanner/org_routes.py`, `domain_verification.py` | Org admin, invites, domain-ownership verification (DNS TXT / well-known). An invite issues a signed, **email-bound** token (`generate_invite_token`/`decode_invite_token`) — `auth_routes.signup()` consumes it end to end, joining the signer to the inviting org at the invited role; a forwarded/leaked link cannot be redeemed under a different address (the token is re-decoded against the submitted email at POST time). Changing an already-joined member's role is still deliberately not a route. |
 | `webvulnscanner/billing_routes.py`, `billing.py` | Crypto (USDT/USDC on Polygon) invoicing and plan activation |
 | `webvulnscanner/entitlements.py` | `Tier` enum + `FEATURE_REQUIREMENTS` map; the single place that gates checks by plan/domain-verification |
 | `webvulnscanner/scan_routes.py` | `/dashboard`, `/scan/new` (+ `/base`/`/advanced`/`/media`/`/api`), `/scan/<id>`, `/scan/<id>/events`, `/scan/<id>/report`, `/scan/<id>/compare/<other_id>`; spawns each scan in a background thread |
@@ -191,11 +207,13 @@ raise past its own function — network calls should be wrapped in
 
 ### Scoring
 
-All four orchestrators independently: start at 100, subtract `SEVERITY_WEIGHT[finding.severity]`
-per finding, clamp to `[0, 100]`, then map the score to a letter grade (`A`–`F`) and tally
-`severity_counts`. This scoring block is duplicated four times in `scan_engine.py` (`run_scan`,
-`run_media_scan`, `run_advanced_scan`, `run_api_scan`) rather than shared — keep that in mind if
-changing the formula, it needs updating in all four places.
+`scan_engine._score_report(findings)` is the single place the risk score, letter grade and
+severity tally are computed: start at 100, subtract `SEVERITY_WEIGHT[finding.severity]` per
+finding, clamp to `[0, 100]`, then map the score to a letter grade (`A`–`F`) and tally
+`severity_counts`. All four orchestrators (`run_scan`, `run_media_scan`, `run_advanced_scan`,
+`run_api_scan`) call it — none carries its own inline copy of the arithmetic anymore, so changing
+the formula is now a one-function edit. `tests/test_scan_engine.py` includes a source-parsing
+regression lock that fails if any orchestrator ever re-inlines the block.
 
 ### Adding a new base-scan check
 
@@ -239,10 +257,19 @@ non-destructive, authorized-use-only tool rather than a general attack script.
 
 ### Other hardening in `webvulnscanner/`
 
-- `extensions.limiter` (Flask-Limiter, in-memory storage — fine for the current single dev-
-  server-process reality, not multi-worker-safe) rate-limits `/login` (10/min),
-  `/signup` (5/hour), and invoice create/verify (10/hour, 30/hour) in `auth_routes.py` /
-  `billing_routes.py`.
+- `extensions.limiter` (Flask-Limiter) rate-limits `/login` (10/min), `/signup` (5/hour), and
+  invoice create/verify (10/hour, 30/hour) in `auth_routes.py` / `billing_routes.py`. It's
+  constructed without a storage URI; the backend is selected by `RATELIMIT_STORAGE_URI` (an env
+  var, read into `Config.RATELIMIT_STORAGE_URI`) at `init_app()` time. Unset (the default) means
+  in-memory storage, which is correct only for a single process — raising gunicorn's `--workers`
+  count above 1 **requires setting `RATELIMIT_STORAGE_URI` first** (a `redis://[:password]@host:
+  port[/db]` URL), or each worker will enforce its own, independent counters. A boot-time log line
+  in `create_app()` names the active backend by scheme only, never the full URI (which may carry a
+  password). `redis` is a production dependency (`requirements.txt`); `fakeredis` + `lupa` are
+  dev/test-only (`requirements-dev.txt`) — see `tests/test_ratelimit_storage.py` for the proof
+  that two independently-constructed `Limiter` instances pointed at the same `redis://` URI (via a
+  fakeredis-backed `redis.from_url`) actually share a counter, plus an in-memory negative control
+  showing they don't without it.
 - `billing.create_invoice()` re-rolls its random amount-offset (up to
   `MAX_OFFSET_COLLISION_RETRIES` times) if it collides with another `PENDING` invoice's
   `expected_amount` for the same plan, since `verify_invoice()` matches purely by amount — a
@@ -282,8 +309,10 @@ template inherits: OLED-dark palette (`--bg`/`--panel`/`--accent` etc.), Fira Sa
 Code (data, monospace) typography. Templates should reuse `.card`, `.btn`, `.pill`/`.badge`,
 `.finding`, `.warn-box`/`.error-box`/`.info-box`, and the `.icon` SVG convention rather than
 hardcoding colors or new component styles — and never use emoji as icons (inline SVG only, one
-pre-existing exception in `billing.html`/`org_verify_domain.html`'s empty-state `.warn-box` not
-yet cleaned up). `base.html` also defines bare severity text-color utilities
+remaining exception in `org_verify_domain.html`'s empty-state `.warn-box`, not yet cleaned up;
+`billing.html`'s matching exception was closed in Phase 4 — its warn-box now references the
+sprite's `#icon-warning` symbol like every other `.warn-box` in the app). `base.html` also
+defines bare severity text-color utilities
 (`td.critical`/`.text-high`/etc., distinct from the `.pill`/`.badge`/`.dot` compound selectors)
 for result-table cells, `.card`'s canonical gradient/16px-radius shape (every template that uses
 it already independently converged on this — see the git history for the reconciliation), and
@@ -307,6 +336,13 @@ live scan-progress feed above and available for future redesign phases: `--telem
 steady-glow fallback for reduced-motion users, matching the discipline `marketing.html`'s
 terminal-boot typewriter already established), `.hud-grid` (a static, CSS-only ambient grid
 texture — no motion, so no reduced-motion gate needed on its own), and `.telemetry-dot`/`.done`/
-`.failed` (the feed's state-dot classes). Reuse these rather than inventing new ad hoc glow/motion
-CSS in future redesign phases (dashboard/billing/org-admin/scan_report visual passes are still
-open — see handoff.md).
+`.failed` (the feed's state-dot classes). The icon sprite also gained `#icon-warning` in Phase 4,
+authored in the sprite's own format (24×24 viewBox, `stroke-linecap`/`stroke-linejoin: round`).
+Reuse these rather than inventing new ad hoc glow/motion CSS in future redesign work.
+
+**Phase 4's dashboard/billing/org-admin/scan_report visual-consistency pass is done, reuse-only**
+(HARD-05, D-10): all four pages now use `.btn.primary` for their primary CTA instead of an older
+gradient variant, carry exactly one `.hud-grid`-textured anchor card each, show `.status-pill`'s
+dot+`.glow-pulse` on running/queued scan rows, and (billing only) an "Awaiting payment"
+`.status-pill.running` on each pending invoice. No new component, color, spacing value or motion
+pattern was introduced — every fix reused a primitive `base.html` already defined.
