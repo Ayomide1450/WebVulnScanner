@@ -289,3 +289,115 @@ def test_fire_time_ssrf_failure_does_not_pause_or_change_schedule(app, db, spawn
     refreshed = Asset.query.get(a.id)
     assert refreshed.is_paused is False
     assert _as_aware(refreshed.next_run_at) > datetime.now(timezone.utc)
+
+
+# --------------------------------------------------------------------------
+# HARD-02 / D-04: the scheduler-fired ALLOWED path for media/api schedules.
+# The tests above (test_free_tier_media_schedule_fails_without_spawning /
+# test_free_tier_api_schedule_fails_without_spawning) only cover the
+# tier-denial side of this branch; none of them prove a successful,
+# entitled-plan media/api fire actually reaches _spawn_scan_thread with the
+# right scan_type/kwargs. These tests close that gap. No "advanced" case
+# exists here by design (see the no-advanced-branch test below) - _fire()
+# has no such branch, and Asset stores no credentials for an unattended run.
+# --------------------------------------------------------------------------
+
+def test_paid_tier_media_schedule_spawns_with_unattended_defaults(app, db, spawned):
+    org = make_org(plan=Plan.PAID)
+    user = make_user("paid-media@example.com", org=org)
+    a = make_asset(org, user, schedule_scan_type="media", next_run_at=_past())
+    db.session.commit()
+
+    from webvulnscanner.scheduler import _tick
+
+    _tick(app)
+
+    scans = Scan.query.filter_by(asset_id=a.id).all()
+    assert len(scans) == 1
+    assert scans[0].status == ScanStatus.QUEUED
+    assert scans[0].asset_id == a.id
+
+    assert len(spawned) == 1
+    assert spawned[0]["scan_type"] == "media"
+    kwargs = spawned[0]["kwargs"]
+    assert kwargs["base_url"] == a.target_url
+    # download defaults False, max_files stays at the standard cap - the
+    # conservative defaults scheduler.py chooses for a run nobody is
+    # watching (scheduler.py:124-129).
+    assert kwargs["download"] is False
+    assert kwargs["max_files"] == 20
+    assert "tier" in kwargs
+
+    # A successful media fire reschedules exactly like a base fire does -
+    # not a special case.
+    refreshed = Asset.query.get(a.id)
+    assert _as_aware(refreshed.next_run_at) > datetime.now(timezone.utc)
+
+
+def test_paid_tier_api_schedule_spawns_with_target_and_tier(app, db, spawned):
+    org = make_org(plan=Plan.PAID)
+    user = make_user("paid-api@example.com", org=org)
+    a = make_asset(org, user, schedule_scan_type="api", next_run_at=_past())
+    db.session.commit()
+
+    from webvulnscanner.scheduler import _tick
+
+    _tick(app)
+
+    scans = Scan.query.filter_by(asset_id=a.id).all()
+    assert len(scans) == 1
+    assert scans[0].status == ScanStatus.QUEUED
+    assert scans[0].asset_id == a.id
+
+    assert len(spawned) == 1
+    assert spawned[0]["scan_type"] == "api"
+    kwargs = spawned[0]["kwargs"]
+    assert kwargs["base_url"] == a.target_url
+    assert "tier" in kwargs
+
+    refreshed = Asset.query.get(a.id)
+    assert _as_aware(refreshed.next_run_at) > datetime.now(timezone.utc)
+
+
+def test_fire_time_ssrf_failure_on_media_schedule_produces_failed_scan_without_spawning(
+    app, db, spawned, monkeypatch,
+):
+    # Proves the SSRF re-check runs ahead of the scan-type dispatch on the
+    # media branch too, not only on the base branch already covered above.
+    org = make_org(plan=Plan.PAID)
+    user = make_user("ssrf-media@example.com", org=org)
+    a = make_asset(org, user, target_url="https://attacker-controlled-media.example",
+                    schedule_scan_type="media", next_run_at=_past())
+    db.session.commit()
+
+    def _fake_getaddrinfo(host, port, *args, **kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 0))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo)
+
+    from webvulnscanner.scheduler import _tick
+
+    _tick(app)
+
+    scans = Scan.query.filter_by(asset_id=a.id).all()
+    assert len(scans) == 1
+    assert scans[0].status == ScanStatus.FAILED
+    assert "private" in scans[0].error_message.lower() or "internal" in scans[0].error_message.lower()
+    assert len(spawned) == 0
+
+
+def test_fire_dispatches_only_on_base_media_api_no_advanced_branch():
+    # D-04: run_advanced_scan needs per-run credentials/session cookies that
+    # Asset deliberately does not store for an unattended run, so an
+    # "advanced" branch appearing in _fire would be a scope change, not a
+    # bug fix - reading _fire's own source and asserting the exact set of
+    # scan-type literals it dispatches on is what makes that absence
+    # visible in review, rather than assumed and silently regressed later.
+    import inspect
+    import re
+
+    from webvulnscanner.scheduler import _fire
+
+    src = inspect.getsource(_fire)
+    dispatched_types = set(re.findall(r'asset\.schedule_scan_type == "(\w+)"', src))
+    assert dispatched_types == {"base", "media", "api"}
