@@ -74,7 +74,7 @@ to exactly one roadmap phase.
 
 ### Production Hardening & Reliability (HARD)
 
-- [ ] **HARD-01**: Rate limits (login, signup, invoice, and new API-token endpoints) enforce
+- [x] **HARD-01**: Rate limits (login, signup, invoice, and new API-token endpoints) enforce
       correctly even when the app runs with more than one gunicorn worker (shared rate-limit
       backend, not in-memory-only).
 
@@ -146,7 +146,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMP-02 | Phase 3 | Complete |
 | COMP-03 | Phase 3 | Complete |
 | COMP-04 | Phase 3 | Complete |
-| HARD-01 | Phase 4 | Pending |
+| HARD-01 | Phase 4 | Complete |
 | HARD-02 | Phase 4 | Complete |
 | HARD-03 | Phase 4 | Pending |
 | HARD-04 | Phase 4 | Complete |

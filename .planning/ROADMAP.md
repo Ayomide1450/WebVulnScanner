@@ -168,11 +168,11 @@ consistency coverage matching the "production ready" bar this milestone targets.
 
   4. Dashboard, billing, org-admin, and scan_report pages visually match the rest of the app's
      design system — no bland/legacy styling left on any of the four.
-**Plans**: 1/5 plans executed
+**Plans**: 2/5 plans executed
 Plans:
 
 - [x] 04-01-PLAN.md — Tracer: shared `_score_report()` helper across all 4 orchestrators (HARD-04) + direct-invocation coverage and safety-constraint regression locks for the 3 untested orchestrators (HARD-02)
-- [ ] 04-02-PLAN.md — Multi-worker rate limiting: `RATELIMIT_STORAGE_URI` proven shared via a two-limiter fakeredis test, `redis`/`fakeredis` deps, boot-time backend log (HARD-01)
+- [x] 04-02-PLAN.md — Multi-worker rate limiting: `RATELIMIT_STORAGE_URI` proven shared via a two-limiter fakeredis test, `redis`/`fakeredis` deps, boot-time backend log (HARD-01)
 - [ ] 04-03-PLAN.md — Finish the org invite flow with email-bound tokens + invite-mode signup, plus domain-verification test coverage (HARD-03)
 - [ ] 04-04-PLAN.md — Scheduler-fired media/api coverage and `_run_scan_in_background` status transitions for all 3 scan types (HARD-02, remainder)
 - [ ] 04-05-PLAN.md — Reuse-only visual consistency pass on dashboard/billing/org-admin/scan_report + phase documentation reconciliation (HARD-05)
@@ -192,4 +192,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Asset Inventory & Continuous Scanning | 2/2 | Complete | 2026-08-11 |
 | 2. API & CLI Access | 3/3 | Complete | 2026-08-11 |
 | 3. Compliance & Framework Reporting | 3/3 | Complete | 2026-08-11 |
-| 4. Production Hardening & Reliability | 1/5 | In Progress|  |
+| 4. Production Hardening & Reliability | 2/5 | In Progress|  |

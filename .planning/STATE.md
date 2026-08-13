@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: production-hardening-reliability
 status: in_progress
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-08-13T17:09:17Z"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-08-13T18:18:02.645Z"
 last_activity: 2026-08-13
 last_activity_desc: Phase 04 Plan 01 execution complete (292/292 tests passing)
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 13
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State
@@ -29,11 +29,11 @@ non-destructive scans against their own infrastructure and get findings they can
 ## Current Position
 
 Phase: 04 (production-hardening-reliability) — IN PROGRESS
-Plan: 1 of 5 complete
+Plan: 2 of 5 complete
 Status: Plan 04-01 complete (shared scoring helper + orchestrator test coverage) — ready for 04-02/04-03 (wave 1)
 Last activity: 2026-08-13 — Phase 04 Plan 01 execution complete (292/292 tests passing)
 
-Progress: [██░░░░░░░░] 20%
+Progress: [████████░░] 77%
 
 ## Performance Metrics
 
@@ -67,6 +67,7 @@ Progress: [██░░░░░░░░] 20%
 | Phase 03 P02 | 30min | 2 tasks | 3 files |
 | Phase 03 P03 | 55min | 3 tasks | 3 files |
 | Phase 04 P01 | 25min | 3 tasks | 2 files |
+| Phase 04 P02 | 15min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,7 @@ Recent decisions affecting current work:
 - [Phase 04-01]: `_score_report`'s 4-tuple return (folding in `findings_sorted`) chosen over CONCERNS.md's suggested 3-tuple, since that sort line was also duplicated identically at all four call sites (04-RESEARCH.md A1).
 - [Phase 04-01]: `run_advanced_scan` is tested via direct invocation only, by design (D-04) — `scheduler._fire()` has no "advanced" branch and `Asset` stores no credentials for an unattended run.
 - [Phase 04-01]: Grade-boundary test monkeypatches `SEVERITY_WEIGHT` to a synthetic weight scheme rather than the real 25/15/7/3 weights, because a deficit of 11 (raw_score=89) has no exact combination of the real weights (Frobenius gap between coprime 3 and 7).
+- [Phase ?]: HARD-01: RATELIMIT_STORAGE_URI proven to share rate-limit counters across independent Limiter instances via fakeredis; added lupa (human-verified) as fakeredis's required Lua-scripting extra
 
 ### Pending Todos
 
@@ -131,6 +133,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-13T17:09:17Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-08-13T18:18:02.612Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
