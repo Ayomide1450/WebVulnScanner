@@ -69,27 +69,82 @@ def _safe_next(default="/dashboard"):
 @auth.route("/signup", methods=["GET", "POST"])
 @limiter.limit("5 per hour")
 def signup():
+    # Local import to avoid a module-level circular import - org_routes.py
+    # doesn't import auth_routes.py, so this is safe, but importing lazily
+    # here (rather than at the top of the file) keeps the dependency
+    # direction obvious: auth_routes reaches into org_routes for the token
+    # codec, not the other way around.
+    from webvulnscanner.org_routes import decode_invite_token
+
+    invite_token = request.args.get("invite")
+    # Decoded without an expected_email here - this pass only pre-fills the
+    # address on GET; it never by itself authorizes an org assignment. The
+    # POST path below re-decodes with the submitted address, which is the
+    # only decode that actually grants membership (D-07).
+    invite_payload = decode_invite_token(invite_token) if invite_token else None
+    if invite_token and invite_payload is None:
+        # Tampered, expired, or unparseable - degrade to the ordinary
+        # signup path rather than 500ing or silently granting membership
+        # (04-RESEARCH.md Pitfall 6).
+        flash("This invite link is invalid or has expired. You can still sign up below.", "error")
+    invite_mode = invite_payload is not None
+    invite_email = invite_payload["email"] if invite_payload else None
+
     form = SignupForm()
+    if invite_mode and request.method == "GET":
+        form.email.data = invite_email
+
     if form.validate_on_submit():
         email = form.email.data.strip().lower()
+
+        if invite_mode:
+            payload = decode_invite_token(invite_token, expected_email=email)
+            if payload is None:
+                flash("This invite link was issued for a different email address.", "error")
+                return render_template(
+                    "signup.html", form=form, invite_mode=True, invite_email=invite_email,
+                )
+            try:
+                invite_role = Role(payload["role"])
+            except ValueError:
+                # An unrecognized role string is as untrustworthy as a bad
+                # signature - same degrade path as a tampered token.
+                flash(
+                    "This invite link is invalid or has expired. You can still sign up below.",
+                    "error",
+                )
+                return render_template("signup.html", form=form, invite_mode=False, invite_email=None)
+            invite_org_id = payload["org_id"]
+
         if User.query.filter_by(email=email).first():
             flash("An account with that email already exists.", "error")
-            return render_template("signup.html", form=form)
+            return render_template(
+                "signup.html", form=form, invite_mode=invite_mode, invite_email=invite_email,
+            )
 
         org = None
         role = Role.MEMBER
-        org_name = (form.org_name.data or "").strip()
-        if org_name:
-            org = Organization(name=org_name, plan=Plan.FREE)
-            db.session.add(org)
-            db.session.flush()  # populate org.id before the user row references it
-            role = Role.ORG_ADMIN
+        org_id = None
+        if invite_mode:
+            # Invite mode never creates a new organization, regardless of
+            # any org_name value submitted alongside it - the only org an
+            # invite-mode signup can join is the token's.
+            org_id = invite_org_id
+            role = invite_role
+        else:
+            org_name = (form.org_name.data or "").strip()
+            if org_name:
+                org = Organization(name=org_name, plan=Plan.FREE)
+                db.session.add(org)
+                db.session.flush()  # populate org.id before the user row references it
+                role = Role.ORG_ADMIN
+                org_id = org.id
 
         verify_token = secrets.token_urlsafe(32)
         user = User(
             email=email,
             password_hash=generate_password_hash(form.password.data),
-            org_id=org.id if org else None,
+            org_id=org_id,
             role=role,
             verify_token=verify_token,
         )
@@ -107,7 +162,7 @@ def signup():
         flash("Account created. Check the server console for your verification link.", "info")
         return redirect(url_for("auth.login"))
 
-    return render_template("signup.html", form=form)
+    return render_template("signup.html", form=form, invite_mode=invite_mode, invite_email=invite_email)
 
 
 @auth.route("/verify-email/<token>")

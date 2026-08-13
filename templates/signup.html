@@ -10,10 +10,15 @@
 <div class="auth-wrap">
   <div class="card">
     <h1>Sign up</h1>
-    <form method="POST" action="{{ url_for('auth.signup') }}" id="signupForm">
+    <form method="POST" action="{{ url_for('auth.signup', invite=request.args.get('invite')) if invite_mode else url_for('auth.signup') }}" id="signupForm">
       {{ form.hidden_tag() }}
       <label for="email">Email</label>
+      {% if invite_mode %}
+      {{ form.email(id="email", type="email", readonly=true, value=invite_email) }}
+      <div class="hint">This address is fixed by the invitation - it can't be changed here.</div>
+      {% else %}
       {{ form.email(id="email", type="email", placeholder="you@example.com", autocomplete="email") }}
+      {% endif %}
       {% for err in form.email.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
 
       <label for="password">Password</label>
@@ -34,10 +39,12 @@
       </div>
       {% for err in form.confirm_password.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
 
+      {% if not invite_mode %}
       <label for="org_name">Organization name (optional)</label>
       {{ form.org_name(id="org_name", type="text", placeholder="Acme Inc.") }}
       <div class="hint">Give your organization a name to create it and become its admin. Leave blank to sign up solo.</div>
       {% for err in form.org_name.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+      {% endif %}
 
       <button type="submit" id="signupSubmit">Create account</button>
     </form>

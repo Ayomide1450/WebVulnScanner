@@ -5,13 +5,16 @@ Every route here requires both `@login_required` (must be authenticated)
 and `@org_admin_required` (must be `Role.ORG_ADMIN`) - see
 `webvulnscanner/decorators.py`.
 
-Scope boundary (flagged per the plan): `/org/admin/invite` only generates
-and "sends" (console-prints, via the same `EmailSender` pattern as
-`auth_routes.py`) a signed invite link. It does NOT modify `/signup` to
-accept an `invite` query param and consume the token - that's explicitly
-called out in the plan as a follow-up needing more design discussion
-(does an invited user set their own password vs. get a temp one?) and is
-out of scope for this workstream.
+`/org/admin/invite` generates a signed, email-bound invite token and
+"sends" (console-prints, via the same `EmailSender` pattern as
+`auth_routes.py`) a link carrying it. `auth_routes.signup()` consumes that
+token: following the link in invite mode joins the signer to the inviting
+org at the invited role. The token is bound to the invited email address
+(D-07) - `decode_invite_token`'s `expected_email` check rejects a token
+redeemed under any other address, so a forwarded or leaked link cannot be
+used by someone other than the invitee. Changing an existing member's role
+after they've already joined is deliberately still not a route anywhere in
+this file (D-06) - role assignment only happens at invite time.
 """
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -60,23 +63,46 @@ def _serializer():
     return URLSafeTimedSerializer(current_app.config["SECRET_KEY"], salt=INVITE_SALT)
 
 
-def generate_invite_token(org_id, role):
-    """Signs `{org_id, role}` into an itsdangerous token for the invite link.
+def generate_invite_token(org_id, role, email):
+    """Signs `{org_id, role, email}` into an itsdangerous token for the
+    invite link.
+
+    `email` is normalized (stripped and lowercased) inside this function,
+    not by the caller, so every token's payload carries a single
+    canonical form no matter how the caller received the address - the
+    invite is bound to that normalized email (D-07): without this
+    binding, a forwarded or leaked link would grant org membership at the
+    granted role to whoever opens it, not just the intended invitee.
 
     Exposed as a module-level function (rather than inlined in the route)
     so it - and `decode_invite_token` below - can be exercised/verified
     directly without going through HTTP.
     """
-    return _serializer().dumps({"org_id": org_id, "role": role})
+    return _serializer().dumps({
+        "org_id": org_id, "role": role, "email": email.strip().lower(),
+    })
 
 
-def decode_invite_token(token):
+def decode_invite_token(token, expected_email=None):
     """Reverses `generate_invite_token`. Returns the decoded dict, or None
-    if the token is invalid/expired."""
+    if the token is invalid, expired, or (when `expected_email` is given)
+    was issued for a different address.
+
+    The email check lives here, beside the signature and expiry checks,
+    so every validity condition for an invite token has one home rather
+    than being split across call sites. Pass no `expected_email` to
+    decode without that check (e.g. to pre-fill the invited address on a
+    GET render before any address has been submitted).
+    """
     try:
-        return _serializer().loads(token, max_age=INVITE_MAX_AGE_SECONDS)
+        payload = _serializer().loads(token, max_age=INVITE_MAX_AGE_SECONDS)
     except (BadSignature, SignatureExpired):
         return None
+
+    if expected_email is not None and payload.get("email") != expected_email.strip().lower():
+        return None
+
+    return payload
 
 
 @org.route("/verify-domain", methods=["GET", "POST"])
@@ -174,20 +200,22 @@ def invite():
         return redirect(url_for("org.admin"))
 
     role = form.role.data
-    token = generate_invite_token(current_user.org_id, role)
+    invitee_email = form.email.data.strip().lower()
+    token = generate_invite_token(current_user.org_id, role, invitee_email)
     invite_link = url_for("auth.signup", invite=token, _external=True)
 
     sender = current_app.extensions["email_sender"]
     sender.send(
-        to=form.email.data.strip().lower(),
+        to=invitee_email,
         subject=f"You're invited to join {current_user.organization.name} on WebVulnScanner",
         body=(
             f"You've been invited to join {current_user.organization.name} "
             f"as {role}.\n\nClick the link below to sign up:\n\n{invite_link}\n\n"
-            "Note: this link is generated and printed to the console for now - "
-            "signup does not yet consume the invite token automatically."
+            "Note: this link is generated and printed to the console for now. "
+            "Following it joins you to the organization when you sign up, and "
+            "it expires after seven days."
         ),
     )
 
-    flash(f"Invite link generated and printed to the server console for {form.email.data}.", "info")
+    flash(f"Invite link generated and printed to the server console for {invitee_email}.", "info")
     return redirect(url_for("org.admin"))
