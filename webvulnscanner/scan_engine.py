@@ -147,17 +147,7 @@ def run_api_scan(base_url):
     results["js_discovery"] = data
     all_findings.extend(findings)
 
-    score = 100
-    for f in all_findings:
-        score -= SEVERITY_WEIGHT.get(f.severity, 0)
-    score = max(0, min(100, score))
-    risk_grade = ("A" if score >= 90 else "B" if score >= 75 else
-                  "C" if score >= 60 else "D" if score >= 40 else "F")
-
-    severity_counts = {s: 0 for s in SEVERITY_WEIGHT}
-    for f in all_findings:
-        severity_counts[f.severity] = severity_counts.get(f.severity, 0) + 1
-    findings_sorted = sorted(all_findings, key=lambda f: SEVERITY_ORDER.index(f.severity))
+    score, risk_grade, severity_counts, findings_sorted = _score_report(all_findings)
 
     return {
         "target": base_url,
@@ -261,18 +251,7 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
             advanced.get("idor_cookie_a") and advanced.get("idor_cookie_b"):
         locked.append("idor")
 
-    score = 100
-    for f in all_findings:
-        score -= SEVERITY_WEIGHT.get(f.severity, 0)
-    score = max(0, min(100, score))
-    risk_grade = ("A" if score >= 90 else "B" if score >= 75 else
-                  "C" if score >= 60 else "D" if score >= 40 else "F")
-
-    severity_counts = {s: 0 for s in SEVERITY_WEIGHT}
-    for f in all_findings:
-        severity_counts[f.severity] = severity_counts.get(f.severity, 0) + 1
-
-    findings_sorted = sorted(all_findings, key=lambda f: SEVERITY_ORDER.index(f.severity))
+    score, risk_grade, severity_counts, findings_sorted = _score_report(all_findings)
     hostname = urlparse(targets[0]).netloc if targets else "unspecified-target"
 
     return {
@@ -445,18 +424,7 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
                      finding_count=len(f_ports) if open_ports_phase else None,
                      top_severity=_top_severity(f_ports) if open_ports_phase else None)
 
-    score = 100
-    for f in all_findings:
-        score -= SEVERITY_WEIGHT.get(f.severity, 0)
-    score = max(0, min(100, score))
-    risk_grade = ("A" if score >= 90 else "B" if score >= 75 else
-                  "C" if score >= 60 else "D" if score >= 40 else "F")
-
-    severity_counts = {s: 0 for s in SEVERITY_WEIGHT}
-    for f in all_findings:
-        severity_counts[f.severity] = severity_counts.get(f.severity, 0) + 1
-
-    findings_sorted = sorted(all_findings, key=lambda f: SEVERITY_ORDER.index(f.severity))
+    score, risk_grade, severity_counts, findings_sorted = _score_report(all_findings)
 
     return {
         "target": base_url,

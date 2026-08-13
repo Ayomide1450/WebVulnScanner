@@ -168,3 +168,120 @@ def test_run_media_scan_propagates_check_media_exception(monkeypatch):
 
     with pytest.raises(requests.RequestException):
         scan_engine.run_media_scan("https://example.com", download=False, max_files=20)
+
+
+# --------------------------------------------------------------------------
+# run_api_scan
+# --------------------------------------------------------------------------
+
+
+class _RecordingSession:
+    """Records every get/post call it receives; returns a bare-HTML page
+    for `get` (run_api_scan's three check functions are stubbed out
+    entirely in these tests, so `post` is never actually called by the
+    orchestrator itself - only its own initial home-page `get` is)."""
+
+    def __init__(self):
+        self.calls = []
+
+    def get(self, url, timeout=None, **kwargs):
+        self.calls.append(("GET", url))
+        return SimpleNamespace(text="<html></html>")
+
+    def post(self, url, timeout=None, **kwargs):
+        self.calls.append(("POST", url))
+        return SimpleNamespace(text="")
+
+
+def _stub_api_checks(monkeypatch, schema=None, wordlist=None, js_discovery=None):
+    monkeypatch.setattr(scan_engine, "check_api_schema_exposure",
+                         lambda base_url, session: schema or ({}, []))
+    monkeypatch.setattr(scan_engine, "check_api_wordlist",
+                         lambda base_url, session: wordlist or ({}, []))
+    monkeypatch.setattr(scan_engine, "check_api_js_discovery",
+                         lambda session, base_url, home_html: js_discovery or ({}, []))
+
+
+def test_run_api_scan_completed_shape_no_findings(monkeypatch):
+    session = _RecordingSession()
+    monkeypatch.setattr(scan_engine, "_mk_session", lambda: session)
+    _stub_api_checks(monkeypatch)
+
+    report = scan_engine.run_api_scan("https://example.com")
+
+    assert report["score"] == 100
+    assert report["risk_grade"] == "A"
+    assert set(report["results"]) == {"schema", "wordlist", "js_discovery"}
+
+
+def test_run_api_scan_tags_finding_with_matching_check_name(monkeypatch):
+    session = _RecordingSession()
+    monkeypatch.setattr(scan_engine, "_mk_session", lambda: session)
+    finding = _finding("medium")
+    _stub_api_checks(monkeypatch, wordlist=({}, [finding]))
+
+    report = scan_engine.run_api_scan("https://example.com")
+
+    expected_score, expected_grade, _, _ = scan_engine._score_report([finding])
+    assert report["score"] == expected_score
+    assert report["risk_grade"] == expected_grade
+    assert len(report["findings"]) == 1
+    assert report["findings"][0]["check_name"] == "wordlist"
+
+
+def test_run_api_scan_propagates_exception_from_wordlist_check(monkeypatch):
+    import requests
+
+    session = _RecordingSession()
+    monkeypatch.setattr(scan_engine, "_mk_session", lambda: session)
+    monkeypatch.setattr(scan_engine, "check_api_schema_exposure", lambda base_url, session: ({}, []))
+
+    def raising_wordlist(base_url, session):
+        raise requests.RequestException("boom")
+
+    monkeypatch.setattr(scan_engine, "check_api_wordlist", raising_wordlist)
+    monkeypatch.setattr(scan_engine, "check_api_js_discovery",
+                         lambda session, base_url, home_html: ({}, []))
+
+    with pytest.raises(requests.RequestException):
+        scan_engine.run_api_scan("https://example.com")
+
+
+def test_run_api_scan_performs_exactly_one_home_page_fetch_before_any_check(monkeypatch):
+    session = _RecordingSession()
+    monkeypatch.setattr(scan_engine, "_mk_session", lambda: session)
+    _stub_api_checks(monkeypatch)
+
+    scan_engine.run_api_scan("https://example.com")
+
+    gets = [call for call in session.calls if call[0] == "GET"]
+    assert gets == [("GET", "https://example.com/")]
+
+
+# --------------------------------------------------------------------------
+# HARD-04 cross-orchestrator regression lock: none of the four orchestrators
+# may carry an inline copy of the scoring arithmetic ever again. This is
+# the source-parsing regression-lock technique tests/test_entitlements.py
+# and tests/test_compliance.py already use for their own coverage maps.
+# --------------------------------------------------------------------------
+
+
+def test_no_orchestrator_carries_an_inline_scoring_block():
+    import inspect
+
+    orchestrators = (
+        scan_engine.run_scan, scan_engine.run_advanced_scan,
+        scan_engine.run_media_scan, scan_engine.run_api_scan,
+    )
+    regressed = []
+    for fn in orchestrators:
+        src = inspect.getsource(fn)
+        has_inline_formula = "SEVERITY_WEIGHT" in src or "SEVERITY_ORDER" in src
+        calls_helper = "_score_report(" in src
+        if has_inline_formula or not calls_helper:
+            regressed.append(fn.__name__)
+    assert not regressed, (
+        f"{regressed} no longer routes its score/grade/severity_counts through "
+        "_score_report() - HARD-04's dedup has regressed (a formula change would "
+        "now need to be made in more than one place again)."
+    )
