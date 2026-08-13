@@ -41,6 +41,40 @@
   .ai-summary-card { border-left: 3px solid #8b5cf6; }
   .ai-pill { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:3px 9px; border-radius:999px; background: rgba(139,92,246,.14); color:#8b5cf6; margin-bottom:10px; }
   .ai-summary-card .body { white-space: pre-wrap; font-size: 14px; line-height:1.6; }
+
+  /* Sensitive-path probe: summary strip + per-path evidence cards. */
+  .sp-summary { background: rgba(255,255,255,.03); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:16px; }
+  .sp-summary-head { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+  .sp-overall-pill { font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; padding:4px 10px; border-radius:999px; }
+  .sp-overall-good .sp-overall-pill { background: rgba(34,197,94,.14); color: var(--accent); }
+  .sp-overall-attention .sp-overall-pill { background: rgba(251,191,36,.14); color: var(--medium); }
+  .sp-overall-critical .sp-overall-pill { background: rgba(248,113,113,.14); color: var(--critical); }
+  .sp-summary-counts { display:flex; gap:16px; flex-wrap:wrap; font-size:13px; }
+  .sp-count { display:flex; align-items:center; gap:5px; }
+  .sp-count .icon { width:13px; height:13px; }
+  .sp-passed { color: var(--accent); }
+  .sp-needs-review { color: var(--medium); }
+  .sp-confirmed { color: var(--critical); }
+  .sp-info { color: var(--muted); }
+
+  .sp-group-title { font-size:12.5px; color: var(--muted); text-transform:uppercase; letter-spacing:.06em; margin: 18px 0 8px; }
+  .sp-card { background: var(--panel); border:1px solid var(--border); border-left: 3px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
+  .sp-card.sp-confirmed { border-left-color: var(--critical); }
+  .sp-card.sp-needs_review { border-left-color: var(--medium); }
+  .sp-card.sp-passed { border-left-color: var(--accent); }
+  .sp-card.sp-informational { border-left-color: var(--info); }
+  .sp-card-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+  .sp-path { font-size:13.5px; }
+  .sp-badge { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:3px 9px; border-radius:6px; }
+  .sp-badge-passed { background: rgba(34,197,94,.14); color: var(--accent); }
+  .sp-badge-confirmed { background: rgba(248,113,113,.14); color: var(--critical); }
+  .sp-badge-needs_review { background: rgba(251,191,36,.14); color: var(--medium); }
+  .sp-badge-informational { background: rgba(139,150,173,.14); color: var(--info); }
+  .sp-confidence { font-size:10.5px; color: var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-left:auto; }
+  .sp-evidence { font-family:"Fira Code",monospace; font-size:11.5px; color: var(--muted); margin-bottom:6px; word-break: break-word; }
+  .sp-detail { font-size:13.5px; margin-bottom:4px; }
+  .sp-impact, .sp-rec { font-size:13px; color: var(--muted); margin-top:4px; }
+  .sp-rec b { color: var(--accent); }
 </style>
 {% endblock %}
 {% block content %}
@@ -203,16 +237,56 @@
     <div class="details-body">
       {% if 'sensitive_paths' in locked %}{{ locked_card('sensitive_paths') }}
       {% else %}
-      <div class="table-scroll">
-      <table>
-        <tr><th>Path</th><th>HTTP code</th><th>Status</th></tr>
-        {% for p in r.sensitive_paths %}
-        <tr><td><code>{{ p.path }}</code></td><td>{{ p.code if p.code is not none else 'error' }}</td>
-          <td class="{{ 'critical' if p.status=='warn' else ('info' if p.status=='recommend' else 'pass') }}">
-            {{ 'EXPOSED' if p.status=='warn' else ('RECOMMENDED' if p.status=='recommend' else 'OK') }}</td></tr>
-        {% endfor %}
-      </table>
+      {% set sp = r.sensitive_paths %}
+      {% set sm = sp.summary %}
+      <div class="sp-summary sp-overall-{{ sm.overall }}">
+        <div class="sp-summary-head">
+          <span class="sp-overall-pill">
+            {% if sm.overall == 'critical' %}Critical risk{% elif sm.overall == 'attention' %}Attention required{% else %}Good{% endif %}
+          </span>
+          <span class="note">{{ sm.total }} path{{ 's' if sm.total != 1 }} tested</span>
+        </div>
+        <div class="sp-summary-counts">
+          <span class="sp-count sp-passed"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>{{ sm.passed }} Passed</span>
+          <span class="sp-count sp-needs-review">! {{ sm.needs_review }} Needs review</span>
+          <span class="sp-count sp-confirmed">&#9888; {{ sm.confirmed }} Confirmed exposed</span>
+          <span class="sp-count sp-info">{{ sm.informational }} Informational</span>
+        </div>
       </div>
+
+      {% set group_order = ['source_config', 'backup', 'cloud_config', 'app_discovery', 'security_policy'] %}
+      {% for gid in group_order %}
+        {% set group_rows = sp.rows|selectattr('group', 'equalto', gid)|list %}
+        {% if group_rows %}
+        <h3 class="sp-group-title">{{ group_rows[0].group_label }}</h3>
+        {% for p in group_rows %}
+        <div class="sp-card sp-{{ p.classification }}">
+          <div class="sp-card-head">
+            <code class="sp-path">{{ p.path }}</code>
+            <span class="sp-badge sp-badge-{{ p.classification }}">
+              {% if p.classification == 'passed' %}&#10003; PASSED
+              {% elif p.classification == 'confirmed' %}&#9888; {{ p.severity|upper }} &middot; CONFIRMED EXPOSURE
+              {% elif p.classification == 'needs_review' %}! NEEDS REVIEW
+              {% else %}INFORMATIONAL{% endif %}
+            </span>
+            {% if p.confidence %}<span class="sp-confidence">{{ p.confidence|upper }} CONFIDENCE</span>{% endif %}
+          </div>
+          {% if p.evidence %}
+          <div class="sp-evidence">
+            HTTP {{ p.evidence.status if p.evidence.status is not none else 'error' }}
+            {% if p.evidence.redirect_chain %} &middot; redirected {{ p.evidence.redirect_chain|length }}x &rarr; {{ p.evidence.final_url }}{% endif %}
+            {% if p.evidence.content_type %} &middot; {{ p.evidence.content_type }}{% endif %}
+            {% if p.evidence.size %} &middot; {{ p.evidence.size }} bytes{% endif %}
+            {% if p.evidence.response_time_ms %} &middot; {{ p.evidence.response_time_ms }}ms{% endif %}
+          </div>
+          {% endif %}
+          <div class="sp-detail">{{ p.detail }}</div>
+          {% if p.impact %}<div class="sp-impact"><b>Impact:</b> {{ p.impact }}</div>{% endif %}
+          {% if p.recommendation %}<div class="sp-rec"><b>Recommendation:</b> {{ p.recommendation }}</div>{% endif %}
+        </div>
+        {% endfor %}
+        {% endif %}
+      {% endfor %}
       {% endif %}
     </div>
   </details>

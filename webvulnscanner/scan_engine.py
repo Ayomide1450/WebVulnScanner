@@ -269,10 +269,9 @@ def _extract_detail(name, data):
     is known-safe to introspect here get an entry; everything else stays
     None (the row still shows a complete label + status, just no extra
     line). Deliberately conservative: the jobs dict's checks return a mix
-    of dicts and lists depending on the check (e.g. check_sensitive_paths
-    returns a bare list), so guessing at an unlisted check's shape here
-    risks an AttributeError mid-scan - the isinstance guard is load-bearing,
-    not decorative."""
+    of dicts and lists depending on the check, so guessing at an unlisted
+    check's shape here risks an AttributeError mid-scan - the isinstance
+    guard is load-bearing, not decorative."""
     if name == "tls" and isinstance(data, dict) and data.get("issuer"):
         return f"{data['issuer']} · {data.get('days_left', '?')}d left"
     return None

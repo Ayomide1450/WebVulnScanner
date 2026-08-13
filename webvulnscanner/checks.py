@@ -158,6 +158,64 @@ SENSITIVE_PATHS = [
     "_next/static/chunks/webpack.js", "api/health",
 ]
 
+# ---------------------------------------------------------------------------
+# check_sensitive_paths() data model.
+#
+# Each probed path belongs to one of these categories, purely for grouping
+# in the report - detection logic below is the same for every category.
+# "source_config" = source/VCS/app config leakage, "backup" = backup/dump
+# files, "cloud_config" = cloud provider credential files, "app_discovery" =
+# informational endpoints that are never themselves a vulnerability.
+SENSITIVE_PATH_GROUPS = [
+    ("source_config", "Source & Configuration Exposure", [
+        ".env", ".env.local", ".env.production", ".git/config", ".git/HEAD",
+        ".svn/entries", "config.json", "settings.json", "docker-compose.yml",
+        ".DS_Store",
+    ]),
+    ("backup", "Backup Exposure", [
+        "wp-config.php.bak", "config.php.bak", "package.json.bak",
+        "backup.zip", "backup.tar.gz", "db.sql", "database.sql", "dump.sql",
+    ]),
+    ("cloud_config", "Cloud Credential Exposure", [
+        ".aws/credentials",
+    ]),
+    ("app_discovery", "Application Discovery", [
+        "_next/static/chunks/webpack.js", "api/health",
+    ]),
+]
+
+# Content-signature checks used to decide whether a 200 response actually
+# contains the sensitive artifact it claims to be, rather than trusting the
+# status code alone (see check_sensitive_paths' docstring). Each entry is a
+# (path-suffix-match-fn, signature-regex, human label) tuple; the regex is
+# checked against the response body (first SIGNATURE_SCAN_BYTES only - never
+# the full body, and never stored past this function).
+SIGNATURE_SCAN_BYTES = 8000
+PATH_SIGNATURES = {
+    ".env": (re.compile(r"^[A-Z][A-Z0-9_]{2,}\s*=", re.M), "environment-variable syntax (KEY=value)"),
+    ".env.local": (re.compile(r"^[A-Z][A-Z0-9_]{2,}\s*=", re.M), "environment-variable syntax (KEY=value)"),
+    ".env.production": (re.compile(r"^[A-Z][A-Z0-9_]{2,}\s*=", re.M), "environment-variable syntax (KEY=value)"),
+    ".git/config": (re.compile(r"\[core\]|repositoryformatversion", re.I), "Git configuration structure"),
+    ".git/HEAD": (re.compile(r"^ref:\s*refs/", re.I), "Git HEAD reference"),
+    ".svn/entries": (re.compile(r"svn|dir\b", re.I), "Subversion entries format"),
+    "config.json": (re.compile(r'"(db|database|password|secret|api[_-]?key)"', re.I), "sensitive configuration keys"),
+    "settings.json": (re.compile(r'"(db|database|password|secret|api[_-]?key)"', re.I), "sensitive configuration keys"),
+    "docker-compose.yml": (re.compile(r"^\s*services:", re.M | re.I), "docker-compose service definitions"),
+    "wp-config.php.bak": (re.compile(r"DB_PASSWORD|DB_NAME|<\?php", re.I), "WordPress database credentials"),
+    "config.php.bak": (re.compile(r"<\?php|password", re.I), "PHP configuration source"),
+    "package.json.bak": (re.compile(r'"name"\s*:\s*".*"\s*,.*"version"', re.S), "package.json structure"),
+    "db.sql": (re.compile(r"-- MySQL dump|CREATE TABLE|INSERT INTO", re.I), "SQL dump signature"),
+    "database.sql": (re.compile(r"-- MySQL dump|CREATE TABLE|INSERT INTO", re.I), "SQL dump signature"),
+    "dump.sql": (re.compile(r"-- MySQL dump|CREATE TABLE|INSERT INTO", re.I), "SQL dump signature"),
+    ".aws/credentials": (re.compile(r"\[default\]|aws_access_key_id", re.I), "AWS credentials file format"),
+}
+# Binary magic-byte signatures for archive-style backups where a text regex
+# doesn't apply - checked against the raw response bytes instead.
+BINARY_PATH_SIGNATURES = {
+    "backup.zip": (b"PK\x03\x04", "ZIP archive header"),
+    "backup.tar.gz": (b"\x1f\x8b", "gzip archive header"),
+}
+
 SECURITY_HEADERS = [
     ("strict-transport-security", "Strict-Transport-Security", "Forces HTTPS on future visits.", "high"),
     ("content-security-policy", "Content-Security-Policy", "Restricts what scripts/styles/frames can load.", "high"),
@@ -340,38 +398,286 @@ def check_https_redirect(base_url, session):
         return {"status": "info", "detail": f"Could not reach plain HTTP: {e}"}, []
 
 
+def _extract_title(text):
+    m = re.search(r"<title[^>]*>(.*?)</title>", text, re.I | re.S)
+    return re.sub(r"\s+", " ", m.group(1)).strip()[:120] if m else ""
+
+
+def _fingerprint_response(r):
+    """Reduces a response down to the handful of signals used for both the
+    soft-404 baseline comparison and general evidence display - never keeps
+    the response body itself past this call."""
+    text = r.text or ""
+    return {
+        "status": r.status_code,
+        "content_type": (r.headers.get("Content-Type") or "").split(";")[0].strip(),
+        "size": len(r.content or b""),
+        "title": _extract_title(text[:SIGNATURE_SCAN_BYTES]),
+    }
+
+
+def _looks_like_baseline(fp, baseline):
+    """True if a probe's response fingerprint is close enough to the site's
+    known-nonexistent-URL baseline that a 200 (or any other status) is
+    almost certainly a "soft 404" - a custom not-found/SPA-shell page that
+    happens to answer every path with the same content - rather than
+    evidence the requested file actually exists. Uses several independent,
+    individually-weak signals together (status, content-type, page title,
+    response size within 15%) instead of one brittle exact match, per the
+    "avoid brittle exact string matching" requirement."""
+    if baseline is None:
+        return False
+    score = 0
+    if fp["status"] == baseline["status"]:
+        score += 1
+    if fp["content_type"] and fp["content_type"] == baseline["content_type"]:
+        score += 1
+    if fp["title"] and fp["title"] == baseline["title"]:
+        score += 2  # identical <title> across "different" pages is a strong soft-404 tell
+    if baseline["size"] > 0:
+        diff_ratio = abs(fp["size"] - baseline["size"]) / baseline["size"]
+        if diff_ratio < 0.15:
+            score += 1
+    return score >= 2
+
+
+def _content_signature_match(path, r):
+    """Returns (matched: bool, label: str|None) - whether the response body
+    actually contains the artifact `path` claims to be, not just that the
+    server returned 200 for it. Only inspects the first SIGNATURE_SCAN_BYTES
+    of the body and never retains it."""
+    if path in BINARY_PATH_SIGNATURES:
+        magic, label = BINARY_PATH_SIGNATURES[path]
+        return (r.content or b"")[:16].startswith(magic), label
+    sig = PATH_SIGNATURES.get(path)
+    if not sig:
+        return False, None
+    pattern, label = sig
+    return bool(pattern.search((r.text or "")[:SIGNATURE_SCAN_BYTES])), label
+
+
+# Severity/remediation text keyed by path - used only when a path is
+# CONFIRMED exposed (status 200, not a soft-404, content signature matched).
+# Falls back to a generic "high"/generic remediation for any path not
+# listed explicitly (e.g. future additions to SENSITIVE_PATH_GROUPS).
+CONFIRMED_EXPOSURE_SEVERITY = {
+    ".env": "critical", ".env.local": "critical", ".env.production": "critical",
+    ".aws/credentials": "critical", "db.sql": "critical", "database.sql": "critical",
+    "dump.sql": "critical", "wp-config.php.bak": "critical", "config.php.bak": "critical",
+    ".git/config": "high", ".git/HEAD": "high", ".svn/entries": "high",
+    "backup.zip": "high", "backup.tar.gz": "high", "package.json.bak": "medium",
+    "config.json": "medium", "settings.json": "medium", "docker-compose.yml": "medium",
+    ".DS_Store": "low",
+}
+CONFIRMED_EXPOSURE_IMPACT = {
+    ".env": "Environment files commonly hold database credentials, API keys, and other application secrets.",
+    ".git/config": "A leaked .git directory can let an attacker reconstruct source code and commit history.",
+    ".git/HEAD": "A leaked .git directory can let an attacker reconstruct source code and commit history.",
+    ".aws/credentials": "AWS access keys grant direct access to cloud infrastructure and data.",
+}
+DEFAULT_IMPACT = "This file can expose internal configuration, credentials, or source code to anyone who requests it."
+CONFIRMED_EXPOSURE_REMEDIATION = {
+    ".env": "Remove the file from the public web root, prevent env files from being deployed, and rotate any exposed credentials.",
+    ".env.local": "Remove the file from the public web root, prevent env files from being deployed, and rotate any exposed credentials.",
+    ".env.production": "Remove the file from the public web root, prevent env files from being deployed, and rotate any exposed credentials.",
+    ".git/config": "Remove Git metadata from the public web root and ensure deployment artifacts never include the .git directory.",
+    ".git/HEAD": "Remove Git metadata from the public web root and ensure deployment artifacts never include the .git directory.",
+    ".aws/credentials": "Remove the file immediately and rotate the exposed AWS access keys.",
+    "db.sql": "Remove the database dump immediately and rotate any credentials contained within it.",
+    "database.sql": "Remove the database dump immediately and rotate any credentials contained within it.",
+    "dump.sql": "Remove the database dump immediately and rotate any credentials contained within it.",
+    "wp-config.php.bak": "Remove backup configuration files from the public web root and store backups outside it.",
+    "config.php.bak": "Remove backup configuration files from the public web root and store backups outside it.",
+}
+DEFAULT_REMEDIATION = "Remove this file from the public web root or block it at the edge (WAF/redirect rule)."
+
+
 def check_sensitive_paths(base_url, session):
+    """Probes a curated list of commonly-leaked paths (SENSITIVE_PATH_GROUPS)
+    and classifies each result as PASSED / INFORMATIONAL / NEEDS_REVIEW /
+    CONFIRMED, instead of trusting the HTTP status code alone:
+
+    - A 404 is only PASSED once it's also compared against a live baseline -
+      a request to a randomly-generated, definitely-nonexistent URL - so a
+      site that "soft-404s" with a 200 (a custom not-found page or SPA
+      shell that answers every path) doesn't get reported as exposing every
+      sensitive file it was asked about. See _looks_like_baseline().
+    - A 403 is reported as NEEDS_REVIEW ("blocked"), never as evidence the
+      file exists - it proves access is denied, not that the resource is
+      actually there.
+    - A 200 only becomes CONFIRMED exposure once the response body/bytes
+      actually match a signature for that specific artifact (env-var
+      syntax, Git config structure, a SQL dump header, ...) - see
+      _content_signature_match(). A 200 that doesn't match any signature
+      (and isn't a soft-404 match either) is reported as NEEDS_REVIEW rather
+      than a confirmed vulnerability, per the "prefer 'not confirmed' over
+      an unsupported claim" principle.
+    """
     rows, findings = [], []
 
     def probe(path):
         try:
-            r = session.get(f"{base_url}/{path}", timeout=REQUEST_TIMEOUT, allow_redirects=False)
-            return path, r.status_code
-        except requests.RequestException:
-            return path, None
+            r = session.get(f"{base_url}/{path}", timeout=REQUEST_TIMEOUT, allow_redirects=True)
+            return path, r, None
+        except requests.RequestException as e:
+            return path, None, str(e)
+
+    # Baseline: a randomly-generated path that cannot exist, used to detect
+    # "soft 404" behavior (see module docstring above and _looks_like_baseline).
+    baseline = None
+    try:
+        probe_id = f"wvscan-nonexistent-{os.urandom(6).hex()}"
+        br = session.get(f"{base_url}/{probe_id}", timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        baseline = _fingerprint_response(br)
+    except requests.RequestException:
+        pass  # baseline stays None -> soft-404 detection is simply skipped below
+
+    all_paths = [p for _, _, paths in SENSITIVE_PATH_GROUPS for p in paths]
+    group_of = {p: (gid, glabel) for gid, glabel, paths in SENSITIVE_PATH_GROUPS for p in paths}
 
     with ThreadPoolExecutor(max_workers=8) as pool:
-        for path, code in pool.map(probe, SENSITIVE_PATHS):
-            status = "warn" if code == 200 else "pass"
-            rows.append({"path": "/" + path, "code": code, "status": status})
-            if status == "warn":
-                findings.append(Finding("Exposure", f"Publicly reachable: /{path}", "critical",
-                                         f"Returned HTTP 200 - likely leaks source, secrets, or backups.",
-                                         "Remove the file/route or block it at the edge (WAF/redirect rule)."))
+        results = list(pool.map(probe, all_paths))
 
+    for path, r, error in results:
+        group_id, group_label = group_of[path]
+        row = {
+            "path": "/" + path, "group": group_id, "group_label": group_label,
+            "evidence": {}, "classification": "", "severity": "info", "confidence": "high",
+            "title": "", "detail": "", "recommendation": "", "impact": "",
+        }
+
+        if error is not None:
+            row.update(classification="informational", title="Could not be reached",
+                       detail=f"The request failed: {error}", confidence="low")
+            rows.append(row)
+            continue
+
+        redirect_chain = [h.url for h in r.history]
+        fp = _fingerprint_response(r)
+        row["evidence"] = {
+            "status": r.status_code, "final_url": r.url, "redirect_chain": redirect_chain,
+            "content_type": fp["content_type"], "size": fp["size"],
+            "response_time_ms": int(r.elapsed.total_seconds() * 1000),
+        }
+
+        # app_discovery paths are informational-only, regardless of status -
+        # a missing /api/health or webpack chunk is never itself a finding.
+        if group_id == "app_discovery":
+            if r.status_code == 200:
+                row.update(classification="informational", title="Endpoint reachable",
+                           detail="This endpoint responded, which is expected for a discovery/health probe and "
+                                  "is not itself a vulnerability.", confidence="high")
+            else:
+                row.update(classification="informational", title="Endpoint not detected",
+                           detail=f"HTTP {r.status_code} - the endpoint was not found.", confidence="high")
+            rows.append(row)
+            continue
+
+        if r.status_code == 403:
+            row.update(classification="needs_review", severity="low", confidence="low",
+                       title="Blocked / Access Denied",
+                       detail="The requested sensitive path returned HTTP 403. This indicates the server or a "
+                              "security layer is blocking access, but the response does not prove the "
+                              "underlying file exists.",
+                       recommendation="Verify that the sensitive file/path does not exist on the production "
+                                       "server and that this blocking rule is intentional.")
+            findings.append(Finding("Sensitive Path Exposure", f"Blocked path returned 403: /{path}", "low",
+                                     row["detail"], row["recommendation"]))
+            rows.append(row)
+            continue
+
+        if r.status_code >= 500:
+            row.update(classification="needs_review", severity="info", confidence="low",
+                       title="Server error",
+                       detail=f"The request returned HTTP {r.status_code}. This is inconclusive and may be a "
+                                "transient issue rather than evidence about the resource.",
+                       recommendation="Re-run the scan later; investigate manually if the error persists.")
+            rows.append(row)
+            continue
+
+        if r.status_code == 404:
+            row.update(classification="passed", severity="info", confidence="high",
+                       title="Not found", detail="The resource was not found (HTTP 404).")
+            rows.append(row)
+            continue
+
+        # Everything else (200, redirects that resolved to a 200, etc.) needs
+        # the soft-404 / content-signature evidence to decide what it means.
+        if baseline is not None and _looks_like_baseline(fp, baseline):
+            row.update(classification="passed", severity="info", confidence="high",
+                       title="Not found (soft 404)",
+                       detail="The response matched the site's own behavior for a known-nonexistent URL - this "
+                              "looks like a custom not-found page or SPA fallback, not the requested file.")
+            rows.append(row)
+            continue
+
+        matched, sig_label = _content_signature_match(path, r)
+        if matched:
+            sev = CONFIRMED_EXPOSURE_SEVERITY.get(path, "high")
+            impact = CONFIRMED_EXPOSURE_IMPACT.get(path, DEFAULT_IMPACT)
+            remediation = CONFIRMED_EXPOSURE_REMEDIATION.get(path, DEFAULT_REMEDIATION)
+            row.update(classification="confirmed", severity=sev, confidence="high",
+                       title="Confirmed exposure",
+                       detail=f"The endpoint returned HTTP {r.status_code} and the response body matched "
+                              f"{sig_label}.",
+                       impact=impact, recommendation=remediation)
+            findings.append(Finding("Sensitive Path Exposure", f"Confirmed exposure: /{path}", sev,
+                                     row["detail"] + " " + impact, remediation))
+        else:
+            row.update(classification="needs_review", severity="medium", confidence="medium",
+                       title="Reachable, not confirmed",
+                       detail=f"The endpoint returned HTTP {r.status_code} but the response body did not match "
+                              "a known signature for this file type - this may be a false positive (e.g. a "
+                              "generic page served for every path).",
+                       recommendation="Manually verify whether the file is actually present at this path.")
+            findings.append(Finding("Sensitive Path Exposure", f"Unconfirmed reachable path: /{path}", "medium",
+                                     row["detail"], row["recommendation"]))
+        rows.append(row)
+
+    # security.txt stays its own informational-only probe (not a vulnerability
+    # either way), same behavior as before this rewrite, just carrying the
+    # richer row shape the report template now expects.
     try:
         r = session.get(f"{base_url}/.well-known/security.txt", timeout=REQUEST_TIMEOUT)
-        if r.status_code == 200:
-            rows.append({"path": "/.well-known/security.txt", "code": 200, "status": "pass"})
+        if r.status_code == 200 and re.search(r"^Contact:", r.text, re.M | re.I):
+            rows.append({"path": "/.well-known/security.txt", "group": "security_policy",
+                         "group_label": "Security Policy", "classification": "informational",
+                         "severity": "info", "confidence": "high", "title": "Security contact policy found",
+                         "detail": "A security.txt document was published with a Contact field.",
+                         "recommendation": "", "impact": "",
+                         "evidence": {"status": 200, "final_url": r.url, "redirect_chain": [],
+                                      "content_type": (r.headers.get("Content-Type") or "").split(";")[0],
+                                      "size": len(r.content or b""),
+                                      "response_time_ms": int(r.elapsed.total_seconds() * 1000)}})
         else:
-            rows.append({"path": "/.well-known/security.txt", "code": r.status_code, "status": "recommend"})
-            findings.append(Finding("Exposure", "No security.txt published", "info",
+            rows.append({"path": "/.well-known/security.txt", "group": "security_policy",
+                         "group_label": "Security Policy", "classification": "informational",
+                         "severity": "info", "confidence": "high",
+                         "title": "Security contact policy not found",
+                         "detail": "No standard contact for responsible vulnerability disclosure was found.",
+                         "recommendation": "Consider publishing /.well-known/security.txt with a contact email "
+                                            "so security researchers know how to report issues.",
+                         "impact": "",
+                         "evidence": {"status": r.status_code, "final_url": r.url, "redirect_chain": [],
+                                      "content_type": "", "size": 0, "response_time_ms": 0}})
+            findings.append(Finding("Sensitive Path Exposure", "No security.txt published", "info",
                                      "No standard contact for responsible vulnerability disclosure.",
                                      "Publish /.well-known/security.txt with a contact email."))
     except requests.RequestException:
         pass
 
-    return rows, findings
+    summary = {"total": len(rows)}
+    for key in ("passed", "informational", "needs_review", "confirmed"):
+        summary[key] = sum(1 for row in rows if row["classification"] == key)
+    if summary["confirmed"]:
+        overall = "critical" if any(row["severity"] == "critical" for row in rows if row["classification"] == "confirmed") else "attention"
+    elif summary["needs_review"]:
+        overall = "attention"
+    else:
+        overall = "good"
+    summary["overall"] = overall
+
+    return {"rows": rows, "summary": summary}, findings
 
 
 def check_robots_sitemap(base_url, session):
