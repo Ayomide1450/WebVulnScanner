@@ -195,3 +195,98 @@ def test_signup_without_invite_param_renders_ordinary_form(client):
     assert resp.status_code == 200
     assert "org_name" in html
     assert "readonly" not in html
+
+
+# --------------------------------------------------------------------------
+# Token failure paths - not optional. decode_invite_token had no callers
+# (and therefore no coverage) before this phase, so its exception handling
+# and org-binding are being proved for the first time here, not
+# re-verified - the signup route now depends on this behavior being
+# correct (04-RESEARCH.md Pitfall 6).
+# --------------------------------------------------------------------------
+
+def test_decode_invite_token_rejects_tampered_signature(app):
+    with app.app_context():
+        token = generate_invite_token(org_id=5, role="member", email="invitee@example.com")
+        # Flip a single character in the signed payload/signature.
+        tampered = token[:-1] + ("a" if token[-1] != "a" else "b")
+        assert decode_invite_token(tampered) is None
+        assert decode_invite_token(tampered, expected_email="invitee@example.com") is None
+
+
+def test_decode_invite_token_rejects_expired_token(app, monkeypatch):
+    import webvulnscanner.org_routes as org_routes_module
+
+    with app.app_context():
+        token = generate_invite_token(org_id=5, role="member", email="invitee@example.com")
+        # Force the expiry branch deterministically rather than assuming
+        # it works because INVITE_MAX_AGE_SECONDS is generously set.
+        monkeypatch.setattr(org_routes_module, "INVITE_MAX_AGE_SECONDS", -1)
+        assert decode_invite_token(token) is None
+
+
+def test_decode_invite_token_preserves_exact_org_id(app):
+    # A token generated for one organization cannot be made to resolve to
+    # another - the decoded org_id is exactly the one signed in.
+    with app.app_context():
+        token_a = generate_invite_token(org_id=7, role="member", email="invitee@example.com")
+        token_b = generate_invite_token(org_id=42, role="member", email="invitee@example.com")
+        assert decode_invite_token(token_a)["org_id"] == 7
+        assert decode_invite_token(token_b)["org_id"] == 42
+
+
+def test_decode_invite_token_normalizes_case_and_whitespace_on_both_sides(app):
+    # Exercises Pitfall 7 exactly: an admin typing a mixed-case address at
+    # invite time, and the invitee typing it lowercase (with incidental
+    # whitespace) at signup, must still match.
+    with app.app_context():
+        token = generate_invite_token(org_id=5, role="member", email="  Invitee@Example.Com  ")
+        decoded = decode_invite_token(token, expected_email=" invitee@example.com ")
+    assert decoded is not None
+    assert decoded["email"] == "invitee@example.com"
+
+
+# --------------------------------------------------------------------------
+# invite() route authorization/validation
+# --------------------------------------------------------------------------
+
+def test_invite_route_refuses_non_admin_member(client, db, spy_sender):
+    org = make_org()
+    make_user("member@example.com", org=org, role=Role.MEMBER)
+    db.session.commit()
+    login(client, "member@example.com")
+
+    resp = client.post(
+        "/org/admin/invite",
+        data={"email": "newbie@example.com", "role": Role.MEMBER.value},
+    )
+    assert resp.status_code == 403
+    assert spy_sender.sent == []
+
+
+def test_invite_route_rejects_invalid_email_and_sends_nothing(client, db, spy_sender):
+    org = make_org()
+    make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
+    db.session.commit()
+    login(client, "admin@example.com")
+
+    resp = client.post(
+        "/org/admin/invite",
+        data={"email": "not-an-email", "role": Role.MEMBER.value},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert spy_sender.sent == []
+
+
+def test_org_admin_page_no_longer_claims_signup_ignores_invites(client, db):
+    org = make_org()
+    make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
+    db.session.commit()
+    login(client, "admin@example.com")
+
+    resp = client.get("/org/admin")
+    html = resp.get_data(as_text=True)
+    assert resp.status_code == 200
+    assert "does not yet auto-apply" not in html
+    assert "seven days" in html
