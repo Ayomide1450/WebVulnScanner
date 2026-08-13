@@ -82,7 +82,7 @@ to exactly one roadmap phase.
       test coverage for status transitions and error handling, matching what `run_scan` already
       has in `tests/test_scan_events.py`.
 
-- [ ] **HARD-03**: Org invite / role-change / domain-verification flows have automated test
+- [x] **HARD-03**: Org invite / role-change / domain-verification flows have automated test
       coverage beyond the current single rendering test in `tests/test_org_routes.py`.
 
 - [x] **HARD-04**: Scoring logic (risk score, letter grade, `severity_counts`) is deduplicated into
@@ -148,7 +148,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COMP-04 | Phase 3 | Complete |
 | HARD-01 | Phase 4 | Complete |
 | HARD-02 | Phase 4 | Complete |
-| HARD-03 | Phase 4 | Pending |
+| HARD-03 | Phase 4 | Complete |
 | HARD-04 | Phase 4 | Complete |
 | HARD-05 | Phase 4 | Pending |
 
