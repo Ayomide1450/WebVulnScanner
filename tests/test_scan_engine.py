@@ -1,24 +1,27 @@
 """
-Tests for webvulnscanner/scan_engine.py's shared scoring helper and the
-three orchestrators that previously had no automated coverage at all
-(HARD-04, HARD-02 / D-02, D-03, D-04).
+Tests for webvulnscanner/scan_engine.py's shared scoring helper (HARD-04)
+and the three orchestrators that previously had no automated coverage at
+all - run_media_scan, run_api_scan, run_advanced_scan (HARD-02 / D-02,
+D-03, D-04).
 
 - `_score_report` section: unit tests for the arithmetic/grading/ordering
   the four orchestrators now share (score clamp, grade boundaries,
   severity_counts completeness, findings_sorted ordering/non-mutation, the
-  ValueError on an unrecognised severity).
-- `run_media_scan` section (this task; `run_api_scan`/`run_advanced_scan`
-  follow in later tasks): direct-invocation, fully-mocked coverage of the
-  orchestrator's completed return shape and error-propagation path. Every
-  check function is stubbed on `scan_engine`'s own module namespace (never
-  on `webvulnscanner.checks`) - `scan_engine.py` does
-  `from webvulnscanner.checks import check_x`, so patching `checks.check_x`
-  would not intercept the orchestrator's call and the test would silently
-  hit the network. See `tests/test_scan_events.py`'s module docstring for
-  the same caveat, already established for `run_scan`.
+  ValueError on an unrecognised severity), plus a cross-orchestrator
+  source-parsing regression lock asserting none of the four re-inlines the
+  formula.
+- `run_media_scan` / `run_api_scan` / `run_advanced_scan` sections:
+  direct-invocation, fully-mocked coverage of each orchestrator's completed
+  return shape and error-propagation path. Every check function is stubbed
+  on `scan_engine`'s own module namespace (never on `webvulnscanner.checks`)
+  - `scan_engine.py` does `from webvulnscanner.checks import check_x`, so
+  patching `checks.check_x` would not intercept the orchestrator's call and
+  the test would silently hit the network. See `tests/test_scan_events.py`'s
+  module docstring for the same caveat, already established for `run_scan`.
   No test in this module touches the DB or a `Scan` row - the
   status-transition half of HARD-02 (`scan_routes._run_scan_in_background`)
-  lives in plan 04-04, not here.
+  lives in plan 04-04, not here. `run_advanced_scan` is exercised via direct
+  invocation only (D-04): `scheduler._fire()` has no `"advanced"` branch.
 
 The "Safety-constraint regression locks (D-02)" section calls
 `webvulnscanner.checks` directly rather than through an orchestrator,
@@ -33,6 +36,7 @@ import pytest
 
 from webvulnscanner import scan_engine
 from webvulnscanner.checks import Finding, SEVERITY_WEIGHT
+from webvulnscanner.entitlements import Tier
 
 # --------------------------------------------------------------------------
 # _score_report
@@ -285,3 +289,261 @@ def test_no_orchestrator_carries_an_inline_scoring_block():
         "_score_report() - HARD-04's dedup has regressed (a formula change would "
         "now need to be made in more than one place again)."
     )
+
+
+# --------------------------------------------------------------------------
+# run_advanced_scan
+#
+# run_advanced_scan is exercised via direct invocation only (D-04) -
+# scheduler._fire() has no "advanced" branch to fire, so there is no
+# scheduler-fired test for it, by design (see the comment above the
+# function in scan_engine.py).
+# --------------------------------------------------------------------------
+
+
+def _full_advanced_form():
+    """Every field `_parse_advanced_form` (scan_routes.py) produces, all
+    populated with obviously-fake example.com literals - mirrors the full
+    field set a real advanced-scan submission would carry, so an
+    "everything locked below tier" test actually exercises all five
+    independent lock branches (04-RESEARCH.md Pitfall 5)."""
+    return {
+        "login_url": "https://example.com/login",
+        "user_field": "username",
+        "pass_field": "password",
+        "fail_text": "invalid credentials",
+        "bruteforce_username": "testuser",
+        "bruteforce_passwords": ["pw1", "pw2", "pw3", "pw4", "pw5", "pw6", "pw7"],
+        "sqli_union_url": "https://example.com/products?id=1",
+        "sqli_union_param": "id",
+        "stored_xss_submit_url": "https://example.com/comment",
+        "stored_xss_field": "body",
+        "stored_xss_view_url": "https://example.com/comments",
+        "stored_xss_cookie": "session=fake-test-cookie-value",
+        "idor_url_template": "https://example.com/orders/{id}",
+        "idor_ids": ["1", "2", "3"],
+        "idor_cookie_a": "session=fake-account-a-cookie",
+        "idor_cookie_b": "session=fake-account-b-cookie",
+    }
+
+
+ALL_GROUP_NAMES = {"sqli_login", "bruteforce", "sqli_union", "xss_stored", "idor"}
+
+
+def _stub_advanced_checks(monkeypatch):
+    """Patches every check function run_advanced_scan can call, plus
+    _mk_session, to network-free recording stubs. Returns a dict of
+    call-argument-tuple lists keyed by check name so tests can assert call
+    counts/arguments without ever reaching webvulnscanner.checks."""
+    calls = {name: [] for name in ALL_GROUP_NAMES}
+
+    def make_stub(name):
+        def _stub(*args):
+            calls[name].append(args)
+            return {}, []
+        return _stub
+
+    monkeypatch.setattr(scan_engine, "_mk_session", lambda: SimpleNamespace())
+    monkeypatch.setattr(scan_engine, "check_sqli_login", make_stub("sqli_login"))
+    monkeypatch.setattr(scan_engine, "check_bruteforce", make_stub("bruteforce"))
+    monkeypatch.setattr(scan_engine, "check_sqli_union", make_stub("sqli_union"))
+    monkeypatch.setattr(scan_engine, "check_xss_stored", make_stub("xss_stored"))
+    monkeypatch.setattr(scan_engine, "check_idor", make_stub("idor"))
+    return calls
+
+
+def test_run_advanced_scan_all_allowed_runs_every_group_and_locks_nothing(monkeypatch):
+    calls = _stub_advanced_checks(monkeypatch)
+
+    report = scan_engine.run_advanced_scan(_full_advanced_form(), Tier.ORG_VERIFIED, True)
+
+    assert set(report["ran"]) == ALL_GROUP_NAMES
+    assert report["locked_checks"] == []
+    for name in ALL_GROUP_NAMES:
+        assert len(calls[name]) == 1
+
+
+def test_run_advanced_scan_below_tier_locks_every_group_and_calls_nothing(monkeypatch):
+    calls = _stub_advanced_checks(monkeypatch)
+
+    report = scan_engine.run_advanced_scan(_full_advanced_form(), Tier.PAID, True)
+
+    assert set(report["locked_checks"]) == ALL_GROUP_NAMES
+    assert report["ran"] == []
+    for name in ALL_GROUP_NAMES:
+        assert calls[name] == []
+
+
+def test_run_advanced_scan_at_tier_but_unverified_domain_locks_every_group(monkeypatch):
+    calls = _stub_advanced_checks(monkeypatch)
+
+    report = scan_engine.run_advanced_scan(_full_advanced_form(), Tier.ORG_VERIFIED, False)
+
+    assert set(report["locked_checks"]) == ALL_GROUP_NAMES
+    assert report["ran"] == []
+    for name in ALL_GROUP_NAMES:
+        assert calls[name] == []
+
+
+def test_run_advanced_scan_empty_form_is_silently_skipped_not_locked(monkeypatch):
+    # An unfilled group is skipped entirely, never locked - only a group
+    # whose fields ARE present but whose tier/domain gating denies it lands
+    # in locked_checks (04-RESEARCH.md Pitfall 5). A test that only checks
+    # the all-filled-in case would never exercise this branch.
+    calls = _stub_advanced_checks(monkeypatch)
+
+    report = scan_engine.run_advanced_scan({}, Tier.ORG_VERIFIED, True)
+
+    assert report["locked_checks"] == []
+    assert report["ran"] == []
+    for name in ALL_GROUP_NAMES:
+        assert calls[name] == []
+
+
+def test_run_advanced_scan_calls_bruteforce_exactly_once_with_unmodified_password_list(monkeypatch):
+    calls = _stub_advanced_checks(monkeypatch)
+    form = _full_advanced_form()
+
+    scan_engine.run_advanced_scan(form, Tier.ORG_VERIFIED, True)
+
+    assert len(calls["bruteforce"]) == 1
+    # call signature: (session, login_url, user_field, pass_field, username, passwords, fail_text)
+    passed_passwords = calls["bruteforce"][0][5]
+    assert passed_passwords == form["bruteforce_passwords"]
+
+
+def test_run_advanced_scan_propagates_exception_from_a_stubbed_check(monkeypatch):
+    _stub_advanced_checks(monkeypatch)
+
+    def raising_sqli_login(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(scan_engine, "check_sqli_login", raising_sqli_login)
+
+    with pytest.raises(RuntimeError):
+        scan_engine.run_advanced_scan(_full_advanced_form(), Tier.ORG_VERIFIED, True)
+
+
+def test_run_advanced_scan_never_crawls(monkeypatch):
+    _stub_advanced_checks(monkeypatch)
+
+    def fail_if_called(*a, **k):
+        raise AssertionError("run_advanced_scan must never crawl - it only reaches URLs "
+                              "present in the caller's `advanced` dict")
+
+    monkeypatch.setattr(scan_engine, "crawl_same_origin", fail_if_called)
+
+    # Completes without raising - crawl_same_origin is never invoked, and no
+    # discovered form is ever auto-submitted as a result.
+    scan_engine.run_advanced_scan(_full_advanced_form(), Tier.ORG_VERIFIED, True)
+
+
+# --------------------------------------------------------------------------
+# Safety-constraint regression locks (D-02)
+#
+# These three tests call webvulnscanner.checks directly rather than through
+# an orchestrator, because the orchestrator-level tests above stub every
+# check function out entirely and therefore cannot observe the caps/proof
+# those checks enforce internally - the orchestrator-level tests can only
+# verify run_advanced_scan passes through whatever the (mocked) check
+# returns, not what the real check does with its inputs.
+#
+# No function in webvulnscanner/checks.py is modified anywhere in this
+# plan - these tests lock existing, already-shipped behaviour.
+# --------------------------------------------------------------------------
+
+
+class _RecordingAuthSession:
+    """Fake session for check_bruteforce - records every POST it receives
+    and returns a response whose body contains fail_text (i.e. the attempt
+    "failed") for every call, unless `succeed_on_call_index` is set, in
+    which case that one call's response omits fail_text (i.e. "succeeded")."""
+
+    def __init__(self, fail_text, succeed_on_call_index=None):
+        self.fail_text = fail_text
+        self.succeed_on_call_index = succeed_on_call_index
+        self.post_calls = []
+
+    def request(self, method, url, data=None, timeout=None, **kwargs):
+        # check_bruteforce goes through checks._timed_request, which always
+        # calls session.request(method, ...), not session.post directly.
+        self.post_calls.append((url, data))
+        idx = len(self.post_calls) - 1
+        if self.succeed_on_call_index is not None and idx == self.succeed_on_call_index:
+            return SimpleNamespace(status_code=200, text="welcome back")
+        return SimpleNamespace(status_code=200, text=f"error: {self.fail_text}")
+
+
+def test_check_bruteforce_never_exceeds_max_attempts(monkeypatch):
+    from webvulnscanner import checks
+
+    # Neutralise the deliberate 1s inter-attempt delay - see
+    # 04-RESEARCH.md Pitfall 4 - so this test pays none of it.
+    monkeypatch.setattr(checks.time, "sleep", lambda *a, **k: None)
+    session = _RecordingAuthSession(fail_text="invalid credentials")
+    seven_passwords = ["p1", "p2", "p3", "p4", "p5", "p6", "p7"]
+
+    checks.check_bruteforce(session, "https://example.com/login", "user", "pass",
+                             "someuser", seven_passwords, "invalid credentials")
+
+    assert len(session.post_calls) == checks.MAX_BRUTEFORCE_ATTEMPTS
+
+
+def test_check_bruteforce_stops_on_first_success_and_withholds_password_in_detail(monkeypatch):
+    from webvulnscanner import checks
+
+    monkeypatch.setattr(checks.time, "sleep", lambda *a, **k: None)
+    # Second password (index 1) succeeds.
+    session = _RecordingAuthSession(fail_text="invalid credentials", succeed_on_call_index=1)
+    passwords = ["wrongpass", "correctpass", "unused3", "unused4", "unused5"]
+
+    data, findings = checks.check_bruteforce(session, "https://example.com/login", "user", "pass",
+                                              "someuser", passwords, "invalid credentials")
+
+    assert len(session.post_calls) == 2
+    assert len(findings) == 1
+    assert findings[0].severity == "critical"
+    assert "correctpass" not in findings[0].detail
+
+
+def test_check_xss_stored_contacts_only_submit_and_view_hosts_no_cookie_exfiltration(monkeypatch):
+    from urllib.parse import urlparse
+
+    from webvulnscanner import checks
+
+    submit_url = "https://example.com/comment"
+    view_url = "https://example.com/comments"
+    cookie = "session=super-secret-test-cookie"
+    hosts_contacted = []
+    cookies_sent_off_target = []
+    last_payload = [""]
+
+    class _FakeStoredXssSession:
+        def post(self, url, data=None, headers=None, timeout=None, **kwargs):
+            hosts_contacted.append(urlparse(url).netloc)
+            if data:
+                last_payload[0] = next(iter(data.values()))
+            if headers and headers.get("Cookie") == cookie and urlparse(url).netloc != urlparse(submit_url).netloc:
+                cookies_sent_off_target.append(url)
+            return SimpleNamespace(status_code=200, text="ok")
+
+        def get(self, url, headers=None, timeout=None, **kwargs):
+            hosts_contacted.append(urlparse(url).netloc)
+            if headers and headers.get("Cookie") == cookie and urlparse(url).netloc != urlparse(view_url).netloc:
+                cookies_sent_off_target.append(url)
+            # Reflect back whatever payload was most recently submitted, so
+            # the first payload variant checks.py tries is confirmed -
+            # decouples this test from checks.py's exact payload templates.
+            return SimpleNamespace(status_code=200, text=last_payload[0])
+
+    session = _FakeStoredXssSession()
+    data, findings = checks.check_xss_stored(session, submit_url, "body", view_url, cookie)
+
+    assert set(hosts_contacted) == {"example.com"}
+    assert cookies_sent_off_target == []
+    assert len(findings) == 1
+    assert findings[0].severity == "critical"
+    # The finding proves execution via marker reflection; it must not claim
+    # cookie theft was actually carried out (checks.py's own docstring: "does
+    # not exfiltrate any cookie to a listener").
+    assert "not executed" in findings[0].detail.lower()

@@ -161,6 +161,9 @@ def run_api_scan(base_url):
     }
 
 
+# No scheduler dispatch path by design: scheduler._fire() only branches on
+# "base"/"media"/"api", and Asset stores no credentials for an unattended
+# run, so this orchestrator's test coverage is direct-invocation only (D-04).
 def run_advanced_scan(advanced, tier, org_verified_for_domain):
     """Runs whichever advanced check groups have their required fields
     filled in, independent of the base recon/crawl scan. Uses the same
