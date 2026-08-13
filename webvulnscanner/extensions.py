@@ -24,11 +24,20 @@ csrf = CSRFProtect()
 # DB (a fresh `flask db upgrade` accomplishes the same thing and is what a
 # real deploy should run instead - see CLAUDE.md's Commands section).
 migrate = Migrate()
-# In-memory storage (Flask-Limiter's default) - fine for this app's current
-# single dev-server-process reality (same caveat as SQLite's
-# check_same_thread config), but limits won't be shared across multiple
-# worker processes if this is ever run behind gunicorn with >1 worker.
-# Switch storage_uri to a shared backend (e.g. Redis) if that changes.
+# Deliberately constructed with no storage_uri: the backend is chosen
+# entirely by RATELIMIT_STORAGE_URI in app.config at init_app() time (see
+# config.py's declaration). Left unset, Flask-Limiter's own default applies
+# (in-memory storage) - correct only for a single dev-server-process
+# deploy, same caveat as SQLite's check_same_thread config. Set to a
+# redis:// URL, it becomes a shared cross-worker counter store, which is
+# what makes running behind gunicorn with >1 worker safe (HARD-01) - proved
+# by tests/test_ratelimit_storage.py. This object is still a per-process
+# singleton either way (one Limiter per worker process): that fact is why
+# a shared *backend* is what closes the gap, not a shared Python object,
+# and it's also why tests/conftest.py's TestConfig disables RATELIMIT_ENABLED
+# by default (this singleton is reused across every create_app() call in
+# one process, including every test app - see test_auth_flows.py's
+# test_login_rate_limit_is_enforced for the one test that re-enables it).
 limiter = Limiter(key_func=get_remote_address)
 
 login_manager.login_view = "auth.login"

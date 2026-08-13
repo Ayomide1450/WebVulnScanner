@@ -96,6 +96,24 @@ def create_app(config_class=Config):
     app.session_interface = _ApiAwareSessionInterface()
     csrf.init_app(app)
     limiter.init_app(app)
+    # Operator-facing confirmation of which rate-limit storage backend this
+    # worker actually attached to (HARD-01) - a misconfigured worker
+    # otherwise fails silently by enforcing its own private in-memory
+    # counters instead of the shared backend an operator thinks it's using.
+    # Logs the URI scheme only, never the full RATELIMIT_STORAGE_URI value -
+    # a redis:// URL routinely carries a password.
+    _storage_uri = app.config.get("RATELIMIT_STORAGE_URI", "")
+    if _storage_uri:
+        _storage_scheme = _storage_uri.split("://", 1)[0]
+        logging.info(
+            "Rate limiting: using %s:// storage backend (shared across workers)",
+            _storage_scheme,
+        )
+    else:
+        logging.info(
+            "Rate limiting: using in-memory storage (NOT shared across workers - "
+            "single-process only; set RATELIMIT_STORAGE_URI for a multi-worker deploy)"
+        )
     migrate.init_app(app, db)
 
     # Email sender is stashed on app.extensions (Flask's own convention for
