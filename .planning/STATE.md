@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: production-hardening-reliability
 status: in_progress
-stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-08-13T18:58:48.951Z"
+stopped_at: Completed 04-05-PLAN.md
+last_updated: "2026-08-13T20:50:59.305Z"
 last_activity: 2026-08-13
 last_activity_desc: Phase 04 Plan 01 execution complete (292/292 tests passing)
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Project State
@@ -29,11 +29,11 @@ non-destructive scans against their own infrastructure and get findings they can
 ## Current Position
 
 Phase: 04 (production-hardening-reliability) — IN PROGRESS
-Plan: 4 of 5 complete
+Plan: 5 of 5 complete
 Status: Plan 04-01 complete (shared scoring helper + orchestrator test coverage) — ready for 04-02/04-03 (wave 1)
 Last activity: 2026-08-13 — Phase 04 Plan 01 execution complete (292/292 tests passing)
 
-Progress: [█████████░] 92%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -70,6 +70,7 @@ Progress: [█████████░] 92%
 | Phase 04 P02 | 15min | 2 tasks | 6 files |
 | Phase 04 P03 | 45min | 3 tasks | 6 files |
 | Phase 04 P04 | 40min | 2 tasks | 2 files |
+| Phase 04 P05 | 50min | 4 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -107,6 +108,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 04-03]: signup()'s GET-time token decode (no expected_email) only pre-fills the field; only the POST-time re-decode with the submitted address authorizes org assignment
 - [Phase ?]: [Phase 04-04]: Advanced success-path wrapper test uses tier=Tier.FREE/org_verified=False deliberately - status-transition/prefix coverage doesn't need the advanced check groups to actually run; the one advanced failure-path test uses tier=Tier.ORG_VERIFIED/org_verified=True instead since a locked group can never raise, with a comment noting the AI-summary tail is still never reached (exception propagates first)
 - [Phase ?]: [Phase 04-04]: scheduler._fire's no-advanced-branch finding (D-04) is now a source-parsing regression test (inspect.getsource + regex over the dispatched scan-type literals), not just a comment - mirrors test_scan_engine.py's cross-orchestrator scoring-dedup lock from plan 04-01
+- [Phase ?]: [Phase 04-05]: dashboard.html's latest-scan status pill uses a small shared Jinja macro across its two if/else branches, while the scans-table row implements the same running/queued dot logic inline
+- [Phase ?]: [Phase 04-05]: billing's Awaiting-payment invoice pill reuses class="status-pill running" verbatim (no new pill variant) so it inherits the existing telemetry-blue CSS with zero new declarations
 
 ### Pending Todos
 
@@ -139,6 +142,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-13T18:58:48.905Z
-Stopped at: Completed 04-04-PLAN.md
+Last session: 2026-08-13T20:50:59.258Z
+Stopped at: Completed 04-05-PLAN.md
 Resume file: None

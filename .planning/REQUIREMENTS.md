@@ -89,7 +89,7 @@ to exactly one roadmap phase.
       a single shared helper used by all scan orchestrators, including any new scheduled-scan path
       from Phase 1.
 
-- [ ] **HARD-05**: Dashboard, billing, org-admin, and scan_report pages visually match the rest of
+- [x] **HARD-05**: Dashboard, billing, org-admin, and scan_report pages visually match the rest of
       the app's existing design system (no remaining bland/legacy styling), completing the visual
       pass `CLAUDE.md` already flags as open.
 
@@ -150,7 +150,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | HARD-02 | Phase 4 | Complete |
 | HARD-03 | Phase 4 | Complete |
 | HARD-04 | Phase 4 | Complete |
-| HARD-05 | Phase 4 | Pending |
+| HARD-05 | Phase 4 | Complete |
 
 **Coverage:**
 
