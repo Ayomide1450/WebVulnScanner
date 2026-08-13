@@ -157,6 +157,7 @@ more value than CONCERNS.md's suggested 3-tuple, since the sort is duplicated id
 | `fakeredis` | 2.37.0 [VERIFIED: PyPI registry] | In-process fake Redis server for the multi-worker-sharing test, no Docker/service container needed | Documented, maintained drop-in for `redis-py`'s client API (`FakeStrictRedis`, shared `FakeServer`) — matches this repo's zero-external-service CI convention |
 | `Flask-Limiter` | already in `requirements.txt` (unpinned; latest is 4.1.1 [VERIFIED: PyPI registry]) | Rate limiting extension already wired in `extensions.py` | No change — already the app's rate-limit layer |
 | `limits` | transitive dep of Flask-Limiter (latest 5.8.0 [VERIFIED: PyPI registry]) | Backend storage abstraction Flask-Limiter delegates to; owns the `redis://` scheme → `RedisStorage` → `redis.from_url()` chain | Not a direct dependency to add — documented here because its internals determine the exact monkeypatch target for the fakeredis test |
+| `lupa` | 2.8 [VERIFIED: PyPI registry] | Lua-Python bridge; `fakeredis`'s optional extra (`fakeredis[lupa]`) that backs its `EVAL`/`EVALSHA`/`SCRIPT` command support | **Discovered during execution, not anticipated pre-plan-time**: `limits`' `RedisStorage.incr()` calls a registered Lua script (`SCRIPT_INCR_EXPIRE`) unconditionally for every rate-limit check regardless of strategy (fixed/moving/sliding window) — confirmed by reading `limits/storage/redis.py`. `fakeredis` 2.37.0 raises `unknown command 'evalsha'` for every rate-limited request without it, since `fakeredis/commands_mixins/scripting_mixin.py` does an unconditional `import lupa` guarding all scripting commands. Required, not optional, for this plan's fakeredis-backed proof to run at all. |
 
 ### Supporting
 None — HARD-02/03/04/05 need no new packages, only new test/template code using what's already
@@ -189,6 +190,7 @@ pins, to match every other line in both requirements files.
 |---------|----------|-----|-----------|-------------|---------|-------------|
 | `redis` | PyPI | 10+ years (redis-py, the canonical Python Redis client) | very high (top-500 PyPI package) | github.com/redis/redis-py | OK | Approved |
 | `fakeredis` | PyPI | 10+ years, actively maintained (2.37.0 released recently per PyPI index) | high, widely used in test suites | github.com/cunla/fakeredis-py | OK | Approved |
+| `lupa` | PyPI | 15+ years (releases since ~2010, latest 2.8), maintained by Stefan Behnel (`scoder`, a long-standing Cython core contributor) | high, widely used wherever Python code embeds a Lua interpreter (fakeredis's own documented scripting extra) | github.com/scoder/lupa | OK | Approved — added mid-execution via a human-verified package-legitimacy checkpoint (see 04-02-SUMMARY.md deviations) after discovering `fakeredis` requires it for `EVAL`/`EVALSHA` support that `limits`' `RedisStorage.incr()` depends on unconditionally |
 
 **Packages removed due to [SLOP] verdict:** none.
 **Packages flagged as suspicious [SUS]:** none. Both packages are long-established, canonical

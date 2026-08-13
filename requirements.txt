@@ -14,3 +14,4 @@ Flask-Migrate
 psycopg2-binary
 gunicorn
 click
+redis
