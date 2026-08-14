@@ -10,8 +10,10 @@ in the same place on disk) was adjusted; no check's behavior changed.
 
 Run only against domains you own or are explicitly authorized to test.
 """
+import base64
 import io
 import ipaddress
+import json
 import os
 import re
 import socket
@@ -66,7 +68,7 @@ CHECK_LABELS = {
     "open_redirect": "Open redirect probe", "directory_listing": "Directory listing",
     "mixed_content": "Mixed content", "dns_email": "DNS email security (SPF / DMARC / CAA)",
     "vulnerable_js": "Outdated JS libraries", "xss_sqli": "Same-origin crawl & parameter/XSS/SQLi testing",
-    "robots_sitemap": "robots.txt / sitemap.xml",
+    "robots_sitemap": "robots.txt / sitemap.xml", "jwt": "Client-visible JWT weaknesses",
 }
 
 # Icon-sprite key (see the <symbol id="icon-*"> sprite in templates/base.html)
@@ -83,7 +85,7 @@ CHECK_CATEGORY = {
     "open_redirect": "network", "directory_listing": "network",
     "sensitive_paths": "folder", "secrets": "folder", "sri": "folder", "robots_sitemap": "folder",
     "dns_email": "mail",
-    "vulnerable_js": "bug", "xss_sqli": "bug",
+    "vulnerable_js": "bug", "xss_sqli": "bug", "jwt": "shield",
 }
 
 # Check names each orchestrator can dispatch, grouped by scan_type - the
@@ -137,6 +139,7 @@ CHECK_COMPLIANCE = {
     "xss_sqli":          {"owasp": "A03:2021-Injection",                 "asvs": "V5.3"},
     "secrets":           {"owasp": "A02:2021-Cryptographic Failures",    "asvs": "V6"},
     "sri":               {"owasp": "A08:2021-Software and Data Integrity Failures", "asvs": "V14.2"},
+    "jwt":               {"owasp": "A07:2021-Identification and Authentication Failures", "asvs": "V3.5"},
     # advanced scan
     "sqli_login":        {"owasp": "A03:2021-Injection",                 "asvs": "V5.3"},
     "bruteforce":        {"owasp": "A07:2021-Identification and Authentication Failures", "asvs": "V2.2"},
@@ -207,6 +210,40 @@ MAX_API_JS_ENDPOINTS = 30
 SEVERITY_WEIGHT = {"critical": 25, "high": 15, "medium": 7, "low": 3, "info": 0}
 SEVERITY_ORDER = ["critical", "high", "medium", "low", "info", "pass"]
 
+# Maps each Finding.category string (the values passed as Finding(...)'s
+# first positional arg, verified against every call site in this file) to
+# an OWASP Top 10 (2021) category, purely for report grouping/filtering -
+# this is a presentation-layer lookup, not a new stored field on Finding
+# itself, so adding a check never requires touching Finding's call sites.
+# A category missing here falls back to "Uncategorized" (see
+# owasp_category_for below) rather than raising, same degrade-gracefully
+# convention as CHECK_LABELS/CHECK_CATEGORY.
+OWASP_CATEGORY_MAP = {
+    "Headers": "A05:2021 - Security Misconfiguration",
+    "Cookies": "A05:2021 - Security Misconfiguration",
+    "TLS": "A02:2021 - Cryptographic Failures",
+    "Transport": "A02:2021 - Cryptographic Failures",
+    "CORS": "A05:2021 - Security Misconfiguration",
+    "HTTP methods": "A05:2021 - Security Misconfiguration",
+    "Open redirect": "A01:2021 - Broken Access Control",
+    "Mixed content": "A02:2021 - Cryptographic Failures",
+    "DNS/Email": "A05:2021 - Security Misconfiguration",
+    "Dependencies": "A06:2021 - Vulnerable and Outdated Components",
+    "Supply chain": "A08:2021 - Software and Data Integrity Failures",
+    "Secrets": "A02:2021 - Cryptographic Failures",
+    "Exposure": "A01:2021 - Broken Access Control",
+    "Sensitive Path Exposure": "A01:2021 - Broken Access Control",
+    "Media exposure": "A01:2021 - Broken Access Control",
+    "XSS": "A03:2021 - Injection",
+    "SQL Injection": "A03:2021 - Injection",
+    "Auth": "A07:2021 - Identification and Authentication Failures",
+    "IDOR": "A01:2021 - Broken Access Control",
+}
+
+
+def owasp_category_for(category):
+    return OWASP_CATEGORY_MAP.get(category, "Uncategorized")
+
 
 @dataclass
 class Finding:
@@ -230,6 +267,64 @@ SENSITIVE_PATHS = [
     "package.json.bak", "backup.zip", "db.sql", "docker-compose.yml",
     "_next/static/chunks/webpack.js", "api/health",
 ]
+
+# ---------------------------------------------------------------------------
+# check_sensitive_paths() data model.
+#
+# Each probed path belongs to one of these categories, purely for grouping
+# in the report - detection logic below is the same for every category.
+# "source_config" = source/VCS/app config leakage, "backup" = backup/dump
+# files, "cloud_config" = cloud provider credential files, "app_discovery" =
+# informational endpoints that are never themselves a vulnerability.
+SENSITIVE_PATH_GROUPS = [
+    ("source_config", "Source & Configuration Exposure", [
+        ".env", ".env.local", ".env.production", ".git/config", ".git/HEAD",
+        ".svn/entries", "config.json", "settings.json", "docker-compose.yml",
+        ".DS_Store",
+    ]),
+    ("backup", "Backup Exposure", [
+        "wp-config.php.bak", "config.php.bak", "package.json.bak",
+        "backup.zip", "backup.tar.gz", "db.sql", "database.sql", "dump.sql",
+    ]),
+    ("cloud_config", "Cloud Credential Exposure", [
+        ".aws/credentials",
+    ]),
+    ("app_discovery", "Application Discovery", [
+        "_next/static/chunks/webpack.js", "api/health",
+    ]),
+]
+
+# Content-signature checks used to decide whether a 200 response actually
+# contains the sensitive artifact it claims to be, rather than trusting the
+# status code alone (see check_sensitive_paths' docstring). Each entry is a
+# (path-suffix-match-fn, signature-regex, human label) tuple; the regex is
+# checked against the response body (first SIGNATURE_SCAN_BYTES only - never
+# the full body, and never stored past this function).
+SIGNATURE_SCAN_BYTES = 8000
+PATH_SIGNATURES = {
+    ".env": (re.compile(r"^[A-Z][A-Z0-9_]{2,}\s*=", re.M), "environment-variable syntax (KEY=value)"),
+    ".env.local": (re.compile(r"^[A-Z][A-Z0-9_]{2,}\s*=", re.M), "environment-variable syntax (KEY=value)"),
+    ".env.production": (re.compile(r"^[A-Z][A-Z0-9_]{2,}\s*=", re.M), "environment-variable syntax (KEY=value)"),
+    ".git/config": (re.compile(r"\[core\]|repositoryformatversion", re.I), "Git configuration structure"),
+    ".git/HEAD": (re.compile(r"^ref:\s*refs/", re.I), "Git HEAD reference"),
+    ".svn/entries": (re.compile(r"svn|dir\b", re.I), "Subversion entries format"),
+    "config.json": (re.compile(r'"(db|database|password|secret|api[_-]?key)"', re.I), "sensitive configuration keys"),
+    "settings.json": (re.compile(r'"(db|database|password|secret|api[_-]?key)"', re.I), "sensitive configuration keys"),
+    "docker-compose.yml": (re.compile(r"^\s*services:", re.M | re.I), "docker-compose service definitions"),
+    "wp-config.php.bak": (re.compile(r"DB_PASSWORD|DB_NAME|<\?php", re.I), "WordPress database credentials"),
+    "config.php.bak": (re.compile(r"<\?php|password", re.I), "PHP configuration source"),
+    "package.json.bak": (re.compile(r'"name"\s*:\s*".*"\s*,.*"version"', re.S), "package.json structure"),
+    "db.sql": (re.compile(r"-- MySQL dump|CREATE TABLE|INSERT INTO", re.I), "SQL dump signature"),
+    "database.sql": (re.compile(r"-- MySQL dump|CREATE TABLE|INSERT INTO", re.I), "SQL dump signature"),
+    "dump.sql": (re.compile(r"-- MySQL dump|CREATE TABLE|INSERT INTO", re.I), "SQL dump signature"),
+    ".aws/credentials": (re.compile(r"\[default\]|aws_access_key_id", re.I), "AWS credentials file format"),
+}
+# Binary magic-byte signatures for archive-style backups where a text regex
+# doesn't apply - checked against the raw response bytes instead.
+BINARY_PATH_SIGNATURES = {
+    "backup.zip": (b"PK\x03\x04", "ZIP archive header"),
+    "backup.tar.gz": (b"\x1f\x8b", "gzip archive header"),
+}
 
 SECURITY_HEADERS = [
     ("strict-transport-security", "Strict-Transport-Security", "Forces HTTPS on future visits.", "high"),
@@ -373,25 +468,62 @@ def check_cookies(resp):
     return rows, findings
 
 
+# Protocol versions considered weak/deprecated - read-only classification of
+# whatever ssock.version() reports after the default-context handshake below,
+# never a forced downgrade/renegotiation attempt against the server.
+WEAK_TLS_VERSIONS = {"SSLv2", "SSLv3", "TLSv1", "TLSv1.1"}
+# Substrings that mark a negotiated cipher-suite name as weak (export-grade,
+# NULL, anonymous, RC4, DES/3DES, or MD5-MAC) - matched case-insensitively
+# against ssl.SSLSocket.cipher()'s OpenSSL cipher name, e.g. "RC4-SHA".
+WEAK_CIPHER_HINTS = ["RC4", "DES", "MD5", "NULL", "EXPORT", "ANON"]
+
+
+def _classify_tls_cipher(cipher_name):
+    if not cipher_name:
+        return None
+    upper = cipher_name.upper()
+    return next((hint for hint in WEAK_CIPHER_HINTS if hint in upper), None)
+
+
 def check_tls_cert(hostname):
     try:
         ctx = ssl.create_default_context()
         with socket.create_connection((hostname, 443), timeout=REQUEST_TIMEOUT) as sock:
             with ctx.wrap_socket(sock, server_hostname=hostname) as ssock:
                 cert = ssock.getpeercert()
+                # version()/cipher() reflect whatever the server's own default
+                # negotiation picked against a standard client context - this
+                # never attempts to force a weaker protocol/cipher itself, it
+                # only reads back what the server was willing to offer.
+                tls_version = ssock.version()
+                cipher = ssock.cipher()  # (name, protocol, secret_bits) or None
         not_after = datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
         days_left = (not_after - datetime.now(timezone.utc)).days
         subject = dict(x[0] for x in cert.get("subject", []))
         issuer = dict(x[0] for x in cert.get("issuer", []))
         status = "pass" if days_left > 30 else ("warn" if days_left > 0 else "fail")
+        cipher_name = cipher[0] if cipher else None
         data = {"status": status, "subject": subject.get("commonName", "?"),
                 "issuer": issuer.get("commonName", issuer.get("organizationName", "?")),
-                "not_after": cert["notAfter"], "days_left": days_left}
+                "not_after": cert["notAfter"], "days_left": days_left,
+                "tls_version": tls_version, "cipher": cipher_name,
+                "cipher_bits": cipher[2] if cipher else None}
         findings = []
         if days_left <= 30:
             sev = "high" if days_left <= 0 else "medium"
             findings.append(Finding("TLS", "Certificate expiring soon" if days_left > 0 else "Certificate expired",
                                      sev, f"{days_left} days remaining.", "Renew the TLS certificate."))
+        if tls_version in WEAK_TLS_VERSIONS:
+            findings.append(Finding("TLS", f"Weak TLS protocol negotiated: {tls_version}", "high",
+                                     f"The server's default negotiation offered {tls_version}, which has known "
+                                     "protocol-level weaknesses.",
+                                     "Disable SSLv2/SSLv3/TLSv1.0/TLSv1.1 server-side; require TLS 1.2+."))
+        weak_hint = _classify_tls_cipher(cipher_name)
+        if weak_hint:
+            findings.append(Finding("TLS", f"Weak cipher suite negotiated: {cipher_name}", "medium",
+                                     f"The negotiated cipher suite contains a known-weak component ({weak_hint}).",
+                                     "Restrict the server's cipher list to modern AEAD suites "
+                                     "(e.g. ECDHE-*-GCM/CHACHA20)."))
         return data, findings
     except Exception as e:
         return {"status": "fail", "error": str(e)}, [
@@ -413,38 +545,362 @@ def check_https_redirect(base_url, session):
         return {"status": "info", "detail": f"Could not reach plain HTTP: {e}"}, []
 
 
+def _extract_title(text):
+    m = re.search(r"<title[^>]*>(.*?)</title>", text, re.I | re.S)
+    return re.sub(r"\s+", " ", m.group(1)).strip()[:120] if m else ""
+
+
+def _fingerprint_response(r):
+    """Reduces a response down to the handful of signals used for both the
+    soft-404 baseline comparison and general evidence display - never keeps
+    the response body itself past this call."""
+    text = r.text or ""
+    return {
+        "status": r.status_code,
+        "content_type": (r.headers.get("Content-Type") or "").split(";")[0].strip(),
+        "size": len(r.content or b""),
+        "title": _extract_title(text[:SIGNATURE_SCAN_BYTES]),
+    }
+
+
+def _looks_like_baseline(fp, baseline):
+    """True if a probe's response fingerprint is close enough to the site's
+    known-nonexistent-URL baseline that a 200 (or any other status) is
+    almost certainly a "soft 404" - a custom not-found/SPA-shell page that
+    happens to answer every path with the same content - rather than
+    evidence the requested file actually exists. Uses several independent,
+    individually-weak signals together (status, content-type, page title,
+    response size within 15%) instead of one brittle exact match, per the
+    "avoid brittle exact string matching" requirement.
+
+    content-type + size-within-15% alone are NOT enough: two short, wholly
+    unrelated pages (e.g. a real 404 page and a real, distinct redirect
+    target) are often coincidentally close in both once bodies are only a
+    few dozen bytes. At least one *strong* signal (identical status, or an
+    identical <title>) is required in addition to reaching the score
+    threshold, so a genuine soft-404/SPA-shell match still needs something
+    more specific than "both pages are small and HTML"."""
+    if baseline is None:
+        return False
+    score = 0
+    strong = False
+    if fp["status"] == baseline["status"]:
+        score += 1
+        strong = True
+    if fp["content_type"] and fp["content_type"] == baseline["content_type"]:
+        score += 1
+    if fp["title"] and fp["title"] == baseline["title"]:
+        score += 2  # identical <title> across "different" pages is a strong soft-404 tell
+        strong = True
+    if baseline["size"] > 0:
+        diff_ratio = abs(fp["size"] - baseline["size"]) / baseline["size"]
+        if diff_ratio < 0.15:
+            score += 1
+    return strong and score >= 2
+
+
+MAX_EVIDENCE_FRAGMENT_CHARS = 200
+
+
+def _content_signature_match(path, r):
+    """Returns (matched: bool, label: str|None, fragment: str|None) - whether
+    the response body actually contains the artifact `path` claims to be,
+    not just that the server returned 200 for it. Only inspects the first
+    SIGNATURE_SCAN_BYTES of the body and never retains the body itself -
+    `fragment` is at most the single matched substring, capped to
+    MAX_EVIDENCE_FRAGMENT_CHARS, which is the only piece of response
+    content this function (or its caller) ever hands back. Binary
+    signatures (archive magic bytes) have no meaningful text fragment to
+    surface, so fragment is None for those - there's no secret value to
+    reveal, just a structural match."""
+    if path in BINARY_PATH_SIGNATURES:
+        magic, label = BINARY_PATH_SIGNATURES[path]
+        return (r.content or b"")[:16].startswith(magic), label, None
+    sig = PATH_SIGNATURES.get(path)
+    if not sig:
+        return False, None, None
+    pattern, label = sig
+    text = (r.text or "")[:SIGNATURE_SCAN_BYTES]
+    m = pattern.search(text)
+    if not m:
+        return False, label, None
+    # Surface the whole matched line (e.g. "DB_PASSWORD=hunter2"), not just
+    # the bare key= the regex anchors on - that's what makes the evidence
+    # meaningful to the report's owner ("what exactly leaked"), while still
+    # being a single capped line rather than the response body.
+    line_start = text.rfind("\n", 0, m.start()) + 1
+    line_end = text.find("\n", m.end())
+    if line_end == -1:
+        line_end = len(text)
+    fragment = text[line_start:line_end].strip()[:MAX_EVIDENCE_FRAGMENT_CHARS]
+    return True, label, fragment
+
+
+# Severity/remediation text keyed by path - used only when a path is
+# CONFIRMED exposed (status 200, not a soft-404, content signature matched).
+# Falls back to a generic "high"/generic remediation for any path not
+# listed explicitly (e.g. future additions to SENSITIVE_PATH_GROUPS).
+CONFIRMED_EXPOSURE_SEVERITY = {
+    ".env": "critical", ".env.local": "critical", ".env.production": "critical",
+    ".aws/credentials": "critical", "db.sql": "critical", "database.sql": "critical",
+    "dump.sql": "critical", "wp-config.php.bak": "critical", "config.php.bak": "critical",
+    ".git/config": "high", ".git/HEAD": "high", ".svn/entries": "high",
+    "backup.zip": "high", "backup.tar.gz": "high", "package.json.bak": "medium",
+    "config.json": "medium", "settings.json": "medium", "docker-compose.yml": "medium",
+    ".DS_Store": "low",
+}
+CONFIRMED_EXPOSURE_IMPACT = {
+    ".env": "Environment files commonly hold database credentials, API keys, and other application secrets.",
+    ".git/config": "A leaked .git directory can let an attacker reconstruct source code and commit history.",
+    ".git/HEAD": "A leaked .git directory can let an attacker reconstruct source code and commit history.",
+    ".aws/credentials": "AWS access keys grant direct access to cloud infrastructure and data.",
+}
+DEFAULT_IMPACT = "This file can expose internal configuration, credentials, or source code to anyone who requests it."
+CONFIRMED_EXPOSURE_REMEDIATION = {
+    ".env": "Remove the file from the public web root, prevent env files from being deployed, and rotate any exposed credentials.",
+    ".env.local": "Remove the file from the public web root, prevent env files from being deployed, and rotate any exposed credentials.",
+    ".env.production": "Remove the file from the public web root, prevent env files from being deployed, and rotate any exposed credentials.",
+    ".git/config": "Remove Git metadata from the public web root and ensure deployment artifacts never include the .git directory.",
+    ".git/HEAD": "Remove Git metadata from the public web root and ensure deployment artifacts never include the .git directory.",
+    ".aws/credentials": "Remove the file immediately and rotate the exposed AWS access keys.",
+    "db.sql": "Remove the database dump immediately and rotate any credentials contained within it.",
+    "database.sql": "Remove the database dump immediately and rotate any credentials contained within it.",
+    "dump.sql": "Remove the database dump immediately and rotate any credentials contained within it.",
+    "wp-config.php.bak": "Remove backup configuration files from the public web root and store backups outside it.",
+    "config.php.bak": "Remove backup configuration files from the public web root and store backups outside it.",
+}
+DEFAULT_REMEDIATION = "Remove this file from the public web root or block it at the edge (WAF/redirect rule)."
+
+
 def check_sensitive_paths(base_url, session):
+    """Probes a curated list of commonly-leaked paths (SENSITIVE_PATH_GROUPS)
+    and classifies each result as PASSED / INFORMATIONAL / NEEDS_REVIEW /
+    CONFIRMED, instead of trusting the HTTP status code alone:
+
+    - A 404 is only PASSED once it's also compared against a live baseline -
+      a request to a randomly-generated, definitely-nonexistent URL - so a
+      site that "soft-404s" with a 200 (a custom not-found page or SPA
+      shell that answers every path) doesn't get reported as exposing every
+      sensitive file it was asked about. See _looks_like_baseline(). This
+      baseline comparison also catches the "redirects everywhere to the
+      same login/shell page" case, since a genuinely-protected sensitive
+      path and the random nonexistent probe usually land on that same page.
+    - A 403 is reported as NEEDS_REVIEW ("blocked"), never as evidence the
+      file exists - it proves access is denied, not that the resource is
+      actually there.
+    - A 429 is reported as NEEDS_REVIEW ("rate limited") - the scanner
+      cannot reliably tell whether the resource exists when the target is
+      throttling it, and does not retry (no request in this function is
+      ever repeated) so as to not add to the rate-limiting itself.
+    - A 5xx is reported as NEEDS_REVIEW ("server error") - inconclusive,
+      not evidence either way.
+    - A 200 only becomes CONFIRMED exposure once the response body/bytes
+      actually match a signature for that specific artifact (env-var
+      syntax, Git config structure, a SQL dump header, ...) - see
+      _content_signature_match(). A 200 that doesn't match any signature
+      (and isn't a soft-404 match either) is reported as NEEDS_REVIEW rather
+      than a confirmed vulnerability, per the "prefer 'not confirmed' over
+      an unsupported claim" principle.
+
+    Evidence stored per row is deliberately minimal - status/URL/redirect
+    chain/content-type/size/timing, plus (only for a CONFIRMED text-based
+    match) a single capped line of the matched content as `secret_evidence`.
+    The full response body is never stored; at most SIGNATURE_SCAN_BYTES of
+    it is ever held in memory, and only for the duration of this function.
+    `secret_evidence["raw"]` is masked in the report UI by default and
+    revealed only behind the same ownership check that already gates the
+    whole report page (see scan_report.html) - it is never included in a
+    Finding's title/detail (which feed ai_summary.py's third-party LLM
+    call), never logged, and this function contains no print/logging calls
+    of its own to accidentally leak it through.
+    """
     rows, findings = [], []
 
     def probe(path):
         try:
-            r = session.get(f"{base_url}/{path}", timeout=REQUEST_TIMEOUT, allow_redirects=False)
-            return path, r.status_code
-        except requests.RequestException:
-            return path, None
+            r = session.get(f"{base_url}/{path}", timeout=REQUEST_TIMEOUT, allow_redirects=True)
+            return path, r, None
+        except requests.RequestException as e:
+            return path, None, str(e)
+
+    # Baseline: a randomly-generated path that cannot exist, used to detect
+    # "soft 404" behavior (see module docstring above and _looks_like_baseline).
+    baseline = None
+    try:
+        probe_id = f"wvscan-nonexistent-{os.urandom(6).hex()}"
+        br = session.get(f"{base_url}/{probe_id}", timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        baseline = _fingerprint_response(br)
+    except requests.RequestException:
+        pass  # baseline stays None -> soft-404 detection is simply skipped below
+
+    all_paths = [p for _, _, paths in SENSITIVE_PATH_GROUPS for p in paths]
+    group_of = {p: (gid, glabel) for gid, glabel, paths in SENSITIVE_PATH_GROUPS for p in paths}
 
     with ThreadPoolExecutor(max_workers=8) as pool:
-        for path, code in pool.map(probe, SENSITIVE_PATHS):
-            status = "warn" if code == 200 else "pass"
-            rows.append({"path": "/" + path, "code": code, "status": status})
-            if status == "warn":
-                findings.append(Finding("Exposure", f"Publicly reachable: /{path}", "critical",
-                                         f"Returned HTTP 200 - likely leaks source, secrets, or backups.",
-                                         "Remove the file/route or block it at the edge (WAF/redirect rule)."))
+        results = list(pool.map(probe, all_paths))
 
+    for path, r, error in results:
+        group_id, group_label = group_of[path]
+        row = {
+            "path": "/" + path, "group": group_id, "group_label": group_label,
+            "evidence": {}, "secret_evidence": None,
+            "classification": "", "severity": "info", "confidence": "high",
+            "title": "", "detail": "", "recommendation": "", "impact": "",
+        }
+
+        if error is not None:
+            row.update(classification="informational", title="Could not be reached",
+                       detail=f"The request failed: {error}", confidence="low")
+            rows.append(row)
+            continue
+
+        redirect_chain = [h.url for h in r.history]
+        initial_status = r.history[0].status_code if r.history else r.status_code
+        fp = _fingerprint_response(r)
+        row["evidence"] = {
+            "status": r.status_code, "initial_status": initial_status,
+            "final_url": r.url, "redirect_chain": redirect_chain,
+            "content_type": fp["content_type"], "size": fp["size"],
+            "response_time_ms": int(r.elapsed.total_seconds() * 1000),
+        }
+
+        # app_discovery paths are informational-only, regardless of status -
+        # a missing /api/health or webpack chunk is never itself a finding.
+        if group_id == "app_discovery":
+            if r.status_code == 200:
+                row.update(classification="informational", title="Endpoint reachable",
+                           detail="This endpoint responded, which is expected for a discovery/health probe and "
+                                  "is not itself a vulnerability.", confidence="high")
+            else:
+                row.update(classification="informational", title="Endpoint not detected",
+                           detail=f"HTTP {r.status_code} - the endpoint was not found.", confidence="high")
+            rows.append(row)
+            continue
+
+        if r.status_code == 403:
+            row.update(classification="needs_review", severity="low", confidence="low",
+                       title="Blocked / Access Denied",
+                       detail="HTTP 403 prevented access. This indicates the server or a security layer is "
+                              "blocking the request, but resource existence could not be confirmed.",
+                       recommendation="Verify that the sensitive file/path does not exist on the production "
+                                       "server and that this blocking rule is intentional.")
+            findings.append(Finding("Sensitive Path Exposure", f"Blocked path returned 403: /{path}", "low",
+                                     row["detail"], row["recommendation"]))
+            rows.append(row)
+            continue
+
+        if r.status_code == 429:
+            retry_after = r.headers.get("Retry-After")
+            if retry_after:
+                row["evidence"]["retry_after"] = retry_after
+            row.update(classification="needs_review", severity="info", confidence="low",
+                       title="Rate limited",
+                       detail="The target rate-limited the request (HTTP 429), so the scanner could not reliably "
+                              "determine whether the resource exists. The scanner does not retry a rate-limited "
+                              "path.",
+                       recommendation="Re-run the scan later, outside of any rate-limit window, or investigate "
+                                       "manually.")
+            rows.append(row)
+            continue
+
+        if r.status_code >= 500:
+            row.update(classification="needs_review", severity="info", confidence="low",
+                       title="Server error",
+                       detail=f"The server returned HTTP {r.status_code} while this path was being tested. This "
+                                "is inconclusive - the scanner could not reliably determine whether the "
+                                "resource exists.",
+                       recommendation="Re-run the scan later; investigate manually if the error persists.")
+            rows.append(row)
+            continue
+
+        if r.status_code == 404:
+            row.update(classification="passed", severity="info", confidence="high",
+                       title="Not found", detail="The resource was not found (HTTP 404).")
+            rows.append(row)
+            continue
+
+        # Everything else (200, redirects that resolved to a 200, etc.) needs
+        # the soft-404 / content-signature evidence to decide what it means.
+        if baseline is not None and _looks_like_baseline(fp, baseline):
+            row.update(classification="passed", severity="info", confidence="high",
+                       title="Not found (soft 404)",
+                       detail="The response matched the site's own behavior for a known-nonexistent URL - this "
+                              "looks like a custom not-found page, an auth redirect, or an SPA fallback, not the "
+                              "requested file.")
+            rows.append(row)
+            continue
+
+        matched, sig_label, fragment = _content_signature_match(path, r)
+        if matched:
+            sev = CONFIRMED_EXPOSURE_SEVERITY.get(path, "high")
+            impact = CONFIRMED_EXPOSURE_IMPACT.get(path, DEFAULT_IMPACT)
+            remediation = CONFIRMED_EXPOSURE_REMEDIATION.get(path, DEFAULT_REMEDIATION)
+            row.update(classification="confirmed", severity=sev, confidence="high",
+                       title="Confirmed exposure",
+                       detail=f"HTTP {r.status_code} response contained content matching {sig_label}.",
+                       impact=impact, recommendation=remediation)
+            if fragment:
+                row["secret_evidence"] = {"masked": _redact_secret(fragment), "raw": fragment}
+            # Finding.detail/.title are the only fields ai_summary.py sends to
+            # the third-party LLM (see its docstring) - the matched fragment
+            # must never be included there, only the signature label.
+            findings.append(Finding("Sensitive Path Exposure", f"Confirmed exposure: /{path}", sev,
+                                     row["detail"] + " " + impact, remediation))
+        else:
+            row.update(classification="needs_review", severity="medium", confidence="low",
+                       title="Reachable, not confirmed",
+                       detail="The scanner detected an unusual response, but there was insufficient evidence to "
+                              "confirm that the requested sensitive resource exists.",
+                       recommendation="Verify the resource manually or review the production server "
+                                       "configuration.")
+            findings.append(Finding("Sensitive Path Exposure", f"Unconfirmed reachable path: /{path}", "medium",
+                                     row["detail"], row["recommendation"]))
+        rows.append(row)
+
+    # security.txt stays its own informational-only probe (not a vulnerability
+    # either way), same behavior as before this rewrite, just carrying the
+    # richer row shape the report template now expects.
     try:
         r = session.get(f"{base_url}/.well-known/security.txt", timeout=REQUEST_TIMEOUT)
-        if r.status_code == 200:
-            rows.append({"path": "/.well-known/security.txt", "code": 200, "status": "pass"})
+        if r.status_code == 200 and re.search(r"^Contact:", r.text, re.M | re.I):
+            rows.append({"path": "/.well-known/security.txt", "group": "security_policy",
+                         "group_label": "Security Policy", "classification": "informational",
+                         "severity": "info", "confidence": "high", "title": "Security contact policy found",
+                         "detail": "A security.txt document was published with a Contact field.",
+                         "recommendation": "", "impact": "", "secret_evidence": None,
+                         "evidence": {"status": 200, "final_url": r.url, "redirect_chain": [],
+                                      "content_type": (r.headers.get("Content-Type") or "").split(";")[0],
+                                      "size": len(r.content or b""),
+                                      "response_time_ms": int(r.elapsed.total_seconds() * 1000)}})
         else:
-            rows.append({"path": "/.well-known/security.txt", "code": r.status_code, "status": "recommend"})
-            findings.append(Finding("Exposure", "No security.txt published", "info",
+            rows.append({"path": "/.well-known/security.txt", "group": "security_policy",
+                         "group_label": "Security Policy", "classification": "informational",
+                         "severity": "info", "confidence": "high",
+                         "title": "Security contact policy not found",
+                         "detail": "No standard contact for responsible vulnerability disclosure was found.",
+                         "recommendation": "Consider publishing /.well-known/security.txt with a contact email "
+                                            "so security researchers know how to report issues.",
+                         "impact": "", "secret_evidence": None,
+                         "evidence": {"status": r.status_code, "final_url": r.url, "redirect_chain": [],
+                                      "content_type": "", "size": 0, "response_time_ms": 0}})
+            findings.append(Finding("Sensitive Path Exposure", "No security.txt published", "info",
                                      "No standard contact for responsible vulnerability disclosure.",
                                      "Publish /.well-known/security.txt with a contact email."))
     except requests.RequestException:
         pass
 
-    return rows, findings
+    summary = {"total": len(rows)}
+    for key in ("passed", "informational", "needs_review", "confirmed"):
+        summary[key] = sum(1 for row in rows if row["classification"] == key)
+    if summary["confirmed"]:
+        overall = "critical" if any(row["severity"] == "critical" for row in rows if row["classification"] == "confirmed") else "attention"
+    elif summary["needs_review"]:
+        overall = "attention"
+    else:
+        overall = "good"
+    summary["overall"] = overall
+
+    return {"rows": rows, "summary": summary}, findings
 
 
 def check_robots_sitemap(base_url, session):
@@ -755,6 +1211,95 @@ def check_exposed_secrets(session, base_url, home_html):
     return {"rows": rows, "js_files_scanned": js_files_scanned}, findings
 
 
+# Matches the same JWT shape as SECRET_PATTERNS's "JWT-looking token" entry,
+# kept separate so check_jwt_weakness can decode+inspect it directly rather
+# than re-deriving the match from check_exposed_secrets' redacted output.
+JWT_PATTERN = r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{0,}"
+MAX_JWT_FINDINGS_PER_CATEGORY = 5
+
+
+def _b64url_decode_json(segment):
+    """Best-effort base64url-decode + JSON-parse of a JWT header/payload
+    segment. Returns None on any failure (malformed padding, non-JSON,
+    non-UTF8) rather than raising - a client-side string that merely looks
+    like a JWT (three dot-separated base64url chunks) is common noise and
+    must not abort the scan."""
+    padded = segment + "=" * (-len(segment) % 4)
+    try:
+        return json.loads(base64.urlsafe_b64decode(padded.encode("ascii")))
+    except Exception:
+        return None
+
+
+def check_jwt_weakness(session, base_url, home_html):
+    """Passive JWT inspection only: decodes the header (and payload, for the
+    `exp` claim) of any JWT-shaped token found in the homepage HTML or
+    same-origin JS bundles already fetched for check_exposed_secrets. This
+    never sends a modified/forged token back to the server and never
+    attempts to verify or break a signature - it only reads what the site
+    already ships to every visitor's browser.
+
+    Flags: `alg: none` (a token accepted with no signature at all is a
+    critical server-side bug if the server actually honors it - this check
+    cannot confirm that without forging a request, so it reports the token
+    shape as the finding, not a confirmed bypass), known-weak/deprecated
+    algorithms, and tokens with no `exp` claim (never expire once issued)."""
+    sources = [("homepage HTML", home_html)]
+    sources.extend(_fetch_same_origin_js(session, base_url, home_html,
+                                          MAX_SECRET_JS_FILES, MAX_JS_BYTES_PER_FILE))
+
+    rows, findings = [], []
+    seen = set()
+    counts = {"alg_none": 0, "weak_alg": 0, "no_exp": 0}
+    WEAK_ALGS = {"HS1", "NONE"}
+    for source_name, text in sources:
+        for m in re.finditer(JWT_PATTERN, text):
+            token = m.group(0)
+            if token in seen:
+                continue
+            seen.add(token)
+            parts = token.split(".")
+            if len(parts) < 2:
+                continue
+            header = _b64url_decode_json(parts[0])
+            if not isinstance(header, dict):
+                continue
+            payload = _b64url_decode_json(parts[1]) if len(parts) > 1 else None
+            alg = str(header.get("alg", "")).upper()
+            row = {"source": source_name, "alg": alg or "?", "token_preview": token[:16] + "...",
+                   "has_exp": bool(isinstance(payload, dict) and payload.get("exp"))}
+            rows.append(row)
+
+            if alg == "NONE":
+                if counts["alg_none"] < MAX_JWT_FINDINGS_PER_CATEGORY:
+                    findings.append(Finding(
+                        "Auth", f"JWT with alg:none found in {source_name}", "high",
+                        "A client-visible JWT declares 'alg: none', meaning it carries no signature. "
+                        "If the server accepts such tokens, authentication/authorization can be bypassed "
+                        "by editing the payload with no valid signature required.",
+                        "Never accept 'alg: none' server-side; pin the expected algorithm(s) explicitly "
+                        "when verifying rather than trusting the token's own `alg` header."))
+                counts["alg_none"] += 1
+            elif alg in WEAK_ALGS:
+                if counts["weak_alg"] < MAX_JWT_FINDINGS_PER_CATEGORY:
+                    findings.append(Finding(
+                        "Auth", f"JWT using weak algorithm '{alg}' found in {source_name}", "medium",
+                        f"A client-visible JWT declares alg '{alg}', which is considered weak/deprecated.",
+                        "Re-issue tokens with a modern algorithm (RS256/ES256/EdDSA, or HS256 with a "
+                        "strong server-side-only secret)."))
+                counts["weak_alg"] += 1
+            elif not row["has_exp"] and isinstance(payload, dict):
+                if counts["no_exp"] < MAX_JWT_FINDINGS_PER_CATEGORY:
+                    findings.append(Finding(
+                        "Auth", f"JWT with no expiry ('exp' claim) found in {source_name}", "low",
+                        "A client-visible JWT has a decodable payload but no 'exp' claim, so it never "
+                        "expires once issued.",
+                        "Always set a short-lived 'exp' claim and use refresh tokens for longer sessions."))
+                counts["no_exp"] += 1
+
+    return {"rows": rows}, findings
+
+
 def check_sri(base_url, home_html):
     """Flags third-party <script>/<link rel=stylesheet> tags with no
     Subresource Integrity hash. If that external host is ever compromised
@@ -949,20 +1494,79 @@ def check_api_js_discovery(session, base_url, home_html):
     return {"rows": rows, "endpoints_discovered": len(endpoints)}, findings
 
 
-def crawl_same_origin(base_url, home_html, limit=10):
+MAX_ROBOTS_DISALLOW_RULES = 200
+
+
+def _fetch_robots_disallow_prefixes(session, base_url):
+    """Best-effort parser for `User-agent: *` `Disallow:` rules in
+    /robots.txt, used only by the two link-discovery crawlers below
+    (crawl_same_origin/crawl_media) to skip pages the site has asked
+    crawlers not to fetch - real "respectful crawling" etiquette, distinct
+    from vulnerability probing. Deliberately NOT applied to
+    check_sensitive_paths/check_directory_listing: those checks exist
+    specifically to verify whether a sensitive path is reachable despite a
+    site's wishes (and sites often Disallow the very paths - /backup/,
+    /.git/ - that are worth checking), so honoring robots.txt there would
+    defeat their purpose.
+
+    Ignores `Allow:` override rules and non-`*` user-agent groups - a
+    documented simplification, not full RFC 9309 compliance. Returns []
+    (honor nothing) on any fetch/parse failure so a missing/unreachable
+    robots.txt never blocks crawling."""
+    try:
+        r = session.get(base_url + "/robots.txt", timeout=REQUEST_TIMEOUT)
+        if r.status_code != 200:
+            return []
+    except Exception:
+        # Broad on purpose (not just requests.RequestException): this is a
+        # best-effort politeness lookup, never allowed to break a scan - a
+        # stub/mock session in tests, or any other unexpected failure mode,
+        # should just mean "honor nothing" rather than propagate.
+        return []
+
+    prefixes = []
+    in_wildcard_group = False
+    for line in r.text.splitlines():
+        line = line.split("#", 1)[0].strip()
+        if not line or ":" not in line:
+            continue
+        directive, _, value = line.partition(":")
+        directive, value = directive.strip().lower(), value.strip()
+        if directive == "user-agent":
+            in_wildcard_group = value == "*"
+        elif directive == "disallow" and in_wildcard_group and value:
+            prefixes.append(value)
+        if len(prefixes) >= MAX_ROBOTS_DISALLOW_RULES:
+            break
+    return prefixes
+
+
+def _robots_disallows(path, disallow_prefixes):
+    return any(path.startswith(prefix) for prefix in disallow_prefixes)
+
+
+def crawl_same_origin(base_url, home_html, limit=10, session=None):
     """Depth-1, same-origin only. Collects GET URLs with query params and
     lists (but never submits) discovered forms, so POST forms can't trigger
-    real side effects like signups or emails."""
+    real side effects like signups or emails.
+
+    `session` is optional (defaults to no robots.txt lookup, preserving old
+    behavior for any caller that doesn't pass one) - when provided, links
+    whose path matches a `Disallow:` rule for `User-agent: *` are skipped,
+    same as a well-behaved crawler would."""
     if not home_html:
         return [], []
     soup = BeautifulSoup(home_html, "html.parser")
     origin = urlparse(base_url).netloc
+    disallow_prefixes = _fetch_robots_disallow_prefixes(session, base_url) if session else []
     param_urls, forms = [], []
 
     for a in soup.find_all("a", href=True):
         abs_url = urljoin(base_url + "/", a["href"])
         p = urlparse(abs_url)
         if p.netloc != origin:
+            continue
+        if _robots_disallows(p.path, disallow_prefixes):
             continue
         if p.query:
             param_urls.append(abs_url)
@@ -1123,22 +1727,52 @@ def _extract_media_urls(base_url, html):
     return urls, embeds
 
 
+MAX_429_BACKOFF_SECONDS = 5
+
+
+def _get_respecting_backoff(session, url, **kwargs):
+    """GET that backs off once if the server answers 429, honoring
+    Retry-After when present (capped at MAX_429_BACKOFF_SECONDS so a
+    misbehaving/malicious Retry-After value can't stall a scan). Retries
+    at most once - this is politeness for a multi-page crawl, not a full
+    retry policy - and never raises past its own request; callers already
+    handle requests.RequestException the same way they would without this
+    wrapper."""
+    r = session.get(url, **kwargs)
+    if r.status_code == 429:
+        wait = r.headers.get("Retry-After")
+        try:
+            wait = min(float(wait), MAX_429_BACKOFF_SECONDS) if wait else 1.0
+        except ValueError:
+            wait = 1.0
+        time.sleep(wait)
+        r = session.get(url, **kwargs)
+    return r
+
+
 def crawl_media(session, base_url):
     """Depth-1 same-origin crawl (homepage + up to MAX_MEDIA_PAGES-1 linked
     pages, prioritizing links that look media-heavy - gallery/portfolio/
     video/photo/etc. - over generic nav links) collecting direct media
-    files plus third-party video embeds."""
+    files plus third-party video embeds.
+
+    Respectful-crawling controls: skips pages disallowed by /robots.txt's
+    `User-agent: *` rules (see _fetch_robots_disallow_prefixes), and backs
+    off once on a 429 rather than hammering a throttling server."""
     origin = urlparse(base_url).netloc
     try:
-        home_r = session.get(base_url + "/", timeout=REQUEST_TIMEOUT)
+        home_r = _get_respecting_backoff(session, base_url + "/", timeout=REQUEST_TIMEOUT)
     except requests.RequestException as e:
         return [], [], {"error": str(e)}
 
+    disallow_prefixes = _fetch_robots_disallow_prefixes(session, base_url)
     soup = BeautifulSoup(home_r.text, "html.parser")
     candidates = []
     for a in soup.find_all("a", href=True):
         abs_url = urljoin(base_url + "/", a["href"])
-        if urlparse(abs_url).netloc == origin and abs_url not in candidates and abs_url.rstrip("/") != base_url.rstrip("/"):
+        p = urlparse(abs_url)
+        if (p.netloc == origin and abs_url not in candidates and abs_url.rstrip("/") != base_url.rstrip("/")
+                and not _robots_disallows(p.path, disallow_prefixes)):
             candidates.append(abs_url)
     candidates.sort(key=lambda u: 0 if any(h in u.lower() for h in MEDIA_PAGE_HINTS) else 1)
     pages = [base_url + "/"] + candidates[:MAX_MEDIA_PAGES - 1]
@@ -1146,7 +1780,7 @@ def crawl_media(session, base_url):
     media_urls, embeds = _extract_media_urls(base_url, home_r.text)
     for page in pages[1:]:
         try:
-            r = session.get(page, timeout=REQUEST_TIMEOUT)
+            r = _get_respecting_backoff(session, page, timeout=REQUEST_TIMEOUT)
         except requests.RequestException:
             continue
         u, e = _extract_media_urls(base_url, r.text)

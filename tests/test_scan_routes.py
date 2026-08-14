@@ -1,7 +1,8 @@
 """Tests for webvulnscanner/scan_routes.py.
 
-Originally covered only the dashboard() view (below). Now also owns
-HARD-02's Scan-row status-transition coverage for
+Originally covered only the dashboard() view (below), including its
+"Recent Findings" section (a real report JSON on disk via _attach_report).
+Now also owns HARD-02's Scan-row status-transition coverage for
 _run_scan_in_background's media, api and advanced branches (04-04) - the
 base branch's equivalent lives in tests/test_scan_events.py, where it was
 written alongside the ScanEvent live-progress feed. The pure orchestrator
@@ -12,13 +13,32 @@ wrapper around them instead: the Scan.status transitions, the per-scan-type
 report-filename prefix, and the "never left stuck in RUNNING" failure
 guarantee.
 """
+import json
+import os
 from types import SimpleNamespace
 
 from webvulnscanner import scan_engine, scan_routes
+from webvulnscanner.checks import REPORTS_DIR
 from webvulnscanner.entitlements import Tier
+from webvulnscanner.extensions import db
 from webvulnscanner.models import Report, Scan, ScanStatus
 
 from tests.conftest import login, make_org, make_scan, make_user
+
+
+def _attach_report(scan, findings, severity_counts):
+    """Writes a real report JSON to REPORTS_DIR and links it via a Report
+    row - same on-disk shape scan_engine.save_report() produces, so the
+    dashboard's latest_report loading code path (scan_routes.dashboard())
+    is exercised the same way it would be against a real completed scan."""
+    filename = f"test-dashboard-{scan.id}.json"
+    path = os.path.join(REPORTS_DIR, filename)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({"findings": findings, "severity_counts": severity_counts}, f)
+    report = Report(scan_id=scan.id, json_path=filename)
+    db.session.add(report)
+    db.session.flush()
+    return path
 
 
 def test_dashboard_single_scored_scan_renders_flat_reference_line(client, db):
@@ -38,9 +58,9 @@ def test_dashboard_single_scored_scan_renders_flat_reference_line(client, db):
 
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
-    sh = 70
-    y = round(sh - (42 / 100 * sh), 1)
-    assert f'<polyline points="0,{y} 560,{y}"' in body
+    pad_l, pad_t, plot_w, plot_h = 34, 18, 540, 130
+    y = round(pad_t + plot_h - (42 / 100 * plot_h), 1)
+    assert f'<polyline points="{pad_l},{y} {pad_l + plot_w},{y}"' in body
     assert "only scan so far" in body
 
 
@@ -407,3 +427,48 @@ def test_run_scan_in_background_unknown_scan_type_lands_failed_not_raising(app):
         assert updated.status == ScanStatus.FAILED
         assert "unknown scan_type" in updated.error_message
         assert Report.query.filter_by(scan_id=scan_id).count() == 0
+
+
+def test_dashboard_renders_recent_findings_from_latest_report(client, db):
+    org = make_org()
+    user = make_user("findings@example.com", org=org)
+    scan = make_scan(user, org=org, status=ScanStatus.COMPLETED)
+    scan.risk_score = 97
+    findings = [
+        {"category": "headers", "title": "Missing Security Header",
+         "severity": "low", "detail": "Security header is not configured correctly.",
+         "recommendation": "Add the header.", "owasp_category": "A05"},
+    ]
+    path = _attach_report(scan, findings, {"critical": 0, "high": 0, "medium": 0, "low": 1})
+    db.session.commit()
+    try:
+        login(client, "findings@example.com")
+        resp = client.get("/dashboard")
+        body = resp.get_data(as_text=True)
+
+        assert resp.status_code == 200
+        assert "Recent Findings" in body
+        assert "Missing Security Header" in body
+        assert "Security Score" in body
+        assert "97" in body and "Grade A" in body
+        assert "Low &mdash; 1" in body or "Low — 1" in body
+    finally:
+        os.remove(path)
+
+
+def test_dashboard_recent_findings_empty_state_when_no_actionable_findings(client, db):
+    org = make_org()
+    user = make_user("clean@example.com", org=org)
+    scan = make_scan(user, org=org, status=ScanStatus.COMPLETED)
+    scan.risk_score = 100
+    path = _attach_report(scan, [], {"critical": 0, "high": 0, "medium": 0, "low": 0})
+    db.session.commit()
+    try:
+        login(client, "clean@example.com")
+        resp = client.get("/dashboard")
+        body = resp.get_data(as_text=True)
+
+        assert resp.status_code == 200
+        assert "No security issues found" in body
+    finally:
+        os.remove(path)

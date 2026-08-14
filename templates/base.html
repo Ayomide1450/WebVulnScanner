@@ -195,6 +195,10 @@
   .topnav .nav-links a { color: var(--muted); text-decoration:none; font-size: 13.5px; font-weight:600; transition: color 150ms ease; }
   .topnav .nav-links a:hover { color: var(--text); }
   .topnav .nav-links a.cta-link { color: var(--accent); }
+  /* Logout is functionally distinct from the primary nav (destructive/
+     account action, not a place to browse to) - a left border/indent sets
+     it apart without a hard visual break like a second nav bar. */
+  .topnav .nav-links a.nav-logout { padding-left: 18px; border-left: 1px solid var(--border); }
 
   .wrap { max-width: 1040px; margin: 0 auto; padding: var(--space-6) 20px 90px; }
 
@@ -238,13 +242,13 @@
       {% if current_user.is_authenticated %}
         <a href="/dashboard">Dashboard</a>
         <a href="{{ url_for('asset.list_assets') }}">Assets</a>
-        <a href="/scan/new" class="cta-link">New Scan</a>
+        <a href="/scan/new">New Scan</a>
         <a href="/account/billing">Billing</a>
         <a href="{{ url_for('api_tokens.list_tokens') }}">API Tokens</a>
         {% if current_user.role == Role.ORG_ADMIN %}
-        <a href="/org/admin">Org Admin</a>
+        <a href="/org/admin">Organization</a>
         {% endif %}
-        <a href="{{ url_for('auth.logout') }}">Logout</a>
+        <a href="{{ url_for('auth.logout') }}" class="nav-logout">Logout</a>
       {% else %}
         <a href="{{ url_for('auth.login') }}">Login</a>
         <a href="{{ url_for('auth.signup') }}" class="cta-link">Sign up</a>

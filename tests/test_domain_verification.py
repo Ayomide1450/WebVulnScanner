@@ -13,9 +13,13 @@ same never-touch-the-network convention `tests/test_ssrf_guard.py` already
 established for this kind of check.
 
 Split into a helper-level section (direct calls into domain_verification.py,
-exercising the resolver-exception/HTTP-failure surface) and a route-level
+exercising the resolver-exception/HTTP-failure surface), a route-level
 section (verify_domain_view's cross-org guard, a different failure surface
-entirely - a wrong identifier rather than a network error).
+entirely - a wrong identifier rather than a network error), and a final
+`domain_is_org_verified` section proving the two proof methods are
+combined as an OR (from an independently-written pass covering the same
+module - see that section's own header comment for why it's appended
+here rather than a separate file).
 """
 from datetime import datetime, timezone
 
@@ -28,6 +32,7 @@ from webvulnscanner.domain_verification import (
     verify_domain,
     well_known_path_and_content,
 )
+from webvulnscanner.entitlements import domain_is_org_verified
 from webvulnscanner.models import DomainVerification, Role, VerifyMethod
 
 from tests.conftest import login, make_org, make_user
@@ -227,3 +232,37 @@ def test_verify_domain_view_get_requires_org_admin(client, db):
 
     resp = client.get("/org/verify-domain")
     assert resp.status_code == 403
+
+
+# --------------------------------------------------------------------------
+# domain_is_org_verified() - proves the two proof methods (DNS TXT,
+# well-known) are combined as an OR by entitlements.py's gate for intrusive
+# checks (the actual gate scan_routes.py/entitlements.py check before an
+# intrusive scan), not "the newer one replaces the older one". From an
+# independently-written test pass over the same module.
+# --------------------------------------------------------------------------
+
+def test_domain_is_org_verified_true_after_dns_txt(db, monkeypatch):
+    org = make_org()
+    dv = generate_verification(org.id, "example.com", VerifyMethod.DNS_TXT)
+    monkeypatch.setattr(dns.resolver, "resolve", lambda *a, **k: [_FakeTxtAnswer(txt_record_value(dv))])
+    verify_domain(dv)
+    assert domain_is_org_verified(org, "https://example.com") is True
+
+
+def test_domain_is_org_verified_true_after_well_known(db, monkeypatch):
+    import webvulnscanner.domain_verification as domver
+
+    org = make_org()
+    dv = generate_verification(org.id, "example.com", VerifyMethod.WELL_KNOWN)
+    _path, token = well_known_path_and_content(dv)
+
+    monkeypatch.setattr(domver.requests, "get", lambda url, timeout=None: _FakeHttpResponse(200, token))
+    verify_domain(dv)
+    assert domain_is_org_verified(org, "https://example.com") is True
+
+
+def test_domain_is_org_verified_false_when_unverified(db):
+    org = make_org()
+    generate_verification(org.id, "example.com", VerifyMethod.DNS_TXT)  # never verified
+    assert domain_is_org_verified(org, "https://example.com") is False

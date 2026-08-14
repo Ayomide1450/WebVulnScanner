@@ -34,7 +34,7 @@ FEATURE_REQUIREMENTS = {
     "headers": Tier.FREE, "cookies": Tier.FREE, "tls": Tier.FREE,
     "https_redirect": Tier.FREE, "sensitive_paths": Tier.FREE, "robots_sitemap": Tier.FREE,
     "dns_email": Tier.FREE, "mixed_content": Tier.FREE, "vulnerable_js": Tier.FREE,
-    "secrets": Tier.FREE, "sri": Tier.FREE,
+    "secrets": Tier.FREE, "sri": Tier.FREE, "jwt": Tier.FREE,
     # base scan - active (PAID)
     "crawl": Tier.PAID, "open_ports": Tier.PAID, "cors": Tier.PAID,
     "http_methods": Tier.PAID, "open_redirect": Tier.PAID, "directory_listing": Tier.PAID,

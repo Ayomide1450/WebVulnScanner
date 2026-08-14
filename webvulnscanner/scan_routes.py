@@ -39,6 +39,8 @@ default.
 separate file) since it's only used by `scan_compare()` here and is small
 enough not to warrant its own module.
 """
+import csv
+import io
 import json
 import os
 import threading
@@ -46,7 +48,7 @@ import time
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
-from flask import Blueprint, Response, abort, current_app, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from webvulnscanner.ai_summary import generate_remediation_summary
@@ -76,16 +78,25 @@ GROUPING_MODES = ("severity", "compliance")
 # Ownership
 # --------------------------------------------------------------------------
 
+def _owns_scan(user, s):
+    """True if `user` owns `s` or is the ORG_ADMIN of the org that ran it -
+    the actual predicate `_check_ownership` (session-auth callers) and
+    api_routes.py (API-key callers) both gate on, so the two auth paths
+    can never diverge in what counts as "yours to see"."""
+    if s.user_id == user.id:
+        return True
+    if s.org_id is not None and user.org_id == s.org_id and user.role == Role.ORG_ADMIN:
+        return True
+    return False
+
+
 def _check_ownership(s):
     """Aborts with 404 unless `current_user` owns `s` or is the ORG_ADMIN of
     the org that ran it. 404 (not 403) so a scan ID doesn't confirm its own
     existence to someone who isn't entitled to see it either way - matches
     the convention already used for cross-org access in org_routes.py."""
-    if s.user_id == current_user.id:
-        return
-    if s.org_id is not None and current_user.org_id == s.org_id and current_user.role == Role.ORG_ADMIN:
-        return
-    abort(404)
+    if not _owns_scan(current_user, s):
+        abort(404)
 
 
 # --------------------------------------------------------------------------
@@ -231,6 +242,37 @@ def _parse_advanced_form(f):
 # Routes
 # --------------------------------------------------------------------------
 
+def _per_target_trends(scans):
+    """Groups `scans` (already newest-first, current_user's own) by
+    hostname and returns {hostname: [scans oldest-to-newest]} for every
+    target with 2+ completed, scored scans - a single scan has no trend to
+    show, so those targets are dropped rather than rendered as a flat
+    line. Powers the dashboard's per-target trend/portfolio section
+    (roadmap item 8); deliberately independent of the existing all-scans
+    sparkline above it, which mixes every target into one line."""
+    by_host = {}
+    for s in scans:
+        if s.risk_score is None:
+            continue
+        host = urlparse(s.target_url).netloc or s.target_url
+        by_host.setdefault(host, []).append(s)
+    return {
+        host: list(reversed(scored))  # scans is newest-first; trend reads oldest-first
+        for host, scored in by_host.items()
+        if len(scored) >= 2
+    }
+
+
+# User-facing labels for Scan.scan_type - the stored DB value ("base" etc.)
+# never changes, this is a display-only mapping for the dashboard redesign.
+SCAN_TYPE_LABELS = {
+    "base": "Standard Security Scan",
+    "advanced": "Advanced Security Scan",
+    "media": "Media Security Scan",
+    "api": "API Security Scan",
+}
+
+
 @scan.route("/dashboard")
 @login_required
 def dashboard():
@@ -240,7 +282,35 @@ def dashboard():
         .all()
     )
     latest = scans[0] if scans else None
-    return render_template("dashboard.html", scans=scans, latest=latest)
+    target_trends = _per_target_trends(scans)
+    completed_count = sum(1 for s in scans if s.status == ScanStatus.COMPLETED)
+
+    # Powers the "Recent Findings" section - only loaded when the latest
+    # scan actually has a persisted report, same on-disk JSON every other
+    # report view reads (scan_report()/scan_report_csv() above). A missing/
+    # corrupt file degrades to None (empty state), never a 500 - same
+    # convention as every check_* function in checks.py.
+    latest_report = None
+    if latest is not None and latest.status == ScanStatus.COMPLETED and latest.report is not None:
+        try:
+            with open(os.path.join(REPORTS_DIR, latest.report.json_path), encoding="utf-8") as f:
+                latest_report = json.load(f)
+        except (OSError, ValueError):
+            latest_report = None
+
+    return render_template(
+        "dashboard.html", scans=scans, latest=latest, target_trends=target_trends,
+        completed_count=completed_count, latest_report=latest_report,
+        scan_type_labels=SCAN_TYPE_LABELS,
+    )
+
+
+# Caps how many targets a single /scan/new/base submission can launch at
+# once (see the bulk-scanning support in new_scan_base below). Kept small
+# and hardcoded rather than a plan-based limit - this is about not letting
+# one form submission spawn dozens of background scan threads at once, not
+# an entitlement to gate by tier.
+MAX_BULK_TARGETS = 10
 
 
 def _tier_flags(tier):
@@ -250,6 +320,7 @@ def _tier_flags(tier):
         "can_run_org_verified": Tier.ORG_VERIFIED <= tier,
         "can_run_media": FEATURE_REQUIREMENTS["media"] <= tier,
         "can_run_api": FEATURE_REQUIREMENTS["api"] <= tier,
+        "max_bulk_targets": MAX_BULK_TARGETS,
     }
 
 
@@ -276,6 +347,48 @@ def new_scan():
     return render_template("scan_new.html", **_tier_flags(tier))
 
 
+def _launch_base_scan(user, tier, raw_target, manual_test_url=None):
+    """Validates+launches one base scan for `raw_target`, exactly the steps
+    `new_scan_base`'s per-target loop already ran inline before this was
+    extracted: normalize_target() -> _unsafe_target_error() (the SSRF gate
+    every new_scan_* route calls before a Scan row is created) ->
+    domain_is_org_verified() -> create the Scan row -> spawn the background
+    thread. Returns (scan, None) on success or (None, error_string) on a
+    validation/safety failure - never raises past its own SSRF/normalize
+    checks.
+
+    This is the single place both the UI's bulk-scan form (scan_routes.py)
+    and the API's POST /api/v1/scans (api_routes.py) launch a scan, so an
+    API-triggered scan is provably subject to the exact same
+    ownership/SSRF gate as one launched from the form - not a
+    reimplementation that could quietly drift from it. `user` is a plain
+    parameter (not `current_user`) precisely so api_routes.py can pass the
+    User the API key resolves to."""
+    base_url = normalize_target(raw_target)
+    if not base_url:
+        return None, "not a valid domain/URL"
+    unsafe = _unsafe_target_error(base_url)
+    if unsafe:
+        return None, unsafe
+    if manual_test_url:
+        unsafe = _unsafe_target_error(manual_test_url)
+        if unsafe:
+            return None, unsafe
+
+    org_verified = domain_is_org_verified(user.organization, base_url)
+    s = Scan(user_id=user.id, org_id=user.org_id,
+              target_url=base_url, scan_type="base", status=ScanStatus.QUEUED)
+    db.session.add(s)
+    db.session.commit()
+
+    _spawn_scan_thread(
+        s.id, "base",
+        base_url=base_url, manual_test_url=manual_test_url,
+        tier=tier, org_verified=org_verified,
+    )
+    return s, None
+
+
 @scan.route("/scan/new/base", methods=["GET", "POST"])
 @login_required
 def new_scan_base():
@@ -290,34 +403,60 @@ def new_scan_base():
             **_tier_flags(tier),
         )
 
-    base_url = normalize_target(request.form.get("target", ""))
-    if not base_url:
+    # Bulk-scanning support: the target field accepts one domain per line
+    # (or comma-separated) so a user can launch several base scans from one
+    # submission instead of repeating the form. Each raw entry still goes
+    # through the exact same normalize_target()/is_ssrf_safe_hostname()
+    # gate as a single-target submission - bulk is purely a UI convenience
+    # for the launch step, not a relaxed validation path. Entries that
+    # don't normalize or fail the SSRF check are skipped (reported back to
+    # the user) rather than aborting the whole batch, so one typo doesn't
+    # block the rest of a portfolio scan.
+    raw_targets = [t.strip() for chunk in request.form.get("target", "").splitlines()
+                   for t in chunk.split(",")]
+    raw_targets = [t for t in raw_targets if t][:MAX_BULK_TARGETS]
+    if not raw_targets:
         return render_template(
-            "scan_new_base.html", error="Enter a valid domain or URL, e.g. example.com",
+            "scan_new_base.html", error="Enter at least one valid domain or URL, e.g. example.com",
             **_tier_flags(tier),
         )
-    unsafe = _unsafe_target_error(base_url)
-    if unsafe:
-        return render_template("scan_new_base.html", error=unsafe, **_tier_flags(tier))
 
     manual_test_url = request.form.get("test_url", "").strip() or None
     if manual_test_url:
         unsafe = _unsafe_target_error(manual_test_url)
         if unsafe:
             return render_template("scan_new_base.html", error=unsafe, **_tier_flags(tier))
-    org_verified = domain_is_org_verified(current_user.organization, base_url)
 
-    s = Scan(user_id=current_user.id, org_id=current_user.org_id,
-              target_url=base_url, scan_type="base", status=ScanStatus.QUEUED)
-    db.session.add(s)
-    db.session.commit()
+    launched, skipped = [], []
+    for raw in raw_targets:
+        # A seed test_url only makes sense against a single target -
+        # applying it across a whole batch would test every target with
+        # another site's query-string shape.
+        s, err = _launch_base_scan(
+            current_user, tier, raw,
+            manual_test_url=manual_test_url if len(raw_targets) == 1 else None,
+        )
+        if s is None:
+            skipped.append((raw, err))
+        else:
+            launched.append(s)
 
-    _spawn_scan_thread(
-        s.id, "base",
-        base_url=base_url, manual_test_url=manual_test_url,
-        tier=tier, org_verified=org_verified,
-    )
-    return redirect(url_for("scan.scan_detail", scan_id=s.id))
+    if not launched:
+        return render_template(
+            "scan_new_base.html",
+            error="None of the entered targets could be scanned: " +
+                  "; ".join(f"{t} ({why})" for t, why in skipped),
+            **_tier_flags(tier),
+        )
+
+    if skipped:
+        flash("Skipped: " + "; ".join(f"{t} ({why})" for t, why in skipped), "error")
+
+    if len(launched) == 1:
+        return redirect(url_for("scan.scan_detail", scan_id=launched[0].id))
+
+    flash(f"Started {len(launched)} base scans.", "info")
+    return redirect(url_for("scan.dashboard"))
 
 
 @scan.route("/scan/new/advanced", methods=["GET", "POST"])
@@ -566,6 +705,89 @@ def scan_events(scan_id):
     return Response(generate(), mimetype="text/event-stream")
 
 
+# Bounds how many prior scans of the same target/type _sensitive_path_lifecycle
+# will open and inspect - read-time-computed, so this is a latency/cost cap,
+# not a data-retention limit. No schema change: lifecycle status is derived
+# from the existing Scan/Report rows every time the report page renders,
+# never persisted.
+MAX_LIFECYCLE_SCANS = 20
+
+
+def _ownership_scoped_history_query(s):
+    """Same scans-I-can-see scoping _check_ownership() enforces per-row,
+    expressed as a query filter: an individual's own scans, or (for an
+    ORG_ADMIN) every scan run under their org - reused so the lifecycle/
+    previous-scan lookups below can never surface another user's scan
+    history through this side channel."""
+    q = Scan.query.filter(Scan.target_url == s.target_url, Scan.scan_type == s.scan_type,
+                           Scan.status == ScanStatus.COMPLETED)
+    if s.org_id is not None and current_user.org_id == s.org_id and current_user.role == Role.ORG_ADMIN:
+        return q.filter(Scan.org_id == s.org_id)
+    return q.filter(Scan.user_id == s.user_id)
+
+
+def _load_report_json(scan_row):
+    if scan_row.report is None:
+        return None
+    try:
+        with open(os.path.join(REPORTS_DIR, scan_row.report.json_path), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _previous_completed_scan(s):
+    """Most recent completed scan of the same target+type before `s`, within
+    the caller's existing ownership scope - used for the report page's
+    "Compare with previous scan" link (feeds the existing scan_compare()/
+    diff_reports() below, not a new comparison mechanism)."""
+    return (_ownership_scoped_history_query(s)
+            .filter(Scan.id != s.id, Scan.created_at < s.created_at)
+            .order_by(Scan.created_at.desc()).first())
+
+
+def _sensitive_path_lifecycle(s, confirmed_paths):
+    """For each path currently CONFIRMED-exposed in scan `s`'s report,
+    returns {path: {"status": "new"|"active"|"reopened", "first_detected":
+    datetime}} by walking up to MAX_LIFECYCLE_SCANS prior completed scans of
+    the same target+type (read-only; nothing is persisted). A path with no
+    prior occurrence is "new"; one confirmed in the immediately-preceding
+    scan is "active"; one confirmed before but absent from the immediately-
+    preceding scan is "reopened". Paths not currently confirmed (e.g.
+    resolved since the last scan) aren't included - see the report page's
+    "Compare with previous scan" link (reusing the existing diff_reports())
+    for that side of the picture instead of duplicating it here."""
+    if not confirmed_paths:
+        return {}
+
+    history = (_ownership_scoped_history_query(s)
+               .filter(Scan.id != s.id, Scan.created_at < s.created_at)
+               .order_by(Scan.created_at.asc())
+               .limit(MAX_LIFECYCLE_SCANS).all())
+
+    # presence[path] = [was_confirmed_in_history_scan_0, ...], chronological.
+    presence = {path: [] for path in confirmed_paths}
+    for hs in history:
+        hreport = _load_report_json(hs)
+        seen_here = set()
+        if hreport:
+            seen_here = {row["path"] for row in (hreport.get("sensitive_paths") or {}).get("rows", [])
+                         if row.get("classification") == "confirmed"}
+        for path in confirmed_paths:
+            presence[path].append((hs.created_at, path in seen_here))
+
+    lifecycle = {}
+    for path, seq in presence.items():
+        prior_occurrences = [d for d, present in seq if present]
+        if not prior_occurrences:
+            lifecycle[path] = {"status": "new", "first_detected": s.created_at}
+        elif seq[-1][1]:  # present in the immediately-preceding scan too
+            lifecycle[path] = {"status": "active", "first_detected": prior_occurrences[0]}
+        else:
+            lifecycle[path] = {"status": "reopened", "first_detected": prior_occurrences[0]}
+    return lifecycle
+
+
 @scan.route("/scan/<int:scan_id>/report")
 @login_required
 def scan_report(scan_id):
@@ -587,9 +809,53 @@ def scan_report(scan_id):
     if group == "compliance":
         compliance_groups = group_findings_by_compliance(report.get("findings", []), CHECK_COMPLIANCE)
 
+    lifecycle = {}
+    sensitive_paths = report.get("sensitive_paths")
+    if isinstance(sensitive_paths, dict):
+        confirmed_paths = {row["path"] for row in sensitive_paths.get("rows", [])
+                            if row.get("classification") == "confirmed"}
+        lifecycle = _sensitive_path_lifecycle(s, confirmed_paths)
+
+    previous_scan = _previous_completed_scan(s)
+
     return render_template(
         "scan_report.html", scan=s, r=report, locked=report.get("locked_checks", []),
         CHECK_COMPLIANCE=CHECK_COMPLIANCE, group=group, compliance_groups=compliance_groups,
+        sensitive_path_lifecycle=lifecycle, previous_scan=previous_scan,
+    )
+
+
+@scan.route("/scan/<int:scan_id>/export.csv")
+@login_required
+def scan_report_csv(scan_id):
+    """CSV export of a single report's findings. Same ownership guard as
+    `scan_report` (404, not 403, for a scan the caller can't see) - export
+    is just an alternate rendering of the same already-authorized report,
+    not a new access path, so it reuses `_check_ownership` rather than
+    inventing its own check."""
+    s = Scan.query.get_or_404(scan_id)
+    _check_ownership(s)
+    if s.report is None:
+        abort(404)
+
+    with open(os.path.join(REPORTS_DIR, s.report.json_path), encoding="utf-8") as f:
+        report = json.load(f)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["category", "title", "severity", "owasp_category", "detail", "recommendation"])
+    for finding in report.get("findings", []):
+        writer.writerow([
+            finding.get("category", ""), finding.get("title", ""), finding.get("severity", ""),
+            finding.get("owasp_category", ""), finding.get("detail", ""), finding.get("recommendation", ""),
+        ])
+
+    hostname = report.get("hostname") or urlparse(report.get("target", "")).netloc or "scan"
+    filename = f"{hostname.replace(':', '_')}_scan{scan_id}_findings.csv"
+    return Response(
+        buf.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

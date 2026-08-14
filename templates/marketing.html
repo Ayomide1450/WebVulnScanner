@@ -1,28 +1,21 @@
 {% extends "base.html" %}
-{% block title %}WebVulnScanner{% endblock %}
+{% block title %}WebVulnScanner - Find security vulnerabilities before attackers do{% endblock %}
 {% block head %}
 <style>
-  .hero { max-width: 760px; margin: 0 auto; padding: 70px 22px 40px; text-align: center; }
-  .eyebrow { display:inline-flex; align-items:center; gap:7px; font-family:"Fira Code",monospace; font-size:12px; color: var(--accent); background: var(--accent-dim); border:1px solid rgba(34,197,94,.3); padding:5px 12px; border-radius:999px; margin-bottom:18px; }
+  /* ---------------------------------------------------------------------
+     Homepage redesign. Reuses base.html's tokens (--bg/--panel/--accent/
+     Fira Sans+Code) and shared components (.card, .btn, .pill) rather than
+     inventing a second design system - see CLAUDE.md "Frontend design
+     system". Only new, page-scoped rules live here. */
+
+  .mkt-wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---- Hero -------------------------------------------------------- */
+  .hero { padding: 64px 24px 0; text-align: center; }
+  .hero-inner { max-width: 880px; margin: 0 auto; }
+  .eyebrow { display:inline-flex; align-items:center; gap:7px; font-family:"Fira Code",monospace; font-size:12.5px; color: var(--accent); background: var(--accent-dim); border:1px solid rgba(34,197,94,.3); padding:6px 14px; border-radius:999px; margin-bottom:28px; }
   .eyebrow .dot { width:6px; height:6px; border-radius:50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 
-  /* Terminal boot sequence - reserves its full, final footprint from the
-     very first paint (fixed height, no display:none/block toggle), so
-     there is nothing for JS to pop in and no single-frame jump of the
-     headline/CTA below it. This replaced an earlier version that started
-     at display:none and had JS add .active to reveal it - that toggle
-     happened after the hero had already painted, so the headline visibly
-     hopped down by the box's full height the instant JS ran. Height math
-     for the 8 boot lines:
-       padding: 16px top + 16px bottom                        =  32px
-       8 lines x (12.5px font-size * 1.7 line-height = 21.25px) = 170px
-       32px + 170px                                            = 202px
-     - `prefers-reduced-motion: reduce` and `<noscript>` both collapse the
-       box to zero via CSS alone (resolved before first paint, so still no
-       shift) instead of relying on JS to decide visibility.
-     - Once the boot log finishes, JS adds .collapsing to animate height/
-       margin/padding/opacity down to 0 (still in flow throughout) - a
-       smooth, intentional exit, not a snap. */
   .terminal { max-width: 480px; margin: 0 auto 22px; text-align:left; background: var(--panel); border:1px solid var(--border); border-radius: 10px; padding: 16px 18px; height: 202px; overflow: hidden; transition: height 320ms ease, margin-bottom 320ms ease, padding 320ms ease, opacity 220ms ease; }
   .terminal.collapsing { height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; opacity: 0; }
   @media (prefers-reduced-motion: reduce) { .terminal { height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; opacity: 0; overflow: hidden; } }
@@ -30,64 +23,408 @@
   .terminal .cursor { display:inline-block; width:7px; height:13px; background: var(--accent); margin-left:2px; vertical-align:-2px; animation: blink 1s step-end infinite; }
   @keyframes blink { 50% { opacity: 0; } }
 
-  .hero h1 { font-size: 40px; margin: 0 0 14px; letter-spacing: -0.02em; min-height: 1.2em; }
-  .hero .sub { color: var(--muted); font-size: 16.5px; margin: 0 0 32px; transition: opacity 250ms ease; }
-  .cta-row { display:flex; gap: 14px; justify-content: center; flex-wrap: wrap; transition: opacity 250ms ease; }
-  .cta { text-decoration:none; padding: 14px 26px; border-radius: 10px; font-weight:700; font-size:15px; transition: filter 150ms ease, transform 150ms ease; }
+  .hero h1 {
+    font-size: clamp(38px, 5.4vw, 68px);
+    line-height: 1.06;
+    letter-spacing: -0.025em;
+    margin: 0 0 22px;
+    font-weight: 700;
+  }
+  .hero h1 .accent-text { color: var(--accent); }
+  .hero .sub {
+    color: var(--muted);
+    font-size: clamp(16px, 1.6vw, 20px);
+    line-height: 1.55;
+    max-width: 640px;
+    margin: 0 auto 38px;
+  }
+
+  /* ---- Scan input ---------------------------------------------------- */
+  .scan-box { max-width: 620px; margin: 0 auto; }
+  .scan-form { display:flex; gap:10px; background: var(--panel); border:1px solid var(--border); border-radius: 14px; padding: 8px; box-shadow: 0 12px 32px -16px rgba(0,0,0,.6); }
+  .scan-form input[type="text"] {
+    flex: 1; min-width: 0; background: transparent; border: none; color: var(--text);
+    font-family: "Fira Code", monospace; font-size: 15px; padding: 12px 14px; outline: none;
+  }
+  .scan-form input[type="text"]::placeholder { color: var(--muted); }
+  .scan-form .btn.primary { white-space: nowrap; padding: 13px 24px; font-size: 15px; }
+  .scan-reassure { margin: 16px 0 0; font-size: 13.5px; color: var(--muted); display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; }
+  .scan-reassure .icon { width:14px; height:14px; color: var(--accent); }
+  @media (max-width: 560px) {
+    .scan-form { flex-direction: column; }
+    .scan-form .btn.primary { width: 100%; justify-content: center; }
+  }
+
+  /* ---- Section shell -------------------------------------------------- */
+  .mkt-section { padding: 76px 24px; border-top: 1px solid var(--border); }
+  .mkt-section.tight { padding-top: 56px; padding-bottom: 56px; }
+  .section-head { max-width: 700px; margin: 0 auto 44px; text-align:center; }
+  .section-head .kicker { display:block; font-family:"Fira Code",monospace; font-size:12.5px; color: var(--accent); text-transform:uppercase; letter-spacing:.1em; margin-bottom:12px; }
+  .section-head h2 { font-size: clamp(28px, 3.2vw, 40px); letter-spacing:-0.02em; margin: 0 0 12px; }
+  .section-head p { color: var(--muted); font-size: 16.5px; line-height:1.6; margin:0; }
+
+  /* ---- Trust strip ------------------------------------------------- */
+  .trust-strip { display:flex; flex-wrap:wrap; justify-content:center; gap: 14px 40px; max-width: 980px; margin: 0 auto; padding: 28px 24px; }
+  .trust-item { display:flex; align-items:center; gap:10px; color: var(--muted); font-size: 14.5px; }
+  .trust-item .icon { color: var(--accent); width:18px; height:18px; flex-shrink:0; }
+  .trust-item b { color: var(--text); font-weight:600; }
+
+  /* ---- What we check grid ------------------------------------------- */
+  .check-grid { max-width: 1180px; margin: 0 auto; display:grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .check-item { background: var(--panel); border:1px solid var(--border); border-radius: 12px; padding: 18px 20px; display:flex; gap: 12px; align-items:flex-start; }
+  .check-item .icon { width:20px; height:20px; color: var(--accent); flex-shrink:0; margin-top:2px; }
+  .check-item h4 { margin:0 0 4px; font-size: 14.5px; font-weight:600; }
+  .check-item p { margin:0; color: var(--muted); font-size: 13px; line-height:1.5; }
+  @media (max-width: 1024px) { .check-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .check-grid { grid-template-columns: 1fr; } }
+
+  /* ---- Report preview ------------------------------------------------ */
+  .report-preview { max-width: 760px; margin: 0 auto; background: linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--border); border-radius: 18px; overflow:hidden; }
+  .report-preview .rp-head { display:flex; align-items:center; justify-content:space-between; padding: 16px 24px; border-bottom:1px solid var(--border); gap:12px; flex-wrap:wrap; }
+  .report-preview .rp-head .rp-target { font-family:"Fira Code",monospace; font-size: 13.5px; color: var(--muted); }
+  .report-preview .rp-body { display:flex; gap: 32px; padding: 28px 24px; flex-wrap:wrap; }
+  .rp-score { display:flex; align-items:center; gap:20px; flex-shrink:0; }
+  .rp-score .num { font-family:"Fira Code",monospace; font-size: 44px; font-weight:800; color: var(--accent); line-height:1; }
+  .rp-score .num small { font-size: 18px; color: var(--muted); font-weight:600; }
+  .rp-score .label { font-size:12.5px; color: var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-top:4px; }
+  .rp-counts { display:flex; flex-direction:column; gap:6px; justify-content:center; }
+  .rp-counts .row { display:flex; align-items:center; gap:10px; font-size: 13.5px; }
+  .rp-counts .row .sev-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .rp-counts .row .n { font-family:"Fira Code",monospace; font-weight:700; min-width:18px; text-align:right; }
+  .rp-findings { border-top:1px solid var(--border); padding: 18px 24px 22px; display:flex; flex-direction:column; gap:10px; }
+  .rp-findings .finding { margin-bottom:0; }
+  .rp-tag { font-size: 11px; text-transform:uppercase; letter-spacing:.08em; color: var(--muted); padding: 12px 24px 0; }
+
+  /* ---- How it works --------------------------------------------------- */
+  .steps { max-width: 1000px; margin: 0 auto; display:grid; grid-template-columns: repeat(4, 1fr); gap: 20px; counter-reset: step; }
+  .step { position:relative; padding-top: 8px; }
+  .step .step-num { font-family:"Fira Code",monospace; font-size: 13px; color: var(--accent); font-weight:700; margin-bottom:10px; }
+  .step h4 { margin: 0 0 6px; font-size:16px; }
+  .step p { margin:0; color: var(--muted); font-size:13.5px; line-height:1.55; }
+  @media (max-width: 900px) { .steps { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .steps { grid-template-columns: 1fr; } }
+
+  /* ---- Tier / feature cards ------------------------------------------- */
+  .tier-grid { max-width: 1180px; margin: 0 auto; display:grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: stretch; }
+  .tier-card { display:flex; flex-direction:column; background: linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--border); border-radius:18px; padding: 30px 28px; transition: border-color 150ms ease, transform 150ms ease; }
+  .tier-card:hover { border-color: rgba(34,197,94,.4); transform: translateY(-2px); }
+  .tier-card .tier-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; background: var(--accent-dim); margin-bottom: 20px; }
+  .tier-card .tier-icon .icon { width:22px; height:22px; color: var(--accent); }
+  .tier-card .tier-badge { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color: var(--accent); margin-bottom: 8px; }
+  .tier-card h3 { margin: 0 0 10px; font-size: 21px; }
+  .tier-card > p { margin: 0 0 18px; color: var(--muted); font-size: 14.5px; line-height:1.55; }
+  .tier-card ul { list-style:none; margin: 0; padding: 0; display:flex; flex-direction:column; gap: 9px; flex: 1; }
+  .tier-card li { display:flex; align-items:flex-start; gap:9px; font-size: 13.5px; color: var(--text); line-height: 1.4; }
+  .tier-card li .icon { width:15px; height:15px; color: var(--accent); flex-shrink:0; margin-top:2px; }
+  @media (max-width: 1024px) { .tier-grid { grid-template-columns: 1fr; } }
+
+  /* ---- Final CTA ------------------------------------------------------ */
+  .final-cta { text-align:center; max-width: 640px; margin: 0 auto; }
+  .final-cta h2 { font-size: clamp(26px, 3.2vw, 36px); margin: 0 0 14px; letter-spacing:-0.02em; }
+  .final-cta p { color: var(--muted); font-size: 16px; margin: 0 0 30px; }
+  .cta-row { display:flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .cta { text-decoration:none; padding: 15px 28px; border-radius: 10px; font-weight:700; font-size:15.5px; transition: filter 150ms ease, transform 150ms ease; }
   .cta:hover { filter: brightness(1.08); }
+  .cta:active { transform: translateY(1px); }
   .cta.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#04150a; }
   .cta.secondary { border:1px solid var(--border); color: var(--text); background: var(--panel); }
-  .features { max-width: 920px; margin: 48px auto 0; display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:16px; padding: 0 22px 80px; }
-  .feature { background: linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--border); border-radius:14px; padding:22px; transition: border-color 150ms ease; }
-  .feature:hover { border-color: rgba(34,197,94,.4); }
-  .feature h3 { margin:0 0 8px; font-size:15px; }
-  .feature p { margin:0; color:var(--muted); font-size:13.5px; }
 </style>
 <noscript><style>.terminal { height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; opacity: 0; overflow: hidden; }</style></noscript>
 {% endblock %}
 {% block content %}
+
+<!-- ============ Hero ============ -->
 <div class="hero">
-  <div class="eyebrow"><span class="dot"></span> Autonomous Security Validation Platform</div>
+  <div class="hero-inner">
+    <div class="eyebrow"><span class="dot"></span> Autonomous Security Validation Platform</div>
 
-  <div class="terminal" id="bootTerminal" aria-hidden="true">
-    <pre id="bootLines"></pre>
-  </div>
+    <div class="terminal" id="bootTerminal" aria-hidden="true">
+      <pre id="bootLines"></pre>
+    </div>
 
-  <h1 id="heroHeadline">Your own automated security engineer.</h1>
-  <p class="sub" id="heroSub">Discover, verify, and safely test your organization's attack
-  surface - no bug bounty hunters, no third-party access. Everything stays between you and
-  the platform.</p>
-  <div class="cta-row" id="heroCta">
-    <a class="cta primary" href="{{ url_for('auth.signup') }}">Start free scan</a>
-    <a class="cta secondary" href="{{ url_for('auth.login') }}">Log in</a>
+    <h1 id="heroHeadline">Find security vulnerabilities <span class="accent-text">before attackers do.</span></h1>
+    <p class="sub" id="heroSub">
+      WebVulnScanner automatically scans your website for exposed secrets, security
+      misconfigurations, vulnerable JavaScript libraries, and other common weaknesses -
+      then hands you a prioritized, plain-English report.
+    </p>
+
+    <div class="scan-box">
+      <form class="scan-form" id="heroScanForm" action="{{ url_for('auth.signup') }}" method="get">
+        <input type="hidden" name="next" value="{{ url_for('scan.new_scan_base') }}">
+        <input type="text" name="target" inputmode="url" autocomplete="off"
+               placeholder="https://yourwebsite.com" aria-label="Website to scan">
+        <button type="submit" class="btn primary">
+          Start Free Scan
+        </button>
+      </form>
+      <p class="scan-reassure">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/></svg>
+        No credit card required &middot; Authorized websites only
+      </p>
+    </div>
   </div>
 </div>
-<div class="features">
-  <div class="feature">
-    <h3>Free - passive checks</h3>
-    <p>Security headers, cookies, TLS certificate, DNS/email security (SPF/DMARC/CAA), outdated JS libraries,
-    exposed secrets, SRI - no domain verification required.</p>
-  </div>
-  <div class="feature">
-    <h3>Paid - active checks</h3>
-    <p>Same-origin crawl, open ports, CORS misconfiguration, HTTP methods, open redirect, directory listing,
-    same-origin media/EXIF discovery, and an AI-assisted plain-English remediation summary on every report.</p>
-  </div>
-  <div class="feature">
-    <h3>Org-verified - intrusive checks</h3>
-    <p>Reflected XSS/SQLi canaries, SQLi login bypass, stored XSS, cross-account IDOR, and rate-limited
-    brute-force checks - gated behind a server-verified domain-ownership proof.</p>
+
+<!-- ============ Trust strip ============ -->
+<div class="mkt-wrap">
+  <div class="trust-strip">
+    <div class="trust-item">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      <span><b>Server-verified ownership</b> gates every intrusive check</span>
+    </div>
+    <div class="trust-item">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>
+      <span><b>Non-destructive</b> - read-only probing, no auto-submitted forms</span>
+    </div>
+    <div class="trust-item">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-linecap="round"/><path stroke-linecap="round" d="M12 7v5l3 3"/></svg>
+      <span><b>Live results</b> streamed to you as each check runs</span>
+    </div>
   </div>
 </div>
+
+<!-- ============ What we check ============ -->
+<div class="mkt-section tight">
+  <div class="section-head">
+    <span class="kicker">Coverage</span>
+    <h2>What WebVulnScanner checks</h2>
+    <p>Every scan pulls from the same rule-based check engine - no black box, no guessing what was actually tested.</p>
+  </div>
+  <div class="mkt-wrap">
+    <div class="check-grid">
+      <div class="check-item">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <div><h4>Exposed secrets</h4><p>API keys and tokens leaked in page source or JS bundles.</p></div>
+      </div>
+      <div class="check-item">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z"/></svg>
+        <div><h4>Sensitive files</h4><p>Backups, config files, and directory listings left reachable.</p></div>
+      </div>
+      <div class="check-item">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/></svg>
+        <div><h4>Security headers</h4><p>CSP, HSTS, X-Frame-Options and the rest of the response header set.</p></div>
+      </div>
+      <div class="check-item">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <div><h4>TLS configuration</h4><p>Certificate validity, expiry, and chain of trust.</p></div>
+      </div>
+      <div class="check-item">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="4" y="14" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div><h4>CORS misconfiguration</h4><p>Overly permissive cross-origin sharing rules.</p></div>
+      </div>
+      <div class="check-item">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 12h16m0 0-5-5m5 5-5 5"/></svg>
+        <div><h4>Open redirects</h4><p>Links that can be abused to redirect users off your domain.</p></div>
+      </div>
+      <div class="check-item">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="9" width="8" height="10" rx="4" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V7a3 3 0 0 1 6 0v2M6 12h12"/></svg>
+        <div><h4>Vulnerable JavaScript</h4><p>Outdated front-end libraries with known CVEs.</p></div>
+      </div>
+      <div class="check-item">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-linecap="round"/><circle cx="12" cy="12" r="5" stroke-linecap="round"/><path stroke-linecap="round" d="M12 12 17 7"/></svg>
+        <div><h4>Attack-surface discovery</h4><p>Same-origin crawl to map reachable pages and endpoints.</p></div>
+      </div>
+      <div class="check-item">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="m4 7 8 6 8-6"/></svg>
+        <div><h4>DNS & email security</h4><p>SPF, DMARC, and CAA records that stop domain spoofing.</p></div>
+      </div>
+      <div class="check-item">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z"/></svg>
+        <div><h4>Directory exposure</h4><p>Open port scanning and directory listing detection.</p></div>
+      </div>
+      <div class="check-item">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>
+        <div><h4>Subresource integrity</h4><p>Third-party scripts loaded without an SRI hash.</p></div>
+      </div>
+      <div class="check-item">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="4" y="14" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div><h4>HTTP method exposure</h4><p>Dangerous verbs (PUT/DELETE/TRACE) left enabled.</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Sample report preview ============ -->
+<div class="mkt-section">
+  <div class="section-head">
+    <span class="kicker">Preview</span>
+    <h2>See the report before you run one</h2>
+    <p>Every scan produces a scored, prioritized report - not a raw log dump.</p>
+  </div>
+  <div class="report-preview">
+    <div class="rp-head">
+      <span class="rp-target">example.com &middot; base scan</span>
+      <span class="pill info">Sample report</span>
+    </div>
+    <div class="rp-body">
+      <div class="rp-score">
+        <div class="num">82<small>/100</small></div>
+        <div>
+          <div class="pill pass" style="margin-bottom:6px;">Grade B</div>
+          <div class="label">Security score</div>
+        </div>
+      </div>
+      <div class="rp-counts">
+        <div class="row"><span class="sev-dot" style="background:var(--critical)"></span>Critical <span class="n">0</span></div>
+        <div class="row"><span class="sev-dot" style="background:var(--high)"></span>High <span class="n">1</span></div>
+        <div class="row"><span class="sev-dot" style="background:var(--medium)"></span>Medium <span class="n">2</span></div>
+        <div class="row"><span class="sev-dot" style="background:var(--low)"></span>Low <span class="n">3</span></div>
+        <div class="row"><span class="sev-dot" style="background:var(--pass)"></span>Passed <span class="n">46</span></div>
+      </div>
+    </div>
+    <div class="rp-tag">Representative findings</div>
+    <div class="rp-findings">
+      <div class="finding high">
+        <span class="badge high">High</span>
+        <div class="body">
+          <b>Missing Content-Security-Policy header</b>
+          <div class="cat">Security Headers</div>
+          <div class="detail">No CSP directive was found - the page has no defense-in-depth against injected scripts.</div>
+        </div>
+      </div>
+      <div class="finding medium">
+        <span class="badge medium">Medium</span>
+        <div class="body">
+          <b>Outdated jQuery library detected</b>
+          <div class="cat">Vulnerable JavaScript</div>
+          <div class="detail">jquery-1.12.4.min.js matches a version with known published CVEs.</div>
+        </div>
+      </div>
+      <div class="finding low">
+        <span class="badge low">Low</span>
+        <div class="body">
+          <b>Cookie missing SameSite attribute</b>
+          <div class="cat">Cookies</div>
+          <div class="detail">session_id is set without SameSite, widening CSRF exposure.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ How it works ============ -->
+<div class="mkt-section tight">
+  <div class="section-head">
+    <span class="kicker">Process</span>
+    <h2>How it works</h2>
+  </div>
+  <div class="mkt-wrap">
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <h4>Enter your domain</h4>
+        <p>Give WebVulnScanner a URL and confirm you own or are authorized to test it.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h4>We verify ownership</h4>
+        <p>Intrusive checks require a DNS TXT record or a /.well-known/ file tied to your org - not just a checkbox.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h4>Checks run live</h4>
+        <p>Watch each check start, complete, and surface findings in real time as the scan progresses.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <h4>Get a scored report</h4>
+        <p>A graded, prioritized report with plain-English remediation steps for every finding.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Tiers ============ -->
+<div class="mkt-section">
+  <div class="section-head">
+    <span class="kicker">Access levels</span>
+    <h2>Checks unlock as you verify</h2>
+    <p>Every check is gated by a real entitlement - no test ever runs above your account's verified tier.</p>
+  </div>
+  <div class="mkt-wrap">
+    <div class="tier-grid">
+      <div class="tier-card">
+        <div class="tier-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/></svg></div>
+        <div class="tier-badge">Free</div>
+        <h3>Passive checks</h3>
+        <p>Read-only recon that never touches your site beyond a normal page load. No domain verification required.</p>
+        <ul>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>Security headers & cookies</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>TLS certificate health</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>DNS & email security (SPF/DMARC/CAA)</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>Outdated JS libraries & exposed secrets</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>Subresource integrity (SRI)</li>
+        </ul>
+      </div>
+      <div class="tier-card">
+        <div class="tier-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="4" y="14" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="tier-badge">Paid</div>
+        <h3>Active checks</h3>
+        <p>Deeper, still non-destructive probing that crawls and interacts with your site's public surface.</p>
+        <ul>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>Same-origin crawl & open ports</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>CORS misconfiguration & HTTP methods</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>Open redirects & directory listing</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>Media crawl & EXIF/GPS leakage</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>AI-assisted remediation summary</li>
+        </ul>
+      </div>
+      <div class="tier-card">
+        <div class="tier-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="9" width="8" height="10" rx="4" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V7a3 3 0 0 1 6 0v2M6 12h12"/></svg></div>
+        <div class="tier-badge">Org-verified</div>
+        <h3>Intrusive checks</h3>
+        <p>Authorized-only canary tests, unlocked solely after server-side proof of domain ownership.</p>
+        <ul>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>Reflected XSS / SQLi canaries</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>SQLi login bypass & stored XSS</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>Cross-account IDOR</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>Rate-limited brute-force checks</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>Requires verified DNS TXT / well-known proof</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Final CTA ============ -->
+<div class="mkt-section tight">
+  <div class="final-cta">
+    <h2>Ready to see where you stand?</h2>
+    <p>Start with a free passive scan - no credit card, no obligation.</p>
+    <div class="cta-row">
+      <a class="cta primary" href="{{ url_for('auth.signup') }}">Start free scan</a>
+      <a class="cta secondary" href="{{ url_for('auth.login') }}">Log in</a>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   // Progressive enhancement only: the server-rendered headline/sub/CTA are
-  // already the final, correct content, and now stay visible the ENTIRE
-  // time - previously they were blanked/hidden (opacity:0) until the ~6s
-  // terminal-boot sequence finished, which left the page looking empty on
-  // load. The terminal box is now purely decorative, typing alongside the
-  // real content instead of gating it.
+  // already the final, correct content and stay visible the entire time -
+  // the terminal box is purely decorative, typing alongside the real
+  // content instead of gating it.
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Wire the hero scan input into the real signup -> new-scan flow. Scans
+  // require an authenticated account (every /scan/new/* route is
+  // @login_required - see scan_routes.py), so the field's value is carried
+  // as a query param through signup's existing `next` redirect support
+  // (_safe_next() in auth_routes.py) rather than pretending to scan
+  // directly from the homepage.
+  var heroForm = document.getElementById('heroScanForm');
+  if (heroForm) {
+    heroForm.addEventListener('submit', function () {
+      var input = heroForm.querySelector('input[name="target"]');
+      var nextField = heroForm.querySelector('input[name="next"]');
+      if (input && nextField && input.value.trim()) {
+        var sep = nextField.value.indexOf('?') === -1 ? '?' : '&';
+        nextField.value = nextField.value.split('?')[0] + sep + 'target=' + encodeURIComponent(input.value.trim());
+      }
+    });
+  }
+
   if (reduceMotion) return;
 
   var terminalEl = document.getElementById('bootTerminal');
@@ -125,10 +462,6 @@
 
   function runBoot(index) {
     if (index >= bootLines.length) {
-      // Leave "Done." visible briefly, then smoothly collapse the terminal
-      // box's height/margin/padding/opacity to 0 (still in flow throughout,
-      // via the .terminal.collapsing transition) - an intentional, animated
-      // exit once the boot log is no longer needed.
       setTimeout(function () {
         terminalEl.classList.add('collapsing');
       }, 1200);
