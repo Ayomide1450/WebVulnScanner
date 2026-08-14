@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}New scan - WebVulnScanner{% endblock %}
+{% block head %}
+{% include "_scan_form_styles.html" %}
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <h1>New scan</h1>
+  <p class="sub">Choose a scan type. Every scan runs in the background - you'll be redirected to a live
+  progress page.</p>
+
+  <div class="warn-box" style="margin-top:0;">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+    <div><b>Authorized use only.</b> Only scan domains you own or have explicit permission to test.</div>
+  </div>
+
+  <div class="scan-type-grid">
+    <div class="card">
+      <div class="section-title"><h2 style="font-size:16px;margin:0;">Base scan</h2><span class="pill pass">Free tier included</span></div>
+      <p class="hint" style="margin-top:10px;">Passive recon (headers, TLS, cookies, DNS/email hygiene,
+      exposed secrets, SRI) on every tier, plus active checks and intrusive canaries as you upgrade.</p>
+      <a class="btn primary" href="{{ url_for('scan.new_scan_base') }}">Run a base scan</a>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><h2 style="font-size:16px;margin:0;">Advanced / authenticated</h2>
+        <span class="pill {{ 'pass' if can_run_org_verified else 'medium' }}">
+          {{ 'Org-verified unlocked' if can_run_org_verified else 'Requires Org-verified' }}
+        </span>
+      </div>
+      <p class="hint" style="margin-top:10px;">Auth-bypass SQLi, brute-force, UNION/error/time-based SQLi,
+      stored XSS, cross-account IDOR - deeper, credential-driven probing.</p>
+      <a class="btn primary" href="{{ url_for('scan.new_scan_advanced') }}">Run advanced checks</a>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><h2 style="font-size:16px;margin:0;">Media discovery</h2>
+        <span class="pill {{ 'pass' if can_run_media else 'medium' }}">
+          {{ 'Paid unlocked' if can_run_media else 'Requires Paid' }}
+        </span>
+      </div>
+      <p class="hint" style="margin-top:10px;">Same-origin image/video crawl, EXIF/GPS leakage,
+      suspicious-path detection, optional download to disk.</p>
+      <a class="btn primary" href="{{ url_for('scan.new_scan_media') }}">Run media scan</a>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><h2 style="font-size:16px;margin:0;">API exposure scan</h2>
+        <span class="pill {{ 'pass' if can_run_api else 'medium' }}">
+          {{ 'Paid unlocked' if can_run_api else 'Requires Paid' }}
+        </span>
+      </div>
+      <p class="hint" style="margin-top:10px;">OpenAPI/Swagger &amp; GraphQL introspection exposure, an
+      unauthenticated-path wordlist, and endpoints discovered from the site's own JS.</p>
+      <a class="btn primary" href="{{ url_for('scan.new_scan_api') }}">Run API exposure scan</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

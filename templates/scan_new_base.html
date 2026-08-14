@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Base scan - WebVulnScanner{% endblock %}
+{% block head %}
+{% include "_scan_form_styles.html" %}
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <a class="back" href="{{ url_for('scan.new_scan') }}">&larr; All scan types</a>
+  <div class="section-title" style="margin-top:14px;">
+    <h1 style="margin:0;">Base scan</h1>
+    <span class="pill pass">Free tier included</span>
+  </div>
+  <p class="sub">Passive recon (headers, TLS, cookies, DNS/email hygiene, exposed secrets, SRI) for every
+  tier, plus active checks (crawl, open ports, CORS, open redirect, directory listing) on Paid and
+  reflected XSS/SQLi canaries on Org-verified. Runs in the background - you'll be redirected to a live
+  progress page.</p>
+
+  {% if error %}
+  <div class="error-box">{{ error }}</div>
+  {% endif %}
+
+  <div class="card">
+    <div class="warn-box" style="margin-top:0;">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+      <div><b>Authorized use only.</b> Only scan domains you own or have explicit permission to test.</div>
+    </div>
+
+    <form method="POST" action="{{ url_for('scan.new_scan_base') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <label for="target">Target domain(s)</label>
+      <textarea id="target" name="target" placeholder="www.example.com" rows="3" required>{{ request.args.get('target', '') }}</textarea>
+      <div class="hint">One domain per line (or comma-separated) to scan up to {{ max_bulk_targets }} targets at once,
+      e.g. <code>example.com</code> or <code>https://www.example.com</code>. Each target is still checked individually
+      for authorization/safety before it runs.</div>
+
+      <label for="test_url">Optional: seed URL with query parameters</label>
+      <input type="text" id="test_url" name="test_url" placeholder="https://www.example.com/search?q=test">
+      <div class="hint">Left blank, the scanner crawls your homepage itself to find candidate links to test.
+      Only applied when scanning a single target above.</div>
+
+      {% if not can_run_paid or not can_run_org_verified %}
+      <div class="hint" style="margin-top:14px;">
+        <svg class="icon" style="width:13px;height:13px;vertical-align:-1px;" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+        {% if not can_run_paid %}Active checks (crawl, open ports, CORS, open redirect, directory listing) require a <b>Paid</b> plan.{% endif %}
+        {% if not can_run_org_verified %} Intrusive checks (reflected XSS/SQLi canary) require <b>Org-verified</b> plus a verified domain.{% endif %}
+        See <a href="{{ url_for('billing.view') }}">Billing</a> / <a href="{{ url_for('org.verify_domain_view') }}">Verify domain</a>.
+      </div>
+      {% endif %}
+
+      <div class="check-row">
+        <input type="checkbox" id="authorized" name="authorized" required>
+        <label for="authorized" style="margin:0; font-weight:500;">
+          I own this domain, or I have explicit authorization to security-test it.
+        </label>
+      </div>
+
+      <button type="submit">Run scan</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

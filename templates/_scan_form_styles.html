@@ -1,0 +1,54 @@
+<!-- Shared CSS for the four dedicated "new scan" pages (scan_new_base.html,
+     scan_new_advanced.html, scan_new_media.html, scan_new_api.html) and the
+     scan_new.html chooser. Extracted verbatim from the old combined
+     scan_new.html so all four pages stay visually identical. Not promoted
+     into base.html: label/input[type=text]/button are unscoped element
+     selectors that would leak into login.html/signup.html/billing.html/
+     org_verify_domain.html's own forms. -->
+<style>
+  .wrap { max-width: 760px; }
+  h1 { font-size: 26px; margin: 20px 0 6px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 22px; font-size: 14.5px; }
+  /* .card's shape now comes from base.html's canonical definition (padding
+     22px, margin-bottom 18px) rather than a local override that had drifted
+     to padding:26px/margin-top:20px - this page-specific margin-top is kept
+     to preserve the gap below .sub above the first card. */
+  .card { margin-top: 20px; }
+  label { display: block; margin-top: 18px; font-weight: 600; font-size: 13.5px; color: var(--text); }
+  input[type=text] {
+    width: 100%; padding: 12px 14px; margin-top: 7px; border: 1px solid var(--border);
+    border-radius: 10px; font-size: 14.5px; background: rgba(255,255,255,.03); color: var(--text);
+    outline: none;
+  }
+  input[type=text]:focus { border-color: var(--accent); background: rgba(34,197,94,.04); outline: none; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+  .check-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 22px; background: var(--accent-dim); border: 1px solid rgba(34,197,94,.3); padding: 13px 15px; border-radius: 12px; }
+  .check-row input { margin-top: 3px; width:16px; height:16px; accent-color: var(--accent); }
+  button {
+    margin-top: 24px; width: 100%; background: var(--accent);
+    color: #04150a; border: none; padding: 14px 22px; border-radius: 10px; font-size: 15px; font-weight: 700;
+    cursor: pointer; transition: filter 150ms ease;
+  }
+  button:hover:not(:disabled) { filter: brightness(1.08); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .adv-group { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .adv-group:first-child { margin-top: 4px; padding-top: 0; border-top: none; }
+  .adv-group h4 { margin: 0 0 2px; font-size: 13px; }
+  .adv-group input[type=text] { padding: 9px 11px; font-size: 13.5px; }
+  .adv-group label { margin-top: 10px; font-size: 12.5px; }
+  .section-title { display:flex; justify-content:space-between; align-items:center; }
+  .section-title h2 { margin: 0; font-size: 17px; }
+
+  /* Locked-tier empty state (replaces the old .card.locked dimming) */
+  .locked-state { text-align: center; padding: 18px 10px 8px; }
+  .locked-state .icon { width: 30px; height: 30px; color: var(--medium); margin-bottom: 10px; }
+  .locked-state p { color: var(--muted); font-size: 13.5px; max-width: 440px; margin: 8px auto 20px; }
+  .locked-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .locked-actions .btn { padding: 10px 18px; font-size: 13.5px; }
+
+  /* 4-card chooser grid (scan_new.html) */
+  .scan-type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-4); margin-top: 22px; }
+  .scan-type-grid .card { margin-top: 0; margin-bottom: 0; display: flex; flex-direction: column; transition: border-color 150ms ease, transform 150ms ease; }
+  .scan-type-grid .card:hover { border-color: rgba(34,197,94,.35); transform: translateY(-2px); }
+  .scan-type-grid .card p.hint { flex: 1; margin-bottom: 18px; }
+</style>

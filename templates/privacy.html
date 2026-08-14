@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Privacy Policy - WebVulnScanner{% endblock %}
+{% block head %}
+{% include "_legal_styles.html" %}
+{% endblock %}
+{% block content %}
+<div class="legal-wrap">
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated {{ current_year }}</p>
+
+  <div class="warn-box">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 2.5 17a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+    <div><b>Draft — not reviewed by counsel.</b> This is placeholder legal text describing what
+    data this specific app actually collects. Do not rely on it without review by a qualified
+    lawyer, and without confirming it against actual data handling before using it in
+    production.</div>
+  </div>
+
+  <h2>What we collect</h2>
+  <ul>
+    <li><b>Account data</b> — email address, password hash, organization membership and role.</li>
+    <li><b>Domain-verification records</b> — the domains you've asked to verify ownership of, and
+    the DNS TXT / well-known-file proof used to verify them.</li>
+    <li><b>Scan data</b> — the target URL you submit, and the findings a scan produces (which can
+    include header values, redacted secret snippets, and other data drawn from the scanned
+    site's own HTTP responses).</li>
+    <li><b>Billing data</b> — for crypto invoices: the target plan, token/chain, receiving
+    address, expected amount, and (once paid) the matched transaction hash. We do not collect
+    card numbers, bank details, or wallet private keys.</li>
+    <li><b>AI-summary data</b> — for Paid-tier scans, finding text is sent to Groq's API to
+    generate a plain-English remediation summary. See `ai_summary.py`'s system prompt: finding
+    data is always framed as data-to-summarize, never as instructions the model should follow.</li>
+  </ul>
+
+  <h2>Data retention</h2>
+  <p>Scan reports and their findings are retained so you can view scan history and compare scans
+  over time. Domain-verification proof is retained for as long as the verification is relied on
+  to unlock intrusive checks against that domain.</p>
+
+  <h2>Who sees your data</h2>
+  <p>Scan results and organization data are visible to members of your organization according to
+  their role. We don't sell scan data or share it with third parties beyond the processors named
+  above (Groq for AI summaries, your chosen blockchain's public ledger for payment verification).</p>
+
+  <h2>Your choices</h2>
+  <p>You can request deletion of your account and associated data by contacting the account owner
+  for this deployment.</p>
+</div>
+{% endblock %}

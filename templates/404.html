@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Not found - WebVulnScanner{% endblock %}
+{% block content %}
+<div class="wrap" style="text-align:center; padding-top:80px;">
+  <div class="card" style="max-width:480px; margin:0 auto; padding:40px 32px;">
+    <svg class="icon" style="width:32px;height:32px;color:var(--medium);margin-bottom:12px;" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M9.5 9.5h.01M14.5 9.5h.01M8 15c1-1.2 2.4-1.8 4-1.8s3 .6 4 1.8"/></svg>
+    <h1 style="margin:0 0 8px; font-size:22px;">Page not found</h1>
+    <p style="color:var(--muted); font-size:14px; margin:0 0 22px;">The page you're looking for doesn't
+    exist, or you don't have access to it.</p>
+    <a class="btn primary" href="{{ url_for('scan.dashboard') if current_user.is_authenticated else url_for('public.index') }}">
+      {{ 'Back to dashboard' if current_user.is_authenticated else 'Back home' }}
+    </a>
+  </div>
+</div>
+{% endblock %}

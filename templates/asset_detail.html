@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+{% block title %}{{ asset.name }} - WebVulnScanner{% endblock %}
+{% block head %}
+<style>
+  /* h1/h2.section/.card/table/th/td come from base.html - see its comments.
+     This page only needs the same top-margin bump dashboard.html already
+     uses, plus a handful of new, page-scoped rules for the schedule form
+     and the icon-only row-action buttons (not promoted into base.html - see
+     _scan_form_styles.html's own comment on why unscoped label/select
+     selectors stay out of the shared file). */
+  h1 { margin-top: 20px; }
+  h2.section { margin-top: 28px; }
+  a.row-link { color: var(--accent); text-decoration:none; }
+  .header-row { display:flex; justify-content:space-between; align-items:flex-start; gap: var(--space-4); flex-wrap:wrap; margin-top:14px; }
+  .actions-row { display:flex; gap: var(--space-2); align-items:center; }
+  .meta { color: var(--muted); font-size: 13.5px; margin: 6px 0 0; }
+  .latest-score { font-size:36px; font-weight:800; }
+  .sparkline-card .hint, .compliance-card .hint { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
+
+  /* COMP-03's coverage-summary "not_checked" status badge reuses
+     scan_report.html's .finding.locked-card treatment (opacity .65 + the
+     same muted rgba background) rather than inventing a new visual
+     language for "unavailable/not yet run" (03-UI-SPEC Color contract). */
+  .pill.not-checked { opacity: .65; background: rgba(147,160,201,.15); color: var(--muted); }
+  .compliance-card td { vertical-align: top; }
+  .compliance-card .upgrade-hint { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+
+  .schedule-form label { display:block; margin-top: var(--space-4); font-weight:600; font-size:13.5px; color: var(--text); }
+  .schedule-form label:first-child { margin-top: 0; }
+  .schedule-form select {
+    width: 100%; max-width: 320px; padding: 11px 14px; margin-top: 7px; border: 1px solid var(--border);
+    border-radius: 10px; font-size: 14.5px; background: rgba(255,255,255,.03); color: var(--text);
+    outline: none;
+  }
+  .schedule-form select:focus { border-color: var(--accent); background: rgba(34,197,94,.04); }
+  .schedule-form .btn { margin-top: var(--space-5); }
+
+  /* Icon-only row controls (pause/resume/delete): 44px minimum touch
+     target per 01-UI-SPEC.md's Spacing Scale exception. Pause/resume reuse
+     .btn.secondary (never accent - a schedule toggle isn't a conversion
+     action); delete reuses .error-box's exact rgba treatment as its
+     destructive color, per 01-UI-SPEC.md's Color contract. */
+  .icon-btn { min-width: 44px; min-height: 44px; padding: 0; justify-content:center; }
+  .icon-btn .icon { width:18px; height:18px; }
+  .btn.destructive { background: rgba(248,113,113,.09); border: 1px solid rgba(248,113,113,.35); color: var(--critical); }
+
+  /* Reused verbatim from _scan_form_styles.html's button:disabled rule -
+     every form on this page is a server-rendered POST+redirect with no
+     client-side framework, so "disable while in flight" is this exact CSS
+     rule plus a submit-time JS toggle, not a new AJAX loading indicator. */
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <a class="back" href="{{ url_for('asset.list_assets') }}">&larr; All assets</a>
+
+  <div class="header-row">
+    <div>
+      <h1 style="margin:0 0 4px;">{{ asset.name }}</h1>
+      <p class="meta"><code>{{ asset.target_url }}</code></p>
+    </div>
+    <div class="actions-row">
+      {% if asset.is_paused %}
+      <form id="resume-asset-form" method="POST" action="{{ url_for('asset.resume_asset', asset_id=asset.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn secondary icon-btn" aria-label="Resume schedule for {{ asset.name }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-play"/></svg>
+        </button>
+      </form>
+      {% else %}
+      <form id="pause-asset-form" method="POST" action="{{ url_for('asset.pause_asset', asset_id=asset.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn secondary icon-btn" aria-label="Pause schedule for {{ asset.name }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-pause"/></svg>
+        </button>
+      </form>
+      {% endif %}
+      <form id="delete-asset-form" method="POST" action="{{ url_for('asset.delete_asset', asset_id=asset.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn destructive icon-btn" aria-label="Delete {{ asset.name }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-trash"/></svg>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {% if error %}
+  <div class="error-box">{{ error }}</div>
+  {% endif %}
+
+  {% if scans %}
+    {% set latest = scans[0] %}
+    <div class="card">
+      {% if latest.risk_score is not none %}
+        {% set score = latest.risk_score %}
+        {% set risk_grade = 'A' if score >= 90 else ('B' if score >= 75 else ('C' if score >= 60 else ('D' if score >= 40 else 'F'))) %}
+        {% set gauge_id = 'gaugeFgAssetDetail' %}
+        <div class="score-card" style="margin-top:0; padding:0; border:none; background:none;">
+          {% include "_gauge.html" %}
+          <div class="score-summary">
+            <div style="color: var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.05em;">Latest scan</div>
+            <div style="font-size:13.5px; margin-top:4px;">
+              {{ latest.scan_type }} scan &middot;
+              <span class="status-pill {{ latest.status.value }}">{{ latest.status.value }}</span>
+              {% if latest.status.value == 'completed' %}
+              &middot; <a class="row-link" href="{{ url_for('scan.scan_report', scan_id=latest.id) }}">View report &rarr;</a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% else %}
+      <div style="color: var(--muted); font-size:13.5px;">
+        {{ latest.scan_type }} scan &middot;
+        <span class="status-pill {{ latest.status.value }}">{{ latest.status.value }}</span>
+        {% if latest.status.value not in ('completed',) %}
+        &middot; <a class="row-link" href="{{ url_for('scan.scan_detail', scan_id=latest.id) }}">View progress &rarr;</a>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <h2 class="section">Risk score over time</h2>
+    <div class="card sparkline-card">
+      {% set scored = [] %}
+      {% for s in scans %}
+        {% if s.risk_score is not none %}{% set _ = scored.append(s) %}{% endif %}
+      {% endfor %}
+      {% set n = scored|length %}
+      {% if n > 0 %}
+      <p class="hint">{{ n }} completed scan(s) with a risk score, oldest to newest.</p>
+      {% set sw = 560 %}{% set sh = 70 %}
+      {% if n == 1 %}
+        {% set only_y = (sh - (scored[0].risk_score / 100 * sh))|round(1) %}
+        {% set pts = ['0,' + only_y|string, sw|string + ',' + only_y|string] %}
+      {% else %}
+        {% set pts = [] %}
+        {% for s in scored|reverse %}
+          {% set x = ((loop.index0 / (n - 1)) * sw)|round(1) %}
+          {% set y = (sh - (s.risk_score / 100 * sh))|round(1) %}
+          {% set _ = pts.append(x|string + ',' + y|string) %}
+        {% endfor %}
+      {% endif %}
+      <svg width="100%" height="{{ sh + 10 }}" viewBox="0 0 {{ sw }} {{ sh + 10 }}" preserveAspectRatio="none" style="overflow:visible;">
+        <polyline points="{{ pts|join(' ') }}" fill="none" stroke="var(--accent)" stroke-width="2"></polyline>
+        {% if n == 1 %}
+        <circle cx="{{ sw / 2 }}" cy="{{ only_y }}" r="3" fill="var(--accent2)"></circle>
+        <text x="{{ (sw / 2) + 8 }}" y="{{ only_y - 8 }}" fill="var(--muted)" font-family="Fira Code, monospace" font-size="11">{{ scored[0].risk_score }} (only scan so far)</text>
+        {% else %}
+        {% for s in scored|reverse %}
+          {% set x = ((loop.index0 / (n - 1)) * sw)|round(1) %}
+          {% set y = (sh - (s.risk_score / 100 * sh))|round(1) %}
+          <circle cx="{{ x }}" cy="{{ y }}" r="3" fill="var(--accent2)"></circle>
+        {% endfor %}
+        {% endif %}
+      </svg>
+      {% else %}
+      <p class="hint" style="margin:0;">Not enough completed scans yet for a trend line.</p>
+      {% endif %}
+    </div>
+
+    <h2 class="section">Compliance coverage</h2>
+    <div class="card compliance-card">
+      {% if coverage.rows %}
+      <p class="hint">
+        As of the most recent completed scan of each scan type this Asset has run
+        ({{ coverage.scan_types|join(', ') }}) &mdash; not this Asset's all-time history.
+      </p>
+      <div class="table-scroll">
+      <table>
+        <tr><th>OWASP Top 10 category</th><th>Status</th></tr>
+        {% for row in coverage.rows %}
+        <tr>
+          <td>{{ row.owasp }}</td>
+          <td>
+            {% if row.status == 'passing' %}
+            <span class="pill pass">Passing</span>
+            {% elif row.status == 'failing' %}
+            <span class="pill {{ row.top_severity }}">{{ row.finding_count }} finding{{ 's' if row.finding_count != 1 else '' }}, highest: {{ row.top_severity }}</span>
+            {% else %}
+            <span class="pill not-checked">Not checked</span>
+            {% if row.locked %}
+            <div class="upgrade-hint">
+              Requires the <b>Paid</b> plan to unlock this check.
+              <a href="{{ url_for('billing.view') }}">Upgrade to Paid</a>
+            </div>
+            {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      </div>
+      {% else %}
+      <p class="hint" style="margin:0;">Not enough completed scans yet to show compliance coverage.</p>
+      {% endif %}
+    </div>
+  {% else %}
+  <div class="card">
+    <p style="color: var(--muted); font-size: 13.5px; margin:0;">
+      This Asset hasn't been scanned yet. Your first scan will run automatically within a few
+      minutes &mdash; refresh this page to check.
+    </p>
+  </div>
+  {% endif %}
+
+  <h2 class="section">Schedule</h2>
+  <div class="card">
+    {% set required_tier = FEATURE_REQUIREMENTS.get(asset.schedule_scan_type, 0) %}
+    {% if required_tier > tier %}
+    <div class="warn-box" style="margin-top:0;">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-lock"/></svg>
+      <div>
+        <b>{{ asset.schedule_scan_type|capitalize }}</b> requires a
+        <b>{{ TIER_LABELS.get(required_tier, 'Paid') }}</b> plan.
+        See <a href="{{ url_for('billing.view') }}">Billing</a> to upgrade, or choose a scan type
+        included in your current plan.
+      </div>
+    </div>
+    {% endif %}
+
+    <form id="schedule-form" class="schedule-form" method="POST" action="{{ url_for('asset.update_schedule', asset_id=asset.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="cadence">Cadence</label>
+      <select id="cadence" name="cadence">
+        {% for c in CADENCE_CHOICES %}
+        <option value="{{ c }}" {{ 'selected' if asset.cadence == c else '' }}>{{ c|capitalize }}</option>
+        {% endfor %}
+      </select>
+      <label for="schedule_scan_type">Scan type</label>
+      <select id="schedule_scan_type" name="schedule_scan_type">
+        {% for t in SCHEDULE_SCAN_TYPE_CHOICES %}
+        <option value="{{ t }}" {{ 'selected' if asset.schedule_scan_type == t else '' }}>{{ t|capitalize }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn primary">Save schedule</button>
+    </form>
+  </div>
+
+  {% if scans %}
+  <h2 class="section">Scan history</h2>
+  <div class="card">
+    <div class="table-scroll">
+    <table>
+      <tr><th>Type</th><th>Status</th><th>Risk score</th><th>Created</th><th></th></tr>
+      {% for s in scans %}
+      <tr>
+        <td>{{ s.scan_type }}</td>
+        <td><span class="status-pill {{ s.status.value }}">{{ s.status.value }}</span></td>
+        <td>{{ s.risk_score if s.risk_score is not none else '-' }}</td>
+        <td>{{ s.created_at }}</td>
+        <td><a class="row-link" href="{{ url_for('scan.scan_detail', scan_id=s.id) }}">View &rarr;</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+<script>
+  (function () {
+    // Disable the button that owns each in-flight form submit - the same
+    // server-rendered POST+redirect + button:disabled pattern every other
+    // form in this app already uses, not a new AJAX loading indicator.
+    ['pause-asset-form', 'resume-asset-form', 'schedule-form'].forEach(function (id) {
+      var f = document.getElementById(id);
+      if (!f) return;
+      f.addEventListener('submit', function () {
+        var btn = f.querySelector('button[type=submit]');
+        if (btn) btn.disabled = true;
+      });
+    });
+
+    var deleteForm = document.getElementById('delete-asset-form');
+    if (deleteForm) {
+      var confirmMessage = {{ ("Delete " ~ asset.name ~ "? This stops all scheduled scans for this target. Past scan history is kept for your records.") | tojson }};
+      deleteForm.addEventListener('submit', function (e) {
+        if (!confirm(confirmMessage)) {
+          e.preventDefault();
+          return;
+        }
+        var btn = deleteForm.querySelector('button[type=submit]');
+        if (btn) btn.disabled = true;
+      });
+    }
+  })();
+</script>
+{% endblock %}

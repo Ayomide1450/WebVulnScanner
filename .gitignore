@@ -4,3 +4,12 @@ __pycache__/
 server.log
 downloads/
 reports/
+.worktrees/
+.superpowers/
+webvulnscanner.db
+instance/
+.env
+handoff.md
+handoff-archive.md
+.pytest_cache/
+.cache/

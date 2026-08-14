@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Advanced scan - WebVulnScanner{% endblock %}
+{% block head %}
+{% include "_scan_form_styles.html" %}
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <a class="back" href="{{ url_for('scan.new_scan') }}">&larr; All scan types</a>
+  <div class="section-title" style="margin-top:14px;">
+    <h1 style="margin:0;">Advanced / authenticated checks</h1>
+    <span class="pill {{ 'pass' if can_run_org_verified else 'medium' }}">
+      {{ 'Org-verified unlocked' if can_run_org_verified else 'Requires Org-verified' }}
+    </span>
+  </div>
+  <p class="sub">Deeper multi-technique probing (auth-bypass SQLi, brute-force rate-limit check,
+  UNION/error/time-based SQLi, stored XSS, cross-account IDOR). Runs separately from the base scan
+  in the background - you'll be redirected to a live progress page.</p>
+
+  {% if error %}
+  <div class="error-box">{{ error }}</div>
+  {% endif %}
+
+  <div class="card">
+    {% if can_run_org_verified %}
+    <div class="warn-box" style="margin-top:0;">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+      <div><b>Authorized use only.</b> Only test targets you own or have explicit permission to test.
+      Fill in only the groups you have data for - session cookies should come from disposable test
+      accounts you created yourself.</div>
+    </div>
+
+    <form method="POST" action="{{ url_for('scan.new_scan_advanced') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="adv-group">
+        <h4>SQLi auth-bypass + brute-force (login form)</h4>
+        <label for="login_url">Login page URL</label>
+        <input type="text" id="login_url" name="login_url" placeholder="https://www.example.com/login">
+        <label for="login_user_field">Username field name</label>
+        <input type="text" id="login_user_field" name="login_user_field" placeholder="username">
+        <label for="login_pass_field">Password field name</label>
+        <input type="text" id="login_pass_field" name="login_pass_field" placeholder="password">
+        <label for="login_fail_text">Text shown on a failed login</label>
+        <input type="text" id="login_fail_text" name="login_fail_text" placeholder="Invalid credentials">
+        <label for="bruteforce_username">Brute-force: username to test (leave blank to skip)</label>
+        <input type="text" id="bruteforce_username" name="bruteforce_username" placeholder="testuser">
+        <label for="bruteforce_passwords">Brute-force: passwords, comma-separated (max 5 used)</label>
+        <input type="text" id="bruteforce_passwords" name="bruteforce_passwords" placeholder="password,123456,letmein">
+      </div>
+
+      <div class="adv-group">
+        <h4>SQLi UNION / error-based / time-based probe</h4>
+        <label for="sqli_union_url">Page URL with a query parameter</label>
+        <input type="text" id="sqli_union_url" name="sqli_union_url" placeholder="https://www.example.com/item?id=1">
+        <label for="sqli_union_param">Parameter name to test</label>
+        <input type="text" id="sqli_union_param" name="sqli_union_param" placeholder="id">
+      </div>
+
+      <div class="adv-group">
+        <h4>Stored XSS (test account)</h4>
+        <label for="stored_xss_submit_url">Submit URL</label>
+        <input type="text" id="stored_xss_submit_url" name="stored_xss_submit_url" placeholder="https://www.example.com/comment">
+        <label for="stored_xss_field">Form field name to inject into</label>
+        <input type="text" id="stored_xss_field" name="stored_xss_field" placeholder="body">
+        <label for="stored_xss_view_url">View URL</label>
+        <input type="text" id="stored_xss_view_url" name="stored_xss_view_url" placeholder="https://www.example.com/comments">
+        <label for="stored_xss_cookie">Cookie header for your test account</label>
+        <input type="text" id="stored_xss_cookie" name="stored_xss_cookie" placeholder="session=abc123">
+      </div>
+
+      <div class="adv-group">
+        <h4>IDOR (cross-account + anonymous access)</h4>
+        <label for="idor_url_template">URL template (use {id} as placeholder)</label>
+        <input type="text" id="idor_url_template" name="idor_url_template" placeholder="https://www.example.com/orders/{id}">
+        <label for="idor_ids">Resource IDs owned by test account A (comma-separated)</label>
+        <input type="text" id="idor_ids" name="idor_ids" placeholder="101,102,103">
+        <label for="idor_cookie_a">Cookie header for test account A</label>
+        <input type="text" id="idor_cookie_a" name="idor_cookie_a" placeholder="session=aaa">
+        <label for="idor_cookie_b">Cookie header for test account B</label>
+        <input type="text" id="idor_cookie_b" name="idor_cookie_b" placeholder="session=bbb">
+      </div>
+
+      <div class="check-row">
+        <input type="checkbox" id="authorized_adv" name="authorized_adv" required>
+        <label for="authorized_adv" style="margin:0; font-weight:500;">
+          I own this target, or I have explicit authorization to security-test it.
+        </label>
+      </div>
+
+      <button type="submit">Run advanced checks</button>
+    </form>
+
+    {% else %}
+    <div class="locked-state">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+      <h2 style="margin:0 0 4px; font-size:16px;">Requires Org-verified + a verified domain</h2>
+      <p>Advanced checks send real auth-bypass/injection payloads, so they're gated behind a
+      server-verified domain-ownership proof, not just a checkbox. Upgrade your plan and verify
+      the domain you want to test to unlock this page.</p>
+      <div class="locked-actions">
+        <a class="btn primary" href="{{ url_for('billing.view') }}">Upgrade to Org-verified</a>
+        <a class="btn secondary" href="{{ url_for('org.verify_domain_view') }}">Verify a domain</a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Terms of Service - WebVulnScanner{% endblock %}
+{% block head %}
+{% include "_legal_styles.html" %}
+{% endblock %}
+{% block content %}
+<div class="legal-wrap">
+  <h1>Terms of Service</h1>
+  <p class="updated">Last updated {{ current_year }}</p>
+
+  <div class="warn-box">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 2.5 17a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+    <div><b>Draft — not reviewed by counsel.</b> This is placeholder legal text describing what
+    the product actually does. Do not rely on it without review by a qualified lawyer before
+    using it in production.</div>
+  </div>
+
+  <h2>What this service is</h2>
+  <p>WebVulnScanner lets an organization run security scans (passive recon through, for
+  domain-verified orgs, active/intrusive checks) against domains that organization owns or has
+  explicit authorization to test. You must own or be authorized to test any domain you submit —
+  see the authorization checkbox on every scan form.</p>
+
+  <h2>Your account</h2>
+  <p>You're responsible for the accuracy of the information you provide at signup, for keeping
+  your password confidential, and for all activity under your account. Organization admins are
+  responsible for the members they invite and the scans run under their organization.</p>
+
+  <h2>Acceptable use</h2>
+  <ul>
+    <li>Only submit domains you own or are explicitly authorized to test.</li>
+    <li>Don't use this service to scan, probe, or attack infrastructure you don't control or
+    lack permission to test.</li>
+    <li>Don't attempt to circumvent the plan-tier or domain-verification gating that controls
+    which checks a scan can run.</li>
+  </ul>
+
+  <h2>Billing</h2>
+  <p>Paid plans are invoiced in USDT/USDC on the chain configured at checkout. Invoices expire
+  after a fixed window if unpaid. Plan changes take effect once a payment is verified on-chain.</p>
+
+  <h2>Disclaimer</h2>
+  <p>Scan results are provided "as is," on a best-effort basis, and are not a guarantee that a
+  target is free of vulnerabilities beyond what was actually checked. AI-assisted remediation
+  summaries (where shown) are generated to help prioritize findings already produced by
+  deterministic checks — they are not a substitute for professional security review.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about these terms can be sent to the account owner for this deployment.</p>
+</div>
+{% endblock %}
