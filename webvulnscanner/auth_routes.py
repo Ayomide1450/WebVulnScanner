@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
-from flask_login import login_required, login_user, logout_user
+from flask_login import current_user, login_required, login_user, logout_user
 from flask_wtf import FlaskForm
 from werkzeug.security import check_password_hash, generate_password_hash
 from wtforms import BooleanField, PasswordField, StringField
@@ -107,6 +107,17 @@ def signup():
     from webvulnscanner.org_routes import decode_invite_token
 
     invite_token = request.args.get("invite")
+    # An already-logged-in user hitting a bare /signup shouldn't see the
+    # signup form rendered under their own authenticated nav (Logout, org
+    # links, etc.) - confusing, and there's nothing useful to do there.
+    # GET-only: skip the redirect when an invite token is present so a
+    # logged-in user following a real invite link can still land on the
+    # form to join a different org, and don't touch POST at all - some
+    # tests deliberately submit /login or /signup while already
+    # authenticated as a different user to switch identity within one
+    # test, without an intervening GET/logout.
+    if request.method == "GET" and current_user.is_authenticated and not invite_token:
+        return redirect(_safe_next())
     # Decoded without an expected_email here - this pass only pre-fills the
     # address on GET; it never by itself authorizes an org assignment. The
     # POST path below re-decodes with the submitted address, which is the
@@ -217,8 +228,14 @@ def verify_email(token):
 @auth.route("/login", methods=["GET", "POST"])
 @limiter.limit("10 per minute")
 def login():
+    if request.method == "GET" and current_user.is_authenticated:
+        return redirect(_safe_next())
     form = LoginForm()
     if form.validate_on_submit():
+        if not _turnstile_passes(request.remote_addr):
+            flash("Bot check failed - please try again.", "error")
+            return render_template("login.html", form=form)
+
         email = form.email.data.strip().lower()
         user = User.query.filter_by(email=email).first()
         if user is None or not check_password_hash(user.password_hash, form.password.data):

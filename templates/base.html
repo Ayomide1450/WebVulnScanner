@@ -196,10 +196,22 @@
   a.back:hover { text-decoration:underline; }
 
   /* Top nav */
+  /* justify-content:space-between pushes .nav-links to the far right at
+     desktop widths, so gap here only governs the wrapped/narrow case (see
+     the max-width:640px override below) - the desktop brand-to-menu
+     distance is set explicitly via .nav-links margin-left instead, since
+     16px read as tighter than the 22px between individual nav-links items
+     themselves (the brand looked like part of the menu, not separate). */
   .topnav { max-width: 1040px; margin: 0 auto; padding: 20px 20px 0; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
   .topnav .brand-link { color: var(--text); text-decoration:none; font-weight:700; font-size:16px; display:flex; align-items:center; gap:9px; }
   .topnav .brand-link .icon { color: var(--accent); width:22px; height:22px; }
-  .topnav .nav-links { display:flex; gap:22px; align-items:center; flex-wrap:wrap; }
+  /* margin-left guarantees a floor on the brand-to-menu distance -
+     justify-content:space-between alone wasn't enough: with this many nav
+     items the row is nearly full-width already, so its "space between"
+     collapsed down to the bare 16px flex `gap`, tighter than the 22px
+     between individual links and reading like the brand was part of the
+     menu rather than a separate element. */
+  .topnav .nav-links { display:flex; gap:22px; align-items:center; flex-wrap:wrap; margin-left: 28px; }
   .topnav .nav-links a { color: var(--muted); text-decoration:none; font-size: 13.5px; font-weight:600; transition: color 150ms ease; }
   .topnav .nav-links a:hover { color: var(--text); }
   .topnav .nav-links a.cta-link { color: var(--accent); }
@@ -207,6 +219,15 @@
      account action, not a place to browse to) - a left border/indent sets
      it apart without a hard visual break like a second nav bar. */
   .topnav .nav-links a.nav-logout { padding-left: 18px; border-left: 1px solid var(--border); }
+
+  /* Below ~640px the nav-links row wraps under the brand with only the
+     flex `gap`, which reads as the site name crowding straight into the
+     menu with no deliberate spacing. Stack them explicitly with real
+     margin instead of leaning on wrap+gap for the narrow case. */
+  @media (max-width: 640px) {
+    .topnav { flex-direction: column; align-items: flex-start; }
+    .topnav .nav-links { margin-left: 0; margin-top: 6px; }
+  }
 
   .wrap { max-width: 1040px; margin: 0 auto; padding: var(--space-6) 20px 90px; }
 
