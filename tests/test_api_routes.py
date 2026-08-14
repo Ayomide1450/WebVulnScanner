@@ -490,6 +490,64 @@ def test_fetch_report_no_report_row_yet_gets_404_json(client, db):
 
 
 # --------------------------------------------------------------------------
+# GET /api/v1/scans/<id> - lightweight status poll, same ownership branch
+# as fetch_report.
+# --------------------------------------------------------------------------
+
+def test_scan_status_returns_progress_for_owner(client, db):
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+    a = make_asset(org, user, name="Asset")
+    scan = make_scan(user, org=org, status=ScanStatus.RUNNING)
+    scan.asset_id = a.id
+    scan.progress_current = 3
+    scan.progress_total = 10
+    db.session.commit()
+
+    resp = client.get(f"/api/v1/scans/{scan.id}", headers=_auth_headers(raw_token))
+
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["id"] == scan.id
+    assert body["status"] == ScanStatus.RUNNING.value
+    assert body["progress_current"] == 3
+    assert body["progress_total"] == 10
+
+
+def test_scan_status_different_org_gets_404(client, db):
+    org_a = make_org(plan=Plan.PAID, name="Org A")
+    org_b = make_org(plan=Plan.PAID, name="Org B")
+    user_a = make_user("a@example.com", org=org_a)
+    user_b = make_user("b@example.com", org=org_b)
+    db.session.commit()
+    _, raw_token_b = make_api_token(user_b, name="b-tok")
+    a = make_asset(org_a, user_a, name="Asset")
+    scan = make_scan(user_a, org=org_a, status=ScanStatus.RUNNING)
+    scan.asset_id = a.id
+    db.session.commit()
+
+    resp = client.get(f"/api/v1/scans/{scan.id}", headers=_auth_headers(raw_token_b))
+
+    assert resp.status_code == 404
+
+
+def test_scan_status_manual_scan_uses_check_ownership(client, db):
+    org = make_org(plan=Plan.PAID, name="Org")
+    owner = make_user("owner@example.com", org=org, role=Role.MEMBER)
+    other_member = make_user("other@example.com", org=org, role=Role.MEMBER)
+    db.session.commit()
+    _, raw_token = make_api_token(other_member, name="tok")
+    scan = make_scan(owner, org=org, status=ScanStatus.RUNNING)  # no asset_id
+    db.session.commit()
+
+    resp = client.get(f"/api/v1/scans/{scan.id}", headers=_auth_headers(raw_token))
+
+    assert resp.status_code == 404
+
+
+# --------------------------------------------------------------------------
 # API-05: cross-cutting proof - revoked token gets 401 on all three routes;
 # rate-limit 429 actually trips (not just registered). No new production
 # code here - proves Task 1/Task 2/02-01's existing gating under real

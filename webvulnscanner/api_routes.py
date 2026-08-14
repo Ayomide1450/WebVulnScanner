@@ -134,6 +134,30 @@ def trigger_scan(asset_id):
     return jsonify(scan_id=s.id, status=s.status.value), 202
 
 
+@api.route("/scans/<int:scan_id>")
+@api_login_required
+@limiter.limit("60 per minute", key_func=_api_rate_limit_key)
+def scan_status(scan_id):
+    """Lightweight status poll for a triggered scan - lets a CI/CLI caller
+    check progress without pulling the full report. Ownership follows the
+    exact same Asset-linked-vs-manual branch as fetch_report below (same
+    Pitfall-1 fix, same WR-01 soft-delete guard) since both routes resolve
+    a bare scan_id with no other scoping to lean on."""
+    s = Scan.query.get_or_404(scan_id)
+    if s.asset_id is not None:
+        if s.asset.deleted_at is not None:
+            abort(404)
+        _check_asset_access(s.asset)
+    else:
+        _check_ownership(s)
+
+    return jsonify(_serialize_scan_summary(s) | {
+        "progress_current": s.progress_current,
+        "progress_total": s.progress_total,
+        "error_message": s.error_message,
+    })
+
+
 @api.route("/scans/<int:scan_id>/report")
 @api_login_required
 @limiter.limit("60 per minute", key_func=_api_rate_limit_key)
