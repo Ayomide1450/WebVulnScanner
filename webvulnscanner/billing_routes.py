@@ -37,6 +37,7 @@ def view():
         subscription=subscription,
         pending_invoices=pending_invoices,
         plan_prices=billing.PLAN_USD_PRICE,
+        plan_annual_prices=billing.PLAN_ANNUAL_USD_PRICE,
         token_symbols=TOKEN_SYMBOLS,
         upgradable_plans=(Plan.PAID, Plan.ORG_VERIFIED),
     )
@@ -49,6 +50,7 @@ def view():
 def create_invoice():
     target_plan_raw = request.form.get("target_plan")
     token_symbol = request.form.get("token_symbol")
+    billing_cycle = request.form.get("billing_cycle", "monthly")
 
     try:
         target_plan = Plan(target_plan_raw)
@@ -64,14 +66,18 @@ def create_invoice():
         flash("Unsupported payment token.", "error")
         return redirect(url_for("billing.view"))
 
+    if billing_cycle not in billing.BILLING_CYCLES:
+        flash("Choose a monthly or annual billing cycle.", "error")
+        return redirect(url_for("billing.view"))
+
     try:
-        inv = billing.create_invoice(current_user.org_id, target_plan, token_symbol)
+        inv = billing.create_invoice(current_user.org_id, target_plan, token_symbol, billing_cycle)
     except RuntimeError as e:
         flash(str(e), "error")
         return redirect(url_for("billing.view"))
 
     flash(
-        f"Invoice created: send exactly {inv.expected_amount} {inv.token_symbol} "
+        f"Invoice created ({billing_cycle} billing): send exactly {inv.expected_amount} {inv.token_symbol} "
         f"to {inv.receiving_address} before it expires.",
         "info",
     )

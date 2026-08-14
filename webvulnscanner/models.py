@@ -345,6 +345,13 @@ class CryptoInvoice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     org_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=False)
     target_plan = db.Column(db.Enum(Plan), nullable=False)
+    # "monthly" | "annual" - which of billing.PLAN_PRICING's two prices this
+    # invoice was priced at; drives _activate_subscription()'s
+    # current_period_end length (30 vs 365 days). Server-default rather than
+    # nullable=False so the existing table (pre-dating this column) doesn't
+    # need a backfill migration - every pre-existing row is implicitly the
+    # only cycle that existed before, monthly.
+    billing_cycle = db.Column(db.String(16), nullable=False, server_default="monthly")
     token_symbol = db.Column(db.String(8), nullable=False)  # "USDT" | "USDC"
     chain = db.Column(db.String(32), nullable=False)
     receiving_address = db.Column(db.String(255), nullable=False)

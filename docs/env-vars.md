@@ -77,5 +77,15 @@ worker/queue/storage pieces described in `docs/vercel-migration.md` get built:
 
 Non-secret vars declared there today: `FLASK_APP`, `SESSION_COOKIE_SECURE`, `PYTHON_VERSION`.
 Everything else (`SECRET_KEY`, `GROQ_API_KEY`, `SQLALCHEMY_DATABASE_URI`, crypto/email vars) is
-set manually in Render's dashboard, never committed — the same pattern applies to Vercel's
-Environment tab.
+set manually in Render's dashboard, never committed — the same pattern applies to Fly.io's
+`fly secrets set`/Vercel's Environment tab.
+
+## Deploying on Fly.io instead of Render
+
+`Dockerfile` + `fly.toml` at the repo root are the Fly.io equivalent of `Procfile`/`render.yaml` —
+same `flask db upgrade && gunicorn ...` startup, same `/healthz` check. `fly launch` picks up
+`fly.toml` as-is (decline its Postgres/Redis prompts, this app uses an external Neon Postgres
+already); every secret above is set with `fly secrets set KEY=value`, never committed. See the
+top-level project chat history / README for why Fly.io was chosen over Render (a real always-on
+VM, not serverless — matters because `threading.Thread`-per-scan and the in-process scheduler
+both need a persistent process, not a request-scoped function).
