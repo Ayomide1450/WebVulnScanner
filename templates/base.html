@@ -107,8 +107,15 @@
   .finding.low { border-left-color: var(--low); }
   .finding.info { border-left-color: var(--info); }
   .finding .badge { flex-shrink:0; font-size:10.5px; font-weight:800; padding: 3px 9px; border-radius: 6px; text-transform: uppercase; letter-spacing:.04em; height: fit-content; }
+  /* .finding is a flex row, so any direct-child span without its own
+     height override stretches to the row's full height (flex default
+     align-items:stretch) - .badge already accounted for this, but
+     .pill.compliance (the OWASP-mapping pill) didn't, and its
+     border-radius:999px on a stretched multi-line-tall box rendered as a
+     huge oval blob instead of a small pill. */
+  .finding .pill.compliance { flex-shrink:0; height: fit-content; }
   .finding .body b { font-size: 14px; }
-  .finding .cat { color: var(--muted); font-size: 11px; text-transform:uppercase; letter-spacing:.06em; font-family:"Fira Code",monospace; }
+  .finding .cat { flex-shrink:0; height: fit-content; color: var(--muted); font-size: 11px; text-transform:uppercase; letter-spacing:.06em; font-family:"Fira Code",monospace; }
   .finding .detail { font-size: 13.5px; color: var(--muted); margin-top: 4px; }
   .finding .rec { font-size: 13px; margin-top: 6px; }
   .finding .rec b { color: var(--accent); font-weight: 700; }
