@@ -9,6 +9,7 @@ registered here.
 import logging
 import os
 
+import click
 from flask import Flask, render_template
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -131,6 +132,10 @@ def create_app(config_class=Config):
 
     app.register_blueprint(org_blueprint)
 
+    from webvulnscanner.admin_routes import admin as admin_blueprint
+
+    app.register_blueprint(admin_blueprint)
+
     from webvulnscanner.billing_routes import billing_bp as billing_blueprint
 
     app.register_blueprint(billing_blueprint)
@@ -180,6 +185,40 @@ def create_app(config_class=Config):
     @app.errorhandler(429)
     def _rate_limited(_e):
         return render_template("429.html"), 429
+
+    @app.cli.command("grant-platform-admin")
+    @click.argument("email")
+    def grant_platform_admin(email):
+        """Grants User.is_platform_admin to an existing account by email.
+
+        The only way to create a platform admin - no route or UI can set
+        this flag (see User.is_platform_admin's docstring in models.py),
+        so bootstrapping the first one is deliberately a server-access-only
+        operation: `flask grant-platform-admin someone@example.com`.
+        """
+        from webvulnscanner.models import User
+
+        user = User.query.filter_by(email=email.strip().lower()).first()
+        if user is None:
+            click.echo(f"No user found with email {email!r}.")
+            return
+        user.is_platform_admin = True
+        db.session.commit()
+        click.echo(f"Granted platform-admin to {user.email}.")
+
+    @app.cli.command("revoke-platform-admin")
+    @click.argument("email")
+    def revoke_platform_admin(email):
+        """Reverses grant-platform-admin."""
+        from webvulnscanner.models import User
+
+        user = User.query.filter_by(email=email.strip().lower()).first()
+        if user is None:
+            click.echo(f"No user found with email {email!r}.")
+            return
+        user.is_platform_admin = False
+        db.session.commit()
+        click.echo(f"Revoked platform-admin from {user.email}.")
 
     with app.app_context():
         # Import only, to register models with db.Model - schema creation is

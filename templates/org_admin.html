@@ -129,14 +129,7 @@
         </td>
         <td class="actions-cell">
           {% if dv.deletion_pending %}
-          <form method="POST" action="{{ url_for('org.approve_domain_deletion', domain_id=dv.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="verify-btn danger">Approve</button>
-          </form>
-          <form method="POST" action="{{ url_for('org.reject_domain_deletion', domain_id=dv.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="verify-btn reject">Reject</button>
-          </form>
+          <span style="color: var(--muted); font-size:12.5px;">Awaiting platform-admin review</span>
           {% else %}
           <form method="POST" action="{{ url_for('org.request_domain_deletion', domain_id=dv.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

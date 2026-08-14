@@ -40,7 +40,7 @@ from sqlalchemy.orm import joinedload
 from wtforms import SelectField, StringField
 from wtforms.validators import DataRequired, Email
 
-from webvulnscanner.decorators import org_admin_required
+from webvulnscanner.decorators import org_admin_required, platform_admin_required
 from webvulnscanner.domain_verification import (
     generate_verification,
     txt_record_value,
@@ -84,16 +84,25 @@ ORG_AUDIT_EVENT_LABELS = {
 }
 
 
-def _log_org_event(event_type, detail=None):
+def _log_org_event(event_type, detail=None, org_id=None):
     """Records one row in the org-management audit log (separate from the
     Scan-history audit trail org_admin.html already shows). Best-effort:
     never raises past the caller, since a failed audit-log write must not
     block the action it's logging (same degrade-gracefully convention as
     every check_* function in checks.py) - but it does run in the same
     transaction as the action itself when possible, so a commit failure
-    still rolls both back together."""
+    still rolls both back together.
+
+    `org_id` defaults to the acting user's own org - correct for every
+    org-scoped action (add/verify a domain, invite a member) where the
+    actor is necessarily a member of that org. Domain-deletion
+    approve/reject are the one exception: the actor is a platform admin
+    who may not belong to the org whose domain is being resolved, so
+    those call sites pass the domain's actual org_id explicitly instead
+    of silently mis-attributing the event to the platform admin's own
+    org (or crashing on a null org_id if they have none)."""
     db.session.add(OrgAuditEvent(
-        org_id=current_user.org_id,
+        org_id=org_id if org_id is not None else current_user.org_id,
         actor_id=current_user.id,
         event_type=event_type,
         detail=detail,
@@ -353,14 +362,14 @@ def revoke_invitation(invitation_id):
 
 
 # --------------------------------------------------------------------------
-# Domain deletion request/approve/reject workflow. Any org admin can
-# request a deletion (all of /org/admin is already org_admin_required -
-# there's no separate "website admin" platform role in this codebase, so
-# approval is gated the same way; a stricter separation-of-duties model
-# would need a new platform-staff role, out of scope here) - the important
-# behavior is that a request never deletes the row itself, it just flips
-# the domain into a "Deletion Pending" state until a second, explicit
-# approve/reject action resolves it.
+# Domain deletion request/approve/reject workflow. An org admin can
+# request a deletion for their own org's domain, but never approve one -
+# approve/reject require platform_admin_required instead (see
+# webvulnscanner/admin_routes.py for the cross-org review queue), a real
+# separation-of-duties gate rather than the same actor being able to both
+# request and approve their own request. A request never deletes the row
+# itself, it just flips the domain into a "Deletion Pending" state until a
+# platform admin's explicit approve/reject action resolves it.
 # --------------------------------------------------------------------------
 
 @org.route("/admin/domain/<int:domain_id>/request-deletion", methods=["POST"])
@@ -386,11 +395,14 @@ def request_domain_deletion(domain_id):
 
 @org.route("/admin/domain/<int:domain_id>/deletion/approve", methods=["POST"])
 @login_required
-@org_admin_required
+@platform_admin_required
 def approve_domain_deletion(domain_id):
+    """Platform-admin-only (not org_admin_required) - this is the actual
+    separation-of-duties gate: the org admin who requested a deletion
+    cannot also be the one who approves it. No org-membership check on
+    `dv` either, deliberately - a platform admin reviews requests across
+    every org, not just their own."""
     dv = DomainVerification.query.get_or_404(domain_id)
-    if dv.org_id != current_user.org_id:
-        abort(404)
     if not dv.deletion_pending:
         abort(404)
 
@@ -400,20 +412,20 @@ def approve_domain_deletion(domain_id):
     _log_org_event(
         "domain_deletion_approved",
         f"{domain_name} - requested by {requester} ({reason}) - approved by {current_user.email}",
+        org_id=dv.org_id,
     )
     db.session.delete(dv)
     db.session.commit()
     flash(f"{domain_name} deleted.", "info")
-    return redirect(url_for("org.admin"))
+    return redirect(url_for("admin.platform_dashboard"))
 
 
 @org.route("/admin/domain/<int:domain_id>/deletion/reject", methods=["POST"])
 @login_required
-@org_admin_required
+@platform_admin_required
 def reject_domain_deletion(domain_id):
+    """Platform-admin-only - see approve_domain_deletion's docstring."""
     dv = DomainVerification.query.get_or_404(domain_id)
-    if dv.org_id != current_user.org_id:
-        abort(404)
     if not dv.deletion_pending:
         abort(404)
 
@@ -422,10 +434,11 @@ def reject_domain_deletion(domain_id):
     _log_org_event(
         "domain_deletion_rejected",
         f"{dv.domain} - requested by {requester} ({reason}) - rejected by {current_user.email}",
+        org_id=dv.org_id,
     )
     dv.deletion_requested_at = None
     dv.deletion_requested_by_id = None
     dv.deletion_reason = None
     db.session.commit()
     flash(f"Deletion request for {dv.domain} rejected. The domain remains active.", "info")
-    return redirect(url_for("org.admin"))
+    return redirect(url_for("admin.platform_dashboard"))

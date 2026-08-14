@@ -5,6 +5,9 @@
 <style>
   .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
 </style>
+{% if config.TURNSTILE_SITE_KEY %}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}
 {% endblock %}
 {% block content %}
 <div class="auth-wrap">
@@ -44,6 +47,10 @@
       {{ form.org_name(id="org_name", type="text", placeholder="Acme Inc.") }}
       <div class="hint">Give your organization a name to create it and become its admin. Leave blank to sign up solo.</div>
       {% for err in form.org_name.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+      {% endif %}
+
+      {% if config.TURNSTILE_SITE_KEY %}
+      <div class="cf-turnstile" data-sitekey="{{ config.TURNSTILE_SITE_KEY }}" style="margin-top:16px;"></div>
       {% endif %}
 
       <button type="submit" id="signupSubmit">Create account</button>

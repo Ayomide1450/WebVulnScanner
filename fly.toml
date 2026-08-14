@@ -1,36 +1,34 @@
-# Fly.io app config. Deploy: `fly launch` once (creates the app + this file
-# is picked up as-is - answer "no" to Postgres/Redis prompts, this app uses
-# an external Neon Postgres already), then `fly deploy` for every update.
-# Secrets are NOT set here - `fly secrets set KEY=value` per webvulnscanner
-# README.md/CLAUDE.md's env-var list, never committed.
-app = "webvulnscanner"                 # change if this name is taken
-primary_region = "iad"                 # pick the region closest to your Neon DB
+# fly.toml app configuration file generated for webvulnscanner on 2026-08-14T13:26:52+01:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'webvulnscanner'
+primary_region = 'iad'
 
 [build]
-
 [env]
-  FLASK_APP = "app.py"
-  SESSION_COOKIE_SECURE = "true"
-  TRUST_PROXY_HOPS = "1"               # Fly's edge proxy is one hop, same as Render's
+  FLASK_APP = 'app.py'
+  SESSION_COOKIE_SECURE = 'true'
+  TRUST_PROXY_HOPS = '1'
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = false           # keep a scan-capable process warm; scans
-                                        # run in background threads that must
-                                        # survive past the triggering request
+  auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
-  processes = ["app"]
+  processes = ['app']
 
   [[http_service.checks]]
-    grace_period = "30s"
-    interval = "15s"
-    method = "GET"
-    path = "/healthz"
-    timeout = "5s"
+    interval = '15s'
+    timeout = '5s'
+    grace_period = '30s'
+    method = 'GET'
+    path = '/healthz'
 
 [[vm]]
-  memory = "512mb"                     # Fly's free allowance covers up to 3 shared-cpu-1x-256mb;
-  cpu_kind = "shared"                  # bump memory if scans (Pillow/EXIF, large JS bundles) OOM
+  memory = '512mb'
+  cpu_kind = 'shared'
   cpus = 1
+  memory_mb = 512

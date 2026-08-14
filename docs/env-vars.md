@@ -57,6 +57,18 @@ these; set them in Render's/Vercel's dashboard Environment tab.
 |---|---|---|
 | `TRUST_PROXY_HOPS` | Number of reverse-proxy hops whose `X-Forwarded-*` headers to trust | Defaults to `1` (Render's and Vercel's edge proxies are both exactly one hop). Without this, `request.remote_addr` is always the proxy's IP for every visitor — silently breaking per-IP rate limiting into one shared bucket — and `request.is_secure` reads `False` even over real HTTPS, producing `http://` links in any `url_for(..., _external=True)` (e.g. password-reset emails). Set to `0` only for a direct, unproxied deployment — trusting forwarded headers from an untrusted, non-proxied client would let it spoof its own IP/scheme. |
 
+## Bot check (Cloudflare Turnstile)
+
+| Variable | Purpose | Notes |
+|---|---|---|
+| `TURNSTILE_SITE_KEY` | Public site key, embedded in `signup.html`'s widget | Empty by default - signup skips the bot check entirely (no widget rendered, no server-side verification) when unset. |
+| `TURNSTILE_SECRET_KEY` | Server-side secret used to verify the submitted token | Never exposed to the browser. |
+
+Reusing a Turnstile site key across unrelated projects/domains is possible (one Cloudflare
+account can have multiple domains on one widget), but a separate widget per project is
+recommended for clean analytics/revocation - create a new one in the Cloudflare dashboard under
+the same account rather than a new Cloudflare account.
+
 ## Error monitoring (Sentry)
 
 | Variable | Purpose | Notes |

@@ -125,6 +125,99 @@ def test_signup_rejects_mismatched_confirm_password(client, db):
 
 
 # --------------------------------------------------------------------------
+# Turnstile bot-check (only active when TURNSTILE_SECRET_KEY is set - every
+# test above signs up with no key configured, exercising the "unconfigured
+# -> skip verification" degrade-open path implicitly).
+# --------------------------------------------------------------------------
+
+def test_signup_skips_turnstile_when_unconfigured(client, db):
+    # No TURNSTILE_SECRET_KEY set (TestConfig doesn't set one) - signup
+    # must succeed with no cf-turnstile-response field at all.
+    resp = client.post(
+        "/signup",
+        data={"email": "nokey@example.com", "password": "password123", "confirm_password": "password123"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert User.query.filter_by(email="nokey@example.com").first() is not None
+
+
+def test_signup_rejects_missing_turnstile_token_when_configured(client, db, app, monkeypatch):
+    app.config["TURNSTILE_SECRET_KEY"] = "test-secret"
+    resp = client.post(
+        "/signup",
+        data={"email": "notoken@example.com", "password": "password123", "confirm_password": "password123"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200  # re-rendered the form, not a redirect
+    assert User.query.filter_by(email="notoken@example.com").first() is None
+    app.config["TURNSTILE_SECRET_KEY"] = ""
+
+
+def test_signup_rejects_failed_turnstile_verification(client, db, app, monkeypatch):
+    from webvulnscanner import auth_routes
+
+    app.config["TURNSTILE_SECRET_KEY"] = "test-secret"
+    mock_resp = type("R", (), {"json": lambda self: {"success": False}})()
+    monkeypatch.setattr(auth_routes.requests, "post", lambda *a, **k: mock_resp)
+
+    resp = client.post(
+        "/signup",
+        data={
+            "email": "badtoken@example.com", "password": "password123", "confirm_password": "password123",
+            "cf-turnstile-response": "fake-token",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200
+    assert User.query.filter_by(email="badtoken@example.com").first() is None
+    app.config["TURNSTILE_SECRET_KEY"] = ""
+
+
+def test_signup_succeeds_with_valid_turnstile_token(client, db, app, monkeypatch):
+    from webvulnscanner import auth_routes
+
+    app.config["TURNSTILE_SECRET_KEY"] = "test-secret"
+    mock_resp = type("R", (), {"json": lambda self: {"success": True}})()
+    monkeypatch.setattr(auth_routes.requests, "post", lambda *a, **k: mock_resp)
+
+    resp = client.post(
+        "/signup",
+        data={
+            "email": "goodtoken@example.com", "password": "password123", "confirm_password": "password123",
+            "cf-turnstile-response": "real-token",
+        },
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert User.query.filter_by(email="goodtoken@example.com").first() is not None
+    app.config["TURNSTILE_SECRET_KEY"] = ""
+
+
+def test_signup_turnstile_network_failure_fails_closed(client, db, app, monkeypatch):
+    from webvulnscanner import auth_routes
+
+    app.config["TURNSTILE_SECRET_KEY"] = "test-secret"
+
+    def _boom(*a, **k):
+        raise auth_routes.requests.RequestException("timeout")
+
+    monkeypatch.setattr(auth_routes.requests, "post", _boom)
+
+    resp = client.post(
+        "/signup",
+        data={
+            "email": "netfail@example.com", "password": "password123", "confirm_password": "password123",
+            "cf-turnstile-response": "some-token",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200
+    assert User.query.filter_by(email="netfail@example.com").first() is None
+    app.config["TURNSTILE_SECRET_KEY"] = ""
+
+
+# --------------------------------------------------------------------------
 # Email verification
 # --------------------------------------------------------------------------
 
