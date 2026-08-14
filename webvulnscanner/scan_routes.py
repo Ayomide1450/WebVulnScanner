@@ -188,7 +188,7 @@ def _run_scan_in_background(app, scan_id, scan_type, **kwargs):
                 )
 
             fname = save_report(report, prefix, hostname)
-            db.session.add(Report(scan_id=scan_id, json_path=fname))
+            db.session.add(Report(scan_id=scan_id, json_path=fname, data=report))
             s = Scan.query.get(scan_id)
             s.status = ScanStatus.COMPLETED
             s.risk_score = report["score"]
@@ -292,11 +292,7 @@ def dashboard():
     # convention as every check_* function in checks.py.
     latest_report = None
     if latest is not None and latest.status == ScanStatus.COMPLETED and latest.report is not None:
-        try:
-            with open(os.path.join(REPORTS_DIR, latest.report.json_path), encoding="utf-8") as f:
-                latest_report = json.load(f)
-        except (OSError, ValueError):
-            latest_report = None
+        latest_report = _load_report_json(latest)
 
     return render_template(
         "dashboard.html", scans=scans, latest=latest, target_trends=target_trends,
@@ -324,15 +320,45 @@ def _tier_flags(tier):
     }
 
 
-def _unsafe_target_error(url):
-    """None if url's hostname resolves only to public addresses; an
-    error string (safe to show the user) otherwise. Every route below
-    calls this on each user-supplied absolute URL before a Scan row is
-    created - see is_ssrf_safe_hostname's docstring in checks.py for
-    what this does and doesn't protect against."""
+def _unsafe_target_error(url, org_id=None):
+    """None if url's hostname resolves only to public addresses AND isn't a
+    domain another org has already verified ownership of; an error string
+    (safe to show the user) otherwise. Every route below calls this on each
+    user-supplied absolute URL before a Scan row is created.
+
+    The verified-domain check closes a real gap: base/passive scans never
+    required domain verification at all (only the intrusive checks did),
+    so any authenticated user could self-attest authorization via the
+    checkbox and scan literally any public domain, including one someone
+    else had already proven ownership of. Once a domain is verified by an
+    org, every other org is blocked from scanning it - `org_id=None`
+    (solo users with no org) is never treated as "no restriction", it's
+    just never a match for any real verified org_id either. Unclaimed
+    domains stay scannable via the existing checkbox self-attestation,
+    since restricting recon/OSINT-style scanning of *any* public domain
+    outright would defeat this tool's purpose as a scanner, not just this
+    one site's protection.
+
+    See is_ssrf_safe_hostname's docstring in checks.py for what the
+    SSRF check does and doesn't protect against."""
     hostname = urlparse(url).hostname
     if not hostname or not is_ssrf_safe_hostname(hostname):
         return "This target resolves to a private, internal, or unreachable address and cannot be scanned."
+
+    from webvulnscanner.models import DomainVerification
+
+    claim = (
+        DomainVerification.query.filter(
+            DomainVerification.domain == hostname.lower(),
+            DomainVerification.verified_at.isnot(None),
+        ).first()
+    )
+    if claim is not None and claim.org_id != org_id:
+        return (
+            f"{hostname} is a verified domain belonging to another organization on this "
+            "platform and cannot be scanned by you. If this is your domain, verify ownership "
+            "of it yourself under Organization → Verify domain."
+        )
     return None
 
 
@@ -367,11 +393,11 @@ def _launch_base_scan(user, tier, raw_target, manual_test_url=None):
     base_url = normalize_target(raw_target)
     if not base_url:
         return None, "not a valid domain/URL"
-    unsafe = _unsafe_target_error(base_url)
+    unsafe = _unsafe_target_error(base_url, org_id=user.org_id)
     if unsafe:
         return None, unsafe
     if manual_test_url:
-        unsafe = _unsafe_target_error(manual_test_url)
+        unsafe = _unsafe_target_error(manual_test_url, org_id=user.org_id)
         if unsafe:
             return None, unsafe
 
@@ -423,7 +449,7 @@ def new_scan_base():
 
     manual_test_url = request.form.get("test_url", "").strip() or None
     if manual_test_url:
-        unsafe = _unsafe_target_error(manual_test_url)
+        unsafe = _unsafe_target_error(manual_test_url, org_id=current_user.org_id)
         if unsafe:
             return render_template("scan_new_base.html", error=unsafe, **_tier_flags(tier))
 
@@ -498,7 +524,7 @@ def new_scan_advanced():
                        advanced["idor_url_template"]):
         if not group_url:
             continue
-        unsafe = _unsafe_target_error(group_url)
+        unsafe = _unsafe_target_error(group_url, org_id=current_user.org_id)
         if unsafe:
             return render_template("scan_new_advanced.html", error=unsafe, **_tier_flags(tier))
 
@@ -543,7 +569,7 @@ def new_scan_media():
             "scan_new_media.html", error="Enter a valid domain or URL for the media scan, e.g. example.com",
             **_tier_flags(tier),
         )
-    unsafe = _unsafe_target_error(base_url)
+    unsafe = _unsafe_target_error(base_url, org_id=current_user.org_id)
     if unsafe:
         return render_template("scan_new_media.html", error=unsafe, **_tier_flags(tier))
 
@@ -597,7 +623,7 @@ def new_scan_api():
             "scan_new_api.html", error="Enter a valid domain or URL for the API scan, e.g. example.com",
             **_tier_flags(tier),
         )
-    unsafe = _unsafe_target_error(base_url)
+    unsafe = _unsafe_target_error(base_url, org_id=current_user.org_id)
     if unsafe:
         return render_template("scan_new_api.html", error=unsafe, **_tier_flags(tier))
 
@@ -727,8 +753,16 @@ def _ownership_scoped_history_query(s):
 
 
 def _load_report_json(scan_row):
+    """Reads a scan's report JSON: `Report.data` (Postgres) first, the
+    on-disk file only as a fallback for rows saved before that column
+    existed. `Report.data` is the source of truth going forward - a local
+    disk write is per-machine and unreadable from a different worker/
+    machine (real bug hit live on a 2-machine Fly deploy, see Report's
+    docstring in models.py)."""
     if scan_row.report is None:
         return None
+    if scan_row.report.data is not None:
+        return scan_row.report.data
     try:
         with open(os.path.join(REPORTS_DIR, scan_row.report.json_path), encoding="utf-8") as f:
             return json.load(f)
@@ -796,8 +830,9 @@ def scan_report(scan_id):
     if s.report is None:
         abort(404)
 
-    with open(os.path.join(REPORTS_DIR, s.report.json_path), encoding="utf-8") as f:
-        report = json.load(f)
+    report = _load_report_json(s)
+    if report is None:
+        abort(404)
 
     # Coerce the raw query-string value against the allowlist - never pass
     # request.args.get(...) itself into the template (T-03-21).
@@ -838,8 +873,9 @@ def scan_report_csv(scan_id):
     if s.report is None:
         abort(404)
 
-    with open(os.path.join(REPORTS_DIR, s.report.json_path), encoding="utf-8") as f:
-        report = json.load(f)
+    report = _load_report_json(s)
+    if report is None:
+        abort(404)
 
     buf = io.StringIO()
     writer = csv.writer(buf)
@@ -946,10 +982,10 @@ def scan_compare(scan_id, other_id):
     if a.report is None or b.report is None:
         abort(404)
 
-    with open(os.path.join(REPORTS_DIR, a.report.json_path), encoding="utf-8") as f:
-        report_a = json.load(f)
-    with open(os.path.join(REPORTS_DIR, b.report.json_path), encoding="utf-8") as f:
-        report_b = json.load(f)
+    report_a = _load_report_json(a)
+    report_b = _load_report_json(b)
+    if report_a is None or report_b is None:
+        abort(404)
 
     diff = diff_reports(report_a, report_b)
 

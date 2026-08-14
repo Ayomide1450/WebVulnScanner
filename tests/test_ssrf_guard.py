@@ -109,11 +109,49 @@ def test_literal_cloud_metadata_ip_is_unsafe_without_mocking():
 # callable directly without an app/request context.
 # --------------------------------------------------------------------------
 
-def test_unsafe_target_error_none_for_public_host(monkeypatch):
+def test_unsafe_target_error_none_for_public_host(app, monkeypatch):
+    # Needs an app context now: a public/safe hostname also gets checked
+    # against DomainVerification (is it a domain another org already
+    # verified?), which is a real DB query - see _unsafe_target_error's
+    # docstring for why. The private-host test below doesn't need this,
+    # it short-circuits on the SSRF check before ever reaching the DB.
     from webvulnscanner.scan_routes import _unsafe_target_error
 
     monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo("93.184.216.34"))
-    assert _unsafe_target_error("https://example.com") is None
+    with app.app_context():
+        assert _unsafe_target_error("https://example.com") is None
+
+
+def test_unsafe_target_error_blocks_domain_verified_by_another_org(app, db, monkeypatch):
+    from webvulnscanner.models import DomainVerification, VerifyMethod, _utcnow
+    from webvulnscanner.scan_routes import _unsafe_target_error
+
+    monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo("93.184.216.34"))
+    owner_org = make_org(name="Owner Org")
+    other_org = make_org(name="Other Org")
+    dv = DomainVerification(
+        org_id=owner_org.id, domain="example.com", method=VerifyMethod.DNS_TXT,
+        token="tok", verified_at=_utcnow(),
+    )
+    db.session.add(dv)
+    db.session.commit()
+
+    with app.app_context():
+        # The domain's own owning org: still allowed.
+        assert _unsafe_target_error("https://example.com", org_id=owner_org.id) is None
+        # Any other org (or no org at all): blocked.
+        msg = _unsafe_target_error("https://example.com", org_id=other_org.id)
+        assert msg is not None
+        assert "another organization" in msg
+        assert _unsafe_target_error("https://example.com", org_id=None) is not None
+
+
+def test_unsafe_target_error_allows_unclaimed_domain_for_anyone(app, db, monkeypatch):
+    from webvulnscanner.scan_routes import _unsafe_target_error
+
+    monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo("93.184.216.34"))
+    with app.app_context():
+        assert _unsafe_target_error("https://example.com", org_id=None) is None
 
 
 def test_unsafe_target_error_message_for_private_host():

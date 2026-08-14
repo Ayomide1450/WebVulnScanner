@@ -191,16 +191,19 @@ def fetch_report(scan_id):
     if s.report is None:
         return jsonify(error="report not available"), 404
 
-    # WR-02: a missing/corrupt report file (e.g. reports/ isn't on
-    # persistent storage across a redeploy, or was manually cleaned up)
-    # must still return JSON, not fall through to the app's global
-    # @app.errorhandler(500) which renders an HTML 500.html page - that
-    # would break cli/wvs.py's _raise_for_error_response, which always
-    # expects a JSON body.
-    try:
-        with open(os.path.join(REPORTS_DIR, s.report.json_path), encoding="utf-8") as f:
-            report = json.load(f)
-    except (OSError, ValueError):
-        return jsonify(error="report file is unavailable"), 500
+    # WR-02: a missing/corrupt report (Report.data first, on-disk file only
+    # as a fallback for rows saved before that column existed - see
+    # Report's docstring in models.py) must still return JSON, not fall
+    # through to the app's global @app.errorhandler(500) which renders an
+    # HTML 500.html page - that would break cli/wvs.py's
+    # _raise_for_error_response, which always expects a JSON body.
+    if s.report.data is not None:
+        report = s.report.data
+    else:
+        try:
+            with open(os.path.join(REPORTS_DIR, s.report.json_path), encoding="utf-8") as f:
+                report = json.load(f)
+        except (OSError, ValueError):
+            return jsonify(error="report file is unavailable"), 500
 
     return jsonify(report), 200
