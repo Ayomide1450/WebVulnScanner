@@ -59,6 +59,11 @@ class InvoiceStatus(enum.Enum):
     MISMATCHED = "mismatched"
 
 
+class InvitationStatus(enum.Enum):
+    PENDING = "pending"
+    REVOKED = "revoked"
+
+
 class Organization(db.Model):
     __tablename__ = "organizations"
 
@@ -131,7 +136,22 @@ class DomainVerification(db.Model):
     verified_at = db.Column(db.DateTime(timezone=True), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
 
+    # Deletion-request workflow: requesting a deletion never deletes the row
+    # directly - it just stamps these three columns so the domain shows as
+    # "Deletion Pending" until an admin approves (row is deleted, the event
+    # is recorded in OrgAuditEvent so history survives the row's removal)
+    # or rejects (these three columns are cleared back to None, domain stays
+    # active). See org_routes.py's request_domain_deletion/approve/reject.
+    deletion_requested_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    deletion_requested_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    deletion_reason = db.Column(db.Text, nullable=True)
+
     organization = db.relationship("Organization", back_populates="domain_verifications")
+    deletion_requested_by = db.relationship("User", foreign_keys=[deletion_requested_by_id])
+
+    @property
+    def deletion_pending(self):
+        return self.deletion_requested_at is not None
 
 
 class Scan(db.Model):
@@ -261,4 +281,58 @@ class CryptoInvoice(db.Model):
     expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
 
+    # Pre-existing gap: Organization.crypto_invoices declared
+    # back_populates="organization" but this side never defined it - dormant
+    # since SQLAlchemy only resolves back_populates when mapper
+    # configuration is actually triggered, which nothing here happened to
+    # do until Invitation/OrgAuditEvent below started referencing
+    # Organization too. Filling it in (rather than leaving it latent)
+    # is what actually surfaces the pairing correctly.
     organization = db.relationship("Organization", back_populates="crypto_invoices")
+
+
+class Invitation(db.Model):
+    """A sent-but-not-yet-consumed org invite, persisted so org_admin.html's
+    "Pending Invitations" table can list/resend/revoke them across requests
+    - the invite *link* itself is still a stateless signed token
+    (org_routes.generate_invite_token), this row is purely bookkeeping for
+    the admin UI. Note: this branch's /signup does not consume invite
+    tokens (see org_routes.py's module docstring), so there is no way to
+    detect "accepted" here yet - status is only ever PENDING or REVOKED."""
+    __tablename__ = "invitations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=False)
+    email = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(32), nullable=False)
+    status = db.Column(db.Enum(InvitationStatus), nullable=False, default=InvitationStatus.PENDING)
+    invited_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+    revoked_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
+    organization = db.relationship("Organization")
+    invited_by = db.relationship("User")
+
+
+class OrgAuditEvent(db.Model):
+    """Append-only log of organization-management actions (as opposed to
+    Scan rows, which already serve as the scan-history audit trail on
+    org_admin.html). event_type is a short machine key
+    (ORG_AUDIT_EVENT_LABELS in org_routes.py maps it to display text);
+    detail is a short human-readable summary of what happened (domain name,
+    reason, decision, etc.) rather than structured columns - this log's
+    only job is "who did what, when," not driving app behavior. Deliberately
+    outlives the row it describes (e.g. a domain deletion event has no FK to
+    DomainVerification) so approving a deletion doesn't cascade-delete its
+    own audit trail."""
+    __tablename__ = "org_audit_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=False)
+    actor_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    event_type = db.Column(db.String(64), nullable=False)
+    detail = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+
+    organization = db.relationship("Organization")
+    actor = db.relationship("User")

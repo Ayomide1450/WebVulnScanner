@@ -1,12 +1,43 @@
 {% extends "base.html" %}
-{% block title %}Org admin - WebVulnScanner{% endblock %}
+{% block title %}Organization - WebVulnScanner{% endblock %}
 {% block head %}
 {% include "_admin_form_styles.html" %}
+<style>
+  .plan-card { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+  .plan-stats { display:flex; gap:22px; flex-wrap:wrap; margin-top:6px; }
+  .plan-stats .stat { font-size:13px; color: var(--muted); }
+  .plan-stats .stat b { color: var(--text); font-family:"Fira Code",monospace; }
+  .deletion-reason { color: var(--muted); font-size:12px; margin-top:4px; }
+  .actions-cell { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .actions-cell form { display:inline-flex; gap:6px; align-items:center; margin:0; }
+  .actions-cell input[type=text] { width:150px; padding:6px 8px; margin:0; font-size:12.5px; }
+  .actions-cell .verify-btn.danger { background: rgba(248,113,113,.14); color: var(--critical); }
+  .actions-cell .verify-btn.reject { background: rgba(255,255,255,.06); color: var(--muted); }
+  .audit-log .row { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+  .audit-log .row:last-child { border-bottom: none; }
+  .audit-log .row .when { color: var(--muted); font-family:"Fira Code",monospace; font-size:11.5px; }
+  .audit-log .row .who { color: var(--muted); }
+  a.row-link { color: var(--accent); text-decoration:none; }
+  a.row-link:hover { text-decoration:underline; }
+</style>
 {% endblock %}
 {% block content %}
 <div class="wrap">
-  <h1>{{ org.name if org else 'Organization admin' }}</h1>
-  <p style="color: var(--muted); font-size: 13.5px;">Plan: <b>{{ org.plan.value if org else 'n/a' }}</b></p>
+  <h1>{{ org.name if org else 'Organization' }}</h1>
+
+  <div class="card plan-card">
+    <div>
+      <div style="font-size:13.5px;"><b>{{ (org.plan.value if org else 'free')|replace('_', ' ')|title }} Plan</b></div>
+      <div class="plan-stats">
+        <span class="stat">Verified domains &middot; <b>{{ verified_domain_count }}</b></span>
+        <span class="stat">Scans &middot; <b>{{ scans|length }}</b></span>
+        <span class="stat">Members &middot; <b>{{ members|length }}</b></span>
+      </div>
+    </div>
+    {% if org and org.plan.value == 'free' %}
+    <a class="btn primary" href="{{ url_for('billing.view') }}">Upgrade Plan &rarr;</a>
+    {% endif %}
+  </div>
 
   <h2 class="section">Members</h2>
   <div class="card">
@@ -17,8 +48,8 @@
       {% for m in members %}
       <tr>
         <td>{{ m.email }}</td>
-        <td>{{ m.role.value }}</td>
-        <td><span class="pill {{ 'pass' if m.email_verified_at else 'medium' }}">{{ 'yes' if m.email_verified_at else 'no' }}</span></td>
+        <td>{{ role_labels.get(m.role.value, m.role.value) }}</td>
+        <td><span class="pill {{ 'pass' if m.email_verified_at else 'medium' }}">{% if m.email_verified_at %}&#10003; Verified{% else %}&#9679; Pending{% endif %}</span></td>
       </tr>
       {% endfor %}
     </table>
@@ -42,10 +73,36 @@
 
       <button type="submit">Send invite</button>
     </form>
-    <p style="color: var(--muted); font-size: 12.5px; margin-top: 10px;">
-      The invite link is printed to the server console (email delivery is a dev-mode stub).
-      Note: signup does not yet auto-apply an invite token - this generates the link only.
-    </p>
+  </div>
+
+  <h2 class="section">Pending Invitations</h2>
+  <div class="card">
+    {% if pending_invitations %}
+    <div class="table-scroll">
+    <table>
+      <tr><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
+      {% for inv in pending_invitations %}
+      <tr>
+        <td>{{ inv.email }}</td>
+        <td>{{ role_labels.get(inv.role, inv.role) }}</td>
+        <td><span class="pill medium">&#9679; Pending</span></td>
+        <td class="actions-cell">
+          <form method="POST" action="{{ url_for('org.resend_invitation', invitation_id=inv.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="verify-btn">Resend</button>
+          </form>
+          <form method="POST" action="{{ url_for('org.revoke_invitation', invitation_id=inv.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="verify-btn danger">Revoke</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+    {% else %}
+    <p style="color: var(--muted); font-size: 13.5px;">No pending invitations.</p>
+    {% endif %}
   </div>
 
   <h2 class="section">Verified domains</h2>
@@ -53,11 +110,37 @@
     {% if domains %}
     <div class="table-scroll">
     <table>
-      <tr><th>Domain</th><th>Status</th></tr>
+      <tr><th>Domain</th><th>Status</th><th>Actions</th></tr>
       {% for dv in domains %}
       <tr>
         <td><code>{{ dv.domain }}</code></td>
-        <td><span class="pill {{ 'pass' if dv.verified_at else 'medium' }}">{{ 'VERIFIED' if dv.verified_at else 'PENDING' }}</span></td>
+        <td>
+          {% if dv.deletion_pending %}
+          <span class="pill medium">Deletion Pending</span>
+          <div class="deletion-reason">Requested by {{ dv.deletion_requested_by.email if dv.deletion_requested_by else 'unknown' }}
+            {% if dv.deletion_reason %}&middot; &ldquo;{{ dv.deletion_reason }}&rdquo;{% endif %}</div>
+          {% else %}
+          <span class="pill {{ 'pass' if dv.verified_at else 'medium' }}">{% if dv.verified_at %}&#10003; Verified{% else %}&#9679; Pending{% endif %}</span>
+          {% endif %}
+        </td>
+        <td class="actions-cell">
+          {% if dv.deletion_pending %}
+          <form method="POST" action="{{ url_for('org.approve_domain_deletion', domain_id=dv.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="verify-btn danger">Approve</button>
+          </form>
+          <form method="POST" action="{{ url_for('org.reject_domain_deletion', domain_id=dv.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="verify-btn reject">Reject</button>
+          </form>
+          {% else %}
+          <form method="POST" action="{{ url_for('org.request_domain_deletion', domain_id=dv.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="text" name="reason" placeholder="Reason (optional)">
+            <button type="submit" class="verify-btn danger">Request Deletion</button>
+          </form>
+          {% endif %}
+        </td>
       </tr>
       {% endfor %}
     </table>
@@ -67,29 +150,45 @@
     {% endif %}
   </div>
 
-  <h2 class="section">Org scan history <span style="text-transform:none; letter-spacing:normal; font-weight:400;">(audit log &mdash; who ran what, when, against what target)</span></h2>
+  <h2 class="section">Scan History <span style="text-transform:none; letter-spacing:normal; font-weight:400;">(who ran what, when, against what target)</span></h2>
   <div class="card">
     {% if scans %}
     <div class="table-scroll">
     <table>
-      <tr><th>Target</th><th>Type</th><th>Run by</th><th>Status</th><th>Risk score</th><th>Created</th></tr>
+      <tr><th>Target</th><th>Type</th><th>Run by</th><th>Status</th><th>Security Score</th><th>Created</th><th></th></tr>
       {% for s in scans %}
       <tr>
-        <td>
-          {% if s.report %}<a href="{{ url_for('scan.scan_report', scan_id=s.id) }}"><code>{{ s.target_url }}</code></a>
-          {% else %}<code>{{ s.target_url }}</code>{% endif %}
-        </td>
-        <td>{{ s.scan_type }}</td>
+        <td><code>{{ s.target_url }}</code></td>
+        <td>{{ scan_type_labels.get(s.scan_type, s.scan_type|title) }}</td>
         <td>{{ s.user.email if s.user else '-' }}</td>
         <td><span class="status-pill {{ s.status.value }}">{{ s.status.value }}</span></td>
-        <td>{{ s.risk_score if s.risk_score is not none else '-' }}</td>
-        <td>{{ s.created_at }}</td>
+        <td>{{ 'Security Score: ' + s.risk_score|string + '/100' if s.risk_score is not none else '-' }}</td>
+        <td>{{ s.created_at.strftime('%b %d, %Y · %I:%M %p') }}</td>
+        <td>
+          {% if s.report %}<a class="row-link" href="{{ url_for('scan.scan_report', scan_id=s.id) }}">View Report &rarr;</a>{% endif %}
+        </td>
       </tr>
       {% endfor %}
     </table>
     </div>
     {% else %}
     <p style="color: var(--muted); font-size: 13.5px;">No scans recorded for this org yet.</p>
+    {% endif %}
+  </div>
+
+  <h2 class="section">Audit Log</h2>
+  <div class="card audit-log">
+    {% if audit_events %}
+      {% for ev in audit_events %}
+      <div class="row">
+        <span class="when">{{ ev.created_at.strftime('%b %d, %Y %I:%M %p') }}</span>
+        &middot; <b>{{ audit_event_labels.get(ev.event_type, ev.event_type|replace('_', ' ')|title) }}</b>
+        {% if ev.detail %} &mdash; {{ ev.detail }}{% endif %}
+        <span class="who">{{ '(by ' + ev.actor.email + ')' if ev.actor else '' }}</span>
+      </div>
+      {% endfor %}
+    {% else %}
+    <p style="color: var(--muted); font-size: 13.5px; margin:0;">No organization activity recorded yet.</p>
     {% endif %}
   </div>
 </div>
