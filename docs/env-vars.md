@@ -57,6 +57,18 @@ these; set them in Render's/Vercel's dashboard Environment tab.
 |---|---|---|
 | `TRUST_PROXY_HOPS` | Number of reverse-proxy hops whose `X-Forwarded-*` headers to trust | Defaults to `1` (Render's and Vercel's edge proxies are both exactly one hop). Without this, `request.remote_addr` is always the proxy's IP for every visitor — silently breaking per-IP rate limiting into one shared bucket — and `request.is_secure` reads `False` even over real HTTPS, producing `http://` links in any `url_for(..., _external=True)` (e.g. password-reset emails). Set to `0` only for a direct, unproxied deployment — trusting forwarded headers from an untrusted, non-proxied client would let it spoof its own IP/scheme. |
 
+## Bot check (Cloudflare Turnstile)
+
+| Variable | Purpose | Notes |
+|---|---|---|
+| `TURNSTILE_SITE_KEY` | Public site key, embedded in `signup.html`'s widget | Empty by default - signup skips the bot check entirely (no widget rendered, no server-side verification) when unset. |
+| `TURNSTILE_SECRET_KEY` | Server-side secret used to verify the submitted token | Never exposed to the browser. |
+
+Reusing a Turnstile site key across unrelated projects/domains is possible (one Cloudflare
+account can have multiple domains on one widget), but a separate widget per project is
+recommended for clean analytics/revocation - create a new one in the Cloudflare dashboard under
+the same account rather than a new Cloudflare account.
+
 ## Error monitoring (Sentry)
 
 | Variable | Purpose | Notes |
@@ -77,5 +89,15 @@ worker/queue/storage pieces described in `docs/vercel-migration.md` get built:
 
 Non-secret vars declared there today: `FLASK_APP`, `SESSION_COOKIE_SECURE`, `PYTHON_VERSION`.
 Everything else (`SECRET_KEY`, `GROQ_API_KEY`, `SQLALCHEMY_DATABASE_URI`, crypto/email vars) is
-set manually in Render's dashboard, never committed — the same pattern applies to Vercel's
-Environment tab.
+set manually in Render's dashboard, never committed — the same pattern applies to Fly.io's
+`fly secrets set`/Vercel's Environment tab.
+
+## Deploying on Fly.io instead of Render
+
+`Dockerfile` + `fly.toml` at the repo root are the Fly.io equivalent of `Procfile`/`render.yaml` —
+same `flask db upgrade && gunicorn ...` startup, same `/healthz` check. `fly launch` picks up
+`fly.toml` as-is (decline its Postgres/Redis prompts, this app uses an external Neon Postgres
+already); every secret above is set with `fly secrets set KEY=value`, never committed. See the
+top-level project chat history / README for why Fly.io was chosen over Render (a real always-on
+VM, not serverless — matters because `threading.Thread`-per-scan and the in-process scheduler
+both need a persistent process, not a request-scoped function).

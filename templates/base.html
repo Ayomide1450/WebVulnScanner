@@ -39,6 +39,14 @@
       var(--bg);
     color: var(--text);
     -webkit-font-smoothing: antialiased;
+    /* Sticky footer: body is a full-viewport-height flex column and the
+       footer (last child) gets margin-top:auto, which pushes it to the
+       bottom of the viewport on short pages (login, a fresh account with
+       no scans yet) instead of riding up right under sparse content -
+       every other child just stacks normally above it. */
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
   h1, h2, h3, h4 { font-family: "Fira Sans", sans-serif; letter-spacing: -0.015em; font-weight: 700; margin: 0 0 var(--space-2); }
   code, pre, .mono { font-family: "Fira Code", "SFMono-Regular", Consolas, Menlo, monospace; }
@@ -202,7 +210,7 @@
 
   .wrap { max-width: 1040px; margin: 0 auto; padding: var(--space-6) 20px 90px; }
 
-  .site-footer { border-top: 1px solid var(--border); margin-top: 40px; }
+  .site-footer { border-top: 1px solid var(--border); margin-top: auto; }
   .footer-inner { max-width: 1040px; margin: 0 auto; padding: 20px; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; color: var(--muted); font-size: 12.5px; }
   .footer-inner a { color: var(--muted); text-decoration:none; }
   .footer-inner a:hover { color: var(--text); }
@@ -247,6 +255,9 @@
         <a href="{{ url_for('api_tokens.list_tokens') }}">API Tokens</a>
         {% if current_user.role == Role.ORG_ADMIN %}
         <a href="/org/admin">Organization</a>
+        {% endif %}
+        {% if current_user.is_platform_admin %}
+        <a href="{{ url_for('admin.platform_dashboard') }}">Platform Admin</a>
         {% endif %}
         <a href="{{ url_for('auth.logout') }}" class="nav-logout">Logout</a>
       {% else %}

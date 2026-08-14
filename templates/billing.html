@@ -13,6 +13,44 @@
   .invoice-address { flex: 1; min-width: 200px; font-size: 12.5px; word-break: break-all; }
   .copy-btn { margin-top: 0; padding: 6px 12px; font-size: 12px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
   .copy-btn.copied { background: var(--accent-dim); color: var(--accent); border-color: rgba(34,197,94,.4); }
+
+  /* Current-plan summary strip */
+  .plan-summary { display:flex; gap:28px; flex-wrap:wrap; align-items:center; }
+  .plan-summary .stat .invoice-label { margin-bottom: 2px; }
+  .plan-summary .stat .invoice-value { font-size: 16px; }
+
+  /* Billing-cycle toggle - a real pill switch, driven by two radio inputs
+     (name="billing_cycle") shared with the pricing-card form below, so
+     picking Monthly/Annual up top is the same selection the invoice gets
+     created with - no separate JS state to keep in sync. */
+  .cycle-toggle { display:inline-flex; background: var(--panel2); border:1px solid var(--border); border-radius:999px; padding:4px; gap:4px; margin: 4px 0 24px; }
+  .cycle-toggle input { position:absolute; opacity:0; pointer-events:none; }
+  .cycle-toggle label { margin:0; padding:8px 18px; border-radius:999px; font-size:13.5px; font-weight:600; color: var(--muted); cursor:pointer; transition: background 150ms ease, color 150ms ease; display:flex; align-items:center; gap:6px; }
+  .cycle-toggle input:checked + label { background: var(--accent); color: #041007; }
+  .cycle-toggle .save-badge { background: rgba(34,197,94,.16); color: var(--accent); font-size:10.5px; font-weight:800; padding:1px 7px; border-radius:999px; text-transform:uppercase; letter-spacing:.03em; }
+  .cycle-toggle input:checked + label .save-badge { background: rgba(4,16,7,.18); color:#041007; }
+
+  /* Pricing grid - each card is a clickable target_plan radio (or the
+     always-selected, disabled Free card). :has() highlights the selected
+     card; native radio still works as the fallback selection UI in
+     browsers without :has() support. */
+  .pricing-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; margin-bottom: 8px; }
+  @media (max-width: 860px) { .pricing-grid { grid-template-columns: 1fr; } }
+  .plan-card { position:relative; border:1px solid var(--border); border-radius: var(--radius-lg); padding: 24px 22px; background: linear-gradient(180deg, var(--panel), var(--panel2)); }
+  .plan-card input[type=radio] { position:absolute; top:20px; right:20px; width:18px; height:18px; accent-color: var(--accent); cursor:pointer; }
+  .plan-card:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .plan-card .plan-name { display:block; margin:0; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color: var(--muted); cursor:pointer; }
+  .plan-card.featured .plan-name { color: var(--accent); }
+  .plan-card .plan-price { font-size:34px; font-weight:800; font-family:"Fira Code",monospace; margin: 10px 0 2px; }
+  .plan-card .plan-price small { font-size:14px; color: var(--muted); font-weight:600; }
+  .plan-card .plan-price.cycle-annual { display:none; }
+  .cycle-toggle:has(#cycle_annual:checked) ~ .pricing-grid .plan-price.cycle-monthly { display:none; }
+  .cycle-toggle:has(#cycle_annual:checked) ~ .pricing-grid .plan-price.cycle-annual { display:block; }
+  .plan-card .plan-annual-note { font-size:11.5px; color: var(--muted); margin-bottom:16px; }
+  .plan-card ul { list-style:none; margin:16px 0 0; padding:0; display:flex; flex-direction:column; gap:9px; }
+  .plan-card ul li { font-size:13px; display:flex; align-items:flex-start; gap:8px; color: var(--text); }
+  .plan-card ul li .icon { width:15px; height:15px; color: var(--accent); flex-shrink:0; margin-top:1px; }
+  .plan-card.current-badge::before { content: "Current plan"; position:absolute; top:-10px; left:20px; background: var(--accent); color:#041007; font-size:10.5px; font-weight:800; padding:2px 10px; border-radius:999px; text-transform:uppercase; letter-spacing:.03em; }
 </style>
 {% endblock %}
 {% block content %}
@@ -20,49 +58,84 @@
   <h1>Billing</h1>
 
   <div class="card hud-grid">
-    <div class="table-scroll">
-    <table>
-      <tr><th>Current plan</th><td>{{ org.plan.value if org else 'n/a (no organization)' }}</td></tr>
-      <tr><th>Subscription status</th><td>{{ subscription.status.value if subscription else 'none' }}</td></tr>
-      <tr><th>Current period end</th><td>{{ subscription.current_period_end if subscription and subscription.current_period_end else '-' }}</td></tr>
-    </table>
-    </div>
-  </div>
-
-  <h2 class="section">Plan prices</h2>
-  <div class="card">
-    <div class="table-scroll">
-    <table>
-      <tr><th>Plan</th><th>USD / mo</th></tr>
-      {% for plan, price in plan_prices.items() %}
-      <tr><td>{{ plan.value }}</td><td>${{ '%.2f' % price }}</td></tr>
-      {% endfor %}
-    </table>
+    <div class="plan-summary">
+      <div class="stat">
+        <div class="invoice-label">Current plan</div>
+        <div class="invoice-value">{{ (org.plan.value if org else 'n/a')|replace('_', ' ')|title }}</div>
+      </div>
+      <div class="stat">
+        <div class="invoice-label">Subscription status</div>
+        <div class="invoice-value">{{ (subscription.status.value if subscription else 'none')|title }}</div>
+      </div>
+      <div class="stat">
+        <div class="invoice-label">Renews / expires</div>
+        <div class="invoice-value">{{ subscription.current_period_end.strftime('%b %d, %Y') if subscription and subscription.current_period_end else '-' }}</div>
+      </div>
     </div>
   </div>
 
   {% if org %}
-  <h2 class="section">Create invoice</h2>
-  <div class="card">
-    <form method="POST" action="{{ url_for('billing.create_invoice') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label for="target_plan">Upgrade to</label>
-      <select id="target_plan" name="target_plan">
-        {% for plan in upgradable_plans %}
-        <option value="{{ plan.value }}">{{ plan.value }} (${{ '%.2f' % plan_prices[plan] }}/mo)</option>
-        {% endfor %}
-      </select>
+  <h2 class="section">Choose a plan</h2>
+  <form method="POST" action="{{ url_for('billing.create_invoice') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
+    <div class="cycle-toggle">
+      <input type="radio" name="billing_cycle" id="cycle_monthly" value="monthly" checked>
+      <label for="cycle_monthly">Monthly</label>
+      <input type="radio" name="billing_cycle" id="cycle_annual" value="annual">
+      <label for="cycle_annual">Annual <span class="save-badge">2 months free</span></label>
+    </div>
+
+    <div class="pricing-grid">
+      <div class="plan-card {{ 'current-badge' if org.plan.value == 'free' }}">
+        <div class="plan-name">Free</div>
+        <div class="plan-price">$0<small> forever</small></div>
+        <div class="plan-annual-note">No card, no crypto, no invoice needed.</div>
+        <ul>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4 10-10"/></svg>Passive/recon security checks</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4 10-10"/></svg>Security score &amp; findings dashboard</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4 10-10"/></svg>Unlimited manual scans</li>
+        </ul>
+      </div>
+
+      {% for plan in upgradable_plans %}
+      <div class="plan-card {{ 'featured' if plan.value == 'paid' }} {{ 'current-badge' if org.plan == plan }}">
+        <input type="radio" name="target_plan" value="{{ plan.value }}" id="plan_{{ plan.value }}" {{ 'checked' if loop.first }} aria-label="Select {{ plan.value }} plan">
+        <label for="plan_{{ plan.value }}" class="plan-name">{{ plan.value|replace('_', ' ')|title }}</label>
+        <div class="plan-price cycle-monthly">${{ '%.0f' % plan_prices[plan] }}<small> / month</small></div>
+        <div class="plan-price cycle-annual">${{ '%.0f' % plan_annual_prices[plan] }}<small> / year</small></div>
+        <div class="plan-annual-note">Billed in USDT/USDC on Polygon.</div>
+        <ul>
+          {% if plan.value == 'paid' %}
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4 10-10"/></svg>Everything in Free</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4 10-10"/></svg>Active checks: crawl, ports, CORS, redirects</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4 10-10"/></svg>Media &amp; API-exposure scans</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4 10-10"/></svg>AI-assisted remediation summaries</li>
+          {% else %}
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4 10-10"/></svg>Everything in Paid</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4 10-10"/></svg>Verified-domain intrusive checks (XSS/SQLi/IDOR)</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4 10-10"/></svg>Credentialed advanced scans</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4 10-10"/></svg>Org-wide domain ownership verification</li>
+          {% endif %}
+        </ul>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="card" style="margin-top:20px;">
       <label for="token_symbol">Pay with</label>
       <select id="token_symbol" name="token_symbol">
         {% for sym in token_symbols %}
         <option value="{{ sym }}">{{ sym }}</option>
         {% endfor %}
       </select>
-
-      <button type="submit" class="btn primary">Create invoice</button>
-    </form>
-  </div>
+      <button type="submit" class="btn primary">Create Invoice &rarr;</button>
+      <p style="color: var(--muted); font-size: 12px; margin-top: 12px;">
+        Self-custody crypto billing - no card on file, no auto-renewal. Each invoice covers one
+        billing period; come back and create a new one when the current period ends.
+      </p>
+    </div>
+  </form>
 
   <h2 class="section">Pending invoices</h2>
   <div class="card">
@@ -72,7 +145,7 @@
       <div class="invoice-row">
         <div>
           <div class="invoice-label">Upgrade to</div>
-          <div class="invoice-value">{{ inv.target_plan.value }}</div>
+          <div class="invoice-value">{{ inv.target_plan.value|replace('_', ' ')|title }} &middot; {{ inv.billing_cycle|title }}</div>
         </div>
         <div>
           <div class="invoice-label">Amount</div>
@@ -80,7 +153,7 @@
         </div>
         <div>
           <div class="invoice-label">Expires</div>
-          <div class="invoice-value">{{ inv.expires_at }}</div>
+          <div class="invoice-value">{{ inv.expires_at.strftime('%b %d, %Y %H:%M UTC') }}</div>
         </div>
         <div>
           <div class="invoice-label">Status</div>

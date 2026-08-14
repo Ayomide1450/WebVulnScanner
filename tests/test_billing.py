@@ -26,11 +26,13 @@ from webvulnscanner.models import CryptoInvoice, InvoiceStatus, Plan, SubStatus,
 
 
 def _make_invoice(org, plan=Plan.PAID, token_symbol="USDT", status=InvoiceStatus.PENDING,
-                   expected_amount=19.005, expires_in_minutes=60, created_minutes_ago=0):
+                   expected_amount=19.005, expires_in_minutes=60, created_minutes_ago=0,
+                   billing_cycle="monthly"):
     now = datetime.now(timezone.utc)
     inv = CryptoInvoice(
         org_id=org.id,
         target_plan=plan,
+        billing_cycle=billing_cycle,
         token_symbol=token_symbol,
         chain="polygon",
         receiving_address="0xReceivingAddress",
@@ -56,6 +58,20 @@ def test_create_invoice_sets_expected_amount_above_base_price(app, db):
     assert float(inv.expected_amount) > billing.PLAN_USD_PRICE[Plan.PAID]
     assert float(inv.expected_amount) < billing.PLAN_USD_PRICE[Plan.PAID] + 0.01
     assert inv.status == InvoiceStatus.PENDING
+
+
+def test_create_invoice_annual_cycle_prices_at_10x_monthly(app, db):
+    org = make_org()
+    inv = billing.create_invoice(org.id, Plan.PAID, "USDT", billing_cycle="annual")
+    assert inv.billing_cycle == "annual"
+    assert float(inv.base_usd_amount) == billing.PLAN_ANNUAL_USD_PRICE[Plan.PAID]
+    assert float(inv.base_usd_amount) == billing.PLAN_USD_PRICE[Plan.PAID] * 10
+
+
+def test_create_invoice_rejects_unknown_billing_cycle(app, db):
+    org = make_org()
+    with pytest.raises(ValueError):
+        billing.create_invoice(org.id, Plan.PAID, "USDT", billing_cycle="weekly")
 
 
 def test_create_invoice_retries_on_amount_collision_then_succeeds(app, db):
@@ -175,6 +191,24 @@ def test_verify_invoice_matches_and_activates_subscription(app, db):
     assert sub.status == SubStatus.ACTIVE
     assert sub.plan == Plan.PAID
     assert org.plan == Plan.PAID  # entitlements.effective_tier() reads this, not Subscription
+
+
+def test_verify_invoice_activates_annual_period_end_365_days(app, db):
+    org = make_org(plan=Plan.FREE)
+    inv = _make_invoice(org, plan=Plan.PAID, expected_amount=190.005, billing_cycle="annual")
+    _db.session.commit()
+
+    matching_tx = _tx(190.005)
+    mock_resp = type("R", (), {"json": lambda self: {"result": [matching_tx]}})()
+    with patch("webvulnscanner.billing.requests.get", return_value=mock_resp):
+        assert billing.verify_invoice(inv) is True
+
+    sub = Subscription.query.filter_by(org_id=org.id).first()
+    period_end = sub.current_period_end
+    if period_end.tzinfo is None:
+        period_end = period_end.replace(tzinfo=timezone.utc)
+    delta = period_end - datetime.now(timezone.utc)
+    assert 360 < delta.days <= 365  # ~365 days out, not the monthly 30
 
 
 def test_verify_invoice_ignores_tx_below_min_confirmations(app, db):

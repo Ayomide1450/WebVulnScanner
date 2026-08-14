@@ -11,8 +11,19 @@ invoice by amount alone, verified against Polygonscan's free-tier
 Price table - not pinned by the user beyond "usdt/usdc"; these are this
 workstream's own placeholder numbers, flagged for the judge to confirm or
 override:
-    PAID          $19.00/mo
-    ORG_VERIFIED  $49.00/mo
+    PAID          $19.00/mo   or $190.00/yr (2 months free)
+    ORG_VERIFIED  $49.00/mo   or $490.00/yr (2 months free)
+
+Every purchasable plan is billed as a subscription, not a one-off charge -
+`billing_cycle` ("monthly"/"annual") is a required choice on the upgrade
+form (billing.html), stored on the `CryptoInvoice` row, and determines how
+far `_activate_subscription()` pushes `current_period_end` out once the
+invoice is paid (30 vs 365 days). There is no recurring auto-charge (this
+is self-custody crypto, not a card on file) - `current_period_end` is
+purely informational today, shown on the billing page so an admin knows
+when to come back and pay the next invoice; a renewal reminder/downgrade-
+on-expiry job is not built here (see billing.html for the shown-but-not-
+yet-enforced framing).
 """
 import random
 from datetime import datetime, timedelta, timezone
@@ -35,6 +46,19 @@ PLAN_USD_PRICE = {
     Plan.ORG_VERIFIED: 49.00,
 }
 
+# Annual price = 10x monthly (2 months free) - a standard SaaS annual
+# discount, not independently priced. Kept as its own explicit dict (rather
+# than computed inline at every call site) so billing.html and
+# create_invoice() read the exact same numbers.
+PLAN_ANNUAL_USD_PRICE = {plan: round(price * 10, 2) for plan, price in PLAN_USD_PRICE.items()}
+
+BILLING_CYCLES = ("monthly", "annual")
+BILLING_CYCLE_DAYS = {"monthly": 30, "annual": 365}
+
+
+def price_for(target_plan, billing_cycle):
+    return PLAN_ANNUAL_USD_PRICE[target_plan] if billing_cycle == "annual" else PLAN_USD_PRICE[target_plan]
+
 # Amount-matching tolerance - must stay well below the smallest possible
 # unique_offset (0.0001) so two invoices for the same plan can never
 # collide, but still absorb float/Decimal rounding noise.
@@ -52,14 +76,15 @@ def _token_contract_address(token_symbol):
 MAX_OFFSET_COLLISION_RETRIES = 25
 
 
-def create_invoice(org_id, target_plan, token_symbol):
+def create_invoice(org_id, target_plan, token_symbol, billing_cycle="monthly"):
     """Creates a PENDING `CryptoInvoice` for `org_id` to upgrade to
-    `target_plan`, paid in `token_symbol` (USDT/USDC).
+    `target_plan`, paid in `token_symbol` (USDT/USDC), billed either
+    `"monthly"` or `"annual"` (see `price_for`/`BILLING_CYCLE_DAYS`).
 
     `expected_amount` is the plan's base USD price plus a small random
     offset (four decimal places, 0.0001-0.0099) - this is what makes an
     incoming transfer identifiable as belonging to *this* invoice rather
-    than any other pending invoice for the same plan.
+    than any other pending invoice for the same plan+cycle.
 
     The offset space is only ~99 discrete values, so with multiple pending
     invoices for the same plan a naive random pick can collide (birthday-
@@ -69,9 +94,13 @@ def create_invoice(org_id, target_plan, token_symbol):
     MAX_OFFSET_COLLISION_RETRIES times) if it collides with any other
     still-PENDING invoice's expected_amount for the same plan. This closes
     the loophole at creation time rather than trying to disambiguate two
-    already-colliding invoices later.
+    already-colliding invoices later. Monthly and annual prices for the
+    same plan never collide with each other (10x apart), so the collision
+    check doesn't need to filter on billing_cycle too.
     """
-    base = PLAN_USD_PRICE[target_plan]
+    if billing_cycle not in BILLING_CYCLES:
+        raise ValueError(f"Unsupported billing_cycle: {billing_cycle!r}")
+    base = price_for(target_plan, billing_cycle)
 
     for _ in range(MAX_OFFSET_COLLISION_RETRIES):
         offset = round(random.uniform(0.0001, 0.0099), 4)
@@ -96,6 +125,7 @@ def create_invoice(org_id, target_plan, token_symbol):
     inv = CryptoInvoice(
         org_id=org_id,
         target_plan=target_plan,
+        billing_cycle=billing_cycle,
         token_symbol=token_symbol,
         chain=current_app.config["CRYPTO_CHAIN"],
         receiving_address=current_app.config["CRYPTO_RECEIVING_ADDRESS"],
@@ -217,7 +247,7 @@ def _activate_subscription(inv):
 
     sub.plan = inv.target_plan
     sub.status = SubStatus.ACTIVE
-    sub.current_period_end = now + timedelta(days=30)
+    sub.current_period_end = now + timedelta(days=BILLING_CYCLE_DAYS.get(inv.billing_cycle, 30))
 
     inv.organization.plan = inv.target_plan
 

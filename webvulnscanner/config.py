@@ -132,6 +132,16 @@ class Config:
     # TRUST_PROXY_HOPS=0 to disable if running directly, unproxied.
     TRUST_PROXY_HOPS = int(os.environ.get("TRUST_PROXY_HOPS", "1"))
 
+    # Cloudflare Turnstile (bot-check on signup, auth_routes.py). Empty by
+    # default: signup() skips verification entirely (with a log line) if
+    # either key is missing, same degrade-gracefully convention as
+    # GROQ_API_KEY/SENTRY_DSN - local dev never needs a real Turnstile
+    # account. TURNSTILE_SITE_KEY is public (embedded in signup.html's
+    # widget script); TURNSTILE_SECRET_KEY is not - it's only ever used
+    # server-side, in the siteverify POST.
+    TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "")
+    TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
+
     # Error monitoring (Sentry) - see webvulnscanner/__init__.py's
     # _init_sentry(). Empty by default: sentry-sdk isn't a hard dependency
     # (not in requirements.txt) and initialization is skipped entirely,

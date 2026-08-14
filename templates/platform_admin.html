@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Platform Admin - WebVulnScanner{% endblock %}
+{% block head %}
+{% include "_admin_form_styles.html" %}
+<style>
+  .stat-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:14px; margin-bottom: 8px; }
+  @media (max-width: 700px) { .stat-grid { grid-template-columns: 1fr 1fr; } }
+  .stat-card { padding: 16px 18px; }
+  .stat-card .label { color: var(--muted); font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; }
+  .stat-card .value { font-size:26px; font-weight:800; font-family:"Fira Code",monospace; margin-top:6px; }
+  .deletion-card { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); margin-bottom: var(--space-3); background: rgba(255,255,255,.02); }
+  .deletion-card:last-child { margin-bottom: 0; }
+  .deletion-row { display:flex; gap: var(--space-5); flex-wrap: wrap; margin-bottom: 12px; }
+  .deletion-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+  .deletion-value { font-size: 14px; font-weight: 600; }
+  .deletion-actions { display:flex; gap:8px; }
+  .deletion-actions form { margin:0; }
+  .verify-btn.danger { background: rgba(248,113,113,.14); color: var(--critical); }
+  .verify-btn.reject { background: rgba(255,255,255,.06); color: var(--muted); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <h1>Platform Admin</h1>
+  <p style="color: var(--muted); font-size: 13.5px;">
+    Cross-org operator view - separate from any organization's own
+    <code>/org/admin</code> page. Only accounts granted
+    <code>is_platform_admin</code> (via the <code>flask grant-platform-admin</code> CLI command) can reach this.
+  </p>
+
+  <div class="stat-grid">
+    <div class="card stat-card"><div class="label">Organizations</div><div class="value">{{ counts.organizations }}</div></div>
+    <div class="card stat-card"><div class="label">Users</div><div class="value">{{ counts.users }}</div></div>
+    <div class="card stat-card"><div class="label">Scans</div><div class="value">{{ counts.scans }}</div></div>
+    <div class="card stat-card"><div class="label">Pending deletions</div><div class="value">{{ counts.pending_deletions }}</div></div>
+  </div>
+
+  <h2 class="section">Pending domain-deletion requests</h2>
+  <div class="card">
+    {% if pending_deletions %}
+    {% for dv in pending_deletions %}
+    <div class="deletion-card">
+      <div class="deletion-row">
+        <div>
+          <div class="deletion-label">Domain</div>
+          <div class="deletion-value"><code>{{ dv.domain }}</code></div>
+        </div>
+        <div>
+          <div class="deletion-label">Organization</div>
+          <div class="deletion-value">{{ dv.organization.name if dv.organization else 'unknown' }}</div>
+        </div>
+        <div>
+          <div class="deletion-label">Requested by</div>
+          <div class="deletion-value">{{ dv.deletion_requested_by.email if dv.deletion_requested_by else 'unknown' }}</div>
+        </div>
+        <div>
+          <div class="deletion-label">Requested</div>
+          <div class="deletion-value">{{ dv.deletion_requested_at.strftime('%b %d, %Y %H:%M UTC') }}</div>
+        </div>
+      </div>
+      {% if dv.deletion_reason %}
+      <p style="color: var(--muted); font-size:13px; margin: 0 0 12px;">&ldquo;{{ dv.deletion_reason }}&rdquo;</p>
+      {% endif %}
+      <div class="deletion-actions">
+        <form method="POST" action="{{ url_for('org.approve_domain_deletion', domain_id=dv.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="verify-btn danger">Approve deletion</button>
+        </form>
+        <form method="POST" action="{{ url_for('org.reject_domain_deletion', domain_id=dv.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="verify-btn reject">Reject</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p style="color: var(--muted); font-size: 13.5px;">No pending domain-deletion requests.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

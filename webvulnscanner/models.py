@@ -86,6 +86,14 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     org_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=True)
     role = db.Column(db.Enum(Role), nullable=False, default=Role.MEMBER)
+    # Platform-staff privilege, orthogonal to `role` (which is org-scoped:
+    # MEMBER/ORG_ADMIN only make sense within one org). Gates
+    # decorators.platform_admin_required - the website's own operators
+    # (not an org admin) reviewing cross-org actions like domain-deletion
+    # approval. Nothing in the app can set this via a route - only the
+    # `flask grant-platform-admin <email>` CLI command (webvulnscanner/cli.py)
+    # can, so it can never be granted by a bug in ordinary request handling.
+    is_platform_admin = db.Column(db.Boolean, nullable=False, default=False, server_default="false")
     email_verified_at = db.Column(db.DateTime(timezone=True), nullable=True)
     verify_token = db.Column(db.String(64), unique=True, nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
@@ -345,6 +353,13 @@ class CryptoInvoice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     org_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=False)
     target_plan = db.Column(db.Enum(Plan), nullable=False)
+    # "monthly" | "annual" - which of billing.PLAN_PRICING's two prices this
+    # invoice was priced at; drives _activate_subscription()'s
+    # current_period_end length (30 vs 365 days). Server-default rather than
+    # nullable=False so the existing table (pre-dating this column) doesn't
+    # need a backfill migration - every pre-existing row is implicitly the
+    # only cycle that existed before, monthly.
+    billing_cycle = db.Column(db.String(16), nullable=False, server_default="monthly")
     token_symbol = db.Column(db.String(8), nullable=False)  # "USDT" | "USDC"
     chain = db.Column(db.String(32), nullable=False)
     receiving_address = db.Column(db.String(255), nullable=False)

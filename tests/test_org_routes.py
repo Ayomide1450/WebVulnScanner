@@ -67,12 +67,15 @@ def test_request_domain_deletion_reason_is_optional(client, db):
 def test_approve_domain_deletion_removes_domain_and_keeps_audit_record(client, db):
     org = make_org()
     make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
+    platform_admin = make_user("staff@example.com")
+    platform_admin.is_platform_admin = True
     dv = _make_domain(org)
     dv_id = dv.id
     db.session.commit()
 
     login(client, "admin@example.com")
     client.post(f"/org/admin/domain/{dv_id}/request-deletion", data={"reason": "stale"})
+    login(client, "staff@example.com")
     resp = client.post(f"/org/admin/domain/{dv_id}/deletion/approve", follow_redirects=True)
 
     assert resp.status_code == 200
@@ -85,12 +88,15 @@ def test_approve_domain_deletion_removes_domain_and_keeps_audit_record(client, d
 def test_reject_domain_deletion_keeps_domain_active(client, db):
     org = make_org()
     make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
+    platform_admin = make_user("staff@example.com")
+    platform_admin.is_platform_admin = True
     dv = _make_domain(org)
     dv_id = dv.id
     db.session.commit()
 
     login(client, "admin@example.com")
     client.post(f"/org/admin/domain/{dv_id}/request-deletion", data={"reason": "stale"})
+    login(client, "staff@example.com")
     resp = client.post(f"/org/admin/domain/{dv_id}/deletion/reject", follow_redirects=True)
 
     assert resp.status_code == 200
@@ -99,6 +105,51 @@ def test_reject_domain_deletion_keeps_domain_active(client, db):
     assert not refreshed.deletion_pending
     rejected_events = OrgAuditEvent.query.filter_by(org_id=org.id, event_type="domain_deletion_rejected").all()
     assert len(rejected_events) == 1
+
+
+def test_org_admin_cannot_approve_their_own_deletion_request(client, db):
+    # The actual separation-of-duties fix: an org admin who requests a
+    # deletion must not also be able to approve it - only a platform admin
+    # (is_platform_admin) can. Regression test for a real gap: the original
+    # implementation gated approve/reject with org_admin_required, the same
+    # decorator as request, so any org admin could self-approve.
+    org = make_org()
+    make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
+    dv = _make_domain(org)
+    dv_id = dv.id
+    db.session.commit()
+
+    login(client, "admin@example.com")
+    client.post(f"/org/admin/domain/{dv_id}/request-deletion", data={"reason": "stale"})
+    resp = client.post(f"/org/admin/domain/{dv_id}/deletion/approve")
+
+    assert resp.status_code == 403
+    assert DomainVerification.query.get(dv_id) is not None
+    assert DomainVerification.query.get(dv_id).deletion_pending
+
+
+def test_platform_admin_can_approve_deletion_for_an_org_they_dont_belong_to(client, db):
+    org = make_org()
+    make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
+    # No org_id at all - a platform admin need not belong to any org.
+    make_user("staff@example.com", org=None)
+    from webvulnscanner.models import User
+    staff = User.query.filter_by(email="staff@example.com").first()
+    staff.is_platform_admin = True
+    dv = _make_domain(org)
+    dv_id = dv.id
+    db.session.commit()
+
+    login(client, "admin@example.com")
+    client.post(f"/org/admin/domain/{dv_id}/request-deletion", data={"reason": "stale"})
+    login(client, "staff@example.com")
+    resp = client.post(f"/org/admin/domain/{dv_id}/deletion/approve", follow_redirects=True)
+
+    assert resp.status_code == 200
+    assert DomainVerification.query.get(dv_id) is None
+    approved = OrgAuditEvent.query.filter_by(org_id=org.id, event_type="domain_deletion_approved").first()
+    assert approved is not None
+    assert approved.actor_id == staff.id
 
 
 def test_domain_deletion_actions_are_org_scoped(client, db):

@@ -1,0 +1,30 @@
+# Production image for Fly.io (or any Docker-based host). Mirrors the same
+# startCommand Render's render.yaml/Procfile already use (flask db upgrade
+# then gunicorn) so behavior doesn't diverge between deploy targets.
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# psycopg2-binary and Pillow (already in requirements.txt) need these at
+# import/runtime; kept minimal rather than pulling the full build-essential set.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 libjpeg62-turbo zlib1g \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+ENV FLASK_APP=app.py \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+EXPOSE 8080
+
+# --workers 1: SCHEDULER_ENABLED's in-process daemon thread (webvulnscanner/scheduler.py)
+# and Flask-Limiter's in-memory storage are both single-process assumptions
+# today - see CLAUDE.md's "Known limitations" before raising this. --threads 4
+# lets background scan threads (threading.Thread per scan) and normal request
+# handling overlap within that one worker.
+CMD ["sh", "-c", "flask db upgrade && gunicorn app:app --workers 1 --threads 4 --timeout 120 --bind 0.0.0.0:8080"]

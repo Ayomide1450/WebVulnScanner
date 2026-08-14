@@ -14,6 +14,7 @@ authentication itself.
 import secrets
 from datetime import datetime, timedelta, timezone
 
+import requests
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import login_required, login_user, logout_user
 from flask_wtf import FlaskForm
@@ -27,6 +28,35 @@ from webvulnscanner.models import Organization, PasswordReset, Plan, Role, User
 auth = Blueprint("auth", __name__)
 
 RESET_TOKEN_EXPIRY_MINUTES = 30
+
+TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+TURNSTILE_TIMEOUT = 8  # same request-budget convention as checks.py's REQUEST_TIMEOUT
+
+
+def _turnstile_passes(remote_ip=None):
+    """True iff either Turnstile isn't configured (local dev - see
+    config.py's TURNSTILE_SITE_KEY/SECRET_KEY docstring) or the submitted
+    `cf-turnstile-response` token verifies against Cloudflare's siteverify
+    endpoint. Network/API failures fail closed (return False) here, unlike
+    checks.py's degrade-open convention - a broken bot check must not
+    silently become no bot check on signup, an abuse-sensitive endpoint."""
+    secret = current_app.config.get("TURNSTILE_SECRET_KEY")
+    if not secret:
+        return True
+
+    token = request.form.get("cf-turnstile-response", "")
+    if not token:
+        return False
+
+    try:
+        resp = requests.post(
+            TURNSTILE_VERIFY_URL,
+            data={"secret": secret, "response": token, "remoteip": remote_ip or ""},
+            timeout=TURNSTILE_TIMEOUT,
+        )
+        return bool(resp.json().get("success"))
+    except (requests.RequestException, ValueError):
+        return False
 
 
 class SignupForm(FlaskForm):
@@ -95,6 +125,12 @@ def signup():
         form.email.data = invite_email
 
     if form.validate_on_submit():
+        if not _turnstile_passes(request.remote_addr):
+            flash("Bot check failed - please try again.", "error")
+            return render_template(
+                "signup.html", form=form, invite_mode=invite_mode, invite_email=invite_email,
+            )
+
         email = form.email.data.strip().lower()
 
         if invite_mode:
