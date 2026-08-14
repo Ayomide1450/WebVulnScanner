@@ -291,6 +291,9 @@ def compliance_coverage(asset):
 
     reports_by_scan_type = {}
     for scan_type, s in kept.items():
+        if s.report.data is not None:
+            reports_by_scan_type[scan_type] = s.report.data
+            continue
         try:
             with open(os.path.join(REPORTS_DIR, s.report.json_path), encoding="utf-8") as f:
                 reports_by_scan_type[scan_type] = json.load(f)

@@ -16,6 +16,16 @@ os.environ.setdefault("SECRET_KEY", "test-only-secret-never-used-outside-pytest"
 os.environ.setdefault("SESSION_COOKIE_SECURE", "false")  # test client talks http, not https
 os.environ.setdefault("EMAIL_MODE", "console")
 os.environ.setdefault("GROQ_API_KEY", "")
+# Blanked for the same reason as GROQ_API_KEY above: config.py's load_dotenv()
+# call (override=False) won't clobber an env var already set by the time it
+# runs, so this insulates the suite from whatever real Turnstile keys a
+# developer's own .env has - a real key makes _turnstile_passes() actually
+# hit Cloudflare's siteverify endpoint, which every signup test here isn't
+# set up to satisfy (no real cf-turnstile-response token), and it fails
+# closed by design (see auth_routes.py's _turnstile_passes docstring) - so
+# an unblanked real key here would silently break every signup test.
+os.environ.setdefault("TURNSTILE_SITE_KEY", "")
+os.environ.setdefault("TURNSTILE_SECRET_KEY", "")
 
 import pytest
 from werkzeug.security import generate_password_hash

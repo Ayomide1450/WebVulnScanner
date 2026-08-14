@@ -29,7 +29,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
       <label for="target">Target domain(s)</label>
-      <textarea id="target" name="target" placeholder="www.example.com" rows="3" required>{{ request.args.get('target', '') }}</textarea>
+      <textarea id="target" name="target" placeholder="www.example.com" rows="3" required>{{ request.form.get('target', '') }}</textarea>
       <div class="hint">One domain per line (or comma-separated) to scan up to {{ max_bulk_targets }} targets at once,
       e.g. <code>example.com</code> or <code>https://www.example.com</code>. Each target is still checked individually
       for authorization/safety before it runs.</div>

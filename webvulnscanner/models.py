@@ -314,11 +314,22 @@ class ScanEvent(db.Model):
 
 
 class Report(db.Model):
+    """`json_path` is legacy - local-disk reports/ writes only ever worked
+    correctly on a single-machine deployment (multiple Fly.io/gunicorn
+    workers each have their own disk, so a report written by one machine
+    404s when a later request lands on another). `data` is the same JSON
+    blob stored directly in Postgres instead - every read path
+    (scan_report()/scan_report_csv()/dashboard's latest_report) now reads
+    `data` first and only falls back to the on-disk file for old rows that
+    predate this column. New scans still also write the local file (kept
+    as a convenience for local dev / a human inspecting reports/ directly),
+    but nothing in the app depends on it being readable anymore."""
     __tablename__ = "reports"
 
     id = db.Column(db.Integer, primary_key=True)
     scan_id = db.Column(db.Integer, db.ForeignKey("scans.id"), unique=True, nullable=False)
     json_path = db.Column(db.String(1024), nullable=False)
+    data = db.Column(db.JSON, nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
 
     scan = db.relationship("Scan", back_populates="report")
