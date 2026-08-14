@@ -1,11 +1,12 @@
 name: tests
 
+# Manual-only: GitHub Actions free minutes are exhausted and the Actions
+# spending budget is set to $0 (usage stopped), so this workflow must not
+# fire automatically on push/PR - that would just fail/be blocked anyway.
+# Run it on demand from the Actions tab ("Run workflow") or
+# `gh workflow run tests.yml` when you want the suite to run in CI.
 on:
-  push:
-    branches: [master, develop] # only the 2 branches this repo actually uses -
-    # was branches: ["**"], which also ran a full suite on every push to any
-    # throwaway/feature branch, not just the two that matter.
-  pull_request:
+  workflow_dispatch:
 
 # Cancels a still-running run for the same branch/PR the moment a newer
 # push arrives, instead of burning the full ~3-4 minute suite on a run
