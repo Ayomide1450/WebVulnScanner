@@ -97,10 +97,33 @@ copy .env.example .env   # then set SECRET_KEY at minimum
 python app.py
 ```
 
-Then open http://127.0.0.1:5000. SQLite tables are created automatically on
-first run (`webvulnscanner.db`). See `.env.example` for every supported
-variable (DB URL, crypto billing config, email mode — `EMAIL_MODE=console`
-by default, which just prints verification/invite emails to stdout).
+Run `flask db upgrade` once (schema is Alembic-owned, not auto-created) before `python app.py`.
+Then open http://127.0.0.1:5000. See `docs/env-vars.md` for every supported variable (DB URL,
+crypto billing config, email mode — `EMAIL_MODE=console` by default, which just prints
+verification/invite emails to stdout, Cloudflare Turnstile bot-check keys, etc.).
+
+### Deployment
+
+Production runs on [Fly.io](https://fly.io) (`Dockerfile` + `fly.toml`) rather than a serverless
+platform — this app runs each scan as a background `threading.Thread` and has an in-process
+scheduler, both of which need a persistent process, not scale-to-zero. `render.yaml`/`Procfile`
+are kept for Render as an alternative. See `docs/env-vars.md`'s "Deploying on Fly.io" section for
+the full secret list.
+
+Scan reports are stored in Postgres (`Report.data`), not local disk — required for correctness on
+any multi-machine deployment, since local disk is per-machine and isn't shared.
+
+### Platform administration
+
+A small set of cross-org operator actions (currently: approving/rejecting a domain-deletion
+request) live behind a separate `User.is_platform_admin` flag, distinct from any org's own
+`ORG_ADMIN` role. Nothing in the app can grant this flag — only:
+
+```
+flask grant-platform-admin someone@example.com
+```
+
+Granted accounts get a "Platform Admin" nav link to `/platform-admin`.
 
 `SECRET_KEY` is required — the app refuses to start without it (it signs
 session cookies, the remember-me cookie, and org-invite tokens). For local
