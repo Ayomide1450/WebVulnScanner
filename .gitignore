@@ -10,4 +10,6 @@ webvulnscanner.db
 instance/
 .env
 handoff.md
+handoff-archive.md
 .pytest_cache/
+.cache/

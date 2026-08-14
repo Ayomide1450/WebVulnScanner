@@ -154,16 +154,91 @@ class DomainVerification(db.Model):
         return self.deletion_requested_at is not None
 
 
+class Asset(db.Model):
+    """A persistent, recurring scan target (Phase 1, ASSET-01..08) - distinct
+    from a one-off manual Scan. Registering an Asset arms a schedule
+    (cadence + scan type); webvulnscanner.scheduler's tick loop claims due
+    Assets and fires a Scan(asset_id=...) automatically, re-checking SSRF
+    safety and tier entitlement at fire time (never cached from
+    registration), see scheduler.py's module docstring.
+
+    org_id is nullable to mirror Scan.org_id's existing convention for solo
+    (no-org) users - see asset_routes._check_asset_access for the ownership
+    check this requires (an org_id IS NULL comparison alone would leak one
+    solo user's Assets to another).
+
+    schedule_scan_type intentionally excludes "advanced" - that scan type
+    needs a full credentialed form dict with no sane unattended-recurring
+    representation short of persisting login credentials on this row (see
+    01-01-PLAN.md's action text for the full rationale).
+    """
+    __tablename__ = "assets"
+    __table_args__ = (
+        db.Index("ix_assets_org_deleted", "org_id", "deleted_at"),
+        db.Index("ix_assets_next_run_at", "next_run_at"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    authorized_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    authorized_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+    name = db.Column(db.String(255), nullable=False)
+    target_url = db.Column(db.String(2048), nullable=False)
+    hostname = db.Column(db.String(255), nullable=False)
+    cadence = db.Column(db.String(16), nullable=False)  # "daily" | "weekly" | "monthly"
+    schedule_scan_type = db.Column(db.String(16), nullable=False)  # "base" | "media" | "api"
+    next_run_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    # D-02's claim-guard lease - see scheduler._try_claim. Nullable: NULL
+    # means unclaimed/lease expired.
+    locked_until = db.Column(db.DateTime(timezone=True), nullable=True)
+    is_paused = db.Column(db.Boolean, nullable=False, default=False)
+    # NULL = active. Soft-delete only (Plan 01-02 sets this on delete) -
+    # past Scan history for a deleted Asset is kept for the org's records.
+    deleted_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+
+    organization = db.relationship("Organization")
+    scans = db.relationship("Scan", back_populates="asset")
+
+
+class ApiToken(db.Model):
+    """A user-scoped, hash-only API token (Phase 2, API-01/D-01..D-04). Acts
+    as the exact user who created it - no independent authorization model,
+    see entitlements.py/asset_routes.py's existing checks, all reused
+    unchanged for token-authenticated requests via
+    login_manager.request_loader (extensions.py). Only token_hash is ever
+    persisted - the raw token exists only as a local variable in
+    api_tokens_routes.create_token, shown to the user exactly once (D-01)."""
+    __tablename__ = "api_tokens"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    name = db.Column(db.String(255), nullable=False)  # D-04: user-facing label, e.g. "CI pipeline"
+    token_hash = db.Column(db.String(64), unique=True, nullable=False)  # sha256 hexdigest, D-01
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+    last_used_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    # NULL = active. Soft-revoke only (D-03), mirrors Asset.deleted_at's convention exactly.
+    revoked_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
+    user = db.relationship("User")
+
+
 class Scan(db.Model):
     __tablename__ = "scans"
     __table_args__ = (
         db.Index("ix_scans_user_created", "user_id", "created_at"),
         db.Index("ix_scans_org_created", "org_id", "created_at"),
+        db.Index("ix_scans_asset_created", "asset_id", "created_at"),
     )
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     org_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=True)
+    # Nullable so the existing manual-scan flow (no Asset involved) is
+    # completely unaffected - only scans spawned by webvulnscanner.scheduler
+    # ever set this.
+    asset_id = db.Column(db.Integer, db.ForeignKey("assets.id"), nullable=True)
     target_url = db.Column(db.String(2048), nullable=False)
     scan_type = db.Column(db.String(16), nullable=False)  # "base" | "advanced" | "media" | "api"
     status = db.Column(db.Enum(ScanStatus), nullable=False, default=ScanStatus.QUEUED)
@@ -177,6 +252,7 @@ class Scan(db.Model):
 
     user = db.relationship("User", back_populates="scans")
     report = db.relationship("Report", back_populates="scan", uselist=False)
+    asset = db.relationship("Asset", back_populates="scans")
 
 
 class ScanEventPhase(enum.Enum):

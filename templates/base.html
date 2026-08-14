@@ -64,6 +64,10 @@
   .pill.low, .badge.low, .dot.low { background: rgba(96,165,250,.14); color: var(--low); }
   .pill.info, .badge.info, .dot.info { background: rgba(139,150,173,.14); color: var(--info); }
   .pill.pass, .badge.pass, .dot.pass { background: rgba(34,197,94,.14); color: var(--pass); }
+  /* Deliberately neutral, non-severity, non-accent variant - an OWASP/ASVS
+     compliance-category tag is not a severity signal, so it must not reuse
+     any of the severity-colored .pill variants above (03-UI-SPEC.md Color). */
+  .pill.compliance { background: rgba(139,150,173,.14); color: var(--muted); }
 
   /* Scan-status pill - sibling component to .pill above, shared by
      dashboard.html's "Your scans" table and org_admin.html's "Org scan
@@ -220,6 +224,13 @@
     <symbol id="icon-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="m4 7 8 6 8-6"/></symbol>
     <symbol id="icon-bug" viewBox="0 0 24 24"><rect x="8" y="9" width="8" height="10" rx="4" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V7a3 3 0 0 1 6 0v2M6 12h12M7 9 5 7m14 2 2-2M7 15l-2 2m14-2 2 2"/></symbol>
     <symbol id="icon-radar" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-linecap="round"/><circle cx="12" cy="12" r="5" stroke-linecap="round"/><path stroke-linecap="round" d="M12 12 17 7"/></symbol>
+    <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3.5 2"/></symbol>
+    <symbol id="icon-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="14" y="5" width="4" height="14" rx="1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-play" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 4.5v15l13-7.5-13-7.5Z"/></symbol>
+    <symbol id="icon-trash" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 7h14M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m-9 0 1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/><path stroke-linecap="round" d="M10 11v6M14 11v6"/></symbol>
+    <symbol id="icon-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M11 12 20 3m0 0h-4m4 0v4m-8.5 4.5L15 8"/></symbol>
+    <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
+    <symbol id="icon-warning" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3.5 21.5 20h-19L12 3.5Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v4"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 17h.01"/></symbol>
   </svg>
 
   <div class="topnav">
@@ -230,8 +241,10 @@
     <div class="nav-links">
       {% if current_user.is_authenticated %}
         <a href="/dashboard">Dashboard</a>
+        <a href="{{ url_for('asset.list_assets') }}">Assets</a>
         <a href="/scan/new">New Scan</a>
         <a href="/account/billing">Billing</a>
+        <a href="{{ url_for('api_tokens.list_tokens') }}">API Tokens</a>
         {% if current_user.role == Role.ORG_ADMIN %}
         <a href="/org/admin">Organization</a>
         {% endif %}

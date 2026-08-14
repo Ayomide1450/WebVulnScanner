@@ -65,10 +65,22 @@ from webvulnscanner.checks import (
 )
 
 
-def run_media_scan(base_url, download, max_files):
-    session = _mk_session()
-    data, findings = check_media(session, base_url, download, max_files)
+def _score_report(findings):
+    """The single scoring implementation shared by all four orchestrators
+    (`run_scan`/`run_advanced_scan`/`run_media_scan`/`run_api_scan`) - HARD-04,
+    D-09. Prior to this extraction the same block was copy-pasted four times,
+    identical except for the local variable name holding the findings list.
 
+    Folds in `findings_sorted` too (one value more than
+    `.planning/codebase/CONCERNS.md`'s suggested 3-tuple return), because that
+    sort line was ALSO duplicated verbatim at all four call sites immediately
+    after the score/grade/severity_counts block (04-RESEARCH.md A1).
+
+    Deliberately lets `SEVERITY_ORDER.index` raise a `ValueError` on a
+    `Finding.severity` value it doesn't recognise, rather than degrading
+    defensively - a malformed `Finding` is a programming error this suite
+    should surface, not silently absorb.
+    """
     score = 100
     for f in findings:
         score -= SEVERITY_WEIGHT.get(f.severity, 0)
@@ -79,7 +91,18 @@ def run_media_scan(base_url, download, max_files):
     severity_counts = {s: 0 for s in SEVERITY_WEIGHT}
     for f in findings:
         severity_counts[f.severity] = severity_counts.get(f.severity, 0) + 1
+
     findings_sorted = sorted(findings, key=lambda f: SEVERITY_ORDER.index(f.severity))
+    return score, risk_grade, severity_counts, findings_sorted
+
+
+def run_media_scan(base_url, download, max_files):
+    session = _mk_session()
+    data, findings = check_media(session, base_url, download, max_files)
+    for f in findings:
+        f.check_name = "media"
+
+    score, risk_grade, severity_counts, findings_sorted = _score_report(findings)
 
     return {
         "target": base_url,
@@ -109,28 +132,24 @@ def run_api_scan(base_url):
     all_findings = []
 
     data, findings = check_api_schema_exposure(base_url, session)
+    for f in findings:
+        f.check_name = "schema"
     results["schema"] = data
     all_findings.extend(findings)
 
     data, findings = check_api_wordlist(base_url, session)
+    for f in findings:
+        f.check_name = "wordlist"
     results["wordlist"] = data
     all_findings.extend(findings)
 
     data, findings = check_api_js_discovery(session, base_url, home_html)
+    for f in findings:
+        f.check_name = "js_discovery"
     results["js_discovery"] = data
     all_findings.extend(findings)
 
-    score = 100
-    for f in all_findings:
-        score -= SEVERITY_WEIGHT.get(f.severity, 0)
-    score = max(0, min(100, score))
-    risk_grade = ("A" if score >= 90 else "B" if score >= 75 else
-                  "C" if score >= 60 else "D" if score >= 40 else "F")
-
-    severity_counts = {s: 0 for s in SEVERITY_WEIGHT}
-    for f in all_findings:
-        severity_counts[f.severity] = severity_counts.get(f.severity, 0) + 1
-    findings_sorted = sorted(all_findings, key=lambda f: SEVERITY_ORDER.index(f.severity))
+    score, risk_grade, severity_counts, findings_sorted = _score_report(all_findings)
 
     return {
         "target": base_url,
@@ -144,6 +163,9 @@ def run_api_scan(base_url):
     }
 
 
+# No scheduler dispatch path by design: scheduler._fire() only branches on
+# "base"/"media"/"api", and Asset stores no credentials for an unattended
+# run, so this orchestrator's test coverage is direct-invocation only (D-04).
 def run_advanced_scan(advanced, tier, org_verified_for_domain):
     """Runs whichever advanced check groups have their required fields
     filled in, independent of the base recon/crawl scan. Uses the same
@@ -177,6 +199,8 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
         targets.append(advanced["login_url"])
         data, findings = check_sqli_login(session, advanced["login_url"], advanced["user_field"],
                                            advanced["pass_field"], advanced["fail_text"])
+        for f in findings:
+            f.check_name = "sqli_login"
         results["sqli_login"] = data
         all_findings.extend(findings)
     elif has_login_fields:
@@ -186,6 +210,8 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
         data, findings = check_bruteforce(session, advanced["login_url"], advanced["user_field"],
                                            advanced["pass_field"], advanced["bruteforce_username"],
                                            advanced["bruteforce_passwords"], advanced["fail_text"])
+        for f in findings:
+            f.check_name = "bruteforce"
         results["bruteforce"] = data
         all_findings.extend(findings)
     elif has_bruteforce_fields:
@@ -195,6 +221,8 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
             and FEATURE_REQUIREMENTS["sqli_union"] <= tier and org_verified_for_domain:
         targets.append(advanced["sqli_union_url"])
         data, findings = check_sqli_union(session, advanced["sqli_union_url"], advanced["sqli_union_param"])
+        for f in findings:
+            f.check_name = "sqli_union"
         results["sqli_union"] = data
         all_findings.extend(findings)
     elif advanced.get("sqli_union_url") and advanced.get("sqli_union_param"):
@@ -206,6 +234,8 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
         targets.append(advanced["stored_xss_submit_url"])
         data, findings = check_xss_stored(session, advanced["stored_xss_submit_url"], advanced["stored_xss_field"],
                                            advanced["stored_xss_view_url"], advanced["stored_xss_cookie"])
+        for f in findings:
+            f.check_name = "xss_stored"
         results["xss_stored"] = data
         all_findings.extend(findings)
     elif advanced.get("stored_xss_submit_url") and advanced.get("stored_xss_field") and \
@@ -218,24 +248,15 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
         targets.append(advanced["idor_url_template"])
         data, findings = check_idor(session, advanced["idor_url_template"], advanced["idor_ids"],
                                      advanced["idor_cookie_a"], advanced["idor_cookie_b"])
+        for f in findings:
+            f.check_name = "idor"
         results["idor"] = data
         all_findings.extend(findings)
     elif advanced.get("idor_url_template") and advanced.get("idor_ids") and \
             advanced.get("idor_cookie_a") and advanced.get("idor_cookie_b"):
         locked.append("idor")
 
-    score = 100
-    for f in all_findings:
-        score -= SEVERITY_WEIGHT.get(f.severity, 0)
-    score = max(0, min(100, score))
-    risk_grade = ("A" if score >= 90 else "B" if score >= 75 else
-                  "C" if score >= 60 else "D" if score >= 40 else "F")
-
-    severity_counts = {s: 0 for s in SEVERITY_WEIGHT}
-    for f in all_findings:
-        severity_counts[f.severity] = severity_counts.get(f.severity, 0) + 1
-
-    findings_sorted = sorted(all_findings, key=lambda f: SEVERITY_ORDER.index(f.severity))
+    score, risk_grade, severity_counts, findings_sorted = _score_report(all_findings)
     hostname = urlparse(targets[0]).netloc if targets else "unspecified-target"
 
     return {
@@ -301,6 +322,10 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
 
     header_data, f1 = check_headers(home_resp)
     cookie_rows, f2 = check_cookies(home_resp)
+    for f in f1:
+        f.check_name = "headers"
+    for f in f2:
+        f.check_name = "cookies"
 
     # Only open_redirect (PAID) and xss_sqli (ORG_VERIFIED) consume the crawl
     # output - no FREE-tier check does, so skip the crawl entirely rather
@@ -382,6 +407,8 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
             except Exception as e:
                 data, findings = {"error": str(e)}, []
                 phase, detail = "failed", str(e)[:255]
+            for f in findings:
+                f.check_name = name
             results[name] = data
             all_findings.extend(findings)
             done += 1
@@ -391,6 +418,8 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
 
     if FEATURE_REQUIREMENTS["open_ports"] <= tier:
         ports, resolved_ip, f_ports = check_open_ports(hostname)
+        for f in f_ports:
+            f.check_name = "open_ports"
         results["open_ports"] = ports
         all_findings.extend(f_ports)
         open_ports_phase = "completed"
@@ -413,18 +442,7 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
                      finding_count=len(f_ports) if open_ports_phase else None,
                      top_severity=_top_severity(f_ports) if open_ports_phase else None)
 
-    score = 100
-    for f in all_findings:
-        score -= SEVERITY_WEIGHT.get(f.severity, 0)
-    score = max(0, min(100, score))
-    risk_grade = ("A" if score >= 90 else "B" if score >= 75 else
-                  "C" if score >= 60 else "D" if score >= 40 else "F")
-
-    severity_counts = {s: 0 for s in SEVERITY_WEIGHT}
-    for f in all_findings:
-        severity_counts[f.severity] = severity_counts.get(f.severity, 0) + 1
-
-    findings_sorted = sorted(all_findings, key=lambda f: SEVERITY_ORDER.index(f.severity))
+    score, risk_grade, severity_counts, findings_sorted = _score_report(all_findings)
 
     return {
         "target": base_url,

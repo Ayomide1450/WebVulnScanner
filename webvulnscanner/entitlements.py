@@ -54,19 +54,18 @@ FEATURE_REQUIREMENTS = {
 }
 
 
-def effective_tier(user):
-    """Maps an (optionally-authenticated) user to a `Tier`.
+def effective_tier_for_org(org):
+    """Maps an `Organization` (or `None`) directly to a `Tier`.
 
-    Unauthenticated users, or users with no organization, are always FREE.
-    Otherwise the user's `org.plan` (the DB-persisted `Plan` enum) is mapped
-    to the matching `Tier`.
+    Org-shaped entry point for callers that have an `Organization` but no
+    `User` - e.g. webvulnscanner.scheduler's tick handler, which must
+    recompute tier at scheduled-fire time (ASSET-07), never cached from
+    registration time, and has no request/user in the loop. `effective_tier`
+    below is user-shaped and delegates here after its own user-specific
+    checks, so the Plan->Tier mapping is defined exactly once.
     """
     from webvulnscanner.models import Plan  # lazy import - see module docstring
 
-    if user is None or not getattr(user, "is_authenticated", True):
-        return Tier.FREE
-
-    org = getattr(user, "organization", None)
     if org is None:
         return Tier.FREE
 
@@ -76,6 +75,20 @@ def effective_tier(user):
         Plan.ORG_VERIFIED: Tier.ORG_VERIFIED,
     }
     return plan_to_tier.get(org.plan, Tier.FREE)
+
+
+def effective_tier(user):
+    """Maps an (optionally-authenticated) user to a `Tier`.
+
+    Unauthenticated users, or users with no organization, are always FREE.
+    Otherwise the user's `org.plan` (the DB-persisted `Plan` enum) is mapped
+    to the matching `Tier` via `effective_tier_for_org`.
+    """
+    if user is None or not getattr(user, "is_authenticated", True):
+        return Tier.FREE
+
+    org = getattr(user, "organization", None)
+    return effective_tier_for_org(org)
 
 
 def allowed_checks(names, tier):

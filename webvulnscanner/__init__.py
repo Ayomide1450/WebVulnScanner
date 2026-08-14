@@ -7,13 +7,46 @@ create_app()`. All 5 blueprints (auth, org, billing, scan, public) are
 registered here.
 """
 import logging
+import os
 
 from flask import Flask, render_template
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from webvulnscanner.config import Config
 from webvulnscanner.email_stub import make_email_sender
-from webvulnscanner.extensions import csrf, db, limiter, login_manager, migrate
+from webvulnscanner.extensions import (
+    _ApiAwareSessionInterface,
+    csrf,
+    db,
+    limiter,
+    login_manager,
+    migrate,
+)
+
+
+def _maybe_start_scheduler(app):
+    """Three-part guard (01-RESEARCH.md Pattern 1) so the in-process
+    scheduler thread starts exactly once per real process and never during
+    the test suite:
+      (a) explicit config opt-out (SCHEDULER_ENABLED, e.g. ops maintenance)
+      (b) TESTING - tests/conftest.py's `app` fixture creates a fresh Flask
+          app (and disposable SQLite file) per test; without this check
+          every test would leak an infinite background thread
+      (c) the standard Werkzeug-reloader guard - `flask run --debug` forks a
+          child process that re-imports/re-runs create_app(); only the
+          reloader's actual child process (WERKZEUG_RUN_MAIN == "true")
+          should start the thread. Production (gunicorn) never sets
+          app.debug True, so `not app.debug` alone covers it there.
+    """
+    if not app.config.get("SCHEDULER_ENABLED", True):
+        return
+    if app.config.get("TESTING", False):
+        return
+    if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        return
+    from webvulnscanner.scheduler import start_scheduler
+
+    start_scheduler(app)
 
 
 def _init_sentry(app):
@@ -56,8 +89,31 @@ def create_app(config_class=Config):
 
     db.init_app(app)
     login_manager.init_app(app)
+    # A Bearer-token-authenticated request (Phase 2, login_manager.request_loader
+    # in extensions.py) must never receive a Set-Cookie session header back -
+    # Flask-Login's own documented recommendation. Set once, right after
+    # login_manager.init_app(app), per 02-RESEARCH.md's Pattern 1 caveat.
+    app.session_interface = _ApiAwareSessionInterface()
     csrf.init_app(app)
     limiter.init_app(app)
+    # Operator-facing confirmation of which rate-limit storage backend this
+    # worker actually attached to (HARD-01) - a misconfigured worker
+    # otherwise fails silently by enforcing its own private in-memory
+    # counters instead of the shared backend an operator thinks it's using.
+    # Logs the URI scheme only, never the full RATELIMIT_STORAGE_URI value -
+    # a redis:// URL routinely carries a password.
+    _storage_uri = app.config.get("RATELIMIT_STORAGE_URI", "")
+    if _storage_uri:
+        _storage_scheme = _storage_uri.split("://", 1)[0]
+        logging.info(
+            "Rate limiting: using %s:// storage backend (shared across workers)",
+            _storage_scheme,
+        )
+    else:
+        logging.info(
+            "Rate limiting: using in-memory storage (NOT shared across workers - "
+            "single-process only; set RATELIMIT_STORAGE_URI for a multi-worker deploy)"
+        )
     migrate.init_app(app, db)
 
     # Email sender is stashed on app.extensions (Flask's own convention for
@@ -83,9 +139,21 @@ def create_app(config_class=Config):
 
     app.register_blueprint(scan_blueprint)
 
+    from webvulnscanner.asset_routes import asset as asset_blueprint
+
+    app.register_blueprint(asset_blueprint)
+
     from webvulnscanner.public_routes import public as public_blueprint
 
     app.register_blueprint(public_blueprint)
+
+    from webvulnscanner.api_tokens_routes import api_tokens as api_tokens_blueprint
+
+    app.register_blueprint(api_tokens_blueprint)
+
+    from webvulnscanner.api_routes import api as api_blueprint
+
+    app.register_blueprint(api_blueprint)
 
     from webvulnscanner.models import Role
 
@@ -122,5 +190,7 @@ def create_app(config_class=Config):
         # never actually applying to a real, already-created DB - the exact
         # failure mode migrations exist to fix.
         from webvulnscanner import models  # noqa: F401
+
+    _maybe_start_scheduler(app)
 
     return app

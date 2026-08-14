@@ -6,17 +6,24 @@ Every route here requires both `@login_required` (must be authenticated)
 and `@org_admin_required` (must be `Role.ORG_ADMIN`) - see
 `webvulnscanner/decorators.py`.
 
-Scope boundary (flagged per the plan): `/org/admin/invite` generates and
+`/org/admin/invite` generates a signed, email-bound invite token and
 "sends" (console-prints, via the same `EmailSender` pattern as
-`auth_routes.py`) a signed invite link, and now also persists an
-`Invitation` row so org_admin.html can list/resend/revoke pending invites.
-It still does NOT modify `/signup` to accept an `invite` query param and
-consume the token - that's explicitly called out in the plan as a
-follow-up needing more design discussion (does an invited user set their
-own password vs. get a temp one?) and is out of scope for this workstream;
-revoking an invitation here only removes it from the pending list, it
-can't yet invalidate an already-issued link since nothing checks
-`Invitation.status` at signup.
+`auth_routes.py`) a link carrying it. `auth_routes.signup()` consumes that
+token: following the link in invite mode joins the signer to the inviting
+org at the invited role. The token is bound to the invited email address
+(D-07) - `decode_invite_token`'s `expected_email` check rejects a token
+redeemed under any other address, so a forwarded or leaked link cannot be
+used by someone other than the invitee. Changing an existing member's role
+after they've already joined is deliberately still not a route anywhere in
+this file (D-06) - role assignment only happens at invite time.
+
+An `Invitation` row is also persisted per send (separate from the signed
+token itself) so org_admin.html's "Pending Invitations" table can list/
+resend/revoke across requests. Revoking only removes it from the pending
+list in the UI - it does not invalidate an already-issued link, since
+nothing in `auth_routes.signup()`'s token-consumption path currently
+checks `Invitation.status`. That gap is pre-existing (not introduced by
+merging these two features) and worth closing in a follow-up.
 
 Domain deletion is a two-step request/approve-or-reject workflow
 (`request_domain_deletion` / `approve_domain_deletion` /
@@ -115,23 +122,46 @@ def _serializer():
     return URLSafeTimedSerializer(current_app.config["SECRET_KEY"], salt=INVITE_SALT)
 
 
-def generate_invite_token(org_id, role):
-    """Signs `{org_id, role}` into an itsdangerous token for the invite link.
+def generate_invite_token(org_id, role, email):
+    """Signs `{org_id, role, email}` into an itsdangerous token for the
+    invite link.
+
+    `email` is normalized (stripped and lowercased) inside this function,
+    not by the caller, so every token's payload carries a single
+    canonical form no matter how the caller received the address - the
+    invite is bound to that normalized email (D-07): without this
+    binding, a forwarded or leaked link would grant org membership at the
+    granted role to whoever opens it, not just the intended invitee.
 
     Exposed as a module-level function (rather than inlined in the route)
     so it - and `decode_invite_token` below - can be exercised/verified
     directly without going through HTTP.
     """
-    return _serializer().dumps({"org_id": org_id, "role": role})
+    return _serializer().dumps({
+        "org_id": org_id, "role": role, "email": email.strip().lower(),
+    })
 
 
-def decode_invite_token(token):
+def decode_invite_token(token, expected_email=None):
     """Reverses `generate_invite_token`. Returns the decoded dict, or None
-    if the token is invalid/expired."""
+    if the token is invalid, expired, or (when `expected_email` is given)
+    was issued for a different address.
+
+    The email check lives here, beside the signature and expiry checks,
+    so every validity condition for an invite token has one home rather
+    than being split across call sites. Pass no `expected_email` to
+    decode without that check (e.g. to pre-fill the invited address on a
+    GET render before any address has been submitted).
+    """
     try:
-        return _serializer().loads(token, max_age=INVITE_MAX_AGE_SECONDS)
+        payload = _serializer().loads(token, max_age=INVITE_MAX_AGE_SECONDS)
     except (BadSignature, SignatureExpired):
         return None
+
+    if expected_email is not None and payload.get("email") != expected_email.strip().lower():
+        return None
+
+    return payload
 
 
 @org.route("/verify-domain", methods=["GET", "POST"])
@@ -250,7 +280,7 @@ def admin():
 
 
 def _send_invite_email(email, role):
-    token = generate_invite_token(current_user.org_id, role)
+    token = generate_invite_token(current_user.org_id, role, email)
     invite_link = url_for("auth.signup", invite=token, _external=True)
     sender = current_app.extensions["email_sender"]
     sender.send(

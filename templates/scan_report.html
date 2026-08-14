@@ -23,8 +23,6 @@
   }
   summary:hover { background: rgba(255,255,255,.02); }
 
-  table { width:100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align:left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
   th { color: var(--muted); font-weight:600; }
   pre { background: rgba(255,255,255,.04); padding: 10px; border-radius: 8px; font-size: 11.5px; overflow-x:auto; white-space: pre-wrap; }
   .note { color: var(--muted); font-size: 12.5px; }
@@ -41,6 +39,14 @@
   .ai-summary-card { border-left: 3px solid #8b5cf6; }
   .ai-pill { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:3px 9px; border-radius:999px; background: rgba(139,92,246,.14); color:#8b5cf6; margin-bottom:10px; }
   .ai-summary-card .body { white-space: pre-wrap; font-size: 14px; line-height:1.6; }
+
+  /* Severity/Compliance grouping toggle (COMP-02) - a secondary,
+     low-emphasis control that must not compete with the score gauge or
+     severity pills; active/inactive states reuse .btn.secondary/.btn.ghost
+     only, never accent (03-UI-SPEC Color). */
+  .group-toggle { display:flex; align-items:center; gap: var(--space-2, 8px); margin: 30px 0 -4px; }
+  .group-toggle .label { color: var(--muted); font-size: 13.5px; font-weight: 600; }
+  .group-toggle a.btn { padding: 8px 12px; font-size: 13.5px; }
 
   /* Sensitive-path probe: summary strip + per-path evidence cards. */
   .sp-summary { background: rgba(255,255,255,.03); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:16px; }
@@ -110,6 +116,19 @@
   </div>
 </div>
 {% endmacro %}
+{% macro finding_card(f) %}
+<div class="finding {{ f.severity }}">
+  <span class="badge {{ f.severity }}">{{ f.severity }}</span>
+  {% set compliance_entry = CHECK_COMPLIANCE.get(f.get('check_name', ''), {}) %}
+  <span class="pill compliance">{{ compliance_entry.get('owasp') or 'Uncategorized' }}</span>
+  {% if compliance_entry.get('asvs') %}<span class="cat">ASVS {{ compliance_entry.get('asvs') }}</span>{% endif %}
+  <div class="body">
+    <b>{{ f.title }}</b>
+    <div class="detail">{{ f.detail }}</div>
+    {% if f.recommendation %}<div class="rec"><b>Fix:</b> {{ f.recommendation }}</div>{% endif %}
+  </div>
+</div>
+{% endmacro %}
 <div class="wrap">
   <h1>Scan report</h1>
   <div class="meta">
@@ -161,30 +180,47 @@
   </div>
   {% endif %}
 
-  <h2 class="section">Findings ({{ r.findings|length }})</h2>
-  {% set ns = namespace(current_cat=None, first=true) %}
-  {% for f in r.findings|sort(attribute='category') %}
-    {% if f.category != ns.current_cat %}
-      {% if not ns.first %}</div></details>{% endif %}
-      {% set ns.current_cat = f.category %}
-      {% set ns.first = false %}
-      <details open>
-        <summary>{{ f.category }} <span class="arrow">&#9656;</span></summary>
-        <div class="details-body">
+  {% if r.findings|length > 0 %}
+  <div class="group-toggle">
+    <span class="label">Group by:</span>
+    {% if group == 'severity' %}
+    <a class="btn secondary" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='severity') }}" aria-current="true">Severity</a>
+    <a class="btn ghost" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='compliance') }}">Compliance</a>
+    {% else %}
+    <a class="btn ghost" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='severity') }}">Severity</a>
+    <a class="btn secondary" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='compliance') }}" aria-current="true">Compliance</a>
     {% endif %}
-    <div class="finding {{ f.severity }}">
-      <span class="badge {{ f.severity }}">{{ f.severity }}</span>
-      <div class="body">
-        <b>{{ f.title }}</b>
-        {% if f.owasp_category and f.owasp_category != 'Uncategorized' %}<span class="pill" style="margin-left:6px;">{{ f.owasp_category }}</span>{% endif %}
-        <div class="detail">{{ f.detail }}</div>
-        {% if f.recommendation %}<div class="rec"><b>Fix:</b> {{ f.recommendation }}</div>{% endif %}
-      </div>
-    </div>
-    {% if loop.last %}</div></details>{% endif %}
+  </div>
+  {% endif %}
+  <h2 class="section">Findings ({{ r.findings|length }})</h2>
+  {% if group == 'compliance' %}
+    {% for category, group_findings in compliance_groups %}
+      <details open>
+        <summary>{{ category }} <span class="arrow">&#9656;</span></summary>
+        <div class="details-body">
+          {% for f in group_findings %}{{ finding_card(f) }}{% endfor %}
+        </div>
+      </details>
+    {% else %}
+      <p class="empty">No findings.</p>
+    {% endfor %}
   {% else %}
-    <p class="empty">No findings.</p>
-  {% endfor %}
+    {% set ns = namespace(current_cat=None, first=true) %}
+    {% for f in r.findings|sort(attribute='category') %}
+      {% if f.category != ns.current_cat %}
+        {% if not ns.first %}</div></details>{% endif %}
+        {% set ns.current_cat = f.category %}
+        {% set ns.first = false %}
+        <details open>
+          <summary>{{ f.category }} <span class="arrow">&#9656;</span></summary>
+          <div class="details-body">
+      {% endif %}
+      {{ finding_card(f) }}
+      {% if loop.last %}</div></details>{% endif %}
+    {% else %}
+      <p class="empty">No findings.</p>
+    {% endfor %}
+  {% endif %}
 
   {% if scan.scan_type == 'base' %}
   <h2 class="section">Detailed check output</h2>

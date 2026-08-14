@@ -59,6 +59,14 @@
 </style>
 {% endblock %}
 {% block content %}
+{# Shared "latest scan" status-pill renderer - used by both the scored and
+   unscored branches of the card below, which render the identical pill
+   markup for the same Scan.status field. Nests a pulsing state dot when
+   the scan is running/queued; completed/failed stay plain text (the dot
+   is additive, per base.html's .status-pill .dot comment). #}
+{% macro latest_status_pill(status) -%}
+<span class="status-pill {{ status }}">{% if status in ('running', 'queued') %}<span class="dot glow-pulse"></span>{% endif %}{{ status }}</span>
+{%- endmacro %}
 <div class="wrap">
   <div class="dash-header">
     <div>
@@ -126,32 +134,34 @@
   {% if latest %}
   {# ---- Item 3: Latest scan card -------------------------------------- #}
   <h2 class="section">Latest Scan</h2>
-  <div class="card latest-card">
-    {% if latest.risk_score is not none %}
-      {% set score = latest.risk_score %}
-      {% set risk_grade = 'A' if score >= 90 else ('B' if score >= 80 else ('C' if score >= 70 else ('D' if score >= 60 else 'F'))) %}
-      {% set gauge_id = 'gaugeFgDashboard' %}
-      {% include "_gauge.html" %}
-    {% endif %}
-    <div class="latest-meta">
-      <div class="latest-target"><code>{{ latest.target_url }}</code></div>
-      <dl>
-        <dt>Scan type</dt><dd>{{ scan_type_labels.get(latest.scan_type, latest.scan_type|title) }}</dd>
-        <dt>Status</dt><dd><span class="status-pill {{ latest.status.value }}">{{ latest.status.value }}</span></dd>
-        <dt>Date/time</dt><dd>{{ latest.created_at.strftime('%b %d, %Y %H:%M UTC') }}</dd>
-        {% if latest.risk_score is not none %}
-        <dt>Security score</dt><dd>{{ latest.risk_score }} / 100 &mdash; Grade {{ risk_grade }}</dd>
-        {% endif %}
-        {% if latest_report %}
-        <dt>Findings</dt><dd>{{ latest_report.findings|length }}</dd>
-        {% endif %}
-      </dl>
-      <div style="margin-top:14px;">
-        {% if latest.status.value == 'completed' %}
-        <a class="btn secondary" href="{{ url_for('scan.scan_report', scan_id=latest.id) }}">View Report &rarr;</a>
-        {% else %}
-        <a class="btn secondary" href="{{ url_for('scan.scan_detail', scan_id=latest.id) }}">View Progress &rarr;</a>
-        {% endif %}
+  <div class="card hud-grid">
+    <div class="latest-card">
+      {% if latest.risk_score is not none %}
+        {% set score = latest.risk_score %}
+        {% set risk_grade = 'A' if score >= 90 else ('B' if score >= 80 else ('C' if score >= 70 else ('D' if score >= 60 else 'F'))) %}
+        {% set gauge_id = 'gaugeFgDashboard' %}
+        {% include "_gauge.html" %}
+      {% endif %}
+      <div class="latest-meta">
+        <div class="latest-target"><code>{{ latest.target_url }}</code></div>
+        <dl>
+          <dt>Scan type</dt><dd>{{ scan_type_labels.get(latest.scan_type, latest.scan_type|title) }}</dd>
+          <dt>Status</dt><dd>{{ latest_status_pill(latest.status.value) }}</dd>
+          <dt>Date/time</dt><dd>{{ latest.created_at.strftime('%b %d, %Y %H:%M UTC') }}</dd>
+          {% if latest.risk_score is not none %}
+          <dt>Security score</dt><dd>{{ latest.risk_score }} / 100 &mdash; Grade {{ risk_grade }}</dd>
+          {% endif %}
+          {% if latest_report %}
+          <dt>Findings</dt><dd>{{ latest_report.findings|length }}</dd>
+          {% endif %}
+        </dl>
+        <div style="margin-top:14px;">
+          {% if latest.status.value == 'completed' %}
+          <a class="btn secondary" href="{{ url_for('scan.scan_report', scan_id=latest.id) }}">View Report &rarr;</a>
+          {% else %}
+          <a class="btn secondary" href="{{ url_for('scan.scan_detail', scan_id=latest.id) }}">View Progress &rarr;</a>
+          {% endif %}
+        </div>
       </div>
     </div>
   </div>
@@ -303,7 +313,7 @@
       <tr>
         <td><code>{{ s.target_url }}</code></td>
         <td>{{ scan_type_labels.get(s.scan_type, s.scan_type|title) }}</td>
-        <td><span class="status-pill {{ s.status.value }}">{{ s.status.value }}</span></td>
+        <td>{{ latest_status_pill(s.status.value) }}</td>
         <td>{{ s.risk_score if s.risk_score is not none else '-' }}</td>
         <td>{{ s.created_at.strftime('%b %d, %Y %H:%M') }}</td>
         <td><a class="row-link" href="{{ url_for('scan.scan_detail', scan_id=s.id) }}">View &rarr;</a></td>

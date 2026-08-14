@@ -52,13 +52,26 @@ from flask import Blueprint, Response, abort, current_app, flash, redirect, rend
 from flask_login import current_user, login_required
 
 from webvulnscanner.ai_summary import generate_remediation_summary
-from webvulnscanner.checks import CHECK_CATEGORY, CHECK_LABELS, REPORTS_DIR, is_ssrf_safe_hostname, normalize_target
+from webvulnscanner.checks import (
+    CHECK_CATEGORY,
+    CHECK_COMPLIANCE,
+    CHECK_LABELS,
+    REPORTS_DIR,
+    is_ssrf_safe_hostname,
+    normalize_target,
+)
 from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, domain_is_org_verified, effective_tier
 from webvulnscanner.extensions import db
 from webvulnscanner.models import Report, Role, Scan, ScanEvent, ScanEventPhase, ScanStatus
 from webvulnscanner.scan_engine import run_advanced_scan, run_api_scan, run_media_scan, run_scan, save_report
 
 scan = Blueprint("scan", __name__)
+
+# Allowlist for the report page's `?group=` query parameter (COMP-02). Any
+# value not in this tuple is coerced to "severity" in scan_report() before it
+# ever reaches render_template() or the page - keeps an arbitrary/garbage
+# query-string value from being echoed anywhere (T-03-21).
+GROUPING_MODES = ("severity", "compliance")
 
 
 # --------------------------------------------------------------------------
@@ -786,6 +799,16 @@ def scan_report(scan_id):
     with open(os.path.join(REPORTS_DIR, s.report.json_path), encoding="utf-8") as f:
         report = json.load(f)
 
+    # Coerce the raw query-string value against the allowlist - never pass
+    # request.args.get(...) itself into the template (T-03-21).
+    group = request.args.get("group")
+    if group not in GROUPING_MODES:
+        group = "severity"
+
+    compliance_groups = []
+    if group == "compliance":
+        compliance_groups = group_findings_by_compliance(report.get("findings", []), CHECK_COMPLIANCE)
+
     lifecycle = {}
     sensitive_paths = report.get("sensitive_paths")
     if isinstance(sensitive_paths, dict):
@@ -797,6 +820,7 @@ def scan_report(scan_id):
 
     return render_template(
         "scan_report.html", scan=s, r=report, locked=report.get("locked_checks", []),
+        CHECK_COMPLIANCE=CHECK_COMPLIANCE, group=group, compliance_groups=compliance_groups,
         sensitive_path_lifecycle=lifecycle, previous_scan=previous_scan,
     )
 
@@ -833,6 +857,44 @@ def scan_report_csv(scan_id):
         mimetype="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+def group_findings_by_compliance(findings, mapping):
+    """Buckets a report's `findings` list (plain dicts) by their mapped
+    OWASP Top 10 category, for the report page's Compliance grouping mode
+    (COMP-02).
+
+    Computed here rather than in the Jinja template because Jinja's
+    `sort(attribute=...)` cannot sort on a computed key (the OWASP category
+    is derived from `mapping[finding["check_name"]]["owasp"]`, not a field
+    already on the finding dict) - and the existing severity-grouping
+    template pattern only works on a list that's already sorted by the key
+    being grouped on. `mapping` is accepted as a parameter (rather than this
+    function importing CHECK_COMPLIANCE itself) so it stays a pure,
+    Flask-free helper that's trivially unit-testable on plain dicts, the
+    same shape as `diff_reports()`/`index_by_key()` above.
+
+    Returns a list of `(owasp_category, [finding, ...])` pairs. Mapped
+    categories are sorted ascending by their category string; findings whose
+    check_name is missing, empty, or absent from `mapping` land in a single
+    "Uncategorized" group that is always last (when non-empty). Findings
+    keep their arrival order within each group.
+    """
+    groups = {}
+    uncategorized = []
+    for f in findings:
+        check_name = f.get("check_name") or ""
+        entry = mapping.get(check_name, {}) if check_name else {}
+        category = entry.get("owasp") or ""
+        if not category:
+            uncategorized.append(f)
+        else:
+            groups.setdefault(category, []).append(f)
+
+    result = [(category, groups[category]) for category in sorted(groups)]
+    if uncategorized:
+        result.append(("Uncategorized", uncategorized))
+    return result
 
 
 def diff_reports(report_a, report_b):

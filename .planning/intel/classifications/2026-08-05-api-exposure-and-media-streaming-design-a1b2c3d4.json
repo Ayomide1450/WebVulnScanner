@@ -1,0 +1,13 @@
+{
+  "source_path": "C:\\Users\\Arktech_Designs\\Documents\\WebVulnScanner\\.claude\\worktrees\\lazy-drifting-quilt\\docs\\superpowers\\specs\\2026-08-05-api-exposure-and-media-streaming-design.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "API Exposure Scan + Media Stream Discovery — Design",
+  "summary": "Design spec adding an API exposure scan pipeline and strengthening media/video stream discovery in WebVulnScanner.",
+  "scope": ["API exposure scan", "media streaming discovery", "HLS", "DASH", "GraphQL introspection", "schema exposure", "scan pipelines", "Flask app"],
+  "cross_refs": ["CLAUDE.md"],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

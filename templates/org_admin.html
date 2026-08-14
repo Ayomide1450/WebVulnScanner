@@ -71,8 +71,12 @@
       {{ invite_form.role(id="invite_role") }}
       {% for err in invite_form.role.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
 
-      <button type="submit">Send invite</button>
+      <button type="submit" class="btn primary">Send invite</button>
     </form>
+    <p style="color: var(--muted); font-size: 12.5px; margin-top: 10px;">
+      Following the link creates an account already joined to this organization at the
+      selected role. The link is valid for seven days and only for the address it was sent to.
+    </p>
   </div>
 
   <h2 class="section">Pending Invitations</h2>
@@ -151,7 +155,7 @@
   </div>
 
   <h2 class="section">Scan History <span style="text-transform:none; letter-spacing:normal; font-weight:400;">(who ran what, when, against what target)</span></h2>
-  <div class="card">
+  <div class="card hud-grid">
     {% if scans %}
     <div class="table-scroll">
     <table>
@@ -161,7 +165,7 @@
         <td><code>{{ s.target_url }}</code></td>
         <td>{{ scan_type_labels.get(s.scan_type, s.scan_type|title) }}</td>
         <td>{{ s.user.email if s.user else '-' }}</td>
-        <td><span class="status-pill {{ s.status.value }}">{{ s.status.value }}</span></td>
+        <td><span class="status-pill {{ s.status.value }}">{% if s.status.value in ('running', 'queued') %}<span class="dot glow-pulse"></span>{% endif %}{{ s.status.value }}</span></td>
         <td>{{ 'Security Score: ' + s.risk_score|string + '/100' if s.risk_score is not none else '-' }}</td>
         <td>{{ s.created_at.strftime('%b %d, %Y · %I:%M %p') }}</td>
         <td>
