@@ -2,8 +2,18 @@ name: tests
 
 on:
   push:
-    branches: ["**"]
+    branches: [master, develop] # only the 2 branches this repo actually uses -
+    # was branches: ["**"], which also ran a full suite on every push to any
+    # throwaway/feature branch, not just the two that matter.
   pull_request:
+
+# Cancels a still-running run for the same branch/PR the moment a newer
+# push arrives, instead of burning the full ~3-4 minute suite on a run
+# that's already superseded - the common case when pushing several
+# commits in quick succession during a session.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   pytest:
