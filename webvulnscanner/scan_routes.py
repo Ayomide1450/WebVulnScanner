@@ -250,6 +250,16 @@ def _per_target_trends(scans):
     }
 
 
+# User-facing labels for Scan.scan_type - the stored DB value ("base" etc.)
+# never changes, this is a display-only mapping for the dashboard redesign.
+SCAN_TYPE_LABELS = {
+    "base": "Standard Security Scan",
+    "advanced": "Advanced Security Scan",
+    "media": "Media Security Scan",
+    "api": "API Security Scan",
+}
+
+
 @scan.route("/dashboard")
 @login_required
 def dashboard():
@@ -260,7 +270,26 @@ def dashboard():
     )
     latest = scans[0] if scans else None
     target_trends = _per_target_trends(scans)
-    return render_template("dashboard.html", scans=scans, latest=latest, target_trends=target_trends)
+    completed_count = sum(1 for s in scans if s.status == ScanStatus.COMPLETED)
+
+    # Powers the "Recent Findings" section - only loaded when the latest
+    # scan actually has a persisted report, same on-disk JSON every other
+    # report view reads (scan_report()/scan_report_csv() above). A missing/
+    # corrupt file degrades to None (empty state), never a 500 - same
+    # convention as every check_* function in checks.py.
+    latest_report = None
+    if latest is not None and latest.status == ScanStatus.COMPLETED and latest.report is not None:
+        try:
+            with open(os.path.join(REPORTS_DIR, latest.report.json_path), encoding="utf-8") as f:
+                latest_report = json.load(f)
+        except (OSError, ValueError):
+            latest_report = None
+
+    return render_template(
+        "dashboard.html", scans=scans, latest=latest, target_trends=target_trends,
+        completed_count=completed_count, latest_report=latest_report,
+        scan_type_labels=SCAN_TYPE_LABELS,
+    )
 
 
 # Caps how many targets a single /scan/new/base submission can launch at
