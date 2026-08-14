@@ -95,6 +95,35 @@
   </div>
   {% endif %}
 
+  {% if target_trends %}
+  <h2 class="section">Trend by target ({{ target_trends|length }})</h2>
+  <div class="card">
+    <p class="hint" style="margin:0 0 14px;">Only targets with 2+ completed scans show a trend line.</p>
+    {% for host, host_scans in target_trends.items() %}
+      {% set n = host_scans|length %}
+      {% set sw = 260 %}{% set sh = 36 %}
+      {% set pts = [] %}
+      {% for s in host_scans %}
+        {% set x = ((loop.index0 / (n - 1)) * sw)|round(1) %}
+        {% set y = (sh - (s.risk_score / 100 * sh))|round(1) %}
+        {% set _ = pts.append(x|string + ',' + y|string) %}
+      {% endfor %}
+      {% set first_score = host_scans[0].risk_score %}{% set last_score = host_scans[-1].risk_score %}
+      {% set delta = last_score - first_score %}
+      <div style="display:flex; align-items:center; gap:14px; padding:8px 0; border-bottom:1px solid var(--border);">
+        <code style="width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0;">{{ host }}</code>
+        <svg width="{{ sw }}" height="{{ sh }}" viewBox="0 0 {{ sw }} {{ sh }}" preserveAspectRatio="none" style="flex-shrink:0;">
+          <polyline points="{{ pts|join(' ') }}" fill="none" stroke="var(--accent)" stroke-width="2"></polyline>
+        </svg>
+        <span style="font-size:13px; font-weight:700;">{{ last_score }}</span>
+        <span style="font-size:12px; color: {{ 'var(--critical)' if delta < 0 else ('var(--accent)' if delta > 0 else 'var(--muted)') }};">
+          {{ '+' if delta > 0 else '' }}{{ delta }} over {{ n }} scans
+        </span>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <a class="cta" href="{{ url_for('scan.new_scan') }}">New scan</a>
 
   <h2 class="section">Your scans</h2>

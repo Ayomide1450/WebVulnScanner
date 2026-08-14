@@ -10,8 +10,10 @@ in the same place on disk) was adjusted; no check's behavior changed.
 
 Run only against domains you own or are explicitly authorized to test.
 """
+import base64
 import io
 import ipaddress
+import json
 import os
 import re
 import socket
@@ -66,7 +68,7 @@ CHECK_LABELS = {
     "open_redirect": "Open redirect probe", "directory_listing": "Directory listing",
     "mixed_content": "Mixed content", "dns_email": "DNS email security (SPF / DMARC / CAA)",
     "vulnerable_js": "Outdated JS libraries", "xss_sqli": "Same-origin crawl & parameter/XSS/SQLi testing",
-    "robots_sitemap": "robots.txt / sitemap.xml",
+    "robots_sitemap": "robots.txt / sitemap.xml", "jwt": "Client-visible JWT weaknesses",
 }
 
 # Icon-sprite key (see the <symbol id="icon-*"> sprite in templates/base.html)
@@ -83,7 +85,7 @@ CHECK_CATEGORY = {
     "open_redirect": "network", "directory_listing": "network",
     "sensitive_paths": "folder", "secrets": "folder", "sri": "folder", "robots_sitemap": "folder",
     "dns_email": "mail",
-    "vulnerable_js": "bug", "xss_sqli": "bug",
+    "vulnerable_js": "bug", "xss_sqli": "bug", "jwt": "shield",
 }
 
 # (label, regex, severity). High-confidence formats (AWS/Stripe/GitHub/private
@@ -140,6 +142,40 @@ MAX_API_JS_ENDPOINTS = 30
 # --------------------------------------------------------------------------
 SEVERITY_WEIGHT = {"critical": 25, "high": 15, "medium": 7, "low": 3, "info": 0}
 SEVERITY_ORDER = ["critical", "high", "medium", "low", "info", "pass"]
+
+# Maps each Finding.category string (the values passed as Finding(...)'s
+# first positional arg, verified against every call site in this file) to
+# an OWASP Top 10 (2021) category, purely for report grouping/filtering -
+# this is a presentation-layer lookup, not a new stored field on Finding
+# itself, so adding a check never requires touching Finding's call sites.
+# A category missing here falls back to "Uncategorized" (see
+# owasp_category_for below) rather than raising, same degrade-gracefully
+# convention as CHECK_LABELS/CHECK_CATEGORY.
+OWASP_CATEGORY_MAP = {
+    "Headers": "A05:2021 - Security Misconfiguration",
+    "Cookies": "A05:2021 - Security Misconfiguration",
+    "TLS": "A02:2021 - Cryptographic Failures",
+    "Transport": "A02:2021 - Cryptographic Failures",
+    "CORS": "A05:2021 - Security Misconfiguration",
+    "HTTP methods": "A05:2021 - Security Misconfiguration",
+    "Open redirect": "A01:2021 - Broken Access Control",
+    "Mixed content": "A02:2021 - Cryptographic Failures",
+    "DNS/Email": "A05:2021 - Security Misconfiguration",
+    "Dependencies": "A06:2021 - Vulnerable and Outdated Components",
+    "Supply chain": "A08:2021 - Software and Data Integrity Failures",
+    "Secrets": "A02:2021 - Cryptographic Failures",
+    "Exposure": "A01:2021 - Broken Access Control",
+    "Sensitive Path Exposure": "A01:2021 - Broken Access Control",
+    "Media exposure": "A01:2021 - Broken Access Control",
+    "XSS": "A03:2021 - Injection",
+    "SQL Injection": "A03:2021 - Injection",
+    "Auth": "A07:2021 - Identification and Authentication Failures",
+    "IDOR": "A01:2021 - Broken Access Control",
+}
+
+
+def owasp_category_for(category):
+    return OWASP_CATEGORY_MAP.get(category, "Uncategorized")
 
 
 @dataclass
@@ -358,25 +394,62 @@ def check_cookies(resp):
     return rows, findings
 
 
+# Protocol versions considered weak/deprecated - read-only classification of
+# whatever ssock.version() reports after the default-context handshake below,
+# never a forced downgrade/renegotiation attempt against the server.
+WEAK_TLS_VERSIONS = {"SSLv2", "SSLv3", "TLSv1", "TLSv1.1"}
+# Substrings that mark a negotiated cipher-suite name as weak (export-grade,
+# NULL, anonymous, RC4, DES/3DES, or MD5-MAC) - matched case-insensitively
+# against ssl.SSLSocket.cipher()'s OpenSSL cipher name, e.g. "RC4-SHA".
+WEAK_CIPHER_HINTS = ["RC4", "DES", "MD5", "NULL", "EXPORT", "ANON"]
+
+
+def _classify_tls_cipher(cipher_name):
+    if not cipher_name:
+        return None
+    upper = cipher_name.upper()
+    return next((hint for hint in WEAK_CIPHER_HINTS if hint in upper), None)
+
+
 def check_tls_cert(hostname):
     try:
         ctx = ssl.create_default_context()
         with socket.create_connection((hostname, 443), timeout=REQUEST_TIMEOUT) as sock:
             with ctx.wrap_socket(sock, server_hostname=hostname) as ssock:
                 cert = ssock.getpeercert()
+                # version()/cipher() reflect whatever the server's own default
+                # negotiation picked against a standard client context - this
+                # never attempts to force a weaker protocol/cipher itself, it
+                # only reads back what the server was willing to offer.
+                tls_version = ssock.version()
+                cipher = ssock.cipher()  # (name, protocol, secret_bits) or None
         not_after = datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
         days_left = (not_after - datetime.now(timezone.utc)).days
         subject = dict(x[0] for x in cert.get("subject", []))
         issuer = dict(x[0] for x in cert.get("issuer", []))
         status = "pass" if days_left > 30 else ("warn" if days_left > 0 else "fail")
+        cipher_name = cipher[0] if cipher else None
         data = {"status": status, "subject": subject.get("commonName", "?"),
                 "issuer": issuer.get("commonName", issuer.get("organizationName", "?")),
-                "not_after": cert["notAfter"], "days_left": days_left}
+                "not_after": cert["notAfter"], "days_left": days_left,
+                "tls_version": tls_version, "cipher": cipher_name,
+                "cipher_bits": cipher[2] if cipher else None}
         findings = []
         if days_left <= 30:
             sev = "high" if days_left <= 0 else "medium"
             findings.append(Finding("TLS", "Certificate expiring soon" if days_left > 0 else "Certificate expired",
                                      sev, f"{days_left} days remaining.", "Renew the TLS certificate."))
+        if tls_version in WEAK_TLS_VERSIONS:
+            findings.append(Finding("TLS", f"Weak TLS protocol negotiated: {tls_version}", "high",
+                                     f"The server's default negotiation offered {tls_version}, which has known "
+                                     "protocol-level weaknesses.",
+                                     "Disable SSLv2/SSLv3/TLSv1.0/TLSv1.1 server-side; require TLS 1.2+."))
+        weak_hint = _classify_tls_cipher(cipher_name)
+        if weak_hint:
+            findings.append(Finding("TLS", f"Weak cipher suite negotiated: {cipher_name}", "medium",
+                                     f"The negotiated cipher suite contains a known-weak component ({weak_hint}).",
+                                     "Restrict the server's cipher list to modern AEAD suites "
+                                     "(e.g. ECDHE-*-GCM/CHACHA20)."))
         return data, findings
     except Exception as e:
         return {"status": "fail", "error": str(e)}, [
@@ -1064,6 +1137,95 @@ def check_exposed_secrets(session, base_url, home_html):
     return {"rows": rows, "js_files_scanned": js_files_scanned}, findings
 
 
+# Matches the same JWT shape as SECRET_PATTERNS's "JWT-looking token" entry,
+# kept separate so check_jwt_weakness can decode+inspect it directly rather
+# than re-deriving the match from check_exposed_secrets' redacted output.
+JWT_PATTERN = r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{0,}"
+MAX_JWT_FINDINGS_PER_CATEGORY = 5
+
+
+def _b64url_decode_json(segment):
+    """Best-effort base64url-decode + JSON-parse of a JWT header/payload
+    segment. Returns None on any failure (malformed padding, non-JSON,
+    non-UTF8) rather than raising - a client-side string that merely looks
+    like a JWT (three dot-separated base64url chunks) is common noise and
+    must not abort the scan."""
+    padded = segment + "=" * (-len(segment) % 4)
+    try:
+        return json.loads(base64.urlsafe_b64decode(padded.encode("ascii")))
+    except Exception:
+        return None
+
+
+def check_jwt_weakness(session, base_url, home_html):
+    """Passive JWT inspection only: decodes the header (and payload, for the
+    `exp` claim) of any JWT-shaped token found in the homepage HTML or
+    same-origin JS bundles already fetched for check_exposed_secrets. This
+    never sends a modified/forged token back to the server and never
+    attempts to verify or break a signature - it only reads what the site
+    already ships to every visitor's browser.
+
+    Flags: `alg: none` (a token accepted with no signature at all is a
+    critical server-side bug if the server actually honors it - this check
+    cannot confirm that without forging a request, so it reports the token
+    shape as the finding, not a confirmed bypass), known-weak/deprecated
+    algorithms, and tokens with no `exp` claim (never expire once issued)."""
+    sources = [("homepage HTML", home_html)]
+    sources.extend(_fetch_same_origin_js(session, base_url, home_html,
+                                          MAX_SECRET_JS_FILES, MAX_JS_BYTES_PER_FILE))
+
+    rows, findings = [], []
+    seen = set()
+    counts = {"alg_none": 0, "weak_alg": 0, "no_exp": 0}
+    WEAK_ALGS = {"HS1", "NONE"}
+    for source_name, text in sources:
+        for m in re.finditer(JWT_PATTERN, text):
+            token = m.group(0)
+            if token in seen:
+                continue
+            seen.add(token)
+            parts = token.split(".")
+            if len(parts) < 2:
+                continue
+            header = _b64url_decode_json(parts[0])
+            if not isinstance(header, dict):
+                continue
+            payload = _b64url_decode_json(parts[1]) if len(parts) > 1 else None
+            alg = str(header.get("alg", "")).upper()
+            row = {"source": source_name, "alg": alg or "?", "token_preview": token[:16] + "...",
+                   "has_exp": bool(isinstance(payload, dict) and payload.get("exp"))}
+            rows.append(row)
+
+            if alg == "NONE":
+                if counts["alg_none"] < MAX_JWT_FINDINGS_PER_CATEGORY:
+                    findings.append(Finding(
+                        "Auth", f"JWT with alg:none found in {source_name}", "high",
+                        "A client-visible JWT declares 'alg: none', meaning it carries no signature. "
+                        "If the server accepts such tokens, authentication/authorization can be bypassed "
+                        "by editing the payload with no valid signature required.",
+                        "Never accept 'alg: none' server-side; pin the expected algorithm(s) explicitly "
+                        "when verifying rather than trusting the token's own `alg` header."))
+                counts["alg_none"] += 1
+            elif alg in WEAK_ALGS:
+                if counts["weak_alg"] < MAX_JWT_FINDINGS_PER_CATEGORY:
+                    findings.append(Finding(
+                        "Auth", f"JWT using weak algorithm '{alg}' found in {source_name}", "medium",
+                        f"A client-visible JWT declares alg '{alg}', which is considered weak/deprecated.",
+                        "Re-issue tokens with a modern algorithm (RS256/ES256/EdDSA, or HS256 with a "
+                        "strong server-side-only secret)."))
+                counts["weak_alg"] += 1
+            elif not row["has_exp"] and isinstance(payload, dict):
+                if counts["no_exp"] < MAX_JWT_FINDINGS_PER_CATEGORY:
+                    findings.append(Finding(
+                        "Auth", f"JWT with no expiry ('exp' claim) found in {source_name}", "low",
+                        "A client-visible JWT has a decodable payload but no 'exp' claim, so it never "
+                        "expires once issued.",
+                        "Always set a short-lived 'exp' claim and use refresh tokens for longer sessions."))
+                counts["no_exp"] += 1
+
+    return {"rows": rows}, findings
+
+
 def check_sri(base_url, home_html):
     """Flags third-party <script>/<link rel=stylesheet> tags with no
     Subresource Integrity hash. If that external host is ever compromised
@@ -1258,20 +1420,79 @@ def check_api_js_discovery(session, base_url, home_html):
     return {"rows": rows, "endpoints_discovered": len(endpoints)}, findings
 
 
-def crawl_same_origin(base_url, home_html, limit=10):
+MAX_ROBOTS_DISALLOW_RULES = 200
+
+
+def _fetch_robots_disallow_prefixes(session, base_url):
+    """Best-effort parser for `User-agent: *` `Disallow:` rules in
+    /robots.txt, used only by the two link-discovery crawlers below
+    (crawl_same_origin/crawl_media) to skip pages the site has asked
+    crawlers not to fetch - real "respectful crawling" etiquette, distinct
+    from vulnerability probing. Deliberately NOT applied to
+    check_sensitive_paths/check_directory_listing: those checks exist
+    specifically to verify whether a sensitive path is reachable despite a
+    site's wishes (and sites often Disallow the very paths - /backup/,
+    /.git/ - that are worth checking), so honoring robots.txt there would
+    defeat their purpose.
+
+    Ignores `Allow:` override rules and non-`*` user-agent groups - a
+    documented simplification, not full RFC 9309 compliance. Returns []
+    (honor nothing) on any fetch/parse failure so a missing/unreachable
+    robots.txt never blocks crawling."""
+    try:
+        r = session.get(base_url + "/robots.txt", timeout=REQUEST_TIMEOUT)
+        if r.status_code != 200:
+            return []
+    except Exception:
+        # Broad on purpose (not just requests.RequestException): this is a
+        # best-effort politeness lookup, never allowed to break a scan - a
+        # stub/mock session in tests, or any other unexpected failure mode,
+        # should just mean "honor nothing" rather than propagate.
+        return []
+
+    prefixes = []
+    in_wildcard_group = False
+    for line in r.text.splitlines():
+        line = line.split("#", 1)[0].strip()
+        if not line or ":" not in line:
+            continue
+        directive, _, value = line.partition(":")
+        directive, value = directive.strip().lower(), value.strip()
+        if directive == "user-agent":
+            in_wildcard_group = value == "*"
+        elif directive == "disallow" and in_wildcard_group and value:
+            prefixes.append(value)
+        if len(prefixes) >= MAX_ROBOTS_DISALLOW_RULES:
+            break
+    return prefixes
+
+
+def _robots_disallows(path, disallow_prefixes):
+    return any(path.startswith(prefix) for prefix in disallow_prefixes)
+
+
+def crawl_same_origin(base_url, home_html, limit=10, session=None):
     """Depth-1, same-origin only. Collects GET URLs with query params and
     lists (but never submits) discovered forms, so POST forms can't trigger
-    real side effects like signups or emails."""
+    real side effects like signups or emails.
+
+    `session` is optional (defaults to no robots.txt lookup, preserving old
+    behavior for any caller that doesn't pass one) - when provided, links
+    whose path matches a `Disallow:` rule for `User-agent: *` are skipped,
+    same as a well-behaved crawler would."""
     if not home_html:
         return [], []
     soup = BeautifulSoup(home_html, "html.parser")
     origin = urlparse(base_url).netloc
+    disallow_prefixes = _fetch_robots_disallow_prefixes(session, base_url) if session else []
     param_urls, forms = [], []
 
     for a in soup.find_all("a", href=True):
         abs_url = urljoin(base_url + "/", a["href"])
         p = urlparse(abs_url)
         if p.netloc != origin:
+            continue
+        if _robots_disallows(p.path, disallow_prefixes):
             continue
         if p.query:
             param_urls.append(abs_url)
@@ -1432,22 +1653,52 @@ def _extract_media_urls(base_url, html):
     return urls, embeds
 
 
+MAX_429_BACKOFF_SECONDS = 5
+
+
+def _get_respecting_backoff(session, url, **kwargs):
+    """GET that backs off once if the server answers 429, honoring
+    Retry-After when present (capped at MAX_429_BACKOFF_SECONDS so a
+    misbehaving/malicious Retry-After value can't stall a scan). Retries
+    at most once - this is politeness for a multi-page crawl, not a full
+    retry policy - and never raises past its own request; callers already
+    handle requests.RequestException the same way they would without this
+    wrapper."""
+    r = session.get(url, **kwargs)
+    if r.status_code == 429:
+        wait = r.headers.get("Retry-After")
+        try:
+            wait = min(float(wait), MAX_429_BACKOFF_SECONDS) if wait else 1.0
+        except ValueError:
+            wait = 1.0
+        time.sleep(wait)
+        r = session.get(url, **kwargs)
+    return r
+
+
 def crawl_media(session, base_url):
     """Depth-1 same-origin crawl (homepage + up to MAX_MEDIA_PAGES-1 linked
     pages, prioritizing links that look media-heavy - gallery/portfolio/
     video/photo/etc. - over generic nav links) collecting direct media
-    files plus third-party video embeds."""
+    files plus third-party video embeds.
+
+    Respectful-crawling controls: skips pages disallowed by /robots.txt's
+    `User-agent: *` rules (see _fetch_robots_disallow_prefixes), and backs
+    off once on a 429 rather than hammering a throttling server."""
     origin = urlparse(base_url).netloc
     try:
-        home_r = session.get(base_url + "/", timeout=REQUEST_TIMEOUT)
+        home_r = _get_respecting_backoff(session, base_url + "/", timeout=REQUEST_TIMEOUT)
     except requests.RequestException as e:
         return [], [], {"error": str(e)}
 
+    disallow_prefixes = _fetch_robots_disallow_prefixes(session, base_url)
     soup = BeautifulSoup(home_r.text, "html.parser")
     candidates = []
     for a in soup.find_all("a", href=True):
         abs_url = urljoin(base_url + "/", a["href"])
-        if urlparse(abs_url).netloc == origin and abs_url not in candidates and abs_url.rstrip("/") != base_url.rstrip("/"):
+        p = urlparse(abs_url)
+        if (p.netloc == origin and abs_url not in candidates and abs_url.rstrip("/") != base_url.rstrip("/")
+                and not _robots_disallows(p.path, disallow_prefixes)):
             candidates.append(abs_url)
     candidates.sort(key=lambda u: 0 if any(h in u.lower() for h in MEDIA_PAGE_HINTS) else 1)
     pages = [base_url + "/"] + candidates[:MAX_MEDIA_PAGES - 1]
@@ -1455,7 +1706,7 @@ def crawl_media(session, base_url):
     media_urls, embeds = _extract_media_urls(base_url, home_r.text)
     for page in pages[1:]:
         try:
-            r = session.get(page, timeout=REQUEST_TIMEOUT)
+            r = _get_respecting_backoff(session, page, timeout=REQUEST_TIMEOUT)
         except requests.RequestException:
             continue
         u, e = _extract_media_urls(base_url, r.text)

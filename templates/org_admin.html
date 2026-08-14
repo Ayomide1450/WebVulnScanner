@@ -67,16 +67,20 @@
     {% endif %}
   </div>
 
-  <h2 class="section">Org scan history</h2>
+  <h2 class="section">Org scan history <span style="text-transform:none; letter-spacing:normal; font-weight:400;">(audit log &mdash; who ran what, when, against what target)</span></h2>
   <div class="card">
     {% if scans %}
     <div class="table-scroll">
     <table>
-      <tr><th>Target</th><th>Type</th><th>Status</th><th>Risk score</th><th>Created</th></tr>
+      <tr><th>Target</th><th>Type</th><th>Run by</th><th>Status</th><th>Risk score</th><th>Created</th></tr>
       {% for s in scans %}
       <tr>
-        <td><code>{{ s.target_url }}</code></td>
+        <td>
+          {% if s.report %}<a href="{{ url_for('scan.scan_report', scan_id=s.id) }}"><code>{{ s.target_url }}</code></a>
+          {% else %}<code>{{ s.target_url }}</code>{% endif %}
+        </td>
         <td>{{ s.scan_type }}</td>
+        <td>{{ s.user.email if s.user else '-' }}</td>
         <td><span class="status-pill {{ s.status.value }}">{{ s.status.value }}</span></td>
         <td>{{ s.risk_score if s.risk_score is not none else '-' }}</td>
         <td>{{ s.created_at }}</td>

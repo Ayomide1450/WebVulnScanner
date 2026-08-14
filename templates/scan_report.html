@@ -121,6 +121,7 @@
     {% if previous_scan %}
     &middot; <a class="back" href="{{ url_for('scan.scan_compare', scan_id=previous_scan.id, other_id=scan.id) }}">Compare with previous scan</a>
     {% endif %}
+    &middot; <a class="back" href="{{ url_for('scan.scan_report_csv', scan_id=scan.id) }}">Export CSV</a>
   </div>
 
   {% set score = r.score %}
@@ -175,6 +176,7 @@
       <span class="badge {{ f.severity }}">{{ f.severity }}</span>
       <div class="body">
         <b>{{ f.title }}</b>
+        {% if f.owasp_category and f.owasp_category != 'Uncategorized' %}<span class="pill" style="margin-left:6px;">{{ f.owasp_category }}</span>{% endif %}
         <div class="detail">{{ f.detail }}</div>
         {% if f.recommendation %}<div class="rec"><b>Fix:</b> {{ f.recommendation }}</div>{% endif %}
       </div>
@@ -237,6 +239,8 @@
         <tr><th>Subject</th><td>{{ r.tls.subject }}</td></tr>
         <tr><th>Issuer</th><td>{{ r.tls.issuer }}</td></tr>
         <tr><th>Expires</th><td>{{ r.tls.not_after }} &mdash; {{ r.tls.days_left }} days left</td></tr>
+        {% if r.tls.tls_version %}<tr><th>Protocol</th><td>{{ r.tls.tls_version }}</td></tr>{% endif %}
+        {% if r.tls.cipher %}<tr><th>Cipher</th><td>{{ r.tls.cipher }}{% if r.tls.cipher_bits %} ({{ r.tls.cipher_bits }}-bit){% endif %}</td></tr>{% endif %}
       </table>
       </div>
       {% endif %}
@@ -349,6 +353,27 @@
       </table>
       </div>
       {% else %}<p class="note">No known API key / token / private-key patterns found.</p>{% endif %}
+      {% endif %}
+    </div>
+  </details>
+
+  <details open>
+    <summary>Client-visible JWT weaknesses <span class="arrow">&#9656;</span></summary>
+    <div class="details-body">
+      {% if 'jwt' in locked %}{{ locked_card('jwt') }}
+      {% else %}
+      {% if r.jwt.rows %}
+      <div class="table-scroll">
+      <table><tr><th>Source</th><th>Algorithm</th><th>Has expiry</th><th>Token preview</th></tr>
+        {% for row in r.jwt.rows %}
+        <tr><td><code>{{ row.source }}</code></td>
+          <td class="{{ 'critical' if row.alg == 'NONE' else ('medium' if row.alg in ('HS1',) else 'pass') }}">{{ row.alg }}</td>
+          <td class="{{ 'pass' if row.has_exp else 'low' }}">{{ 'yes' if row.has_exp else 'no' }}</td>
+          <td><code>{{ row.token_preview }}</code></td></tr>
+        {% endfor %}
+      </table>
+      </div>
+      {% else %}<p class="note">No JWT-shaped tokens found in the homepage HTML or same-origin JS. This is a passive inspection only - it never sends a modified token back to the server.</p>{% endif %}
       {% endif %}
     </div>
   </details>

@@ -49,7 +49,9 @@ from webvulnscanner.checks import (
     check_vulnerable_js,
     check_xss_sqli,
     check_exposed_secrets,
+    check_jwt_weakness,
     check_sri,
+    owasp_category_for,
     check_open_ports,
     check_media,
     check_sqli_login,
@@ -86,7 +88,7 @@ def run_media_scan(base_url, download, max_files):
         "score": score,
         "risk_grade": risk_grade,
         "severity_counts": severity_counts,
-        "findings": [asdict(f) for f in findings_sorted],
+        "findings": _serialize_findings(findings_sorted),
         "media": data,
     }
 
@@ -137,7 +139,7 @@ def run_api_scan(base_url):
         "score": score,
         "risk_grade": risk_grade,
         "severity_counts": severity_counts,
-        "findings": [asdict(f) for f in findings_sorted],
+        "findings": _serialize_findings(findings_sorted),
         "results": results,
     }
 
@@ -242,7 +244,7 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
         "score": score,
         "risk_grade": risk_grade,
         "severity_counts": severity_counts,
-        "findings": [asdict(f) for f in findings_sorted],
+        "findings": _serialize_findings(findings_sorted),
         "results": results,
         "ran": list(results.keys()),
         "locked_checks": locked,
@@ -261,6 +263,19 @@ def _top_severity(findings):
     if not findings:
         return None
     return min((f.severity for f in findings), key=SEVERITY_ORDER.index)
+
+
+def _serialize_findings(findings_sorted):
+    """`[asdict(f) for f in findings_sorted]` plus an `owasp_category` key per
+    finding, computed from `owasp_category_for(f.category)` - kept as one
+    shared helper (rather than repeating the annotation inline) since all
+    four orchestrators below build their `findings` report key this way."""
+    out = []
+    for f in findings_sorted:
+        d = asdict(f)
+        d["owasp_category"] = owasp_category_for(f.category)
+        out.append(d)
+    return out
 
 
 def _extract_detail(name, data):
@@ -293,7 +308,7 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
     if tier == Tier.FREE:
         param_urls, forms = [], []
     else:
-        param_urls, forms = crawl_same_origin(base_url, home_html)
+        param_urls, forms = crawl_same_origin(base_url, home_html, session=session)
     if manual_test_url:
         param_urls = [manual_test_url] + [u for u in param_urls if u != manual_test_url]
 
@@ -311,6 +326,7 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         "vulnerable_js": lambda: check_vulnerable_js(base_url, home_html),
         "xss_sqli": lambda: check_xss_sqli(param_urls, session),
         "secrets": lambda: check_exposed_secrets(session, base_url, home_html),
+        "jwt": lambda: check_jwt_weakness(session, base_url, home_html),
         "sri": lambda: check_sri(base_url, home_html),
     }
 
@@ -417,7 +433,7 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         "score": score,
         "risk_grade": risk_grade,
         "severity_counts": severity_counts,
-        "findings": [asdict(f) for f in findings_sorted],
+        "findings": _serialize_findings(findings_sorted),
         "headers": header_data,
         "cookies": cookie_rows,
         # A check whose name was filtered out of `jobs` above never wrote to
@@ -440,6 +456,7 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         "vulnerable_js": results.get("vulnerable_js", {"locked": True}),
         "xss_sqli": results.get("xss_sqli", {"locked": True}),
         "secrets": results.get("secrets", {"locked": True}),
+        "jwt": results.get("jwt", {"locked": True}),
         "sri": results.get("sri", {"locked": True}),
         "crawl": {"discovered_urls": param_urls, "forms": forms},
         "locked_checks": locked,

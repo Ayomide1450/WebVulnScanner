@@ -17,6 +17,7 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 from flask_login import current_user, login_required
 from flask_wtf import FlaskForm
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from sqlalchemy.orm import joinedload
 from wtforms import SelectField, StringField
 from wtforms.validators import DataRequired, Email
 
@@ -143,8 +144,12 @@ def admin():
     # Scan rows are written by scan_routes.py (a parallel workstream) - this
     # query is deliberately defensive and will just render an empty table
     # until that workstream lands and org-scoped scans start accumulating.
+    # joinedload(Scan.user) + Scan.report - the audit-log table below shows
+    # "who ran it" per row and links to the report where one exists, so
+    # eager-loading both avoids an N+1 query per row.
     scans = (
         Scan.query.filter_by(org_id=current_user.org_id)
+        .options(joinedload(Scan.user), joinedload(Scan.report))
         .order_by(Scan.created_at.desc())
         .limit(50)
         .all()
