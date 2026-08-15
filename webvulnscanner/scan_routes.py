@@ -43,6 +43,7 @@ import csv
 import io
 import json
 import os
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -309,6 +310,44 @@ def dashboard():
 MAX_BULK_TARGETS = 10
 
 
+# Verbatim SCANUX-03 availability labels for Step 2's ("Select Type") card
+# grid - the only three states a scan-type card can be in.
+AVAILABILITY_INCLUDED = "Included"
+AVAILABILITY_VERIFIED = "Requires Verified Domain"
+AVAILABILITY_PAID = "Requires Paid Plan"
+
+# Step 2's grid is always exactly these four fixed cards (base, advanced,
+# media, api) - 05-UI-SPEC.md's one "unresolved" UI consideration
+# (zero-one-many for the scan-type grid) is planned as a fixed assumption
+# for this phase, so no zero/one/many conditional copy is built here.
+SCAN_TYPE_CARDS = (
+    {
+        "key": "base", "title": "Standard Scan", "endpoint": "scan.new_scan_base",
+        "cta": "Run a Standard Scan",
+        "blurb": ("Passive recon (headers, TLS, cookies, DNS/email hygiene, exposed secrets, "
+                  "SRI) on every tier, plus active checks and intrusive canaries as you upgrade."),
+    },
+    {
+        "key": "advanced", "title": "Advanced / authenticated", "endpoint": "scan.new_scan_advanced",
+        "cta": "Run advanced checks",
+        "blurb": ("Auth-bypass SQLi, brute-force, UNION/error/time-based SQLi, stored XSS, "
+                  "cross-account IDOR - deeper, credential-driven probing."),
+    },
+    {
+        "key": "media", "title": "Media discovery", "endpoint": "scan.new_scan_media",
+        "cta": "Run media scan",
+        "blurb": ("Same-origin image/video crawl, EXIF/GPS leakage, suspicious-path detection, "
+                  "optional download to disk."),
+    },
+    {
+        "key": "api", "title": "API exposure scan", "endpoint": "scan.new_scan_api",
+        "cta": "Run API exposure scan",
+        "blurb": ("OpenAPI/Swagger & GraphQL introspection exposure, an unauthenticated-path "
+                  "wordlist, and endpoints discovered from the site's own JS."),
+    },
+)
+
+
 def _tier_flags(tier):
     return {
         "tier": tier,
@@ -362,15 +401,165 @@ def _unsafe_target_error(url, org_id=None):
     return None
 
 
+def _verified_domain_choices(user):
+    """Domain strings for Step 1's "Select Verified Domain" dropdown
+    (SCANUX-02) - org-scoped `DomainVerification` rows with `verified_at`
+    set, ordered by domain. Returns `[]` when `user.org_id` is None (a solo
+    user with no org has no org-scoped verified domains to offer).
+
+    Deliberately NOT `Asset` rows (D-01): registering an Asset only records
+    a target a user *intends* to scan on a schedule - it is not proof of
+    domain ownership. Only a `DomainVerification` row with `verified_at`
+    set is. A row with a pending deletion request
+    (`deletion_requested_at` set) is still included here: it remains a
+    verified domain, shown with no special marker, until an admin actually
+    approves the deletion (see `DomainVerification.deletion_pending` in
+    models.py) - it would be misleading to hide it from the picker before
+    that happens.
+    """
+    if user.org_id is None:
+        return []
+
+    from webvulnscanner.models import DomainVerification  # lazy import - see _unsafe_target_error above
+
+    rows = (
+        DomainVerification.query
+        .filter(DomainVerification.org_id == user.org_id, DomainVerification.verified_at.isnot(None))
+        .order_by(DomainVerification.domain)
+        .all()
+    )
+    return [row.domain for row in rows]
+
+
+def _prefill_target(field):
+    """Value to repopulate a wizard form field with: `request.form`'s value
+    on a POST (so a validation-error re-render never silently clears what
+    the user typed - the exact regression class CLAUDE.md's bug history
+    flags for this page family), or the `?target=` query parameter on a
+    GET (the parameter `scan_report.html`'s existing re-scan link has
+    always emitted but `new_scan_base` previously ignored)."""
+    if request.method == "POST":
+        return request.form.get(field, "")
+    return request.args.get("target", "")
+
+
+# normalize_target() (webvulnscanner/checks.py, frozen - never edited by
+# this phase) only requires a non-empty netloc after prefixing "https://" -
+# a string like "not a domain at all" or an HTML-injection payload still
+# parses to a (garbage but non-empty) netloc and would otherwise sail past
+# that check straight into _unsafe_target_error()'s real DNS lookup,
+# surfacing the confusing "resolves to a private, internal, or
+# unreachable address" message for input that was never a hostname to
+# begin with. This regex is this wizard's own early sanity check on top of
+# normalize_target() - it does not replace normalize_target() or
+# is_ssrf_safe_hostname(), it only produces a clearer, correct error
+# message for obviously-not-a-hostname input. A real hostname (or bare
+# IPv4/IPv6/bracketed-IPv6 literal) only ever contains letters, digits,
+# dots, hyphens, colons and square brackets.
+_HOSTNAME_LOOKS_VALID_RE = re.compile(r"^[A-Za-z0-9.\-\[\]:]+$")
+
+
+def _looks_like_hostname(hostname):
+    return bool(hostname) and bool(_HOSTNAME_LOOKS_VALID_RE.match(hostname))
+
+
+def _scan_type_availability(tier, org, target_url):
+    """Returns `SCAN_TYPE_CARDS` (base/advanced/media/api, in that order)
+    each enriched with `label`/`unlocked`/`upgrade_url` for Step 2's grid
+    (SCANUX-03/04, D-03's context-aware CTA destination).
+
+    Blocking-gate precedence: an insufficient plan tier is always reported
+    before an unverified target domain, because upgrading the plan is the
+    only thing that can move the user forward when the tier itself is the
+    blocker - reporting "verify your domain" first would be a dead end for
+    a user who can't reach Advanced's checks at all yet. Advanced therefore
+    checks `Tier.ORG_VERIFIED <= tier` first and only falls through to the
+    domain-verification check once that already passes.
+
+    **Display-only - this is NOT a gate.** Every new_scan_* POST handler
+    keeps its own FEATURE_REQUIREMENTS/authorized*/`_unsafe_target_error`
+    checks, which remain the single source of truth - a hand-crafted POST
+    to a card rendered here as locked is still refused server-side.
+    """
+    cards = []
+    for card in SCAN_TYPE_CARDS:
+        entry = dict(card)
+        if card["key"] == "base":
+            entry.update(label=AVAILABILITY_INCLUDED, unlocked=True, upgrade_url=None)
+        elif card["key"] == "advanced":
+            if not (Tier.ORG_VERIFIED <= tier):
+                entry.update(label=AVAILABILITY_PAID, unlocked=False, upgrade_url=url_for("billing.view"))
+            elif not target_url or not domain_is_org_verified(org, target_url):
+                entry.update(label=AVAILABILITY_VERIFIED, unlocked=False,
+                              upgrade_url=url_for("org.verify_domain_view"))
+            else:
+                entry.update(label=AVAILABILITY_INCLUDED, unlocked=True, upgrade_url=None)
+        else:  # media, api
+            if FEATURE_REQUIREMENTS[card["key"]] > tier:
+                entry.update(label=AVAILABILITY_PAID, unlocked=False, upgrade_url=url_for("billing.view"))
+            else:
+                entry.update(label=AVAILABILITY_INCLUDED, unlocked=True, upgrade_url=None)
+        cards.append(entry)
+    return cards
+
+
+def _render_step1(error=None):
+    """Renders Step 1 (Select Domain) - shared by `new_scan()` (GET) and
+    `new_scan_type()` (re-rendering Step 1 with a validation error, per
+    the ?target= carrying its state forward)."""
+    return render_template(
+        "scan_new.html",
+        verified_domains=_verified_domain_choices(current_user),
+        prefill_target=_prefill_target("target"),
+        selected_domain=request.args.get("verified_domain", ""),
+        error=error,
+    )
+
+
 @scan.route("/scan/new")
 @login_required
 def new_scan():
-    """GET-only "choose a scan type" landing page. Each scan type has its
-    own dedicated GET+POST route below (new_scan_base/advanced/media/api) -
-    this endpoint/URL is kept stable so existing links (base.html's nav,
+    """Step 1 of the guided New Scan wizard (Select Domain -> Select Type
+    -> Confirm Authorization -> Start Scan, SCANUX-01) - no longer the
+    "choose a scan type" chooser (that's now Step 2, `new_scan_type`).
+    Endpoint name/URL are kept stable so existing links (base.html's nav,
     dashboard.html's CTA and empty-state link) don't need to change."""
+    return _render_step1()
+
+
+@scan.route("/scan/new/type")
+@login_required
+def new_scan_type():
+    """Step 2 of the guided wizard (Select Type). GET-only: Step 1's form
+    submits here via `?verified_domain=`/`?target=`.
+
+    Resolution order for the chosen target: `verified_domain` wins when
+    non-empty (an explicit pick from a curated list of domains the org has
+    already proven it owns), otherwise `target` (the free-text field).
+
+    `_unsafe_target_error()` is run here as an **additional early check for
+    the user's benefit only, never a replacement** - every new_scan_* POST
+    handler still runs its own copy before a Scan row is ever created.
+    """
+    verified_domain = request.args.get("verified_domain", "").strip()
+    target = request.args.get("target", "").strip()
+    chosen = verified_domain or target
+    if not chosen:
+        return _render_step1(error="Select a verified domain or enter a target to continue.")
+
+    base_url = normalize_target(chosen)
+    if not base_url or not _looks_like_hostname(urlparse(base_url).hostname or ""):
+        return _render_step1(error="Enter a valid domain or URL, e.g. example.com")
+
+    unsafe = _unsafe_target_error(base_url, org_id=current_user.org_id)
+    if unsafe:
+        return _render_step1(error=unsafe)
+
     tier = effective_tier(current_user)
-    return render_template("scan_new.html", **_tier_flags(tier))
+    return render_template(
+        "scan_new_type.html", target=base_url,
+        scan_types=_scan_type_availability(tier, current_user.organization, base_url),
+    )
 
 
 def _launch_base_scan(user, tier, raw_target, manual_test_url=None):
