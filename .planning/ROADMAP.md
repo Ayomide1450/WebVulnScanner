@@ -242,9 +242,16 @@ instead of filling out one of four disconnected single-form pages from a free-te
 **Plans**: 3 plans
 
 Plans:
+**Wave 1**
 
 - [ ] 05-01-PLAN.md — Tracer: wizard shell (stepper + Select Domain + Select Type) plus the Standard Scan end-to-end (SCANUX-01/02/03/04)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 05-02-PLAN.md — Expansion: media, API and Advanced launch pages into the wizard shell, including D-02's Advanced deviation (SCANUX-01/03/04)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 05-03-PLAN.md — View Report reachability: `/scan/<id>/status` endpoint plus progress-page poll for advanced/media/api (SCANUX-05)
 
 **Execution waves**: wave 1 = 05-01; wave 2 = 05-02 (needs 05-01's route helpers and the
