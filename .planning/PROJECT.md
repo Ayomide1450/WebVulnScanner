@@ -45,17 +45,42 @@ weakening its safety guarantees to become a general attack tool.
   keep-alive heartbeat — shipped 2026-08-07
 - ✓ Alembic/Flask-Migrate schema migrations, replacing the old `db.create_all()`-only approach
 
+### Validated (v1.0, shipped)
+
+- ✓ Persistent asset inventory + continuous/scheduled scanning (`Asset` model, in-process scheduler)
+- ✓ API/CLI-first programmatic workflow (`ApiToken`, `/api/v1/*`, `cli/wvs.py`)
+- ✓ Compliance-framework mapping (OWASP Top 10) on findings and reports
+- ✓ Production hardening (multi-worker-safe rate limiting via `RATELIMIT_STORAGE_URI`, orchestrator
+  test coverage for all 4 scan types, invite-flow completion)
+- ✓ Fly.io production deploy, platform-admin panel (cross-org visibility, domain-deletion
+  separation-of-duties), DB-backed report storage (`Report.data`), cross-org domain-scan block,
+  Cloudflare Turnstile on signup, billing monthly/annual cycles
+
+## Current Milestone: v1.1 Production Audit, Hardening & Redesign
+
+**Goal:** Bring every page and every request path up to production-grade UI/UX, accessibility,
+responsiveness, security, and SEO standards — a systematic audit-then-fix pass across the whole
+app, not incremental feature work.
+
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] Persistent asset inventory + continuous/scheduled scanning (not just one-shot scans)
-- [ ] API/CLI-first programmatic workflow (tokens, endpoints, CLI wrapper)
-- [ ] Compliance-framework mapping (OWASP Top 10/ASVS) on findings and reports
-- [ ] Production hardening (multi-worker-safe rate limiting, orchestrator/org-route test coverage,
-      remaining visual-polish debt)
+- [ ] New Scan page redesign (Select Domain → Select Type → Confirm Authorization → Start Scan,
+      verified-domain dropdown, tier-lock labeling) — already fully specified from a prior session
+- [ ] Design-system consistency audit + fixes (typography/spacing/components) across every template
+- [ ] Full responsive audit + fixes (320px–1440px+), especially auth pages and mobile dashboard/scan
+- [ ] Accessibility audit (semantic HTML, keyboard nav, contrast, focus states)
+- [ ] Full security re-audit: IDOR/BOLA on every ID-accepting route, CSRF coverage, SSRF/redirect
+      re-verification, XSS/SQLi/path-traversal/command-injection sweep, open-redirect audit,
+      secrets scan, billing double-spend/replay checks, error-page info leakage
+- [ ] SEO/metadata pass (titles, descriptions, OG tags, canonical, favicon, sitemap.xml, robots.txt)
+      for public pages only — never on authenticated/private pages
+- [ ] Performance pass (N+1 queries, pagination, asset weight)
+- [ ] Loading/empty/error/success states across major pages
+- [ ] Test coverage for every fix above
 
-See REQUIREMENTS.md for the full itemized v1 list.
+See REQUIREMENTS.md for the full itemized v1.1 list.
 
 ### Out of Scope
 
@@ -73,10 +98,12 @@ See REQUIREMENTS.md for the full itemized v1 list.
 
 ## Context
 
-- **Stack**: Python 3.12 / Flask app-factory pattern, 5 blueprints (`auth`, `org`, `billing_bp`,
-  `scan`, `public`), SQLAlchemy models, Alembic-managed migrations, deployed to Render (primary,
-  gunicorn `--workers 1 --threads 4`) with a partial/limited Vercel alternate target that does not
-  support the scan-execution/SSE routes as-is.
+- **Stack**: Python 3.12 / Flask app-factory pattern, blueprints for `auth`/`org`/`billing_bp`/
+  `scan`/`public`/`asset`/`api_v1`/`admin` (grew during v1.0), SQLAlchemy models, Alembic-managed
+  migrations, deployed to **Fly.io** (a real always-on VM — chosen over Render specifically because
+  it matches this app's `threading.Thread`-per-scan + in-process scheduler model; `Dockerfile`/
+  `fly.toml` committed) with a partial/limited Vercel alternate target that does not support the
+  scan-execution/SSE routes as-is.
 - **Current scan model is one-shot**: a user submits a target URL per scan, a `Scan` row is
   created, a daemon background thread runs the orchestrator, and a `Report` row is saved. There is
   no persistent "Asset" entity that outlives a single scan — this is the specific gap this
@@ -145,5 +172,22 @@ See REQUIREMENTS.md for the full itemized v1 list.
 | Plugin/check-extensibility system (ranked gap #2) deferred out of v1 | No concrete requirement or user request for it this milestone; recommendation prioritized continuous scanning + API/CLI + compliance-mapping ahead of it | — Pending (revisit next milestone) |
 | Production Hardening (Phase 4) scoped to include multi-worker rate-limiting, orchestrator/org-route test coverage, and remaining visual-polish debt from `.planning/codebase/CONCERNS.md` | Milestone goal is explicitly "production ready" — these are the concrete, evidence-backed gaps between current state and that bar, not speculative work | — Pending (validate after Phase 4 ships) |
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
-*Last updated: 2026-08-10 after initial roadmap creation*
+*Last updated: 2026-08-15 — milestone v1.1 (Production Audit, Hardening & Redesign) started*
