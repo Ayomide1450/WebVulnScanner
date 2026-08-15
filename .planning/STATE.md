@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Production Audit, Hardening & Redesign
 status: planning
-last_updated: "2026-08-15T17:57:10.747Z"
+last_updated: "2026-08-15T18:30:00.000Z"
 last_activity: 2026-08-15
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,24 +17,27 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-08-10)
+See: .planning/PROJECT.md (updated 2026-08-15)
 
 **Core value:** Security engineers can trust WebVulnScanner to run safe, authorization-gated,
 non-destructive scans against their own infrastructure and get findings they can act on.
-**Current focus:** Phase 04 — production-hardening-reliability
+**Current focus:** Phase 5 — New Scan Flow Redesign
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-08-15 — Milestone v1.1 started
+Phase: 5 of 9 (New Scan Flow Redesign)
+Plan: Not yet planned
+Status: Roadmap created, ready to plan
+Last activity: 2026-08-15 — ROADMAP.md drafted for milestone v1.1 (Phases 5-9), 36 v1.1
+requirements mapped, 100% coverage
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
+- Total plans completed: 0 (this milestone)
 - Average duration: N/A
 - Total execution time: 0 hours
 
@@ -50,22 +53,6 @@ Last activity: 2026-08-15 — Milestone v1.1 started
 - Trend: N/A
 
 *Updated after each plan completion*
-**Per-Plan Metrics:**
-
-| Plan | Duration | Tasks | Files |
-|------|----------|-------|-------|
-| Phase 01-asset-inventory-continuous-scanning P01 | 45min | 1 tasks | 13 files |
-| Phase 01 P02 | 40min | 2 tasks | 5 files |
-| Phase 02 P01 | 20min | 1 tasks | 11 files |
-| Phase 02 P02 | 30min | 3 tasks | 5 files |
-| Phase 02 P03 | 15min | 2 tasks | 5 files |
-| Phase 03 P02 | 30min | 2 tasks | 3 files |
-| Phase 03 P03 | 55min | 3 tasks | 3 files |
-| Phase 04 P01 | 25min | 3 tasks | 2 files |
-| Phase 04 P02 | 15min | 2 tasks | 6 files |
-| Phase 04 P03 | 45min | 3 tasks | 6 files |
-| Phase 04 P04 | 40min | 2 tasks | 2 files |
-| Phase 04 P05 | 50min | 4 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -74,37 +61,27 @@ Last activity: 2026-08-15 — Milestone v1.1 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- Milestone kickoff: Billing/SaaS/org-tier shape confirmed locked — no phase should propose
+- Milestone v1.1 kickoff: Billing/SaaS/org-tier shape confirmed locked — no phase should propose
   replacing it.
 
-- Milestone kickoff: Phase 1 = persistent asset inventory + continuous/scheduled scanning, per
-  the prior session's ranked gap analysis (single biggest competitive gap vs.
-  Nuclei/Trivy/Semgrep).
+- Roadmap v1.1: Phase 5 (New Scan Flow Redesign) sequenced first since SCANUX-01..05 is
+  self-contained and already fully specified from a prior session — building it before the
+  design-system audit means Phase 6 only has to audit the redesigned pages once.
 
-- Milestone kickoff: Plugin/check-extensibility system (ranked gap #2) deferred to v2 — no
-  concrete requirement or user request for it this milestone.
+- Roadmap v1.1: Phases 6 (Design System Consistency) and 7 (Responsive & Accessibility) kept as
+  two adjacent phases rather than merged or split further — each has genuinely distinct,
+  independently observable success criteria despite touching the same templates; Phase 7 depends
+  on Phase 6 so responsive/a11y fixes land against the already-consolidated component set.
 
-- [Phase ?]: Extracted entitlements.effective_tier_for_org(org) so the scheduler can look up tier without faking a User object
-- [Phase ?]: Added synchronize_session=False to the scheduler claim-guard UPDATE to avoid a tz-naive/aware datetime comparison crash on SQLite
-- [Phase ?]: Split 01-02's two tasks into two atomic commits by temporarily reducing shared files (asset_routes.py/asset_detail.html) to Task-1-only scope, verifying, committing, then restoring Task-2 additions.
-- [Phase ?]: assets.html's previously-stubbed Actions/Name columns wired to the new asset_detail page (Rule 2) - otherwise unreachable via normal navigation.
-- [Phase ?]: Tier-locked hint uses FEATURE_REQUIREMENTS.get(schedule_scan_type, 0) instead of a direct index, since base-scheduled Assets have no whole-type tier entry (Rule 1 bug fix).
-- [Phase 02]: 02-01 (token auth) had real commits but no SUMMARY.md/STATE.md sync from a prior session - backfilled via execute-phase's safe_resume_gate instead of re-executing — Commit 5945262 matched the plan file list exactly and the full suite (187/187) still passes on current HEAD, so re-running the task would have duplicated work
-- [Phase ?]: Toggle active/inactive classes written as two literal btn secondary/btn ghost blocks rather than a computed ternary, keeping the literal class strings greppable in the template source.
-- [Phase ?]: compliance_groups is computed and passed to the template only when the coerced group mode is compliance, so the template's branch condition is the mode itself, not data presence.
-- [Phase ?]: [Phase 03-03]: Split the plan's three shared-file tasks into three atomic commits by temporarily reducing asset_routes.py to each task's own scope, then restoring - same technique 01-02 documented.
-- [Phase ?]: [Phase 03-03]: Tier-locked Not-checked rows reuse scan_report.html's Paid-tier locked_card copy verbatim (category-level, not per-check, so the org_verified branch wasn't replicated).
-- [Phase ?]: [Phase 03-03]: Uncategorized is a normal always-candidate category via robots_sitemap's own CHECK_COMPLIANCE mapping, distinct from (but rendering identically to) the fallback for a check_name missing from CHECK_COMPLIANCE entirely.
-- [Phase 04-01]: `_score_report`'s 4-tuple return (folding in `findings_sorted`) chosen over CONCERNS.md's suggested 3-tuple, since that sort line was also duplicated identically at all four call sites (04-RESEARCH.md A1).
-- [Phase 04-01]: `run_advanced_scan` is tested via direct invocation only, by design (D-04) — `scheduler._fire()` has no "advanced" branch and `Asset` stores no credentials for an unattended run.
-- [Phase 04-01]: Grade-boundary test monkeypatches `SEVERITY_WEIGHT` to a synthetic weight scheme rather than the real 25/15/7/3 weights, because a deficit of 11 (raw_score=89) has no exact combination of the real weights (Frobenius gap between coprime 3 and 7).
-- [Phase ?]: HARD-01: RATELIMIT_STORAGE_URI proven to share rate-limit counters across independent Limiter instances via fakeredis; added lupa (human-verified) as fakeredis's required Lua-scripting extra
-- [Phase ?]: [Phase 04-03]: decode_invite_token(token, expected_email=None) keeps the email-mismatch check inside the token codec rather than splitting it into signup() (04-RESEARCH.md A2, design-space option (a))
-- [Phase ?]: [Phase 04-03]: signup()'s GET-time token decode (no expected_email) only pre-fills the field; only the POST-time re-decode with the submitted address authorizes org assignment
-- [Phase ?]: [Phase 04-04]: Advanced success-path wrapper test uses tier=Tier.FREE/org_verified=False deliberately - status-transition/prefix coverage doesn't need the advanced check groups to actually run; the one advanced failure-path test uses tier=Tier.ORG_VERIFIED/org_verified=True instead since a locked group can never raise, with a comment noting the AI-summary tail is still never reached (exception propagates first)
-- [Phase ?]: [Phase 04-04]: scheduler._fire's no-advanced-branch finding (D-04) is now a source-parsing regression test (inspect.getsource + regex over the dispatched scan-type literals), not just a comment - mirrors test_scan_engine.py's cross-orchestrator scoring-dedup lock from plan 04-01
-- [Phase ?]: [Phase 04-05]: dashboard.html's latest-scan status pill uses a small shared Jinja macro across its two if/else branches, while the scans-table row implements the same running/queued dot logic inline
-- [Phase ?]: [Phase 04-05]: billing's Awaiting-payment invoice pill reuses class="status-pill running" verbatim (no new pill variant) so it inherits the existing telemetry-blue CSS with zero new declarations
+- Roadmap v1.1: Phase 8 (Security Re-Audit & Hardening) is a dedicated phase given its size (10
+  of 36 requirements, the largest category) and is explicitly framed as verify-and-close-gaps —
+  `authorized*`, `entitlements.py` gating, and `checks.is_ssrf_safe_hostname()` stay frozen, not
+  redesigned. Sequenced after the UI phases so it audits the final template/route surface.
+
+- Roadmap v1.1: Phase 9 bundles SEO + Performance + Loading/Empty/Error States into one closing
+  phase (9 of 36 requirements combined) rather than three thin phases, per granularity guidance
+  against maintenance-sliver phases; depends on Phase 6 since STATE-01..03 reuse its canonical
+  card/alert/pill components.
 
 ### Pending Todos
 
@@ -112,19 +89,16 @@ None yet.
 
 ### Blockers/Concerns
 
-- `README.md` and this project's product doc contain stale "no migrations, `db.create_all()`
-  only" language; the codebase has actually moved to Alembic/Flask-Migrate. Not a blocker for
-  Phase 1 (migrations work fine), but worth a docs fix when touching either file — see
-  `.planning/codebase/CONCERNS.md`.
-
 - `checks.is_ssrf_safe_hostname()` is submission-time only (no DNS-rebinding pinning) — accepted,
-  documented residual gap, not something Phase 1's scheduled-scan trigger should try to silently
-  "fix" as a side effect (would be scope creep; not a v1 requirement).
+  documented residual gap, explicitly out of scope for Phase 8's SEC-03 (redirect-following
+  re-verification is in scope; DNS-rebinding pinning is not — see REQUIREMENTS.md Out of Scope).
 
-- Flask-Limiter's in-memory rate limiting is not multi-worker-safe — known, addressed directly in
-  Phase 4 (HARD-01), not before.
+- Flask CLI (`flask db migrate`/`upgrade`) auto-loads the main repo's real `.env` by walking
+  upward from a worktree cwd — always set `FLASK_SKIP_DOTENV=1` before running `flask db`
+  commands from inside a worktree to avoid connecting to the real/shared database.
 
-- Flask CLI (flask db migrate/upgrade) auto-loads the main repo's real .env by walking upward from a worktree cwd - always set FLASK_SKIP_DOTENV=1 before running flask db commands from inside a worktree to avoid connecting to the real/shared database
+- Deployment target is Fly.io (always-on VM, `threading.Thread`-per-scan + in-process scheduler
+  model) — no phase in this milestone should require re-architecting toward serverless.
 
 ## Deferred Items
 
@@ -132,11 +106,14 @@ Items acknowledged and carried forward from previous milestone close:
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| Extensibility | Plugin/third-party check-extensibility system (PLUGIN-01/02 in REQUIREMENTS.md v2) | Deferred to v2 | Milestone kickoff, 2026-08-10 |
-| Platform model | Self-hostable/open-core deployment (HOST-01 in REQUIREMENTS.md v2) | Deferred to v2 | Milestone kickoff, 2026-08-10 |
+| Extensibility | Plugin/third-party check-extensibility system (PLUGIN-01/02 in REQUIREMENTS.md v2) | Deferred to v2 | Milestone v1.0 kickoff, 2026-08-10 |
+| Platform model | Self-hostable/open-core deployment (HOST-01 in REQUIREMENTS.md v2) | Deferred to v2 | Milestone v1.0 kickoff, 2026-08-10 |
+| Security | DNS-rebinding-proof SSRF pinning (resolve-and-pin exact IP for scan request) | Documented, accepted residual gap — not a v1.1 requirement | Milestone v1.1 kickoff, 2026-08-15 |
+| Infra | Vercel-compatible bounded-request redesign of the SSE progress feed | Fly.io is the confirmed deployment target; not blocking | Milestone v1.1 kickoff, 2026-08-15 |
 
 ## Session Continuity
 
-Last session: 2026-08-13T21:00:00.000Z
-Stopped at: Phase 04 verified (04-VERIFICATION.md, status passed) - milestone v1.0 complete, ready for /gsd-complete-milestone
+Last session: 2026-08-15T18:30:00.000Z
+Stopped at: ROADMAP.md and STATE.md written for milestone v1.1 (Phases 5-9), REQUIREMENTS.md
+traceability updated — ready for `/gsd-plan-phase 5`
 Resume file: None

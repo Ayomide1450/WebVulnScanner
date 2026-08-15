@@ -298,13 +298,49 @@ Which phases cover which requirements. Updated during roadmap creation.
 | HARD-03 | Phase 4 | Complete |
 | HARD-04 | Phase 4 | Complete |
 | HARD-05 | Phase 4 | Complete |
+| SCANUX-01 | Phase 5 | Pending |
+| SCANUX-02 | Phase 5 | Pending |
+| SCANUX-03 | Phase 5 | Pending |
+| SCANUX-04 | Phase 5 | Pending |
+| SCANUX-05 | Phase 5 | Pending |
+| DESIGN-01 | Phase 6 | Pending |
+| DESIGN-02 | Phase 6 | Pending |
+| DESIGN-03 | Phase 6 | Pending |
+| DESIGN-04 | Phase 6 | Pending |
+| RESP-01 | Phase 7 | Pending |
+| RESP-02 | Phase 7 | Pending |
+| RESP-03 | Phase 7 | Pending |
+| RESP-04 | Phase 7 | Pending |
+| A11Y-01 | Phase 7 | Pending |
+| A11Y-02 | Phase 7 | Pending |
+| A11Y-03 | Phase 7 | Pending |
+| A11Y-04 | Phase 7 | Pending |
+| SEC-01 | Phase 8 | Pending |
+| SEC-02 | Phase 8 | Pending |
+| SEC-03 | Phase 8 | Pending |
+| SEC-04 | Phase 8 | Pending |
+| SEC-05 | Phase 8 | Pending |
+| SEC-06 | Phase 8 | Pending |
+| SEC-07 | Phase 8 | Pending |
+| SEC-08 | Phase 8 | Pending |
+| SEC-09 | Phase 8 | Pending |
+| SEC-10 | Phase 8 | Pending |
+| SEO-01 | Phase 9 | Pending |
+| SEO-02 | Phase 9 | Pending |
+| SEO-03 | Phase 9 | Pending |
+| SEO-04 | Phase 9 | Pending |
+| PERF-01 | Phase 9 | Pending |
+| PERF-02 | Phase 9 | Pending |
+| STATE-01 | Phase 9 | Pending |
+| STATE-02 | Phase 9 | Pending |
+| STATE-03 | Phase 9 | Pending |
 
 **Coverage:**
 
-- v1 requirements: 23 total
-- Mapped to phases: 23
-- Unmapped: 0 ✓
+- v1 requirements: 23 total — mapped to phases: 23 — unmapped: 0 ✓
+- v1.1 requirements: 36 total — mapped to phases: 36 — unmapped: 0 ✓
+- Combined: 59 total — mapped to phases: 59 — unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-08-10 (v1.0), extended 2026-08-15 (v1.1)*
-*Last updated: 2026-08-15 — v1.1 requirements defined, pending roadmap*
+*Last updated: 2026-08-15 — v1.1 roadmap created (Phases 5-9), 100% requirement coverage validated*
