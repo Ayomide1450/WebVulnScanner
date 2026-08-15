@@ -2,9 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Production Audit, Hardening & Redesign
+current_phase: 5
+current_phase_name: New Scan Flow Redesign
 status: planning
-last_updated: "2026-08-15T18:30:00.000Z"
+stopped_at: Phase 5 context gathered
+last_updated: "2026-08-15T18:19:22.355Z"
 last_activity: 2026-08-15
+last_activity_desc: ROADMAP.md drafted for milestone v1.1 (Phases 5-9), 36 v1.1
 progress:
   total_phases: 5
   completed_phases: 0
@@ -113,7 +117,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-15T18:30:00.000Z
-Stopped at: ROADMAP.md and STATE.md written for milestone v1.1 (Phases 5-9), REQUIREMENTS.md
+Last session: 2026-08-15T18:19:22.312Z
+Stopped at: Phase 5 context gathered
 traceability updated — ready for `/gsd-plan-phase 5`
-Resume file: None
+Resume file: .planning/phases/05-new-scan-flow-redesign/05-CONTEXT.md
