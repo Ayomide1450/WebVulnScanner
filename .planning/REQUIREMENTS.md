@@ -93,6 +93,153 @@ to exactly one roadmap phase.
       the app's existing design system (no remaining bland/legacy styling), completing the visual
       pass `CLAUDE.md` already flags as open.
 
+## v1.1 Requirements
+
+Requirements for milestone v1.1 ("Production Audit, Hardening & Redesign"). Each maps to exactly
+one roadmap phase.
+
+### New Scan Flow (SCANUX)
+
+- [ ] **SCANUX-01**: `/scan/new` (and its 4 sub-pages) present a "Select Domain → Select Type →
+      Confirm Authorization → Start Scan" flow, replacing today's single-form-per-type pages.
+
+- [ ] **SCANUX-02**: User picks a target via a "Select Verified Domain" dropdown (populated from
+      their org's verified `DomainVerification`/`Asset` records) instead of only free-typing a URL;
+      free-text entry remains available for unclaimed/one-off targets.
+
+- [ ] **SCANUX-03**: The base scan type is labeled "Standard Scan" in the UI (code/route names
+      unchanged) and each scan type shows plain-language availability labels: Included /
+      Requires Verified Domain / Requires Paid Plan.
+
+- [ ] **SCANUX-04**: A tier-locked scan type shows an "Upgrade to Unlock" call-to-action instead of
+      a disabled/absent control.
+
+- [ ] **SCANUX-05**: After a scan completes, the flow offers a clear "View Report" action from the
+      same page context the user launched it from.
+
+### Design System Consistency (DESIGN)
+
+- [ ] **DESIGN-01**: A single documented typography scale (Display/H1–H4/Body/Small/Caption/
+      Label/Button/Nav) is defined in `base.html` and every template's headings/body text conform
+      to it — no one-off `font-size`/`font-weight` overrides.
+
+- [ ] **DESIGN-02**: A single documented spacing scale is used for margin/padding across templates
+      — arbitrary pixel values that don't map to the scale are removed where found.
+
+- [ ] **DESIGN-03**: Buttons, inputs/selects/textareas, cards, tables, badges/pills, and alert/
+      warn/error/info boxes each have exactly one canonical style in `base.html` (or a shared
+      partial) — divergent local overrides found during audit are consolidated into it.
+
+- [ ] **DESIGN-04**: Page container/content max-widths are consistent across dashboard, forms, and
+      report pages — no page reads as unintentionally cramped or overly stretched relative to its
+      siblings.
+
+### Responsive & Mobile (RESP)
+
+- [ ] **RESP-01**: Every page renders without horizontal scroll, clipped text, or overlapping
+      elements at 320px, 375px, 768px, and 1280px viewport widths, verified live.
+
+- [ ] **RESP-02**: Auth pages (login/signup/forgot-password/reset-password/verify-email) and org
+      setup pages (create org, add domain, verify domain) have a polished, non-cramped mobile
+      layout with the product name correctly positioned relative to the form.
+
+- [ ] **RESP-03**: The dashboard, org-admin, billing, and scan-report pages degrade gracefully on
+      mobile — tables use a deliberate mobile strategy (scroll container, stacked cards, or
+      collapsed columns), not silent overflow clipping.
+
+- [ ] **RESP-04**: The live scan-progress feed (SOC view) remains legible and usable at mobile
+      widths (already partially verified in a prior session — re-confirm, don't assume).
+
+### Accessibility (A11Y)
+
+- [ ] **A11Y-01**: Every form input has a properly associated `<label>` (for/id or wrapping), and
+      every icon-only control has an accessible name (`aria-label` or visually-hidden text).
+
+- [ ] **A11Y-02**: Heading hierarchy (`h1`→`h2`→`h3`) is sequential and non-skipping on every major
+      page template.
+
+- [ ] **A11Y-03**: All interactive elements (including any clickable `<div>`s found during audit)
+      are reachable and operable via keyboard alone, with a visible focus state.
+
+- [ ] **A11Y-04**: Text and UI-element color contrast meets WCAG AA against the dark theme's
+      background colors, including severity-colored finding text/badges.
+
+### Security Re-Audit (SEC)
+
+- [ ] **SEC-01**: Every route that accepts an object ID (scan/report/asset/domain/invoice/token/
+      org/user) is verified server-side to enforce ownership/org-membership before returning data —
+      audited across GET/POST/PUT/DELETE and the `/api/v1/*` surface, with a regression test per
+      route family where one doesn't already exist.
+
+- [ ] **SEC-02**: Every state-changing form/route (domain add/delete/verify, scan submission,
+      billing actions, org/member changes, account changes, admin actions) is confirmed to carry
+      CSRF protection, with any gap closed.
+
+- [ ] **SEC-03**: `is_ssrf_safe_hostname()` and its call sites are re-verified against redirect-
+      following behavior in the scan HTTP clients — an SSRF-safe initial hostname that redirects to
+      a private/loopback/metadata address must not be followed unchecked.
+
+- [ ] **SEC-04**: A targeted sweep for reflected/stored XSS confirms user-controlled strings (org
+      name, domain name, finding detail/title text, AI-generated summary text, error messages) are
+      never rendered as unescaped HTML.
+
+- [ ] **SEC-05**: A sweep of all database queries confirms no raw/string-interpolated SQL exists
+      outside parameterized SQLAlchemy usage.
+
+- [ ] **SEC-06**: Report/media/CSV download and any file-path-accepting route are confirmed to
+      reject path-traversal input (`../`, absolute paths) and cannot serve a file outside its
+      intended directory.
+
+- [ ] **SEC-07**: Login/logout/invite/next-param redirect targets are confirmed to only ever
+      redirect within the app's own origin (`_safe_next()`-style guard applied everywhere a
+      redirect target is user-influenced).
+
+- [ ] **SEC-08**: A repo-wide secrets sweep confirms no API key/password/token/wallet credential is
+      hardcoded in source, templates, JS, logs, or committed history added this milestone.
+
+- [ ] **SEC-09**: `billing.py`/`billing_routes.py` invoice verification is re-confirmed to reject
+      replay, double-activation, amount tampering, and cross-org invoice access — extending the
+      existing collision-retry test coverage if a gap is found.
+
+- [ ] **SEC-10**: 400/401/403/404/429/500 error responses are confirmed to never leak a stack
+      trace, file path, SQL fragment, or environment variable in production mode.
+
+### SEO & Metadata (SEO)
+
+- [ ] **SEO-01**: Public pages (marketing home, terms, privacy) each have a correct `<title>`, meta
+      description, canonical URL, and Open Graph tags; authenticated/private pages do not.
+
+- [ ] **SEO-02**: A `robots.txt` allows crawling of public marketing pages and disallows
+      authenticated app routes (dashboard/scan/org/billing/admin/account).
+
+- [ ] **SEO-03**: A `sitemap.xml` lists only public URLs — no dashboard/scan/report/org/billing/
+      admin/account URL ever appears in it.
+
+- [ ] **SEO-04**: A complete favicon set (favicon.ico, PNG sizes, apple-touch-icon) resolves
+      correctly in production, referenced from `base.html`.
+
+### Performance (PERF)
+
+- [ ] **PERF-01**: Dashboard and org-admin queries that list scans/domains/members are audited for
+      N+1 patterns and fixed (eager loading or a single query) where found.
+
+- [ ] **PERF-02**: Any unbounded list (scan history, asset list, org members, findings) that could
+      grow large is paginated or otherwise capped, not loaded in full on every page view.
+
+### Loading, Empty & Error States (STATE)
+
+- [ ] **STATE-01**: Every major page with a first-run/no-data condition (no assets, no scans, no
+      domains, no invoices, no findings) shows a real empty-state message with a clear next action,
+      not a blank area or raw empty table.
+
+- [ ] **STATE-02**: Every form shows a distinct in-flight submitting state (disabled + loading
+      indicator) to prevent duplicate submission, consistent with the pattern already used on the
+      auth forms.
+
+- [ ] **STATE-03**: A failed/errored scan, timed-out scan, and duplicate concurrent scan attempt
+      each surface a clear, specific message to the user rather than a generic failure or silent
+      stall.
+
 ## v2 Requirements
 
 Deferred to future release. Tracked but not in current roadmap.
@@ -159,5 +306,5 @@ Which phases cover which requirements. Updated during roadmap creation.
 - Unmapped: 0 ✓
 
 ---
-*Requirements defined: 2026-08-10*
-*Last updated: 2026-08-10 after initial roadmap creation*
+*Requirements defined: 2026-08-10 (v1.0), extended 2026-08-15 (v1.1)*
+*Last updated: 2026-08-15 — v1.1 requirements defined, pending roadmap*
