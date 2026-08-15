@@ -1,6 +1,7 @@
 """
 Tests for the guided New Scan wizard (SCANUX-01..04): Step 1 (`/scan/new`,
-Select Domain) and Step 2 (`/scan/new/type`, Select Type).
+Select Domain), Step 2 (`/scan/new/type`, Select Type), and Step 3 for the
+Standard Scan (`/scan/new/base`, Confirm Authorization + Start Scan).
 
 DNS is mocked via `_public_dns` (mirrors tests/test_ssrf_guard.py's
 `_fake_getaddrinfo` pattern) for every test whose target must resolve as a
@@ -20,10 +21,29 @@ tests below assert the real resolved path.
 import socket
 from datetime import datetime, timezone
 
+import pytest
+
 from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import DomainVerification, Plan, VerifyMethod
+from webvulnscanner.models import DomainVerification, Plan, Scan, VerifyMethod
 
 from tests.conftest import login, make_org, make_user
+
+
+@pytest.fixture()
+def spawned(monkeypatch):
+    """Monkeypatches _spawn_scan_thread to a no-op recorder - same
+    convention tests/test_api_routes.py's `spawned` fixture and
+    tests/test_scheduler.py already establish ("a real scan thread must
+    never be triggered from a test": the daemon thread makes a real
+    outbound HTTP request via `requests`, which must never happen from the
+    test suite, and it also outlives the per-test app/DB teardown)."""
+    calls = []
+
+    def _fake_spawn(scan_id, scan_type, **kwargs):
+        calls.append({"scan_id": scan_id, "scan_type": scan_type, "kwargs": kwargs})
+
+    monkeypatch.setattr("webvulnscanner.scan_routes._spawn_scan_thread", _fake_spawn)
+    return calls
 
 
 def _public_dns(monkeypatch):
@@ -230,3 +250,88 @@ def test_step2_target_is_html_escaped(client, db):
         query_string={"target": '"><script>alert(1)</script>'},
     )
     assert b"<script>alert" not in resp.data
+
+
+# --------------------------------------------------------------------------
+# Step 3 - Standard Scan (/scan/new/base) - Task 2
+# --------------------------------------------------------------------------
+
+def test_step3_get_prefills_target_from_query(client, db, monkeypatch):
+    _public_dns(monkeypatch)
+    org = make_org()
+    make_user("u14@example.com", org=org)
+    login(client, "u14@example.com")
+    resp = client.get("/scan/new/base", query_string={"target": "https://example.com"})
+    assert resp.status_code == 200
+    assert "https://example.com" in resp.data.decode()
+
+
+def test_step3_post_missing_authorized_preserves_typed_target(client, db, monkeypatch):
+    _public_dns(monkeypatch)
+    org = make_org()
+    make_user("u15@example.com", org=org)
+    login(client, "u15@example.com")
+    resp = client.post("/scan/new/base", data={"target": "typed.example.com"})
+    assert resp.status_code == 200
+    body = resp.data.decode()
+    assert "typed.example.com" in body
+
+
+def test_step3_renders_standard_scan_and_included_pill(client, db):
+    org = make_org()
+    make_user("u16@example.com", org=org)
+    login(client, "u16@example.com")
+    resp = client.get("/scan/new/base")
+    body = resp.data.decode()
+    assert "Standard Scan" in body
+    assert ">Included<" in body
+    assert "Free tier included" not in body
+
+
+def test_step3_renders_stepper_nodes_3_and_4_active(client, db):
+    org = make_org()
+    make_user("u17@example.com", org=org)
+    login(client, "u17@example.com")
+    resp = client.get("/scan/new/base")
+    body = resp.data.decode()
+    assert "Confirm Authorization" in body
+    assert "Start Scan" in body
+    assert body.count("wizard-step active") >= 2
+
+
+def test_step3_post_creates_scan_and_redirects(client, db, monkeypatch, spawned):
+    _public_dns(monkeypatch)
+    org = make_org()
+    make_user("u18@example.com", org=org)
+    login(client, "u18@example.com")
+    resp = client.post(
+        "/scan/new/base", data={"target": "example.com", "authorized": "on"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert Scan.query.count() == 1
+
+
+def test_step3_bulk_targets_creates_two_scans(client, db, monkeypatch, spawned):
+    _public_dns(monkeypatch)
+    org = make_org()
+    make_user("u19@example.com", org=org)
+    login(client, "u19@example.com")
+    resp = client.post(
+        "/scan/new/base",
+        data={"target": "a.example.com\nb.example.com", "authorized": "on"},
+        follow_redirects=False,
+    )
+    assert Scan.query.count() == 2
+
+
+def test_step3_unsafe_target_creates_zero_scans(client, db):
+    org = make_org()
+    make_user("u20@example.com", org=org)
+    login(client, "u20@example.com")
+    resp = client.post(
+        "/scan/new/base", data={"target": "127.0.0.1", "authorized": "on"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200
+    assert Scan.query.count() == 0

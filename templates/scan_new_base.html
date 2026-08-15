@@ -1,14 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Base scan - WebVulnScanner{% endblock %}
+{% block title %}Standard Scan - WebVulnScanner{% endblock %}
 {% block head %}
 {% include "_scan_form_styles.html" %}
 {% endblock %}
 {% block content %}
 <div class="wrap">
-  <a class="back" href="{{ url_for('scan.new_scan') }}">&larr; All scan types</a>
+  {% set wizard_step = 3 %}
+  {% include "_scan_wizard_stepper.html" %}
+
+  <a class="back" href="{{ url_for('scan.new_scan_type', target=prefill_target) }}">&larr; Change scan type</a>
   <div class="section-title" style="margin-top:14px;">
-    <h1 style="margin:0;">Base scan</h1>
-    <span class="pill pass">Free tier included</span>
+    <h1 style="margin:0;">Standard Scan</h1>
+    <span class="pill pass">Included</span>
   </div>
   <p class="sub">Passive recon (headers, TLS, cookies, DNS/email hygiene, exposed secrets, SRI) for every
   tier, plus active checks (crawl, open ports, CORS, open redirect, directory listing) on Paid and
@@ -25,14 +28,19 @@
       <div><b>Authorized use only.</b> Only scan domains you own or have explicit permission to test.</div>
     </div>
 
-    <form method="POST" action="{{ url_for('scan.new_scan_base') }}">
+    <div class="wizard-summary">
+      <div class="wizard-summary-row"><span>Target</span><strong>{{ prefill_target or '—' }}</strong></div>
+      <div class="wizard-summary-row"><span>Scan type</span><strong>Standard Scan</strong></div>
+    </div>
+
+    <form method="POST" action="{{ url_for('scan.new_scan_base') }}" id="scanForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
       <label for="target">Target domain(s)</label>
-      <textarea id="target" name="target" placeholder="www.example.com" rows="3" required>{{ request.form.get('target', '') }}</textarea>
+      <textarea id="target" name="target" placeholder="www.example.com" rows="3" required>{{ prefill_target }}</textarea>
       <div class="hint">One domain per line (or comma-separated) to scan up to {{ max_bulk_targets }} targets at once,
       e.g. <code>example.com</code> or <code>https://www.example.com</code>. Each target is still checked individually
-      for authorization/safety before it runs.</div>
+      for authorization/safety before it runs. Edit this to scan additional domains in the same run.</div>
 
       <label for="test_url">Optional: seed URL with query parameters</label>
       <input type="text" id="test_url" name="test_url" placeholder="https://www.example.com/search?q=test">
@@ -55,8 +63,15 @@
         </label>
       </div>
 
-      <button type="submit">Run scan</button>
+      <button type="submit" id="scanSubmit">Start Scan</button>
     </form>
   </div>
 </div>
+<script>
+  document.getElementById('scanForm').addEventListener('submit', function () {
+    var btn = document.getElementById('scanSubmit');
+    btn.disabled = true;
+    btn.textContent = 'Starting scan...';
+  });
+</script>
 {% endblock %}

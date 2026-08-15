@@ -610,12 +610,12 @@ def new_scan_base():
     tier = effective_tier(current_user)
 
     if request.method == "GET":
-        return render_template("scan_new_base.html", **_tier_flags(tier))
+        return render_template("scan_new_base.html", prefill_target=_prefill_target("target"), **_tier_flags(tier))
 
     if not request.form.get("authorized"):
         return render_template(
             "scan_new_base.html", error="You must confirm you own or are authorized to test this domain.",
-            **_tier_flags(tier),
+            prefill_target=_prefill_target("target"), **_tier_flags(tier),
         )
 
     # Bulk-scanning support: the target field accepts one domain per line
@@ -633,14 +633,17 @@ def new_scan_base():
     if not raw_targets:
         return render_template(
             "scan_new_base.html", error="Enter at least one valid domain or URL, e.g. example.com",
-            **_tier_flags(tier),
+            prefill_target=_prefill_target("target"), **_tier_flags(tier),
         )
 
     manual_test_url = request.form.get("test_url", "").strip() or None
     if manual_test_url:
         unsafe = _unsafe_target_error(manual_test_url, org_id=current_user.org_id)
         if unsafe:
-            return render_template("scan_new_base.html", error=unsafe, **_tier_flags(tier))
+            return render_template(
+                "scan_new_base.html", error=unsafe,
+                prefill_target=_prefill_target("target"), **_tier_flags(tier),
+            )
 
     launched, skipped = [], []
     for raw in raw_targets:
@@ -661,7 +664,7 @@ def new_scan_base():
             "scan_new_base.html",
             error="None of the entered targets could be scanned: " +
                   "; ".join(f"{t} ({why})" for t, why in skipped),
-            **_tier_flags(tier),
+            prefill_target=_prefill_target("target"), **_tier_flags(tier),
         )
 
     if skipped:
