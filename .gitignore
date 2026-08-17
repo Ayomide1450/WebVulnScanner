@@ -13,3 +13,6 @@ handoff.md
 handoff-archive.md
 .pytest_cache/
 .cache/
+dev-server-stdout.log
+dev-server-stderr.log
+graphify-out/
