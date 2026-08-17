@@ -8,9 +8,9 @@
   {% set wizard_step = 1 %}
   {% include "_scan_wizard_stepper.html" %}
 
-  <h1>New scan</h1>
-  <p class="sub">Pick the domain you want to scan. Every scan runs in the background - you'll be
-  redirected to a live progress page.</p>
+  <h1>Which website do you want to scan?</h1>
+  <p class="sub">Choose one of your verified domains, or type any website address. Next you'll pick
+  what kind of scan to run, then confirm and start it - three short steps.</p>
 
   {% if error %}
   <div class="error-box">{{ error }}</div>
@@ -23,9 +23,9 @@
 
   <div class="card">
     <form method="GET" action="{{ url_for('scan.new_scan_type') }}" id="domainForm">
-      <label for="verified_domain">Select Verified Domain</label>
+      <label for="verified_domain">One of your verified domains</label>
       <select id="verified_domain" name="verified_domain">
-        <option value="" disabled selected>{{ 'Choose a verified domain...' if verified_domains else 'No verified domains yet' }}</option>
+        <option value="" disabled selected>{{ 'Choose a domain...' if verified_domains else 'No verified domains yet' }}</option>
         {% for domain in verified_domains %}
         <option value="{{ domain }}" {% if domain == selected_domain %}selected{% endif %}>{{ domain }}</option>
         {% endfor %}

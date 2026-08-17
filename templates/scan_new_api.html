@@ -1,39 +1,44 @@
 {% extends "base.html" %}
-{% block title %}API exposure scan - WebVulnScanner{% endblock %}
+{% block title %}API Scan - WebVulnScanner{% endblock %}
 {% block head %}
 {% include "_scan_form_styles.html" %}
 {% endblock %}
 {% block content %}
 <div class="wrap">
-  <a class="back" href="{{ url_for('scan.new_scan') }}">&larr; All scan types</a>
+  {% set wizard_step = 3 %}
+  {% include "_scan_wizard_stepper.html" %}
+
+  <a class="back" href="{{ url_for('scan.new_scan_type', target=prefill_target) }}">&larr; Change scan type</a>
   <div class="section-title" style="margin-top:14px;">
-    <h1 style="margin:0;">API exposure scan</h1>
-    <span class="pill {{ 'pass' if can_run_api else 'medium' }}">
-      {{ 'Paid unlocked' if can_run_api else 'Requires Paid' }}
-    </span>
+    <h1 style="margin:0;">API Scan</h1>
+    <span class="pill {{ 'pass' if availability.unlocked else 'medium' }}">{{ availability.label }}</span>
   </div>
-  <p class="sub">Probes for publicly reachable OpenAPI/Swagger docs and GraphQL introspection, checks a
-  small wordlist of common unauthenticated API paths, and discovers real endpoints referenced in the
-  site's own JavaScript (e.g. <code>fetch("/api/...")</code>) - the highest-signal of the three, since it
-  finds endpoints the app actually calls rather than ones a wordlist happens to guess. Runs in the
-  background - you'll be redirected to a live progress page.</p>
+  <p class="sub">If your site has a developer API, this looks for API documentation left open to
+  the public, common paths that shouldn't need a login, and real endpoints your own site's code
+  calls - the most reliable of the three, since it's based on what your app actually does rather
+  than a guess. Runs in the background - you'll be redirected to a live progress page.</p>
 
   {% if error %}
   <div class="error-box">{{ error }}</div>
   {% endif %}
 
+  {% if availability.unlocked %}
   <div class="card">
-    {% if can_run_api %}
     <div class="warn-box" style="margin-top:0;">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
       <div><b>Authorized use only.</b> Only scan domains you own or have explicit permission to test.</div>
     </div>
 
-    <form method="POST" action="{{ url_for('scan.new_scan_api') }}">
+    <div class="wizard-summary">
+      <div class="wizard-summary-row"><span>Target</span><strong>{{ prefill_target or '—' }}</strong></div>
+      <div class="wizard-summary-row"><span>Scan type</span><strong>API Scan</strong></div>
+    </div>
+
+    <form method="POST" action="{{ url_for('scan.new_scan_api') }}" id="scanForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-      <label for="api_target">Target domain</label>
-      <input type="text" id="api_target" name="api_target" placeholder="www.example.com" required>
+      <label for="api_target">Website address</label>
+      <input type="text" id="api_target" name="api_target" placeholder="www.example.com" value="{{ prefill_target }}" required>
       <div class="hint">Just the domain, e.g. <code>example.com</code> or <code>https://www.example.com</code></div>
 
       <div class="check-row">
@@ -43,20 +48,34 @@
         </label>
       </div>
 
-      <button type="submit">Run API exposure scan</button>
+      <button type="submit" id="scanSubmit">Start Scan</button>
     </form>
+  </div>
 
-    {% else %}
+  {% else %}
+  <div class="card">
     <div class="locked-state">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-      <h2 style="margin:0 0 4px; font-size:16px;">Requires the Paid plan or higher</h2>
-      <p>API exposure scanning probes schema/wordlist paths and fetches JS bundles to discover
+      <h2 style="margin:0 0 4px; font-size:16px;">{{ availability.label }}</h2>
+      <p>API scanning checks a wordlist of paths and reads your site's own JavaScript to find
       endpoints - an active check that needs a Paid plan to unlock.</p>
       <div class="locked-actions">
-        <a class="btn primary" href="{{ url_for('billing.view') }}">Upgrade to Paid</a>
+        <a class="btn primary" href="{{ url_for('billing.view') }}">Upgrade to Unlock</a>
       </div>
     </div>
-    {% endif %}
   </div>
+  {% endif %}
 </div>
+{% if availability.unlocked %}
+<script>
+  var scanForm = document.getElementById('scanForm');
+  var scanSubmit = document.getElementById('scanSubmit');
+  if (scanForm && scanSubmit) {
+    scanForm.addEventListener('submit', function () {
+      scanSubmit.disabled = true;
+      scanSubmit.textContent = 'Starting scan...';
+    });
+  }
+</script>
+{% endif %}
 {% endblock %}

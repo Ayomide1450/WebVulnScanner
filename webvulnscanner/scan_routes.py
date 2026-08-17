@@ -49,7 +49,7 @@ import time
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
-from flask import Blueprint, Response, abort, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from webvulnscanner.ai_summary import generate_remediation_summary
@@ -58,6 +58,7 @@ from webvulnscanner.checks import (
     CHECK_COMPLIANCE,
     CHECK_LABELS,
     REPORTS_DIR,
+    detect_login_form,
     is_ssrf_safe_hostname,
     normalize_target,
 )
@@ -324,26 +325,26 @@ SCAN_TYPE_CARDS = (
     {
         "key": "base", "title": "Standard Scan", "endpoint": "scan.new_scan_base",
         "cta": "Run a Standard Scan",
-        "blurb": ("Passive recon (headers, TLS, cookies, DNS/email hygiene, exposed secrets, "
-                  "SRI) on every tier, plus active checks and intrusive canaries as you upgrade."),
+        "blurb": ("A general health check: security headers, HTTPS setup, cookies, email/DNS "
+                  "protection, and leaked secrets - the right starting point for any site."),
     },
     {
-        "key": "advanced", "title": "Advanced / authenticated", "endpoint": "scan.new_scan_advanced",
-        "cta": "Run advanced checks",
-        "blurb": ("Auth-bypass SQLi, brute-force, UNION/error/time-based SQLi, stored XSS, "
-                  "cross-account IDOR - deeper, credential-driven probing."),
+        "key": "advanced", "title": "Advanced Scan", "endpoint": "scan.new_scan_advanced",
+        "cta": "Run an Advanced Scan",
+        "blurb": ("Tests things only a logged-in attacker could try: bypassing your login, "
+                  "guessing passwords, or one user seeing another user's private data."),
     },
     {
-        "key": "media", "title": "Media discovery", "endpoint": "scan.new_scan_media",
-        "cta": "Run media scan",
-        "blurb": ("Same-origin image/video crawl, EXIF/GPS leakage, suspicious-path detection, "
-                  "optional download to disk."),
+        "key": "media", "title": "Media Scan", "endpoint": "scan.new_scan_media",
+        "cta": "Run a Media Scan",
+        "blurb": ("Checks your images and videos for hidden location data (GPS in photo EXIF "
+                  "data) and files you probably didn't mean to make public."),
     },
     {
-        "key": "api", "title": "API exposure scan", "endpoint": "scan.new_scan_api",
-        "cta": "Run API exposure scan",
-        "blurb": ("OpenAPI/Swagger & GraphQL introspection exposure, an unauthenticated-path "
-                  "wordlist, and endpoints discovered from the site's own JS."),
+        "key": "api", "title": "API Scan", "endpoint": "scan.new_scan_api",
+        "cta": "Run an API Scan",
+        "blurb": ("For sites with a developer API: finds API documentation, endpoints, and "
+                  "data left exposed without a login."),
     },
 )
 
@@ -501,6 +502,14 @@ def _scan_type_availability(tier, org, target_url):
                 entry.update(label=AVAILABILITY_INCLUDED, unlocked=True, upgrade_url=None)
         cards.append(entry)
     return cards
+
+
+def _availability_for(key, tier, org, target_url):
+    """Returns the single `_scan_type_availability()` entry matching `key`
+    ("advanced"/"media"/"api") - so a per-type Step 3 page's pill can never
+    drift from what Step 2's card grid already showed for this exact
+    target. Display-only, same as `_scan_type_availability` itself."""
+    return next(c for c in _scan_type_availability(tier, org, target_url) if c["key"] == key)
 
 
 def _render_step1(error=None):
@@ -677,18 +686,32 @@ def new_scan_base():
     return redirect(url_for("scan.dashboard"))
 
 
+def _advanced_render_kwargs(tier):
+    """Shared kwargs for every scan_new_advanced.html render site: the
+    Smart Setup wizard's target prefill (POST branch reads request.form so
+    a validation-error re-render never clears what the user typed, same
+    _prefill_target convention 05-01 established for the other three scan
+    types) plus the advanced card's own SCANUX-03 pill, sourced from the
+    same _scan_type_availability() Step 2 uses so the label can never
+    drift from what Step 2 already showed for this exact target."""
+    prefill_target = _prefill_target("target")
+    normalized = normalize_target(prefill_target) if prefill_target else ""
+    availability = _availability_for("advanced", tier, current_user.organization, normalized or "")
+    return {**_tier_flags(tier), "prefill_target": prefill_target, "availability": availability}
+
+
 @scan.route("/scan/new/advanced", methods=["GET", "POST"])
 @login_required
 def new_scan_advanced():
     tier = effective_tier(current_user)
 
     if request.method == "GET":
-        return render_template("scan_new_advanced.html", **_tier_flags(tier))
+        return render_template("scan_new_advanced.html", **_advanced_render_kwargs(tier))
 
     if not request.form.get("authorized_adv"):
         return render_template(
             "scan_new_advanced.html", error="You must confirm you own or are authorized to test this target.",
-            **_tier_flags(tier),
+            **_advanced_render_kwargs(tier),
         )
 
     advanced = _parse_advanced_form(request.form)
@@ -703,7 +726,7 @@ def new_scan_advanced():
         return render_template(
             "scan_new_advanced.html",
             error="Fill in at least one advanced check group before running advanced checks.",
-            **_tier_flags(tier),
+            **_advanced_render_kwargs(tier),
         )
 
     # Every group's URL field is user-typed free text, independent of
@@ -718,7 +741,7 @@ def new_scan_advanced():
             continue
         unsafe = _unsafe_target_error(group_url, org_id=current_user.org_id)
         if unsafe:
-            return render_template("scan_new_advanced.html", error=unsafe, **_tier_flags(tier))
+            return render_template("scan_new_advanced.html", error=unsafe, **_advanced_render_kwargs(tier))
 
     # run_advanced_scan takes a single org_verified_for_domain flag that
     # applies to every check group in the run. Advanced groups can target
@@ -741,29 +764,83 @@ def new_scan_advanced():
     return redirect(url_for("scan.scan_detail", scan_id=s.id))
 
 
+@scan.route("/scan/new/advanced/detect", methods=["POST"])
+@login_required
+def new_scan_advanced_detect():
+    """Smart Setup's auto-detect endpoint - the Advanced form's JS calls
+    this once the user has typed a target AND ticked the authorization
+    checkbox, never before (the checkbox is required in this endpoint's own
+    request body, not just trusted from the page state, so a stray fetch()
+    call can't sneak a scan of an unconfirmed target past this gate either).
+
+    UX aid only - see checks.detect_login_form's docstring. This endpoint
+    never creates a Scan row and never runs any check; it only suggests
+    values for the login-bypass group's fields, which the user still
+    reviews (and can edit or clear) before submitting the real form. All of
+    Advanced's actual gates (authorized_adv, tier, domain verification,
+    per-group SSRF checks) still run unchanged in new_scan_advanced above
+    when that form is eventually submitted.
+    """
+    if not request.form.get("authorized_adv"):
+        return jsonify(error="Tick the authorization checkbox first."), 400
+
+    target = normalize_target(request.form.get("target", ""))
+    if not target:
+        return jsonify(error="Enter a valid domain or URL first."), 400
+
+    unsafe = _unsafe_target_error(target, org_id=current_user.org_id)
+    if unsafe:
+        return jsonify(error=unsafe), 400
+
+    found = detect_login_form(target)
+    if not found:
+        return jsonify(found=False)
+    return jsonify(found=True, **found)
+
+
+def _media_render_kwargs(tier):
+    """Shared kwargs for every scan_new_media.html render site - mirrors
+    `_advanced_render_kwargs`: `_prefill_target` for the wizard's
+    cross-step target carrier (POST branch reads request.form so a
+    validation-error re-render never clears what was typed) and the
+    SCANUX-03 pill from the same `_availability_for` helper Step 2 uses."""
+    prefill_target = _prefill_target("media_target")
+    normalized = normalize_target(prefill_target) if prefill_target else ""
+    availability = _availability_for("media", tier, current_user.organization, normalized or "")
+    return {**_tier_flags(tier), "prefill_target": prefill_target, "availability": availability}
+
+
+def _api_render_kwargs(tier):
+    """Same shape as `_media_render_kwargs`, for scan_new_api.html."""
+    prefill_target = _prefill_target("api_target")
+    normalized = normalize_target(prefill_target) if prefill_target else ""
+    availability = _availability_for("api", tier, current_user.organization, normalized or "")
+    return {**_tier_flags(tier), "prefill_target": prefill_target, "availability": availability}
+
+
 @scan.route("/scan/new/media", methods=["GET", "POST"])
 @login_required
 def new_scan_media():
     tier = effective_tier(current_user)
 
     if request.method == "GET":
-        return render_template("scan_new_media.html", **_tier_flags(tier))
+        return render_template("scan_new_media.html", **_media_render_kwargs(tier))
 
     if not request.form.get("authorized_media"):
         return render_template(
             "scan_new_media.html", error="You must confirm you own or are authorized to test this domain.",
-            **_tier_flags(tier),
+            **_media_render_kwargs(tier),
         )
 
     base_url = normalize_target(request.form.get("media_target", ""))
     if not base_url:
         return render_template(
             "scan_new_media.html", error="Enter a valid domain or URL for the media scan, e.g. example.com",
-            **_tier_flags(tier),
+            **_media_render_kwargs(tier),
         )
     unsafe = _unsafe_target_error(base_url, org_id=current_user.org_id)
     if unsafe:
-        return render_template("scan_new_media.html", error=unsafe, **_tier_flags(tier))
+        return render_template("scan_new_media.html", error=unsafe, **_media_render_kwargs(tier))
 
     download = bool(request.form.get("media_download"))
     try:
@@ -779,7 +856,7 @@ def new_scan_media():
         return render_template(
             "scan_new_media.html",
             error="Media scanning requires a Paid plan or higher. Upgrade on the Billing page to unlock it.",
-            **_tier_flags(tier),
+            **_media_render_kwargs(tier),
         )
 
     s = Scan(user_id=current_user.id, org_id=current_user.org_id,
@@ -801,29 +878,29 @@ def new_scan_api():
     tier = effective_tier(current_user)
 
     if request.method == "GET":
-        return render_template("scan_new_api.html", **_tier_flags(tier))
+        return render_template("scan_new_api.html", **_api_render_kwargs(tier))
 
     if not request.form.get("authorized_api"):
         return render_template(
             "scan_new_api.html", error="You must confirm you own or are authorized to test this domain.",
-            **_tier_flags(tier),
+            **_api_render_kwargs(tier),
         )
 
     base_url = normalize_target(request.form.get("api_target", ""))
     if not base_url:
         return render_template(
             "scan_new_api.html", error="Enter a valid domain or URL for the API scan, e.g. example.com",
-            **_tier_flags(tier),
+            **_api_render_kwargs(tier),
         )
     unsafe = _unsafe_target_error(base_url, org_id=current_user.org_id)
     if unsafe:
-        return render_template("scan_new_api.html", error=unsafe, **_tier_flags(tier))
+        return render_template("scan_new_api.html", error=unsafe, **_api_render_kwargs(tier))
 
     if FEATURE_REQUIREMENTS["api"] > tier:
         return render_template(
             "scan_new_api.html",
             error="API exposure scanning requires a Paid plan or higher. Upgrade on the Billing page to unlock it.",
-            **_tier_flags(tier),
+            **_api_render_kwargs(tier),
         )
 
     s = Scan(user_id=current_user.id, org_id=current_user.org_id,
@@ -921,6 +998,36 @@ def scan_events(scan_id):
                 time.sleep(0.5)
 
     return Response(generate(), mimetype="text/event-stream")
+
+
+@scan.route("/scan/<int:scan_id>/status")
+@login_required
+def scan_status(scan_id):
+    """Lightweight polling counterpart to `scan_events()`'s SSE feed, for
+    the three scan types (advanced/media/api) whose orchestrators take no
+    `progress_cb` and so never write a single `ScanEvent` row (D-04,
+    05-CONTEXT.md). Those types have nothing to stream - holding a
+    long-lived SSE connection open per running scan just to poll the same
+    row `scan_events()` already re-reads every 0.5s buys nothing for them,
+    so `scan_progress.html`'s script polls this instead on a 2s interval.
+    Base scans are unaffected and keep using `scan_events()`.
+
+    Reuses `_check_ownership` - the same owner-or-org-admin predicate
+    `scan_detail`/`scan_events`/`scan_report`/`scan_report_csv` all gate on
+    - so this can never become a weaker door onto the same data.
+
+    Deliberately returns only `status` and `report_url`, never
+    `error_message` or any exception text: the client only needs to know a
+    scan became `failed` so it can reload into `scan_progress.html`'s
+    existing server-rendered `.error-box` branch, which already renders
+    `scan.error_message` itself. Putting the raw message into this JSON
+    response would widen the disclosure surface for no benefit."""
+    s = Scan.query.get_or_404(scan_id)
+    _check_ownership(s)
+    report_url = None
+    if s.status == ScanStatus.COMPLETED and s.report is not None:
+        report_url = url_for("scan.scan_report", scan_id=s.id)
+    return jsonify(status=s.status.value, report_url=report_url)
 
 
 # Bounds how many prior scans of the same target/type _sensitive_path_lifecycle

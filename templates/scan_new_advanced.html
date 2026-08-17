@@ -1,84 +1,71 @@
 {% extends "base.html" %}
-{% block title %}Advanced scan - WebVulnScanner{% endblock %}
+{% block title %}Advanced Scan - WebVulnScanner{% endblock %}
 {% block head %}
 {% include "_scan_form_styles.html" %}
+<style>
+  .adv-group { border: 1px solid var(--border, #2a2f3a); border-radius: 10px; margin-bottom: 12px; padding: 0; overflow: hidden; }
+  .adv-group > summary { list-style: none; cursor: pointer; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .adv-group > summary::-webkit-details-marker { display: none; }
+  .adv-group > summary .adv-group-title { display: flex; flex-direction: column; gap: 2px; }
+  .adv-group > summary h4 { margin: 0; font-size: 15px; }
+  .adv-group > summary .adv-group-blurb { font-size: 13px; color: var(--muted, #8a93a6); font-weight: 400; }
+  .adv-group[open] > summary { border-bottom: 1px solid var(--border, #2a2f3a); }
+  .adv-group-body { padding: 14px 16px 16px; }
+  .adv-detected-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(52, 199, 89, 0.15); color: #34c759; white-space: nowrap; }
+  .adv-chevron { transition: transform 0.15s ease; flex-shrink: 0; }
+  .adv-group[open] .adv-chevron { transform: rotate(90deg); }
+  .adv-field-help { font-size: 12px; color: var(--muted, #8a93a6); margin: -6px 0 10px; }
+  #advDetectStatus { font-size: 13px; margin-top: 8px; min-height: 18px; }
+  #advDetectStatus.detecting { color: var(--telemetry, #4a9eff); }
+  #advDetectStatus.found { color: #34c759; }
+  #advDetectStatus.none { color: var(--muted, #8a93a6); }
+</style>
 {% endblock %}
 {% block content %}
 <div class="wrap">
-  <a class="back" href="{{ url_for('scan.new_scan') }}">&larr; All scan types</a>
+  {% set wizard_step = 3 %}
+  {% include "_scan_wizard_stepper.html" %}
+
+  <a class="back" href="{{ url_for('scan.new_scan_type', target=prefill_target) }}">&larr; Change scan type</a>
   <div class="section-title" style="margin-top:14px;">
-    <h1 style="margin:0;">Advanced / authenticated checks</h1>
-    <span class="pill {{ 'pass' if can_run_org_verified else 'medium' }}">
-      {{ 'Org-verified unlocked' if can_run_org_verified else 'Requires Org-verified' }}
-    </span>
+    <h1 style="margin:0;">Advanced Scan</h1>
+    <span class="pill {{ 'pass' if availability.unlocked else 'medium' }}">{{ availability.label }}</span>
   </div>
-  <p class="sub">Deeper multi-technique probing (auth-bypass SQLi, brute-force rate-limit check,
-  UNION/error/time-based SQLi, stored XSS, cross-account IDOR). Runs separately from the base scan
-  in the background - you'll be redirected to a live progress page.</p>
+  <p class="sub">Tests things a passive scan can't reach: can someone log in as another user without
+  the password, brute-force a login, or see another customer's data. Enter your site below and we'll
+  try to find your login page automatically - you only fill in what we can't detect ourselves.</p>
 
   {% if error %}
   <div class="error-box">{{ error }}</div>
   {% endif %}
 
+  {% if availability.unlocked %}
   <div class="card">
-    {% if can_run_org_verified %}
     <div class="warn-box" style="margin-top:0;">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
       <div><b>Authorized use only.</b> Only test targets you own or have explicit permission to test.
-      Fill in only the groups you have data for - session cookies should come from disposable test
-      accounts you created yourself.</div>
+      Use a disposable test account you created yourself for anything that asks for a password or
+      session cookie - never your own real login.</div>
     </div>
 
-    <form method="POST" action="{{ url_for('scan.new_scan_advanced') }}">
+    <div class="wizard-summary">
+      <div class="wizard-summary-row"><span>Selected domain</span><strong>{{ prefill_target or '—' }}</strong></div>
+      <div class="wizard-summary-row"><span>Scan type</span><strong>Advanced Scan</strong></div>
+    </div>
+    <div class="hint">Each URL you enter below should be on this domain - advanced checks target the
+    specific pages you point them at, not the domain as a whole.</div>
+
+    <form method="POST" action="{{ url_for('scan.new_scan_advanced') }}" id="scanForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="target" value="{{ prefill_target }}">
 
-      <div class="adv-group">
-        <h4>SQLi auth-bypass + brute-force (login form)</h4>
-        <label for="login_url">Login page URL</label>
-        <input type="text" id="login_url" name="login_url" placeholder="https://www.example.com/login">
-        <label for="login_user_field">Username field name</label>
-        <input type="text" id="login_user_field" name="login_user_field" placeholder="username">
-        <label for="login_pass_field">Password field name</label>
-        <input type="text" id="login_pass_field" name="login_pass_field" placeholder="password">
-        <label for="login_fail_text">Text shown on a failed login</label>
-        <input type="text" id="login_fail_text" name="login_fail_text" placeholder="Invalid credentials">
-        <label for="bruteforce_username">Brute-force: username to test (leave blank to skip)</label>
-        <input type="text" id="bruteforce_username" name="bruteforce_username" placeholder="testuser">
-        <label for="bruteforce_passwords">Brute-force: passwords, comma-separated (max 5 used)</label>
-        <input type="text" id="bruteforce_passwords" name="bruteforce_passwords" placeholder="password,123456,letmein">
-      </div>
-
-      <div class="adv-group">
-        <h4>SQLi UNION / error-based / time-based probe</h4>
-        <label for="sqli_union_url">Page URL with a query parameter</label>
-        <input type="text" id="sqli_union_url" name="sqli_union_url" placeholder="https://www.example.com/item?id=1">
-        <label for="sqli_union_param">Parameter name to test</label>
-        <input type="text" id="sqli_union_param" name="sqli_union_param" placeholder="id">
-      </div>
-
-      <div class="adv-group">
-        <h4>Stored XSS (test account)</h4>
-        <label for="stored_xss_submit_url">Submit URL</label>
-        <input type="text" id="stored_xss_submit_url" name="stored_xss_submit_url" placeholder="https://www.example.com/comment">
-        <label for="stored_xss_field">Form field name to inject into</label>
-        <input type="text" id="stored_xss_field" name="stored_xss_field" placeholder="body">
-        <label for="stored_xss_view_url">View URL</label>
-        <input type="text" id="stored_xss_view_url" name="stored_xss_view_url" placeholder="https://www.example.com/comments">
-        <label for="stored_xss_cookie">Cookie header for your test account</label>
-        <input type="text" id="stored_xss_cookie" name="stored_xss_cookie" placeholder="session=abc123">
-      </div>
-
-      <div class="adv-group">
-        <h4>IDOR (cross-account + anonymous access)</h4>
-        <label for="idor_url_template">URL template (use {id} as placeholder)</label>
-        <input type="text" id="idor_url_template" name="idor_url_template" placeholder="https://www.example.com/orders/{id}">
-        <label for="idor_ids">Resource IDs owned by test account A (comma-separated)</label>
-        <input type="text" id="idor_ids" name="idor_ids" placeholder="101,102,103">
-        <label for="idor_cookie_a">Cookie header for test account A</label>
-        <input type="text" id="idor_cookie_a" name="idor_cookie_a" placeholder="session=aaa">
-        <label for="idor_cookie_b">Cookie header for test account B</label>
-        <input type="text" id="idor_cookie_b" name="idor_cookie_b" placeholder="session=bbb">
-      </div>
+      <label for="advTarget">Your website's address</label>
+      <input type="text" id="advTarget" value="{{ prefill_target }}" placeholder="https://www.example.com" {% if prefill_target %}disabled{% endif %}>
+      {% if prefill_target %}
+      <div class="adv-field-help">Set on the previous step. <a href="{{ url_for('scan.new_scan_type', target=prefill_target) }}">Change it</a> if this isn't right.</div>
+      {% else %}
+      <div class="adv-field-help">We'll use this to look for your login page once you confirm authorization below.</div>
+      {% endif %}
 
       <div class="check-row">
         <input type="checkbox" id="authorized_adv" name="authorized_adv" required>
@@ -86,23 +73,210 @@
           I own this target, or I have explicit authorization to security-test it.
         </label>
       </div>
+      <div id="advDetectStatus"></div>
 
-      <button type="submit">Run advanced checks</button>
+      <details class="adv-group" id="advGroupLogin">
+        <summary>
+          <div class="adv-group-title">
+            <h4>Can someone log in as another user without the password?</h4>
+            <span class="adv-group-blurb">Tests your login form for a bypass, and checks it isn't vulnerable to a brute-force password-guessing attack.</span>
+          </div>
+          <span class="adv-detected-badge" id="advLoginDetectedBadge" hidden>Auto-detected</span>
+          <svg class="icon adv-chevron" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
+        </summary>
+        <div class="adv-group-body">
+          <label for="login_url">Login page address</label>
+          <input type="text" id="login_url" name="login_url" placeholder="https://www.example.com/login" value="{{ request.form.get('login_url', '') }}">
+          <div class="adv-field-help">Filled in automatically once we detect your login form. Edit it if it's wrong.</div>
+          <label for="login_user_field">Username/email field name</label>
+          <input type="text" id="login_user_field" name="login_user_field" placeholder="username" value="{{ request.form.get('login_user_field', '') }}">
+          <label for="login_pass_field">Password field name</label>
+          <input type="text" id="login_pass_field" name="login_pass_field" placeholder="password" value="{{ request.form.get('login_pass_field', '') }}">
+          <div class="adv-field-help">These two are the technical names of the boxes on your login form - we detect them for you; you shouldn't need to know them.</div>
+          <label for="login_fail_text">Words shown after a wrong password</label>
+          <input type="text" id="login_fail_text" name="login_fail_text" placeholder="Invalid credentials" value="{{ request.form.get('login_fail_text', '') }}">
+          <div class="adv-field-help">Try a wrong password on your own site once and copy the exact error message here, e.g. "Invalid credentials".</div>
+          <label for="bruteforce_username">Test username for the brute-force check (optional)</label>
+          <input type="text" id="bruteforce_username" name="bruteforce_username" placeholder="testuser" value="{{ request.form.get('bruteforce_username', '') }}">
+          <label for="bruteforce_passwords">Passwords to try, separated by commas (optional, max 5)</label>
+          <input type="text" id="bruteforce_passwords" name="bruteforce_passwords" placeholder="password,123456,letmein" value="{{ request.form.get('bruteforce_passwords', '') }}">
+          <div class="adv-field-help">Leave both blank to skip the brute-force check and only test for a login bypass.</div>
+        </div>
+      </details>
+
+      <details class="adv-group">
+        <summary>
+          <div class="adv-group-title">
+            <h4>Can a page's address be used to steal data from your database?</h4>
+            <span class="adv-group-blurb">Tests one page that takes an ID or search term in its address (SQL injection).</span>
+          </div>
+          <svg class="icon adv-chevron" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
+        </summary>
+        <div class="adv-group-body">
+          <label for="sqli_union_url">A page address that includes an ID or number</label>
+          <input type="text" id="sqli_union_url" name="sqli_union_url" placeholder="https://www.example.com/item?id=1" value="{{ request.form.get('sqli_union_url', '') }}">
+          <label for="sqli_union_param">The name of that ID in the address</label>
+          <input type="text" id="sqli_union_param" name="sqli_union_param" placeholder="id" value="{{ request.form.get('sqli_union_param', '') }}">
+          <div class="adv-field-help">In <code>...?id=1</code>, the name is <code>id</code>.</div>
+        </div>
+      </details>
+
+      <details class="adv-group">
+        <summary>
+          <div class="adv-group-title">
+            <h4>Can someone plant malicious code in something other users will see?</h4>
+            <span class="adv-group-blurb">Tests a comment, review, or profile field for stored cross-site scripting (XSS).</span>
+          </div>
+          <svg class="icon adv-chevron" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
+        </summary>
+        <div class="adv-group-body">
+          <label for="stored_xss_submit_url">Where the form submits to</label>
+          <input type="text" id="stored_xss_submit_url" name="stored_xss_submit_url" placeholder="https://www.example.com/comment" value="{{ request.form.get('stored_xss_submit_url', '') }}">
+          <label for="stored_xss_field">The field name to type into</label>
+          <input type="text" id="stored_xss_field" name="stored_xss_field" placeholder="body" value="{{ request.form.get('stored_xss_field', '') }}">
+          <label for="stored_xss_view_url">Where the submitted content shows up</label>
+          <input type="text" id="stored_xss_view_url" name="stored_xss_view_url" placeholder="https://www.example.com/comments" value="{{ request.form.get('stored_xss_view_url', '') }}">
+          <label for="stored_xss_cookie">Your test account's session cookie</label>
+          <input type="text" id="stored_xss_cookie" name="stored_xss_cookie" placeholder="session=abc123" value="{{ request.form.get('stored_xss_cookie', '') }}">
+          <div class="adv-field-help">
+            Log in as a disposable test account, open your browser's Dev Tools (F12) &rarr; Application/Storage
+            tab &rarr; Cookies, and copy the cookie's <code>name=value</code> pair here. Never paste your own
+            real account's cookie.
+          </div>
+        </div>
+      </details>
+
+      <details class="adv-group">
+        <summary>
+          <div class="adv-group-title">
+            <h4>Can one user see another user's private data?</h4>
+            <span class="adv-group-blurb">Tests whether changing an ID in a URL exposes someone else's records (IDOR).</span>
+          </div>
+          <svg class="icon adv-chevron" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
+        </summary>
+        <div class="adv-group-body">
+          <label for="idor_url_template">Address of a record, with the ID replaced by <code>{id}</code></label>
+          <input type="text" id="idor_url_template" name="idor_url_template" placeholder="https://www.example.com/orders/{id}" value="{{ request.form.get('idor_url_template', '') }}">
+          <label for="idor_ids">IDs owned by test account A, separated by commas</label>
+          <input type="text" id="idor_ids" name="idor_ids" placeholder="101,102,103" value="{{ request.form.get('idor_ids', '') }}">
+          <label for="idor_cookie_a">Test account A's session cookie</label>
+          <input type="text" id="idor_cookie_a" name="idor_cookie_a" placeholder="session=aaa" value="{{ request.form.get('idor_cookie_a', '') }}">
+          <label for="idor_cookie_b">Test account B's session cookie</label>
+          <input type="text" id="idor_cookie_b" name="idor_cookie_b" placeholder="session=bbb" value="{{ request.form.get('idor_cookie_b', '') }}">
+          <div class="adv-field-help">
+            Two disposable test accounts, both logged in. Copy each one's session cookie the same way as
+            above (Dev Tools &rarr; Application/Storage &rarr; Cookies). Account A's IDs are the record
+            numbers we'll try to view while logged in as account B.
+          </div>
+        </div>
+      </details>
+
+      <div class="hint" style="margin-top:14px;">Fill in only the sections you have information for - one
+      completed section is enough to start a scan.</div>
+
+      <button type="submit" id="scanSubmit">Start Scan</button>
     </form>
+  </div>
 
-    {% else %}
+  {% else %}
+  <div class="card">
     <div class="locked-state">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-      <h2 style="margin:0 0 4px; font-size:16px;">Requires Org-verified + a verified domain</h2>
+      <h2 style="margin:0 0 4px; font-size:16px;">{{ availability.label }}</h2>
       <p>Advanced checks send real auth-bypass/injection payloads, so they're gated behind a
       server-verified domain-ownership proof, not just a checkbox. Upgrade your plan and verify
       the domain you want to test to unlock this page.</p>
       <div class="locked-actions">
-        <a class="btn primary" href="{{ url_for('billing.view') }}">Upgrade to Org-verified</a>
+        <a class="btn primary" href="{{ url_for('billing.view') }}">Upgrade to Unlock</a>
         <a class="btn secondary" href="{{ url_for('org.verify_domain_view') }}">Verify a domain</a>
       </div>
     </div>
-    {% endif %}
   </div>
+  {% endif %}
 </div>
+{% if availability.unlocked %}
+<script>
+(function () {
+  var form = document.getElementById('scanForm');
+  var btn = document.getElementById('scanSubmit');
+  if (form && btn) {
+    form.addEventListener('submit', function () {
+      btn.disabled = true;
+      btn.textContent = 'Starting scan...';
+    });
+  }
+
+  // Smart Setup: once a target is known and the authorization checkbox is
+  // ticked, ask the server to look for a login form and pre-fill the
+  // login-bypass group. Never fires before the checkbox is checked - the
+  // server-side endpoint independently requires authorized_adv=on too, so
+  // this is defense in depth, not the only gate.
+  var targetInput = document.getElementById('advTarget');
+  var hiddenTarget = form ? form.querySelector('input[name="target"]') : null;
+  var checkbox = document.getElementById('authorized_adv');
+  var statusEl = document.getElementById('advDetectStatus');
+  var loginGroup = document.getElementById('advGroupLogin');
+  var loginBadge = document.getElementById('advLoginDetectedBadge');
+  var csrfInput = form ? form.querySelector('input[name="csrf_token"]') : null;
+  var detectUrl = '{{ url_for("scan.new_scan_advanced_detect") }}';
+  var fired = false;
+
+  function currentTarget() {
+    if (hiddenTarget && hiddenTarget.value) return hiddenTarget.value;
+    return targetInput ? targetInput.value.trim() : '';
+  }
+
+  // When the target wasn't already carried in from Step 2 (?target= was
+  // empty), advTarget is the live input - keep the hidden `target` field
+  // (what actually submits, and what _prefill_target reads on a
+  // validation-error re-render) in sync with it as the user types.
+  if (targetInput && !targetInput.disabled && hiddenTarget) {
+    targetInput.addEventListener('input', function () {
+      hiddenTarget.value = targetInput.value.trim();
+    });
+  }
+
+  function maybeDetect() {
+    var target = currentTarget();
+    if (fired || !target || !checkbox || !checkbox.checked) return;
+    fired = true;
+    if (statusEl) {
+      statusEl.className = 'detecting';
+      statusEl.textContent = 'Looking for your login page...';
+    }
+    var body = new URLSearchParams();
+    body.set('target', target);
+    body.set('authorized_adv', 'on');
+    if (csrfInput) body.set('csrf_token', csrfInput.value);
+
+    fetch(detectUrl, { method: 'POST', body: body, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.found) {
+          document.getElementById('login_url').value = data.login_url || '';
+          document.getElementById('login_user_field').value = data.user_field || '';
+          document.getElementById('login_pass_field').value = data.pass_field || '';
+          if (loginGroup) loginGroup.open = true;
+          if (loginBadge) loginBadge.hidden = false;
+          if (statusEl) {
+            statusEl.className = 'found';
+            statusEl.textContent = 'Found your login page - review the details below.';
+          }
+        } else if (statusEl) {
+          statusEl.className = 'none';
+          statusEl.textContent = "Couldn't find a login page automatically - fill in the section below if you want to test it.";
+        }
+      })
+      .catch(function () {
+        fired = false; // allow a retry on transient network failure
+        if (statusEl) { statusEl.className = ''; statusEl.textContent = ''; }
+      });
+  }
+
+  if (checkbox) checkbox.addEventListener('change', maybeDetect);
+  if (targetInput) targetInput.addEventListener('blur', maybeDetect);
+  if (checkbox && checkbox.checked) maybeDetect();
+})();
+</script>
+{% endif %}
 {% endblock %}

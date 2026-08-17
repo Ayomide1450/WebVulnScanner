@@ -9,8 +9,8 @@
   {% include "_scan_wizard_stepper.html" %}
 
   <a class="back" href="{{ url_for('scan.new_scan') }}">&larr; Change domain</a>
-  <h1>Select scan type</h1>
-  <p class="sub">Target: <code>{{ target }}</code></p>
+  <h1>What kind of scan do you want to run?</h1>
+  <p class="sub">Scanning <code>{{ target }}</code> - each card below explains what it checks for and whether you can run it right now.</p>
 
   <div class="scan-type-grid">
     {% for card in scan_types %}

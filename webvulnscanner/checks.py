@@ -1584,6 +1584,113 @@ def crawl_same_origin(base_url, home_html, limit=10, session=None):
     return list(dict.fromkeys(param_urls))[:limit], forms
 
 
+# Field-name substrings used to guess which text input in a detected login
+# form is the "username" one - checked in this order, first match wins.
+# Deliberately narrow (no bare "name", "text" etc.) to avoid grabbing an
+# unrelated field on a busy page.
+_USERNAME_FIELD_HINTS = ("email", "user", "login", "account")
+
+
+def _guess_login_fields(form):
+    """Given one form dict from crawl_same_origin's `forms` list (or an
+    equivalent {"action","method","inputs"} shape built inline), returns
+    (user_field, pass_field) guessed from input `name`s, or (None, None) if
+    it doesn't look like a login form. Never guesses a password field from
+    anything but an actual name/type match - false positives here would
+    silently point Advanced's login-bypass check at the wrong field."""
+    pass_field = None
+    for name in form.get("password_inputs", []):
+        pass_field = name
+        break
+    if not pass_field:
+        return None, None
+
+    user_field = None
+    remaining = [n for n in form.get("inputs", []) if n != pass_field]
+    for hint in _USERNAME_FIELD_HINTS:
+        for name in remaining:
+            if hint in name.lower():
+                user_field = name
+                break
+        if user_field:
+            break
+    if not user_field and remaining:
+        user_field = remaining[0]  # best-effort fallback: first other field on the form
+    return user_field, pass_field
+
+
+def detect_login_form(base_url, session=None, extra_paths=()):
+    """Smart-Setup helper for the Advanced scan wizard (UX aid only - see
+    module docstring convention: this function only ever *suggests* values
+    for the user to review, it never authorizes or gates a scan). Looks for
+    a login form on `base_url` itself, then on a short list of common
+    login-page paths plus same-origin links whose path matches
+    AUTH_LIKE_PATH_HINTS, and returns the first form containing a real
+    `<input type="password">` as:
+
+        {"login_url": <the form's POST action - what check_sqli_login/check_bruteforce POST to>,
+         "user_field": <guessed username input name or None>,
+         "pass_field": <password input name>}
+
+    or None if nothing password-shaped was found on any page checked
+    (network errors on individual candidate pages are swallowed, same
+    convention as every check_* function - one dead path must not fail the
+    whole detection attempt). Callers are responsible for calling this only
+    after the user has confirmed authorization - it makes real HTTP
+    requests to `base_url` and a handful of same-origin candidate pages,
+    same as any other check in this module, and must never run before that
+    confirmation (see scan_routes.new_scan_advanced_detect)."""
+    session = session or requests
+    candidates = [base_url]
+    for path in ("/login", "/signin", "/account/login", "/user/login", *extra_paths):
+        candidates.append(urljoin(base_url + "/", path.lstrip("/")))
+
+    checked = set()
+    for url in candidates:
+        if url in checked:
+            continue
+        checked.add(url)
+        try:
+            r = session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        except requests.RequestException:
+            continue
+        if r.status_code >= 400:
+            continue
+
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        # Same-origin links matching AUTH_LIKE_PATH_HINTS, checked once
+        # only from the very first page (base_url) so this stays bounded -
+        # a login link one hop away from the homepage is the common case.
+        if url == base_url:
+            origin = urlparse(base_url).netloc
+            for a in soup.find_all("a", href=True):
+                abs_url = urljoin(base_url + "/", a["href"])
+                p = urlparse(abs_url)
+                if p.netloc == origin and any(h in p.path.lower() for h in AUTH_LIKE_PATH_HINTS):
+                    if abs_url not in candidates:
+                        candidates.append(abs_url)
+
+        for f in soup.find_all("form"):
+            password_inputs = [
+                i.get("name") for i in f.find_all("input", {"type": "password"}) if i.get("name")
+            ]
+            if not password_inputs:
+                continue
+            inputs = [i.get("name") for i in f.find_all(["input", "textarea"]) if i.get("name")]
+            action = urljoin(url + "/", f.get("action") or "")
+            user_field, pass_field = _guess_login_fields(
+                {"inputs": inputs, "password_inputs": password_inputs}
+            )
+            if pass_field:
+                # login_url must be the form's POST *target* (its action),
+                # not the page it was found on - check_sqli_login/
+                # check_bruteforce both POST straight to this value.
+                return {"login_url": action, "user_field": user_field, "pass_field": pass_field}
+
+    return None
+
+
 def _inject_param(url, param, value):
     parsed = urlparse(url)
     qs = parse_qs(parsed.query)

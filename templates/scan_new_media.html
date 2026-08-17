@@ -1,44 +1,52 @@
 {% extends "base.html" %}
-{% block title %}Media discovery - WebVulnScanner{% endblock %}
+{% block title %}Media Scan - WebVulnScanner{% endblock %}
 {% block head %}
 {% include "_scan_form_styles.html" %}
 {% endblock %}
 {% block content %}
 <div class="wrap">
-  <a class="back" href="{{ url_for('scan.new_scan') }}">&larr; All scan types</a>
+  {% set wizard_step = 3 %}
+  {% include "_scan_wizard_stepper.html" %}
+
+  <a class="back" href="{{ url_for('scan.new_scan_type', target=prefill_target) }}">&larr; Change scan type</a>
   <div class="section-title" style="margin-top:14px;">
-    <h1 style="margin:0;">Media discovery</h1>
-    <span class="pill {{ 'pass' if can_run_media else 'medium' }}">
-      {{ 'Paid unlocked' if can_run_media else 'Requires Paid' }}
-    </span>
+    <h1 style="margin:0;">Media Scan</h1>
+    <span class="pill {{ 'pass' if availability.unlocked else 'medium' }}">{{ availability.label }}</span>
   </div>
-  <p class="sub">Same-origin crawl for images/video, EXIF/GPS leakage, suspicious-path detection,
-  optional download to disk. Runs in the background - you'll be redirected to a live progress page.</p>
+  <p class="sub">Looks through your site's images and videos for hidden location data (GPS saved
+  inside a photo) and files that ended up public by accident. Runs in the background - you'll be
+  redirected to a live progress page.</p>
 
   {% if error %}
   <div class="error-box">{{ error }}</div>
   {% endif %}
 
+  {% if availability.unlocked %}
   <div class="card">
-    {% if can_run_media %}
     <div class="warn-box" style="margin-top:0;">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
       <div><b>Authorized use only.</b> Only scan domains you own or have explicit permission to test.</div>
     </div>
 
-    <form method="POST" action="{{ url_for('scan.new_scan_media') }}">
+    <div class="wizard-summary">
+      <div class="wizard-summary-row"><span>Target</span><strong>{{ prefill_target or '—' }}</strong></div>
+      <div class="wizard-summary-row"><span>Scan type</span><strong>Media Scan</strong></div>
+    </div>
+
+    <form method="POST" action="{{ url_for('scan.new_scan_media') }}" id="scanForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-      <label for="media_target">Target domain</label>
-      <input type="text" id="media_target" name="media_target" placeholder="www.example.com" required>
+      <label for="media_target">Website address</label>
+      <input type="text" id="media_target" name="media_target" placeholder="www.example.com" value="{{ prefill_target }}" required>
 
-      <label for="media_max_files">Max files to download (0-50, only used if download is checked)</label>
-      <input type="text" id="media_max_files" name="media_max_files" placeholder="20" value="20">
+      <label for="media_max_files">How many files to save a copy of (0-50)</label>
+      <input type="text" id="media_max_files" name="media_max_files" placeholder="20" value="{{ request.form.get('media_max_files', '20') }}">
+      <div class="hint">Only used if you tick "Also save a copy" below.</div>
 
       <div class="check-row">
-        <input type="checkbox" id="media_download" name="media_download">
+        <input type="checkbox" id="media_download" name="media_download" {% if request.form.get('media_download') %}checked{% endif %}>
         <label for="media_download" style="margin:0; font-weight:500;">
-          Also download found media to disk (saved under <code>downloads/</code>)
+          Also save a copy of what's found (stored on the server under <code>downloads/</code>)
         </label>
       </div>
 
@@ -49,20 +57,34 @@
         </label>
       </div>
 
-      <button type="submit">Run media scan</button>
+      <button type="submit" id="scanSubmit">Start Scan</button>
     </form>
+  </div>
 
-    {% else %}
+  {% else %}
+  <div class="card">
     <div class="locked-state">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-      <h2 style="margin:0 0 4px; font-size:16px;">Requires the Paid plan or higher</h2>
-      <p>Media discovery crawls multiple pages and optionally downloads files - an active check
-      that needs a Paid plan to unlock.</p>
+      <h2 style="margin:0 0 4px; font-size:16px;">{{ availability.label }}</h2>
+      <p>Media scanning crawls multiple pages and optionally saves files - an active check that
+      needs a Paid plan to unlock.</p>
       <div class="locked-actions">
-        <a class="btn primary" href="{{ url_for('billing.view') }}">Upgrade to Paid</a>
+        <a class="btn primary" href="{{ url_for('billing.view') }}">Upgrade to Unlock</a>
       </div>
     </div>
-    {% endif %}
   </div>
+  {% endif %}
 </div>
+{% if availability.unlocked %}
+<script>
+  var scanForm = document.getElementById('scanForm');
+  var scanSubmit = document.getElementById('scanSubmit');
+  if (scanForm && scanSubmit) {
+    scanForm.addEventListener('submit', function () {
+      scanSubmit.disabled = true;
+      scanSubmit.textContent = 'Starting scan...';
+    });
+  }
+</script>
+{% endif %}
 {% endblock %}

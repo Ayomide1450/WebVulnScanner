@@ -44,6 +44,27 @@ this phase is presentation/flow only, routing through the exact same
   `can_run_paid`/`can_run_org_verified`/`can_run_media`/`can_run_api` flags `_tier_flags()` already
   computes plus a per-target `domain_is_org_verified()` check to decide which destination applies.
 
+### Wizard scope — Advanced's intake form (supersedes D-02's "as-is" clause)
+- **D-02a (2026-08-17):** D-02's decision that Advanced routes into its own dedicated Step-3 form
+  still stands. What's superseded is the *shape* of that form: it no longer starts with all 16 raw
+  credential fields exposed. Instead it opens as **URL-first** (one target field + the
+  `authorized_adv` checkbox), and only after authorization is confirmed does the page call
+  `POST /scan/new/advanced/detect` (new route) to auto-crawl the target and pre-fill the
+  login-bypass group's `login_url`/`login_user_field`/`login_pass_field` where a login form can be
+  found (`checks.detect_login_form()`). All four check groups render as collapsed
+  `<details>` cards with plain-language, non-jargon headings and field-level micro-copy (how to get
+  a session cookie from DevTools, etc.); the login group auto-expands when detection finds a match.
+  Field **names** (`login_url`, `login_user_field`, ... all 16) are unchanged — `_parse_advanced_form`,
+  the four `has_*_group` predicates, and every server-side gate are byte-identical to before this
+  change; only the template's presentation and one new read-only detection endpoint were added.
+  — **Reversibility:** moderate — the detect endpoint and progressive-disclosure markup can be
+  removed without touching engine/gating code, but the plain-language copy would need rewriting
+  back to the old technical labels.
+- Rationale: 05-02-PLAN.md's original acceptance criteria (`grep -c "request.form.get('" ... 16`,
+  full field-by-field redisplay) were written for the raw-form shape and needed updating to match;
+  the field-repopulation *behavior* they were protecting (never silently blank a validation-error
+  redisplay) is preserved and still tested in `tests/test_scan_wizard.py`.
+
 ### Post-launch / View Report reachability
 - **D-04:** Extend the existing auto-redirect-on-completion behavior to scan types that don't have
   a live SSE feed. Base scans already redirect `scan_detail` → `scan_report` via the SSE `status

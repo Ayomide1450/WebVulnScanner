@@ -335,3 +335,368 @@ def test_step3_unsafe_target_creates_zero_scans(client, db):
     )
     assert resp.status_code == 200
     assert Scan.query.count() == 0
+
+
+# --------------------------------------------------------------------------
+# Step 3 deviation - Advanced Smart Setup (URL-first intake + auto-detect)
+# --------------------------------------------------------------------------
+
+def test_advanced_get_renders_stepper_and_prefill(client, db, monkeypatch):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.ORG_VERIFIED)
+    make_user("adv1@example.com", org=org)
+    _verify_domain(org, "example.com")
+    login(client, "adv1@example.com")
+    resp = client.get("/scan/new/advanced", query_string={"target": "https://example.com"})
+    body = resp.data.decode()
+    assert resp.status_code == 200
+    for label in ("Select Domain", "Select Type", "Confirm Authorization", "Start Scan"):
+        assert label in body
+    assert "https://example.com" in body
+    assert ">Included<" in body
+
+
+def test_advanced_free_tier_locked_no_authorized_field(client, db):
+    org = make_org(plan=Plan.FREE)
+    make_user("adv2@example.com", org=org)
+    login(client, "adv2@example.com")
+    resp = client.get("/scan/new/advanced")
+    body = resp.data.decode()
+    assert "Upgrade to Unlock" in body
+    assert 'name="authorized_adv"' not in body
+
+
+def test_advanced_org_verified_no_verified_domain_shows_requires_verified_pill(client, db, monkeypatch):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.ORG_VERIFIED)
+    make_user("adv3@example.com", org=org)
+    login(client, "adv3@example.com")
+    resp = client.get("/scan/new/advanced", query_string={"target": "https://example.com"})
+    body = resp.data.decode()
+    assert "Requires Verified Domain" in body
+    assert "Upgrade to Unlock" in body
+
+
+def test_advanced_post_partial_fill_still_launches_backstop(client, db, monkeypatch, spawned):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.ORG_VERIFIED)
+    make_user("adv4@example.com", org=org)
+    _verify_domain(org, "example.com")
+    login(client, "adv4@example.com")
+    resp = client.post(
+        "/scan/new/advanced",
+        data={
+            "target": "https://example.com",
+            "authorized_adv": "on",
+            "login_url": "https://example.com/login",
+            "login_user_field": "username",
+            "login_pass_field": "password",
+            "login_fail_text": "Invalid",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert Scan.query.count() == 1
+    assert Scan.query.first().scan_type == "advanced"
+
+
+def test_advanced_post_no_group_filled_preserves_typed_value(client, db, monkeypatch):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.ORG_VERIFIED)
+    make_user("adv5@example.com", org=org)
+    _verify_domain(org, "example.com")
+    login(client, "adv5@example.com")
+    resp = client.post(
+        "/scan/new/advanced",
+        data={
+            "target": "https://example.com",
+            "authorized_adv": "on",
+            "login_url": "https://kept.example.com/login",
+        },
+        follow_redirects=False,
+    )
+    body = resp.data.decode()
+    assert resp.status_code == 200
+    assert "at least one advanced check group" in body
+    assert "https://kept.example.com/login" in body
+    assert Scan.query.count() == 0
+
+
+def test_advanced_post_no_authorized_creates_zero_scans(client, db, monkeypatch):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.ORG_VERIFIED)
+    make_user("adv6@example.com", org=org)
+    _verify_domain(org, "example.com")
+    login(client, "adv6@example.com")
+    resp = client.post(
+        "/scan/new/advanced",
+        data={"target": "https://example.com", "login_url": "https://example.com/login"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200
+    assert Scan.query.count() == 0
+
+
+def test_advanced_target_is_html_escaped(client, db, monkeypatch):
+    org = make_org(plan=Plan.ORG_VERIFIED)
+    make_user("adv7@example.com", org=org)
+    login(client, "adv7@example.com")
+    resp = client.get(
+        "/scan/new/advanced",
+        query_string={"target": '"><script>alert(1)</script>'},
+    )
+    assert b"<script>alert" not in resp.data
+
+
+# --------------------------------------------------------------------------
+# Smart Setup detect endpoint (/scan/new/advanced/detect) - UX aid only,
+# never a gate: it must refuse to run before authorization is confirmed and
+# must never create a Scan row or run any check itself.
+# --------------------------------------------------------------------------
+
+def test_detect_requires_login(client, db):
+    resp = client.post("/scan/new/advanced/detect", data={"target": "https://example.com"})
+    assert resp.status_code in (302, 401)
+
+
+def test_detect_without_authorized_adv_refuses_and_never_crawls(client, db, monkeypatch):
+    org = make_org(plan=Plan.ORG_VERIFIED)
+    make_user("det1@example.com", org=org)
+    login(client, "det1@example.com")
+
+    called = []
+    monkeypatch.setattr(
+        "webvulnscanner.scan_routes.detect_login_form",
+        lambda *a, **kw: called.append((a, kw)) or None,
+    )
+    resp = client.post("/scan/new/advanced/detect", data={"target": "https://example.com"})
+    assert resp.status_code == 400
+    assert called == []  # the crawl must never fire before authorization is confirmed
+
+
+def test_detect_unsafe_target_refuses_and_never_crawls(client, db, monkeypatch):
+    org = make_org(plan=Plan.ORG_VERIFIED)
+    make_user("det2@example.com", org=org)
+    login(client, "det2@example.com")
+
+    called = []
+    monkeypatch.setattr(
+        "webvulnscanner.scan_routes.detect_login_form",
+        lambda *a, **kw: called.append((a, kw)) or None,
+    )
+    resp = client.post(
+        "/scan/new/advanced/detect",
+        data={"target": "http://127.0.0.1", "authorized_adv": "on"},
+    )
+    assert resp.status_code == 400
+    assert called == []
+
+
+def test_detect_found_returns_login_fields_json(client, db, monkeypatch):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.ORG_VERIFIED)
+    make_user("det3@example.com", org=org)
+    login(client, "det3@example.com")
+
+    monkeypatch.setattr(
+        "webvulnscanner.scan_routes.detect_login_form",
+        lambda *a, **kw: {
+            "login_url": "https://example.com/session",
+            "user_field": "email",
+            "pass_field": "password",
+        },
+    )
+    resp = client.post(
+        "/scan/new/advanced/detect",
+        data={"target": "https://example.com", "authorized_adv": "on"},
+    )
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    assert payload["found"] is True
+    assert payload["login_url"] == "https://example.com/session"
+    assert payload["user_field"] == "email"
+    assert payload["pass_field"] == "password"
+
+
+def test_detect_not_found_returns_found_false(client, db, monkeypatch):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.ORG_VERIFIED)
+    make_user("det4@example.com", org=org)
+    login(client, "det4@example.com")
+
+    monkeypatch.setattr("webvulnscanner.scan_routes.detect_login_form", lambda *a, **kw: None)
+    resp = client.post(
+        "/scan/new/advanced/detect",
+        data={"target": "https://example.com", "authorized_adv": "on"},
+    )
+    assert resp.status_code == 200
+    assert resp.get_json() == {"found": False}
+
+
+def test_detect_creates_zero_scan_rows(client, db, monkeypatch):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.ORG_VERIFIED)
+    make_user("det5@example.com", org=org)
+    login(client, "det5@example.com")
+
+    monkeypatch.setattr(
+        "webvulnscanner.scan_routes.detect_login_form",
+        lambda *a, **kw: {"login_url": "https://example.com/login", "user_field": "u", "pass_field": "p"},
+    )
+    client.post(
+        "/scan/new/advanced/detect",
+        data={"target": "https://example.com", "authorized_adv": "on"},
+    )
+    assert Scan.query.count() == 0
+
+
+# --------------------------------------------------------------------------
+# Step 3 - Media and API scans (05-02 Task 1)
+# --------------------------------------------------------------------------
+
+def test_media_get_prefills_target_and_shows_included_pill(client, db, monkeypatch):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.PAID)
+    make_user("med1@example.com", org=org)
+    login(client, "med1@example.com")
+    resp = client.get("/scan/new/media", query_string={"target": "https://example.com"})
+    body = resp.data.decode()
+    assert resp.status_code == 200
+    assert "https://example.com" in body
+    assert ">Included<" in body
+    for label in ("Select Domain", "Select Type", "Confirm Authorization", "Start Scan"):
+        assert label in body
+
+
+def test_api_get_prefills_target_and_shows_included_pill(client, db, monkeypatch):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.PAID)
+    make_user("api1@example.com", org=org)
+    login(client, "api1@example.com")
+    resp = client.get("/scan/new/api", query_string={"target": "https://example.com"})
+    body = resp.data.decode()
+    assert resp.status_code == 200
+    assert "https://example.com" in body
+    assert ">Included<" in body
+
+
+def test_media_free_tier_locked_shows_upgrade(client, db):
+    org = make_org(plan=Plan.FREE)
+    make_user("med2@example.com", org=org)
+    login(client, "med2@example.com")
+    resp = client.get("/scan/new/media")
+    body = resp.data.decode()
+    assert "Requires Paid Plan" in body
+    assert "Upgrade to Unlock" in body
+
+
+def test_api_free_tier_locked_shows_upgrade(client, db):
+    org = make_org(plan=Plan.FREE)
+    make_user("api2@example.com", org=org)
+    login(client, "api2@example.com")
+    resp = client.get("/scan/new/api")
+    body = resp.data.decode()
+    assert "Requires Paid Plan" in body
+    assert "Upgrade to Unlock" in body
+
+
+def test_media_post_missing_authorized_preserves_typed_target(client, db, monkeypatch):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.PAID)
+    make_user("med3@example.com", org=org)
+    login(client, "med3@example.com")
+    resp = client.post("/scan/new/media", data={"media_target": "keepme.example.com"})
+    body = resp.data.decode()
+    assert resp.status_code == 200
+    assert "keepme.example.com" in body
+    assert Scan.query.count() == 0
+
+
+def test_api_post_missing_authorized_preserves_typed_target(client, db, monkeypatch):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.PAID)
+    make_user("api3@example.com", org=org)
+    login(client, "api3@example.com")
+    resp = client.post("/scan/new/api", data={"api_target": "keepme.example.com"})
+    body = resp.data.decode()
+    assert resp.status_code == 200
+    assert "keepme.example.com" in body
+    assert Scan.query.count() == 0
+
+
+def test_media_free_tier_complete_post_creates_zero_scans(client, db, monkeypatch, spawned):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.FREE)
+    make_user("med4@example.com", org=org)
+    login(client, "med4@example.com")
+    resp = client.post(
+        "/scan/new/media",
+        data={"media_target": "example.com", "authorized_media": "on"},
+    )
+    assert resp.status_code == 200
+    assert Scan.query.count() == 0
+
+
+def test_api_free_tier_complete_post_creates_zero_scans(client, db, monkeypatch, spawned):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.FREE)
+    make_user("api4@example.com", org=org)
+    login(client, "api4@example.com")
+    resp = client.post(
+        "/scan/new/api",
+        data={"api_target": "example.com", "authorized_api": "on"},
+    )
+    assert resp.status_code == 200
+    assert Scan.query.count() == 0
+
+
+def test_media_paid_tier_complete_post_creates_scan_and_redirects(client, db, monkeypatch, spawned):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.PAID)
+    make_user("med5@example.com", org=org)
+    login(client, "med5@example.com")
+    resp = client.post(
+        "/scan/new/media",
+        data={"media_target": "example.com", "authorized_media": "on"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert Scan.query.count() == 1
+    assert Scan.query.first().scan_type == "media"
+
+
+def test_api_paid_tier_complete_post_creates_scan_and_redirects(client, db, monkeypatch, spawned):
+    _public_dns(monkeypatch)
+    org = make_org(plan=Plan.PAID)
+    make_user("api5@example.com", org=org)
+    login(client, "api5@example.com")
+    resp = client.post(
+        "/scan/new/api",
+        data={"api_target": "example.com", "authorized_api": "on"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert Scan.query.count() == 1
+    assert Scan.query.first().scan_type == "api"
+
+
+def test_media_target_is_html_escaped(client, db):
+    org = make_org(plan=Plan.PAID)
+    make_user("med6@example.com", org=org)
+    login(client, "med6@example.com")
+    resp = client.get(
+        "/scan/new/media",
+        query_string={"target": '"><script>alert(1)</script>'},
+    )
+    assert b"<script>alert" not in resp.data
+
+
+def test_api_target_is_html_escaped(client, db):
+    org = make_org(plan=Plan.PAID)
+    make_user("api6@example.com", org=org)
+    login(client, "api6@example.com")
+    resp = client.get(
+        "/scan/new/api",
+        query_string={"target": '"><script>alert(1)</script>'},
+    )
+    assert b"<script>alert" not in resp.data
