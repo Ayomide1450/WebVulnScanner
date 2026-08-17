@@ -283,7 +283,25 @@ unconsolidated.
 
   4. Dashboard, form, and report page container/content max-widths are consistent — no page
      reads as unintentionally cramped or overly stretched relative to its siblings.
-**Plans**: TBD
+**Plans**: 0/4 plans executed
+
+Plans:
+**Wave 1**
+
+- [ ] 06-01-PLAN.md — Foundation: base.html design-token/canon authoring, proven end-to-end via the
+      auth partial, plus the other two form partials and the legal partial (DESIGN-01/02/03/04)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 06-02-PLAN.md — Marketing, legal, and auth pages (DESIGN-01/02/03/04)
+- [ ] 06-03-PLAN.md — Logged-in app pages: dashboard/billing/org-admin/platform-admin/assets/
+      api-tokens plus the three error pages (DESIGN-01/02/03/04)
+- [ ] 06-04-PLAN.md — Scan-flow pages: the New Scan wizard, scan-progress, scan-report, scan-compare
+      (DESIGN-01/02/03/04)
+
+**Execution waves**: wave 1 = 06-01 (establishes base.html tokens + all shared partials); wave 2 =
+06-02/06-03/06-04, all depending only on 06-01 and touching disjoint template sets, so they run in
+parallel.
 
 **UI hint**: yes
 
@@ -404,7 +422,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3. Compliance & Framework Reporting | v1.0 | 3/3 | Complete | 2026-08-11 |
 | 4. Production Hardening & Reliability | v1.0 | 5/5 | Complete | 2026-08-13 |
 | 5. New Scan Flow Redesign | v1.1 | 1/3 | In Progress|  |
-| 6. Design System Consistency | v1.1 | 0/TBD | Not started | - |
+| 6. Design System Consistency | v1.1 | 0/4 | Not started | - |
 | 7. Responsive & Accessibility Compliance | v1.1 | 0/TBD | Not started | - |
 | 8. Security Re-Audit & Hardening | v1.1 | 0/TBD | Not started | - |
 | 9. SEO, Performance & UX States | v1.1 | 0/TBD | Not started | - |
