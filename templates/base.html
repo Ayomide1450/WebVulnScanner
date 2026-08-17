@@ -24,7 +24,20 @@
        green on completion. */
     --telemetry: #38bdf8; --telemetry2: #0ea5e9; --telemetry-dim: rgba(56,189,248,.14);
     --radius: 12px; --radius-lg: 18px;
+    /* --radius-sm/--radius-md promote already-pervasive hardcoded 10px/16px
+       literals to real tokens (DESIGN-03) - --radius/--radius-lg above are
+       unchanged existing tokens. */
+    --radius-sm: 10px;
+    --radius-md: 16px;
     --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px; --space-7:48px;
+    --space-8: 64px;
+    /* Purpose-based container widths (DESIGN-04, 06-CONTEXT.md D-02) - every
+       page's outer content wrapper must consume one of these four, never a
+       page-local one-off max-width. */
+    --container-auth: 440px;
+    --container-form: 760px;
+    --container-app: 1040px;
+    --container-marketing: 1180px;
   }
 
   * { box-sizing: border-box; }
@@ -32,7 +45,7 @@
   body {
     margin:0;
     font-family: "Fira Sans", -apple-system, "Segoe UI", Arial, sans-serif;
-    font-size: 16px; line-height: 1.5;
+    font-size: 15px; line-height: 1.6;
     background:
       radial-gradient(900px 480px at 85% -8%, rgba(34,197,94,.10), transparent 60%),
       radial-gradient(700px 420px at 0% 0%, rgba(59,130,246,.06), transparent 55%),
@@ -48,7 +61,7 @@
     display: flex;
     flex-direction: column;
   }
-  h1, h2, h3, h4 { font-family: "Fira Sans", sans-serif; letter-spacing: -0.015em; font-weight: 700; margin: 0 0 var(--space-2); }
+  h1, h2, h3, h4 { font-family: "Fira Sans", sans-serif; font-weight: 600; margin: 0 0 var(--space-2); }
   code, pre, .mono { font-family: "Fira Code", "SFMono-Regular", Consolas, Menlo, monospace; }
   a { color: var(--accent); }
   ::selection { background: var(--accent-dim); color: var(--text); }
@@ -56,16 +69,19 @@
 
   /* Buttons */
   .btn { display:inline-flex; align-items:center; gap:8px; cursor:pointer; text-decoration:none;
-    padding: 11px 20px; border-radius: 10px; font-weight:600; font-size:14.5px; border:1px solid transparent;
+    padding: 11px 20px; border-radius: 10px; font-weight:600; font-size:14px; border:1px solid transparent;
     transition: transform 150ms ease, filter 150ms ease, background 150ms ease; }
   .btn:hover { filter: brightness(1.08); }
   .btn:active { transform: translateY(1px); }
   .btn.primary { background: var(--accent); color: #041007; }
   .btn.secondary { border-color: var(--border); color: var(--text); background: var(--panel); }
   .btn.ghost { color: var(--muted); background: transparent; }
+  .btn.destructive { background: rgba(248,113,113,.09); border: 1px solid rgba(248,113,113,.35); color: var(--critical); }
+  .btn.block { width: 100%; justify-content: center; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
 
   /* Badges / pills / severity tokens */
-  .pill { display:inline-block; font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
+  .pill { display:inline-block; font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
   .pill.critical, .badge.critical, .dot.critical { background: rgba(248,113,113,.14); color: var(--critical); }
   .pill.high, .badge.high, .dot.high { background: rgba(251,146,60,.14); color: var(--high); }
   .pill.medium, .badge.medium, .dot.medium { background: rgba(251,191,36,.14); color: var(--medium); }
@@ -81,7 +97,7 @@
      dashboard.html's "Your scans" table and org_admin.html's "Org scan
      history" table so the same Scan.status field renders identically on
      both pages. */
-  .status-pill { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
+  .status-pill { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
   .status-pill.completed { background: rgba(34,197,94,.14); color: var(--accent); }
   .status-pill.running, .status-pill.queued { background: rgba(56,189,248,.14); color: var(--telemetry); }
   .status-pill.failed { background: rgba(248,113,113,.14); color: var(--critical); }
@@ -106,7 +122,7 @@
   .finding.medium { border-left-color: var(--medium); }
   .finding.low { border-left-color: var(--low); }
   .finding.info { border-left-color: var(--info); }
-  .finding .badge { flex-shrink:0; font-size:10.5px; font-weight:800; padding: 3px 9px; border-radius: 6px; text-transform: uppercase; letter-spacing:.04em; height: fit-content; }
+  .finding .badge { flex-shrink:0; font-size:11px; font-weight:600; padding: 3px 9px; border-radius: 6px; text-transform: uppercase; letter-spacing:.04em; height: fit-content; }
   /* .finding is a flex row, so any direct-child span without its own
      height override stretches to the row's full height (flex default
      align-items:stretch) - .badge already accounted for this, but
@@ -114,9 +130,9 @@
      border-radius:999px on a stretched multi-line-tall box rendered as a
      huge oval blob instead of a small pill. */
   .finding .pill.compliance { flex-shrink:0; height: fit-content; }
-  .finding .body b { font-size: 14px; }
+  .finding .body b { font-size: 14px; font-weight: 600; }
   .finding .cat { flex-shrink:0; height: fit-content; color: var(--muted); font-size: 11px; text-transform:uppercase; letter-spacing:.06em; font-family:"Fira Code",monospace; }
-  .finding .detail { font-size: 13.5px; color: var(--muted); margin-top: 4px; }
+  .finding .detail { font-size: 13px; color: var(--muted); margin-top: 4px; }
   .finding .rec { font-size: 13px; margin-top: 6px; }
   .finding .rec b { color: var(--accent); font-weight: 700; }
 
@@ -127,15 +143,15 @@
   .gauge-bg { fill:none; stroke: rgba(255,255,255,.06); stroke-width: 10; }
   .gauge-fg { fill:none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 1s ease; filter: drop-shadow(0 0 6px currentColor); }
   .gauge-num { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-  .gauge-num .n { font-size: 26px; font-weight: 800; font-family:"Fira Code",monospace; }
+  .gauge-num .n { font-size: 26px; font-weight: 600; font-family:"Fira Code",monospace; }
   .gauge-num .g { font-size: 11px; color: var(--muted); }
 
   .icon { width:18px; height:18px; flex-shrink:0; stroke: currentColor; fill:none; stroke-width:1.8; vertical-align:-3px; }
 
-  .warn-box { display:flex; gap:12px; align-items:flex-start; background: rgba(251,191,36,.07); border: 1px solid rgba(251,191,36,.3); padding: var(--space-4); border-radius: var(--radius); font-size: 13.5px; margin-bottom: var(--space-5); color: var(--text); }
+  .warn-box { display:flex; gap:12px; align-items:flex-start; background: rgba(251,191,36,.07); border: 1px solid rgba(251,191,36,.3); padding: var(--space-4); border-radius: var(--radius); font-size: 15px; margin-bottom: var(--space-5); color: var(--text); }
   .warn-box .icon { color: var(--medium); margin-top:2px; }
-  .error-box { background: rgba(248,113,113,.09); border: 1px solid rgba(248,113,113,.35); padding: var(--space-3) var(--space-4); border-radius: var(--radius); margin-bottom: var(--space-4); color: var(--critical); font-size: 14px; }
-  .info-box { background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.3); padding: var(--space-3) var(--space-4); border-radius: var(--radius); margin-bottom: var(--space-4); color: var(--text); font-size: 14px; }
+  .error-box { background: rgba(248,113,113,.09); border: 1px solid rgba(248,113,113,.35); padding: var(--space-3) var(--space-4); border-radius: var(--radius); margin-bottom: var(--space-4); color: var(--critical); font-size: 15px; }
+  .info-box { background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.3); padding: var(--space-3) var(--space-4); border-radius: var(--radius); margin-bottom: var(--space-4); color: var(--text); font-size: 15px; }
 
   /* .card's canonical definition - every template that uses this class
      already locally overrode it to this exact gradient/16px-radius shape
@@ -146,15 +162,18 @@
      actually relying on the old flat/no-margin version, and those pages
      override padding/margin inline anyway (inline styles always win), so
      this change is visually inert there and a small consistency win. */
-  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 18px; }
+  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 22px; margin-bottom: 18px; }
 
   /* Shared page-title rules, promoted from four near-identical local
      overrides (dashboard/billing/org_admin/org_verify_domain) - same
      reasoning as .card above. dashboard.html keeps a 2-line local
      override for its extra top margin rather than this changing for
      everyone. */
-  h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.01em; }
-  h2.section { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin: 32px 0 12px; }
+  h1 { font-size: 28px; line-height: 1.2; letter-spacing: -0.01em; margin: 0 0 6px; }
+  h2 { font-size: 20px; line-height: 1.25; letter-spacing: -0.01em; }
+  h3 { font-size: 16px; line-height: 1.3; letter-spacing: -0.01em; }
+  h4 { font-size: 14px; line-height: 1.35; letter-spacing: normal; }
+  h2.section { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; line-height: 1.4; margin: 32px 0 12px; }
   table { width:100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align:left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
   table tbody tr:hover td { background: rgba(255,255,255,.025); }
@@ -199,7 +218,7 @@
   .telemetry-dot.done { background: var(--accent); box-shadow: 0 0 6px var(--accent); color: var(--accent); animation: none; }
   .telemetry-dot.failed { background: var(--critical); box-shadow: 0 0 6px var(--critical); color: var(--critical); animation: none; }
 
-  a.back { color: var(--accent); text-decoration:none; font-size: 13.5px; font-weight:600; }
+  a.back { color: var(--accent); text-decoration:none; font-size: 13px; font-weight:600; }
   a.back:hover { text-decoration:underline; }
 
   /* Top nav */
@@ -209,8 +228,8 @@
      distance is set explicitly via .nav-links margin-left instead, since
      16px read as tighter than the 22px between individual nav-links items
      themselves (the brand looked like part of the menu, not separate). */
-  .topnav { max-width: 1040px; margin: 0 auto; padding: 20px 20px 0; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
-  .topnav .brand-link { color: var(--text); text-decoration:none; font-weight:700; font-size:16px; display:flex; align-items:center; gap:9px; }
+  .topnav { max-width: var(--container-app); margin: 0 auto; padding: 20px 20px 0; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+  .topnav .brand-link { color: var(--text); text-decoration:none; font-weight:600; font-size:16px; display:flex; align-items:center; gap:9px; }
   .topnav .brand-link .icon { color: var(--accent); width:22px; height:22px; }
   /* margin-left guarantees a floor on the brand-to-menu distance -
      justify-content:space-between alone wasn't enough: with this many nav
@@ -219,7 +238,7 @@
      between individual links and reading like the brand was part of the
      menu rather than a separate element. */
   .topnav .nav-links { display:flex; gap:22px; align-items:center; flex-wrap:wrap; margin-left: 28px; }
-  .topnav .nav-links a { color: var(--muted); text-decoration:none; font-size: 13.5px; font-weight:600; transition: color 150ms ease; }
+  .topnav .nav-links a { color: var(--muted); text-decoration:none; font-size: 13px; font-weight:600; transition: color 150ms ease; }
   .topnav .nav-links a:hover { color: var(--text); }
   .topnav .nav-links a.cta-link { color: var(--accent); }
   /* Logout is functionally distinct from the primary nav (destructive/
@@ -236,10 +255,10 @@
     .topnav .nav-links { margin-left: 0; margin-top: 6px; }
   }
 
-  .wrap { max-width: 1040px; margin: 0 auto; padding: var(--space-6) 20px 90px; }
+  .wrap { max-width: var(--container-app); margin: 0 auto; padding: var(--space-6) 20px calc(var(--space-7) * 2); }
 
   .site-footer { border-top: 1px solid var(--border); margin-top: auto; }
-  .footer-inner { max-width: 1040px; margin: 0 auto; padding: 20px; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; color: var(--muted); font-size: 12.5px; }
+  .footer-inner { max-width: var(--container-app); margin: 0 auto; padding: 20px; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; color: var(--muted); font-size: 13px; }
   .footer-inner a { color: var(--muted); text-decoration:none; }
   .footer-inner a:hover { color: var(--text); }
 </style>
