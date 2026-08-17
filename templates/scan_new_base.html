@@ -38,18 +38,12 @@
 
       <label for="target">Target domain(s)</label>
       <textarea id="target" name="target" placeholder="www.example.com" rows="3" required>{{ prefill_target }}</textarea>
-      <div class="hint">One domain per line (or comma-separated) to scan up to {{ max_bulk_targets }} targets at once,
-      e.g. <code>example.com</code> or <code>https://www.example.com</code>. Each target is still checked individually
-      for authorization/safety before it runs. Edit this to scan additional domains in the same run.
-      <b>Scanning one target?</b> You can paste a full page address with a search or ID in it right here
-      (e.g. <code>https://www.example.com/search?q=test</code>) and it doubles as the seed URL below automatically -
-      no need to fill in both boxes.</div>
+      <div class="hint">One per line to scan up to {{ max_bulk_targets }} at once, e.g. <code>example.com</code>.
+      Pasting a page address with <code>?...</code> in it also sets the seed URL below automatically.</div>
 
       <label for="test_url">Optional: a specific page to test instead</label>
       <input type="text" id="test_url" name="test_url" placeholder="https://www.example.com/search?q=test">
-      <div class="hint">Only needed if you want to test a <i>different</i> page than the one you typed above.
-      Left blank (and the target above has no <code>?...</code> in it), the scanner crawls your homepage itself
-      to find candidate links to test. Only applies when scanning a single target above.</div>
+      <div class="hint">Only needed to test a different page than the one above. Single target only.</div>
 
       {% if not can_run_paid or not can_run_org_verified %}
       <div class="hint" style="margin-top:14px;">

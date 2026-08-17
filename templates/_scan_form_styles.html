@@ -15,12 +15,17 @@
      to preserve the gap below .sub above the first card. */
   .card { margin-top: 20px; }
   label { display: block; margin-top: 18px; font-weight: 600; font-size: 13.5px; color: var(--text); }
-  input[type=text], select {
+  /* textarea explicitly included alongside input[type=text]/select - Chrome's
+     default UA stylesheet sets textarea { font-family: monospace }, which
+     otherwise makes the bulk-target textarea look like a visually different
+     control from every other input on the page (a real reported mismatch,
+     not intentional - both must render identically). */
+  input[type=text], select, textarea {
     width: 100%; padding: 12px 14px; margin-top: 7px; border: 1px solid var(--border);
-    border-radius: 10px; font-size: 14.5px; background: rgba(255,255,255,.03); color: var(--text);
-    outline: none;
+    border-radius: 10px; font-size: 14.5px; font-family: inherit; background: rgba(255,255,255,.03);
+    color: var(--text); outline: none;
   }
-  input[type=text]:focus, select:focus { border-color: var(--accent); background: rgba(34,197,94,.04); outline: none; }
+  input[type=text]:focus, select:focus, textarea:focus { border-color: var(--accent); background: rgba(34,197,94,.04); outline: none; }
   .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
   .check-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 22px; background: var(--accent-dim); border: 1px solid rgba(34,197,94,.3); padding: 13px 15px; border-radius: 12px; }
   .check-row input { margin-top: 3px; width:16px; height:16px; accent-color: var(--accent); }
