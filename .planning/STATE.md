@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Production Audit, Hardening & Redesign
-current_phase: 5
-current_phase_name: New Scan Flow Redesign
+current_phase: 6
+current_phase_name: Design System Consistency
 status: executing
-stopped_at: Phase 6 planned (4 plans, 2 waves), plan-checker PASS
-last_updated: "2026-08-17T20:41:14.737Z"
+stopped_at: "06-01-PLAN.md Tasks 1-2 complete; Task 3 (checkpoint:human-verify, gate=blocking) awaiting human confirmation of visual walkthrough"
+last_updated: "2026-08-17T21:41:51.898Z"
 last_activity: 2026-08-17
-last_activity_desc: Completed 05-01-PLAN.md (Select Domain -> Select Type -> Start Scan wizard)
+last_activity_desc: Completed 06-01-PLAN.md Tasks 1-2 (base.html design-token/canon foundation, proven via auth partial, fanned to scan/admin/legal partials)
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 7
-  completed_plans: 3
-  percent: 20
+  completed_plans: 4
+  percent: 57
 ---
 
 # Project State
@@ -25,17 +25,18 @@ See: .planning/PROJECT.md (updated 2026-08-15)
 
 **Core value:** Security engineers can trust WebVulnScanner to run safe, authorization-gated,
 non-destructive scans against their own infrastructure and get findings they can act on.
-**Current focus:** Phase 5 — New Scan Flow Redesign
+**Current focus:** Phase 6 — Design System Consistency
 
 ## Current Position
 
-Phase: 5 (New Scan Flow Redesign) — EXECUTING
-Plan: 2 of 3
-Status: Executing Phase 5 (05-01 complete, 05-02 next)
-Last activity: 2026-08-17 — Completed 05-01-PLAN.md (Select Domain -> Select Type -> Start Scan wizard)
-requirements mapped, 100% coverage
+Phase: 6 (Design System Consistency) — EXECUTING
+Plan: 1 of 4 (Wave 1 done; Wave 2 = 06-02/06-03/06-04, parallel, next)
+Status: 06-01 Tasks 1-2 complete and verified; Task 3 (checkpoint:human-verify, gate=blocking)
+awaiting human confirmation of the visual walkthrough
+Last activity: 2026-08-17 — Completed 06-01-PLAN.md (base.html design-token/canon foundation,
+proven end-to-end via the auth partial, fanned out to scan/admin/legal partials)
 
-Progress: [███░░░░░░░] 33%
+Progress: [██████░░░░] 57%
 
 ## Performance Metrics
 
@@ -62,6 +63,7 @@ Progress: [███░░░░░░░] 33%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 05 P01 | 15min | 3 tasks | 8 files |
+| Phase 6 P01 | 55min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -94,6 +96,8 @@ Recent decisions affecting current work:
 
 - [Phase ?]: 05-01: D-01/D-03 from 05-UI-SPEC.md implemented as specified — verified-domain dropdown org-scoped to DomainVerification rows, Upgrade-to-Unlock CTA routed by actual blocking gate (billing vs org.verify_domain_view).
 - [Phase ?]: 05-01: ?target= query parameter chosen as the wizard's cross-step state carrier (no server-side session state) — contract that 05-02's remaining scan-type Step-3 pages must follow.
+- [Phase ?]: 06-01: h2.section shrinks 15px->11px (Caption role) - it was the drifted outlier vs every other 11px uppercase eyebrow element, not the reverse
+- [Phase ?]: 06-01: Phase-4 HARD-05 lock test_admin_form_partial_untouched_by_this_phase rewritten to test_admin_form_partial_uses_canonical_button_treatment - Phase 6 intentionally supersedes that constraint
 
 ### Pending Todos
 
@@ -125,7 +129,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-17T20:41:14.684Z
-Stopped at: Phase 6 planned (4 plans, 2 waves), plan-checker PASS
-traceability updated — ready for `/gsd-plan-phase 5`
-Resume file: .planning/phases/06-design-system-consistency/06-01-PLAN.md
+Last session: 2026-08-17T21:41:51.833Z
+Stopped at: 06-01-PLAN.md Tasks 1-2 complete; Task 3 (checkpoint:human-verify, gate=blocking) awaiting human confirmation of visual walkthrough
+Resume file: .planning/phases/06-design-system-consistency/06-01-PLAN.md (Task 3 checkpoint, then Wave 2: 06-02/06-03/06-04)
