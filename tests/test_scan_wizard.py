@@ -700,3 +700,77 @@ def test_api_target_is_html_escaped(client, db):
         query_string={"target": '"><script>alert(1)</script>'},
     )
     assert b"<script>alert" not in resp.data
+
+
+# --------------------------------------------------------------------------
+# Step 3 - single Target box doubles as the seed URL when it has a query
+# string, so the user doesn't need to fill in both the Target and the
+# separate "seed URL" boxes for the common one-target case.
+# --------------------------------------------------------------------------
+
+def test_target_with_query_string_becomes_manual_test_url(client, db, monkeypatch, spawned):
+    _public_dns(monkeypatch)
+    org = make_org()
+    make_user("seed1@example.com", org=org)
+    login(client, "seed1@example.com")
+    resp = client.post(
+        "/scan/new/base",
+        data={"target": "https://example.com/search?q=test", "authorized": "on"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert len(spawned) == 1
+    assert spawned[0]["kwargs"]["manual_test_url"] == "https://example.com/search?q=test"
+    # target_url on the Scan row is still just the bare domain -
+    # normalize_target() strips the path/query for that field, same as
+    # ever; only the seed URL passed to the orchestrator carries it.
+    assert Scan.query.first().target_url == "https://example.com"
+
+
+def test_explicit_test_url_wins_over_query_string_in_target(client, db, monkeypatch, spawned):
+    _public_dns(monkeypatch)
+    org = make_org()
+    make_user("seed2@example.com", org=org)
+    login(client, "seed2@example.com")
+    resp = client.post(
+        "/scan/new/base",
+        data={
+            "target": "https://example.com/search?q=test",
+            "test_url": "https://example.com/other?id=1",
+            "authorized": "on",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert spawned[0]["kwargs"]["manual_test_url"] == "https://example.com/other?id=1"
+
+
+def test_query_string_target_not_applied_across_bulk_targets(client, db, monkeypatch, spawned):
+    _public_dns(monkeypatch)
+    org = make_org()
+    make_user("seed3@example.com", org=org)
+    login(client, "seed3@example.com")
+    resp = client.post(
+        "/scan/new/base",
+        data={
+            "target": "https://a.example.com/search?q=test\nhttps://b.example.com",
+            "authorized": "on",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert len(spawned) == 2
+    assert all(c["kwargs"]["manual_test_url"] is None for c in spawned)
+
+
+def test_target_query_string_still_checked_for_ssrf_safety(client, db):
+    org = make_org()
+    make_user("seed4@example.com", org=org)
+    login(client, "seed4@example.com")
+    resp = client.post(
+        "/scan/new/base",
+        data={"target": "http://127.0.0.1/search?q=test", "authorized": "on"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200
+    assert Scan.query.count() == 0

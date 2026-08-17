@@ -646,6 +646,17 @@ def new_scan_base():
         )
 
     manual_test_url = request.form.get("test_url", "").strip() or None
+    # If the user pasted one full URL-with-query-string directly into the
+    # Target box (e.g. https://www.example.com/search?q=test) instead of
+    # using the separate "seed URL" field below, treat that same value as
+    # the seed too - normalize_target() would otherwise silently discard
+    # the path/query and only scan the bare domain, throwing away exactly
+    # the query-string page the user was pointing at. Only applies to a
+    # single target (same rule the explicit test_url field already
+    # follows) and only when the user didn't also fill in test_url
+    # explicitly - an explicit seed URL always wins.
+    if not manual_test_url and len(raw_targets) == 1 and "?" in raw_targets[0]:
+        manual_test_url = raw_targets[0]
     if manual_test_url:
         unsafe = _unsafe_target_error(manual_test_url, org_id=current_user.org_id)
         if unsafe:
