@@ -5,14 +5,14 @@ milestone_name: Production Audit, Hardening & Redesign
 current_phase: 5
 current_phase_name: New Scan Flow Redesign
 status: executing
-stopped_at: Phase 6 UI-SPEC approved
-last_updated: "2026-08-17T19:52:24.918Z"
+stopped_at: Phase 6 planned (4 plans, 2 waves), plan-checker PASS
+last_updated: "2026-08-17T20:41:14.737Z"
 last_activity: 2026-08-17
 last_activity_desc: Completed 05-01-PLAN.md (Select Domain -> Select Type -> Start Scan wizard)
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 3
+  total_plans: 7
   completed_plans: 3
   percent: 20
 ---
@@ -125,7 +125,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-17T19:52:24.875Z
-Stopped at: Phase 6 UI-SPEC approved
+Last session: 2026-08-17T20:41:14.684Z
+Stopped at: Phase 6 planned (4 plans, 2 waves), plan-checker PASS
 traceability updated — ready for `/gsd-plan-phase 5`
-Resume file: .planning/phases/06-design-system-consistency/06-UI-SPEC.md
+Resume file: .planning/phases/06-design-system-consistency/06-01-PLAN.md
