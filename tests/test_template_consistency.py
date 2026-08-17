@@ -274,14 +274,17 @@ def test_billing_no_org_warning_uses_sprite_icon_not_emoji(client, db):
     assert '⚠' not in body
 
 
-def test_admin_form_partial_untouched_by_this_phase(client, db):
-    """Task 2 forbids editing the shared partial - a direct file read
-    guards against a future executor satisfying the button assertions by
-    editing the partial instead of the individual pages."""
+def test_admin_form_partial_uses_canonical_button_treatment():
+    """Phase 6 (DESIGN-03) supersedes the Phase-4 (HARD-05) lock this test used to enforce -
+    _admin_form_styles.html's bare gradient button{} override was itself divergent-component drift
+    Phase 6 exists to consolidate. This now asserts the partial matches the same solid-accent,
+    var(--accent)-based button treatment the other two form partials carry, with no gradient
+    anywhere in the file."""
     import pathlib
 
     partial = pathlib.Path("templates/_admin_form_styles.html").read_text(encoding="utf-8")
-    assert "button { margin-top: 16px; background: linear-gradient" in partial
+    assert "linear-gradient" not in partial
+    assert "background: var(--accent)" in partial
 
 
 # --------------------------------------------------------------------------

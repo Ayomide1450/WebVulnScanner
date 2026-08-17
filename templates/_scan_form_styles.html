@@ -6,50 +6,56 @@
      selectors that would leak into login.html/signup.html/billing.html/
      org_verify_domain.html's own forms. -->
 <style>
-  .wrap { max-width: 760px; }
-  h1 { font-size: 26px; margin: 20px 0 6px; letter-spacing: -0.01em; }
-  .sub { color: var(--muted); margin: 0 0 22px; font-size: 14.5px; }
+  .wrap { max-width: var(--container-form); }
+  h1 { margin: 20px 0 6px; }
+  .sub { color: var(--muted); margin: 0 0 22px; font-size: 15px; }
   /* .card's shape now comes from base.html's canonical definition (padding
      22px, margin-bottom 18px) rather than a local override that had drifted
-     to padding:26px/margin-top:20px - this page-specific margin-top is kept
-     to preserve the gap below .sub above the first card. */
+     to a larger padding/margin-top pair - this page-specific margin-top is
+     kept to preserve the gap below .sub above the first card. */
   .card { margin-top: 20px; }
-  label { display: block; margin-top: 18px; font-weight: 600; font-size: 13.5px; color: var(--text); }
+  label { display: block; margin-top: 18px; font-weight: 600; font-size: 13px; color: var(--text); }
   /* textarea explicitly included alongside input[type=text]/select - Chrome's
      default UA stylesheet sets textarea { font-family: monospace }, which
      otherwise makes the bulk-target textarea look like a visually different
      control from every other input on the page (a real reported mismatch,
-     not intentional - both must render identically). */
+     not intentional - both must render identically).
+
+     Phase 6 (DESIGN-01/03): the padding/border-radius/font-size/background/
+     focus-ring declarations below are byte-identical to
+     _auth_form_styles.html/_admin_form_styles.html's own copy - all three
+     form partials must carry the same canonical control treatment. */
   input[type=text], select, textarea {
-    width: 100%; padding: 12px 14px; margin-top: 7px; border: 1px solid var(--border);
-    border-radius: 10px; font-size: 14.5px; font-family: inherit; background: rgba(255,255,255,.03);
-    color: var(--text); outline: none;
+    width: 100%; padding: var(--space-3) var(--space-4); margin-top: var(--space-2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); font-size: 14px; font-family: inherit; background: rgba(255,255,255,.03);
+    color: var(--text); outline: none; transition: border-color .15s, box-shadow .15s;
   }
-  input[type=text]:focus, select:focus, textarea:focus { border-color: var(--accent); background: rgba(34,197,94,.04); outline: none; }
-  .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+  input[type=text]:focus, select:focus, textarea:focus {
+    border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,197,94,.18);
+  }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 5px; }
   .check-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 22px; background: var(--accent-dim); border: 1px solid rgba(34,197,94,.3); padding: 13px 15px; border-radius: 12px; }
   .check-row input { margin-top: 3px; width:16px; height:16px; accent-color: var(--accent); }
-  button {
+  button, .btn.block {
     margin-top: 24px; width: 100%; background: var(--accent);
-    color: #04150a; border: none; padding: 14px 22px; border-radius: 10px; font-size: 15px; font-weight: 700;
+    color: #04150a; border: none; padding: 14px 22px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600;
     cursor: pointer; transition: filter 150ms ease;
   }
   button:hover:not(:disabled) { filter: brightness(1.08); }
-  button:disabled { opacity: .5; cursor: not-allowed; }
   .adv-group { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
   .adv-group:first-child { margin-top: 4px; padding-top: 0; border-top: none; }
-  .adv-group h4 { margin: 0 0 2px; font-size: 13px; }
-  .adv-group input[type=text] { padding: 9px 11px; font-size: 13.5px; }
-  .adv-group label { margin-top: 10px; font-size: 12.5px; }
+  .adv-group h4 { margin: 0 0 2px; }
+  .adv-group input[type=text] { padding: 9px 11px; font-size: 13px; }
+  .adv-group label { margin-top: 10px; font-size: 13px; }
   .section-title { display:flex; justify-content:space-between; align-items:center; }
-  .section-title h2 { margin: 0; font-size: 17px; }
+  .section-title h2 { margin: 0; }
 
   /* Locked-tier empty state (replaces the old .card.locked dimming) */
   .locked-state { text-align: center; padding: 18px 10px 8px; }
   .locked-state .icon { width: 30px; height: 30px; color: var(--medium); margin-bottom: 10px; }
-  .locked-state p { color: var(--muted); font-size: 13.5px; max-width: 440px; margin: 8px auto 20px; }
+  .locked-state p { color: var(--muted); font-size: 13px; max-width: 440px; margin: 8px auto 20px; }
   .locked-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-  .locked-actions .btn { padding: 10px 18px; font-size: 13.5px; }
+  .locked-actions .btn { padding: 10px 18px; font-size: 13px; }
 
   /* 4-card chooser grid (scan_new_type.html) */
   .scan-type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-4); margin-top: 22px; }
@@ -59,7 +65,7 @@
 
   /* Guided wizard stepper (_scan_wizard_stepper.html) - SCANUX-01 */
   .wizard-steps { display:flex; flex-wrap:wrap; gap: var(--space-4); list-style:none; margin: var(--space-5) 0 0; padding:0; }
-  .wizard-step { display:flex; align-items:center; gap: var(--space-2); font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color: var(--muted); }
+  .wizard-step { display:flex; align-items:center; gap: var(--space-2); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color: var(--muted); }
   .wizard-step.active { color: var(--accent); }
   .wizard-step.upcoming { opacity:.55; }
   .wizard-step .icon { width:14px; height:14px; }
@@ -67,7 +73,7 @@
 
   /* "or" divider between the verified-domain dropdown and free-text target
      input on Step 1 (scan_new.html) */
-  .or-divider { display:flex; align-items:center; gap: var(--space-3); margin-top: var(--space-4); color: var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .or-divider { display:flex; align-items:center; gap: var(--space-3); margin-top: var(--space-4); color: var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
   .or-divider::before, .or-divider::after { content:""; flex:1; border-top:1px solid var(--border); }
 
   /* Step 3's compact Target/Scan type selection summary - declarations
@@ -75,7 +81,7 @@
      asks for that exact treatment here; promoting it to base.html is
      Phase 6's job, so it's copied rather than moved). */
   .wizard-summary { margin-top: var(--space-4); }
-  .wizard-summary-row { display:flex; justify-content:space-between; align-items:baseline; padding: 7px 0; font-size: 13.5px; }
+  .wizard-summary-row { display:flex; justify-content:space-between; align-items:baseline; padding: 7px 0; font-size: 13px; }
   .wizard-summary-row span { color: var(--muted); }
   .wizard-summary-row strong { font-family: "Fira Code", monospace; font-weight:700; word-break:break-all; }
 </style>
