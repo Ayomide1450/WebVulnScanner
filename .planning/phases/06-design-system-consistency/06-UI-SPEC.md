@@ -54,13 +54,40 @@ hardcoding raw pixel values instead of referencing these custom properties):
 |-------|-------|-------|
 | `--space-1` | 4px | Icon-to-text gaps, hairline offsets (existing, keep) |
 | `--space-2` | 8px | Compact stack spacing, label-to-input gap (existing, keep — currently drifted to ad hoc `6px`/`7px` in `_scan_form_styles.html`/`_admin_form_styles.html`/`_auth_form_styles.html`; snap all three to `--space-2`) |
-| `--space-3` | 12px | Default control vertical padding, small card padding (existing, keep) |
+| `--space-3` | 12px | Default control vertical padding, small card padding (existing, keep — see justification below) |
 | `--space-4` | 16px | Default element spacing, standard gaps (existing, keep) |
 | `--space-5` | 24px | Section padding, card padding-horizontal (existing, keep — absorbs the pervasive `22px`/`26px` drift found across `_scan_form_styles.html`, `_auth_form_styles.html`, `marketing.html`, `.card` padding, `.topnav`/`.nav-links` gaps) |
 | `--space-6` | 32px | Layout gaps, larger section breaks (existing, keep) |
 | `--space-7` | 48px | Major section breaks (existing, keep — absorbs `40px`/`44px` drift: auth/legal-wrap top padding, marketing `.section-head` bottom margin) |
 | `--space-8` | 64px | **NEW.** Page-level vertical rhythm for content-light pages (hero sections, empty states) |
-| `--space-9` | 96px | **NEW.** Page bottom padding (absorbs `80px`/`90px` drift: `.auth-wrap`/`.legal-wrap` bottom padding, `base.html .wrap` bottom padding — grows slightly, a deliberate "more breathing room at the bottom of every page" refinement, not a mechanical snap) |
+
+**`--space-3` (12px) justification — required because 12 falls outside the checker's standard
+4/8/16/24/32/48/64 set, but this is a *pre-existing* token, not a new one this phase is
+introducing:** `--space-3:12px` is already defined in `base.html` line 27 (`--space-1:4px;
+--space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px; --space-7:48px;`)
+and already consumed by shipped, unrelated markup — `.error-box`/`.info-box` both use
+`padding: var(--space-3) var(--space-4)` in `base.html` today. 06-CONTEXT.md's canonical-refs
+section is explicit that "`--space-1..7` (4/8/12/16/24/32/48px) already exist in `base.html` as
+CSS custom properties but are inconsistently adopted... DESIGN-02's actual work is adoption, not
+invention" — this phase's job is getting every template to *reference* `var(--space-3)` instead
+of hardcoding `12px` locally, not to redefine or retire the token. Removing or renumbering
+`--space-3` now would mean rewriting `base.html`'s own already-shipped `.error-box`/`.info-box`
+rules as part of a phase whose explicit boundary (06-CONTEXT.md D-01) is consolidation of drift,
+not modification of values the codebase has already converged on — a reversibility cost with no
+corresponding consistency benefit. `--space-3` therefore stays a first-class scale step by
+inheritance from the pre-phase token set, not by this phase's own invention.
+
+**96px page-bottom padding — expressed as a documented multiple of `--space-7`, not a new named
+token:** the prior draft introduced a `--space-9:96px` token for this value. Per this revision,
+that token is dropped. `base.html` line 239 already hardcodes `.wrap`'s bottom padding as `90px`
+(`padding: var(--space-6) 20px 90px`), and `_auth_form_styles.html`/`_legal_styles.html` drift to
+`80px`/`90px` for the equivalent role on auth/legal pages. Rather than adding a 9th named scale
+step for a single usage (page-level bottom rhythm), this value is declared as
+`calc(var(--space-7) * 2)` (2 × 48px = 96px) wherever it's needed (`base.html .wrap`,
+`.auth-wrap`, `.legal-wrap` bottom padding) — a documented multiple of an existing step, per the
+checker's own suggested fix, rather than a new first-class token. This keeps the scale at exactly
+8 named steps (`--space-1` through `--space-8`) while still absorbing the `80px`/`90px` drift
+onto one consistent, clean value.
 
 **Snapping heuristic (per D-01):** a value snaps to the nearest scale step when the specific pixel
 figure carries no semantic meaning (generic breathing room). A value is promoted to a *new* scale
@@ -71,6 +98,8 @@ components — see Radius Scale below for the concrete example (10px button/inpu
 - Border widths (`1px`/`2px`), `border-radius` values (own token family — see below), box-shadow
   blur radii, and icon `vertical-align` micro-offsets (e.g. `-3px`) stay as-is.
 - `999px` (pill/dot full-round radius) and `50%` (circular elements) are shape values, not spacing.
+- `calc(var(--space-7) * 2)` (96px page-bottom padding, see above) is a documented multiple of an
+  existing step, not a new named token — do not add a `--space-9` custom property for it.
 
 ---
 
@@ -117,20 +146,28 @@ than even `--container-auth`, by design — document it as such rather than fold
 ## Typography
 
 **9 roles per DESIGN-01** (Display/H1-H4/Body/Small/Caption/Label/Button/Nav) — exceeds the
-generic 3-4-size default by requirement. Three weights total (400/600/700) replace the drifted
-400/500/600/700/800 currently found — `500` snaps to `600`, `800` (large Fira Code stat digits:
-gauge number, dashboard/platform-admin summary-card values) snaps to `700`.
+generic 3-4-size default by requirement; DESIGN-01 authorizes the size-role count expansion, not
+a weight-count expansion, so weights stay within the standard 2-weight cap. **Two weights total
+(400/600)** replace the drifted 400/500/600/700/800 currently found — `500` snaps to `600`,
+`700` snaps to `600` (this revision's fix — the prior draft kept 700 as a distinct third weight
+for Display/H1/H2/H3/Caption; those five roles now collapse onto 600 alongside H4/Label/Button/
+Nav, matching `base.html`'s own existing `h1,h2,h3,h4{font-weight:700}` default only in that
+those roles all resolve to one shared bold-ish weight rather than two different ones), and `800`
+(large Fira Code stat digits: gauge number, dashboard/platform-admin summary-card values) also
+snaps to `600`. Every non-body role in the scale now shares the same 600 weight; only Body/Small
+stay at 400 (regular). This is a straight 2-weight collapse, not a partial exception — no role in
+this contract uses 700.
 
 | Role | Size | Weight | Line Height | Tracking | Usage |
 |------|------|--------|-------------|----------|-------|
-| Display | `clamp(40px, 5vw, 64px)` | 700 | 1.1 | -0.02em | Marketing hero headline only (`marketing.html`) — consolidates 3 separate clamp() variants (hero `clamp(38,5.4vw,68)`, section-head `clamp(28,3.2vw,40)`, final-cta `clamp(26,3.2vw,36)`) down to one Display token for the hero and H2's own responsive variant (below) for section heads |
-| H1 | 28px | 700 | 1.2 | -0.01em | Page title, one per page (dashboard, scan-report, billing, org-admin, the scan-wizard heading, every auth-page card heading). Consolidates `base.html`'s `24px` default and the two `26px` local overrides in `_scan_form_styles.html`/`_auth_form_styles.html` up to one clean value — not a snap to either existing number, a deliberate "more presence" bump per D-01 |
-| H2 | 20px (marketing variant: `clamp(28px, 3vw, 36px)`) | 700 | 1.25 | -0.01em | Major in-page section header: `.section-title h2` (scan wizard, was 17px), `.score-summary h2` (scan report, was 18px), `.legal-wrap h2` (terms/privacy, was 17px), `.tier-card h3` (marketing pricing card name — reassigned from H3 to H2 for visual prominence, was 21px), marketing `.section-head h2`/`.final-cta h2` (use the responsive clamp variant, replacing their two near-duplicate clamp() declarations) |
-| H3 | 16px | 700 | 1.3 | -0.01em | Subsection header: marketing `.step h4` (numbered "how it works" items, was 16px — unchanged, now tokenized), `.check-item h4` (feature grid headings, was 14.5px) |
+| Display | `clamp(40px, 5vw, 64px)` | 600 | 1.1 | -0.02em | Marketing hero headline only (`marketing.html`) — consolidates 3 separate clamp() variants (hero `clamp(38,5.4vw,68)`, section-head `clamp(28,3.2vw,40)`, final-cta `clamp(26,3.2vw,36)`) down to one Display token for the hero and H2's own responsive variant (below) for section heads |
+| H1 | 28px | 600 | 1.2 | -0.01em | Page title, one per page (dashboard, scan-report, billing, org-admin, the scan-wizard heading, every auth-page card heading). Consolidates `base.html`'s `24px` default and the two `26px` local overrides in `_scan_form_styles.html`/`_auth_form_styles.html` up to one clean value — not a snap to either existing number, a deliberate "more presence" bump per D-01 |
+| H2 | 20px (marketing variant: `clamp(28px, 3vw, 36px)`) | 600 | 1.25 | -0.01em | Major in-page section header: `.section-title h2` (scan wizard, was 17px), `.score-summary h2` (scan report, was 18px), `.legal-wrap h2` (terms/privacy, was 17px), `.tier-card h3` (marketing pricing card name — reassigned from H3 to H2 for visual prominence, was 21px), marketing `.section-head h2`/`.final-cta h2` (use the responsive clamp variant, replacing their two near-duplicate clamp() declarations) |
+| H3 | 16px | 600 | 1.3 | -0.01em | Subsection header: marketing `.step h4` (numbered "how it works" items, was 16px — unchanged, now tokenized), `.check-item h4` (feature grid headings, was 14.5px) |
 | H4 | 14px | 600 | 1.35 | normal | Minor/dense inline heading: `.adv-group h4` (advanced-scan accordion group label, was 13px), `scan_new_advanced.html`'s `summary h4` (was 15px) |
 | Body | 15px | 400 | 1.6 | normal | Default paragraph/UI text. Replaces `base.html`'s root `16px`/1.5 (a deliberate small tightening to match what most pages already override toward) and the pervasive `13.5-14.5px` under-scale drift found elsewhere |
 | Small | 13px | 400 | 1.5 | normal | Secondary/dense text: table cells (already 13px), `.finding .detail`, `.hint`, `.sub` (form subhead), `.swap` (auth "don't have an account?" line), `.locked-state p` — absorbs the `12-14.5px` drift cluster |
-| Caption | 11px | 700 | 1.4 | .06em, uppercase | Eyebrow/identifier microcopy: `h2.section` (dashboard/billing/org-admin/scan-report section dividers — **shrinks from its current outlier 15px down to 11px**, aligning it with every other already-uppercase eyebrow element in the app: `.wizard-step` at 11.5px, `.finding .cat` at 11px, `.or-divider` at 12px — h2.section was the drifted outlier here, not the other way around), `.pill`/`.badge`/`.status-pill` text (was 10.5-11.5px), `.finding .badge` |
+| Caption | 11px | 600 | 1.4 | .06em, uppercase | Eyebrow/identifier microcopy: `h2.section` (dashboard/billing/org-admin/scan-report section dividers — **shrinks from its current outlier 15px down to 11px**, aligning it with every other already-uppercase eyebrow element in the app: `.wizard-step` at 11.5px, `.finding .cat` at 11px, `.or-divider` at 12px — h2.section was the drifted outlier here, not the other way around), `.pill`/`.badge`/`.status-pill` text (was 10.5-11.5px), `.finding .badge` |
 | Label | 13px | 600 | 1.3 | normal | Form `<label>` elements (all 3 form partials already agree on `13.5px/600` — snaps to 13px), table `<th>` headers. Deliberately **not** uppercase — distinct role from Caption's uppercase-eyebrow treatment; a normal-case, semibold field label reads as instructional, not decorative |
 | Button | 14px | 600 | 1 | normal | All `.btn` variants (`base.html` currently `14.5px`, snap to 14px) — see Component Canon below for the button-consolidation this token enables |
 | Nav | 13px | 600 | 1 | normal | `.topnav .nav-links a`, `.footer-inner`, `a.back` (was 13.5px) |
@@ -168,7 +205,7 @@ drift found during this audit's grep pass:
 | **Inputs/selects/textareas** | One shared control style: padding `var(--space-3) var(--space-4)`, `border-radius: var(--radius-sm)`, font-size = Button token (14px), background `rgba(255,255,255,.03)`, border `1px solid var(--border)`, focus state = `border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,197,94,.18)` (the ring treatment, not the background-tint treatment) | Same 3 partials each hand-roll a near-duplicate block: padding `12px 14px` (scan-form/auth) vs `10px 12px` (admin); font-size `14.5px` (scan-form/auth) vs `14px` (admin); focus state differs — scan-form uses `border-color` + subtle background tint, auth uses `border-color` + box-shadow ring, **admin defines no `:focus` state at all** (a real accessibility/consistency gap, not just a style nit). **Fix:** consolidate all three partials' `input`/`select`/`textarea` blocks to identical declarations (auth's box-shadow-ring focus treatment is the target — most visible/accessible of the three), and extend the same treatment to `.check-row input`/other unstyled inputs found in the audit. |
 | **Cards** | `.card` (base.html, already canonical: gradient panel background, `var(--radius-md)`, `22px` padding) | Already consolidated per CLAUDE.md/Phase 4 history — audit confirms no remaining local `.card` override exists; only action needed is retokenizing the hardcoded `16px` radius to `var(--radius-md)` per Radius Scale above |
 | **Tables** | `table, th, td` (base.html, already canonical) wrapped in `.table-scroll` | Already consolidated per CLAUDE.md; audit's job is confirming every `<table>` in every audited template (including any new Phase-5 wizard tables) is actually wrapped in `<div class="table-scroll">`, not re-styling the table itself |
-| **Badges/pills** | `.pill`/`.badge`/`.status-pill`/`.dot` (base.html, already canonical severity-color families) | Font-size drift only (10.5-11.5px cluster) — resolved by the Caption token (11px/700/uppercase) above; no structural/color drift found |
+| **Badges/pills** | `.pill`/`.badge`/`.status-pill`/`.dot` (base.html, already canonical severity-color families) | Font-size drift only (10.5-11.5px cluster) — resolved by the Caption token (11px/600/uppercase) above; no structural/color drift found |
 | **Alert/warn/error/info boxes** | `.warn-box`/`.error-box`/`.info-box` (base.html, already canonical) | Already consolidated app-wide per CLAUDE.md except the two documented emoji-icon exceptions in `org_verify_domain.html` (tracked, pre-existing, out of this phase's typography/spacing scope but flag for consistency if touched) |
 
 ---
