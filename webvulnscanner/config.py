@@ -89,6 +89,14 @@ class Config:
     REMEMBER_COOKIE_HTTPONLY = True
     REMEMBER_COOKIE_SAMESITE = "Lax"
 
+    # Idle-session timeout (security hardening): a logged-in user is signed
+    # out server-side after this many minutes with no request, regardless
+    # of "Remember me" - see webvulnscanner/__init__.py's
+    # _enforce_idle_timeout before_request hook, which is what actually
+    # reads this value. Overridable via env for e.g. a longer local-dev
+    # session; production keeps the 5-minute default.
+    IDLE_TIMEOUT_MINUTES = int(os.environ.get("IDLE_TIMEOUT_MINUTES", "5"))
+
     _db_uri = os.environ.get(
         "SQLALCHEMY_DATABASE_URI",
         "sqlite:///" + os.path.join(APP_DIR, "webvulnscanner.db"),

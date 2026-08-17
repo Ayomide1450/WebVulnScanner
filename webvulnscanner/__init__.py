@@ -160,6 +160,48 @@ def create_app(config_class=Config):
 
     app.register_blueprint(api_blueprint)
 
+    # Idle-session timeout: a session-cookie-authenticated user is signed
+    # out server-side after IDLE_TIMEOUT_MINUTES with no request, regardless
+    # of "Remember me" - logout_user() clears the remember cookie too, so a
+    # stale remember cookie can't silently re-authenticate the next request.
+    # Bearer-token (API) auth is explicitly exempt: those requests set
+    # flask.g.login_via_request in extensions.py's request_loader and never
+    # receive a session cookie back in the first place (see
+    # _ApiAwareSessionInterface) - tokens have their own separate
+    # revoke/expiry model in api_tokens_routes.py, not this one.
+    @app.before_request
+    def _enforce_idle_timeout():
+        import flask
+        from datetime import datetime, timedelta, timezone
+
+        from flask import request, session
+        from flask_login import current_user, logout_user
+
+        if not current_user.is_authenticated:
+            return
+        if getattr(flask.g, "login_via_request", False):
+            return
+
+        now = datetime.now(timezone.utc)
+        timeout = timedelta(minutes=app.config.get("IDLE_TIMEOUT_MINUTES", 5))
+        last_seen_raw = session.get("_last_seen")
+        if last_seen_raw:
+            try:
+                last_seen = datetime.fromisoformat(last_seen_raw)
+            except ValueError:
+                last_seen = None
+            if last_seen is not None and now - last_seen > timeout:
+                logout_user()
+                session.clear()
+                return
+        # scan_progress.html's background status poll (2s) / SSE feed both
+        # send the session cookie (credentials: same-origin) but are not
+        # user activity - bumping _last_seen on every tick would keep an
+        # AFK session alive indefinitely for the duration of any scan. Every
+        # other request still refreshes it normally.
+        if not (request.path.endswith("/status") or request.path.endswith("/events")):
+            session["_last_seen"] = now.isoformat()
+
     from webvulnscanner.models import Role
 
     @app.context_processor
@@ -168,7 +210,11 @@ def create_app(config_class=Config):
         # base.html's footer and terms.html/privacy.html use current_year.
         from datetime import datetime, timezone
 
-        return {"Role": Role, "current_year": datetime.now(timezone.utc).year}
+        return {
+            "Role": Role,
+            "current_year": datetime.now(timezone.utc).year,
+            "idle_timeout_minutes": app.config.get("IDLE_TIMEOUT_MINUTES", 5),
+        }
 
     # Custom error pages so 404/500 stay inside the app's own dark theme
     # (nav, back-to-dashboard link) instead of dropping a logged-in user

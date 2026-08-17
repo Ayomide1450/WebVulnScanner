@@ -330,5 +330,33 @@
     setInterval(ping, HEARTBEAT_INTERVAL_MS);
   })();
   </script>
+  {% if current_user.is_authenticated %}
+  <script>
+  (function () {
+    // Client-side complement to __init__.py's server-side
+    // _enforce_idle_timeout: that hook only fires on the *next* request
+    // after the idle window has passed, so a user who's been sitting idle
+    // on one page (no new requests at all) wouldn't see anything happen
+    // until they next click something. This timer instead proactively
+    // redirects to /logout after the same idle window, measured purely
+    // client-side (mouse/keyboard/touch/scroll activity resets it) - no
+    // fetch, no cookie read, so it can't itself keep a truly-idle session
+    // alive.
+    var IDLE_TIMEOUT_MS = {{ (idle_timeout_minutes or 5) * 60 * 1000 }};
+    var idleTimer = null;
+    function goIdle() {
+      window.location.href = {{ url_for('auth.logout')|tojson }};
+    }
+    function resetIdleTimer() {
+      if (idleTimer) { clearTimeout(idleTimer); }
+      idleTimer = setTimeout(goIdle, IDLE_TIMEOUT_MS);
+    }
+    ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'].forEach(function (evt) {
+      document.addEventListener(evt, resetIdleTimer, { passive: true });
+    });
+    resetIdleTimer();
+  })();
+  </script>
+  {% endif %}
 </body>
 </html>
