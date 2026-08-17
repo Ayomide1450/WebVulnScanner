@@ -4,17 +4,17 @@ milestone: v1.1
 milestone_name: Production Audit, Hardening & Redesign
 current_phase: 5
 current_phase_name: New Scan Flow Redesign
-status: planning
-stopped_at: Phase 5 UI-SPEC approved
-last_updated: "2026-08-15T18:55:43.656Z"
-last_activity: 2026-08-15
-last_activity_desc: ROADMAP.md drafted for milestone v1.1 (Phases 5-9), 36 v1.1
+status: executing
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-08-17T15:03:31.937Z"
+last_activity: 2026-08-17
+last_activity_desc: Completed 05-01-PLAN.md (Select Domain -> Select Type -> Start Scan wizard)
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 3
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 33
 ---
 
 # Project State
@@ -29,13 +29,13 @@ non-destructive scans against their own infrastructure and get findings they can
 
 ## Current Position
 
-Phase: 5 of 9 (New Scan Flow Redesign)
-Plan: Not yet planned
-Status: Roadmap created, ready to plan
-Last activity: 2026-08-15 — ROADMAP.md drafted for milestone v1.1 (Phases 5-9), 36 v1.1
+Phase: 5 (New Scan Flow Redesign) — EXECUTING
+Plan: 2 of 3
+Status: Executing Phase 5 (05-01 complete, 05-02 next)
+Last activity: 2026-08-17 — Completed 05-01-PLAN.md (Select Domain -> Select Type -> Start Scan wizard)
 requirements mapped, 100% coverage
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -57,6 +57,11 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: N/A
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 05 P01 | 15min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -86,6 +91,9 @@ Recent decisions affecting current work:
   phase (9 of 36 requirements combined) rather than three thin phases, per granularity guidance
   against maintenance-sliver phases; depends on Phase 6 since STATE-01..03 reuse its canonical
   card/alert/pill components.
+
+- [Phase ?]: 05-01: D-01/D-03 from 05-UI-SPEC.md implemented as specified — verified-domain dropdown org-scoped to DomainVerification rows, Upgrade-to-Unlock CTA routed by actual blocking gate (billing vs org.verify_domain_view).
+- [Phase ?]: 05-01: ?target= query parameter chosen as the wizard's cross-step state carrier (no server-side session state) — contract that 05-02's remaining scan-type Step-3 pages must follow.
 
 ### Pending Todos
 
@@ -117,7 +125,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-15T18:27:24.100Z
-Stopped at: Phase 5 UI-SPEC approved
+Last session: 2026-08-17T15:03:31.910Z
+Stopped at: Completed 05-01-PLAN.md
 traceability updated — ready for `/gsd-plan-phase 5`
-Resume file: .planning/phases/05-new-scan-flow-redesign/05-UI-SPEC.md
+Resume file: None

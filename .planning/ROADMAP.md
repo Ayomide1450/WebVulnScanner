@@ -239,12 +239,12 @@ instead of filling out one of four disconnected single-form pages from a free-te
 
   5. After a scan completes, a "View Report" action is reachable from the same page context the
      scan was launched from.
-**Plans**: 3 plans
+**Plans**: 1/3 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 05-01-PLAN.md — Tracer: wizard shell (stepper + Select Domain + Select Type) plus the Standard Scan end-to-end (SCANUX-01/02/03/04)
+- [x] 05-01-PLAN.md — Tracer: wizard shell (stepper + Select Domain + Select Type) plus the Standard Scan end-to-end (SCANUX-01/02/03/04)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -403,7 +403,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 2. API & CLI Access | v1.0 | 3/3 | Complete | 2026-08-11 |
 | 3. Compliance & Framework Reporting | v1.0 | 3/3 | Complete | 2026-08-11 |
 | 4. Production Hardening & Reliability | v1.0 | 5/5 | Complete | 2026-08-13 |
-| 5. New Scan Flow Redesign | v1.1 | 0/3 | Planned | - |
+| 5. New Scan Flow Redesign | v1.1 | 1/3 | In Progress|  |
 | 6. Design System Consistency | v1.1 | 0/TBD | Not started | - |
 | 7. Responsive & Accessibility Compliance | v1.1 | 0/TBD | Not started | - |
 | 8. Security Re-Audit & Hardening | v1.1 | 0/TBD | Not started | - |

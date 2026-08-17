@@ -100,18 +100,18 @@ one roadmap phase.
 
 ### New Scan Flow (SCANUX)
 
-- [ ] **SCANUX-01**: `/scan/new` (and its 4 sub-pages) present a "Select Domain → Select Type →
+- [x] **SCANUX-01**: `/scan/new` (and its 4 sub-pages) present a "Select Domain → Select Type →
       Confirm Authorization → Start Scan" flow, replacing today's single-form-per-type pages.
 
-- [ ] **SCANUX-02**: User picks a target via a "Select Verified Domain" dropdown (populated from
+- [x] **SCANUX-02**: User picks a target via a "Select Verified Domain" dropdown (populated from
       their org's verified `DomainVerification`/`Asset` records) instead of only free-typing a URL;
       free-text entry remains available for unclaimed/one-off targets.
 
-- [ ] **SCANUX-03**: The base scan type is labeled "Standard Scan" in the UI (code/route names
+- [x] **SCANUX-03**: The base scan type is labeled "Standard Scan" in the UI (code/route names
       unchanged) and each scan type shows plain-language availability labels: Included /
       Requires Verified Domain / Requires Paid Plan.
 
-- [ ] **SCANUX-04**: A tier-locked scan type shows an "Upgrade to Unlock" call-to-action instead of
+- [x] **SCANUX-04**: A tier-locked scan type shows an "Upgrade to Unlock" call-to-action instead of
       a disabled/absent control.
 
 - [ ] **SCANUX-05**: After a scan completes, the flow offers a clear "View Report" action from the
@@ -298,10 +298,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | HARD-03 | Phase 4 | Complete |
 | HARD-04 | Phase 4 | Complete |
 | HARD-05 | Phase 4 | Complete |
-| SCANUX-01 | Phase 5 | Pending |
-| SCANUX-02 | Phase 5 | Pending |
-| SCANUX-03 | Phase 5 | Pending |
-| SCANUX-04 | Phase 5 | Pending |
+| SCANUX-01 | Phase 5 | Complete |
+| SCANUX-02 | Phase 5 | Complete |
+| SCANUX-03 | Phase 5 | Complete |
+| SCANUX-04 | Phase 5 | Complete |
 | SCANUX-05 | Phase 5 | Pending |
 | DESIGN-01 | Phase 6 | Pending |
 | DESIGN-02 | Phase 6 | Pending |
