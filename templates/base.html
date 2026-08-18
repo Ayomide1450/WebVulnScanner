@@ -163,6 +163,14 @@
 
   .icon { width:18px; height:18px; flex-shrink:0; stroke: currentColor; fill:none; stroke-width:1.8; vertical-align:-3px; }
 
+  /* Promoted from asset_detail.html's local-only copy (same reasoning as
+     .card's promotion in Phase 6) - the phase-wide 44px touch-target floor
+     for any icon-only control inside a mobile record card. asset_detail.html
+     keeps its identical local copy for now (inert duplicate); plan 07-03
+     removes it once that file is in scope. */
+  .icon-btn { min-width: 44px; min-height: 44px; padding: 0; justify-content: center; }
+  .icon-btn .icon { width: 18px; height: 18px; }
+
   .warn-box { display:flex; gap:12px; align-items:flex-start; background: rgba(251,191,36,.07); border: 1px solid rgba(251,191,36,.3); padding: var(--space-4); border-radius: var(--radius); font-size: 15px; margin-bottom: var(--space-5); color: var(--text); }
   .warn-box .icon { color: var(--medium); margin-top:2px; }
   .error-box { background: rgba(248,113,113,.09); border: 1px solid rgba(248,113,113,.35); padding: var(--space-3) var(--space-4); border-radius: var(--radius); margin-bottom: var(--space-4); color: var(--critical); font-size: 15px; }
