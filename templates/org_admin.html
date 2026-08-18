@@ -152,9 +152,12 @@
   <h2 class="section">Verified domains</h2>
   <div class="card">
     {% if domains %}
-    <div class="table-scroll">
+    <div class="table-scroll desktop-table">
     <table>
+      <thead>
       <tr><th>Domain</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
       {% for dv in domains %}
       <tr>
         <td><code>{{ dv.domain }}</code></td>
@@ -173,15 +176,45 @@
           {% else %}
           <form method="POST" action="{{ url_for('org.request_domain_deletion', domain_id=dv.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="text" name="reason" placeholder="Reason (optional)">
+            <input type="text" name="reason" placeholder="Reason (optional)" aria-label="Deletion reason for {{ dv.domain }}">
             <button type="submit" class="verify-btn danger">Request Deletion</button>
           </form>
           {% endif %}
         </td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
     </div>
+    <ul class="mobile-record-cards">
+      {% for dv in domains %}
+      <li class="card record-card">
+        <div class="record-card-top">
+          <code class="record-card-id">{{ dv.domain }}</code>
+          {% if dv.deletion_pending %}
+          <span class="pill medium">Deletion Pending</span>
+          {% else %}
+          <span class="pill {{ 'pass' if dv.verified_at else 'medium' }}">{% if dv.verified_at %}&#10003; Verified{% else %}&#9679; Pending{% endif %}</span>
+          {% endif %}
+        </div>
+        {% if dv.deletion_pending %}
+        <div class="record-card-meta">Requested by {{ dv.deletion_requested_by.email if dv.deletion_requested_by else 'unknown' }}
+          {% if dv.deletion_reason %}&middot; &ldquo;{{ dv.deletion_reason }}&rdquo;{% endif %}</div>
+        {% endif %}
+        <div class="record-card-action">
+          {% if dv.deletion_pending %}
+          <span style="color: var(--muted); font-size:11px;">Awaiting platform-admin review</span>
+          {% else %}
+          <form method="POST" action="{{ url_for('org.request_domain_deletion', domain_id=dv.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="text" name="reason" placeholder="Reason (optional)" aria-label="Deletion reason for {{ dv.domain }}">
+            <button type="submit" class="btn destructive block">Request Deletion</button>
+          </form>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
     {% else %}
     <p style="color: var(--muted); font-size: 13px;">No domains added yet. <a class="back" href="{{ url_for('org.verify_domain_view') }}">Add one &rarr;</a></p>
     {% endif %}
