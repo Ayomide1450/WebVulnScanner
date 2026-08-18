@@ -229,7 +229,8 @@
     <div class="details-body">
       <div class="table-scroll">
       <table>
-        <tr><th>Header</th><th>Status</th><th>Value / note</th></tr>
+        <thead><tr><th>Header</th><th>Status</th><th>Value / note</th></tr></thead>
+        <tbody>
         {% for h in r.headers.rows %}
         <tr>
           <td>{{ h.header }}</td>
@@ -238,6 +239,7 @@
             {% if h.note %}<div class="note">{{ h.note }}</div>{% endif %}</td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
     </div>
@@ -249,7 +251,8 @@
       {% if r.cookies %}
       <div class="table-scroll">
       <table>
-        <tr><th>Name</th><th>Secure</th><th>HttpOnly</th><th>SameSite</th></tr>
+        <thead><tr><th>Name</th><th>Secure</th><th>HttpOnly</th><th>SameSite</th></tr></thead>
+        <tbody>
         {% for c in r.cookies %}
         <tr><td>{{ c.name }}</td>
           <td class="{{ 'pass' if c.secure else 'high' }}">{{ 'yes' if c.secure else 'no' }}</td>
@@ -257,6 +260,7 @@
           <td class="{{ 'pass' if c.samesite else 'medium' }}">{{ 'yes' if c.samesite else 'no' }}</td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No cookies set on the homepage response.</p>{% endif %}
@@ -270,12 +274,17 @@
       {% elif r.tls.error %}<p>Could not retrieve certificate: {{ r.tls.error }}</p>
       {% else %}
       <div class="table-scroll">
+      <!-- Row-header table (Subject/Issuer/Expires/etc. label the value beside
+           them, not a column below them) - deliberately no <thead>. Each <th>
+           carries scope="row" instead. Do not "fix" this into a <thead> table. -->
       <table>
-        <tr><th>Subject</th><td>{{ r.tls.subject }}</td></tr>
-        <tr><th>Issuer</th><td>{{ r.tls.issuer }}</td></tr>
-        <tr><th>Expires</th><td>{{ r.tls.not_after }} &mdash; {{ r.tls.days_left }} days left</td></tr>
-        {% if r.tls.tls_version %}<tr><th>Protocol</th><td>{{ r.tls.tls_version }}</td></tr>{% endif %}
-        {% if r.tls.cipher %}<tr><th>Cipher</th><td>{{ r.tls.cipher }}{% if r.tls.cipher_bits %} ({{ r.tls.cipher_bits }}-bit){% endif %}</td></tr>{% endif %}
+        <tbody>
+        <tr><th scope="row">Subject</th><td>{{ r.tls.subject }}</td></tr>
+        <tr><th scope="row">Issuer</th><td>{{ r.tls.issuer }}</td></tr>
+        <tr><th scope="row">Expires</th><td>{{ r.tls.not_after }} &mdash; {{ r.tls.days_left }} days left</td></tr>
+        {% if r.tls.tls_version %}<tr><th scope="row">Protocol</th><td>{{ r.tls.tls_version }}</td></tr>{% endif %}
+        {% if r.tls.cipher %}<tr><th scope="row">Cipher</th><td>{{ r.tls.cipher }}{% if r.tls.cipher_bits %} ({{ r.tls.cipher_bits }}-bit){% endif %}</td></tr>{% endif %}
+        </tbody>
       </table>
       </div>
       {% endif %}
@@ -388,11 +397,13 @@
       <p class="note">{{ r.secrets.js_files_scanned }} same-origin JS file(s) scanned, plus the homepage HTML.</p>
       {% if r.secrets.rows %}
       <div class="table-scroll">
-      <table><tr><th>Type</th><th>Source</th><th>Value (redacted)</th><th>Severity</th></tr>
+      <table><thead><tr><th>Type</th><th>Source</th><th>Value (redacted)</th><th>Severity</th></tr></thead>
+        <tbody>
         {% for row in r.secrets.rows %}
         <tr><td>{{ row.type }}</td><td><code>{{ row.source }}</code></td><td><code>{{ row.value }}</code></td>
           <td class="{{ 'critical' if row.severity in ('critical','high') else ('medium' if row.severity=='medium' else 'info') }}">{{ row.severity|upper }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No known API key / token / private-key patterns found.</p>{% endif %}
@@ -407,13 +418,15 @@
       {% else %}
       {% if r.jwt.rows %}
       <div class="table-scroll">
-      <table><tr><th>Source</th><th>Algorithm</th><th>Has expiry</th><th>Token preview</th></tr>
+      <table><thead><tr><th>Source</th><th>Algorithm</th><th>Has expiry</th><th>Token preview</th></tr></thead>
+        <tbody>
         {% for row in r.jwt.rows %}
         <tr><td><code>{{ row.source }}</code></td>
           <td class="{{ 'critical' if row.alg == 'NONE' else ('medium' if row.alg in ('HS1',) else 'pass') }}">{{ row.alg }}</td>
           <td class="{{ 'pass' if row.has_exp else 'low' }}">{{ 'yes' if row.has_exp else 'no' }}</td>
           <td><code>{{ row.token_preview }}</code></td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No JWT-shaped tokens found in the homepage HTML or same-origin JS. This is a passive inspection only - it never sends a modified token back to the server.</p>{% endif %}
@@ -428,11 +441,13 @@
       {% else %}
       {% if r.sri %}
       <div class="table-scroll">
-      <table><tr><th>Type</th><th>URL</th><th>Has SRI</th></tr>
+      <table><thead><tr><th>Type</th><th>URL</th><th>Has SRI</th></tr></thead>
+        <tbody>
         {% for row in r.sri %}
         <tr><td>{{ row.type }}</td><td><code>{{ row.url }}</code></td>
           <td class="{{ 'pass' if row.has_sri else 'medium' }}">{{ 'yes' if row.has_sri else 'no' }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No third-party scripts or stylesheets found on the homepage.</p>{% endif %}
@@ -449,13 +464,15 @@
       {% elif r.open_ports %}
       <div class="table-scroll">
       <table>
-        <tr><th>Port</th><th>Status</th><th>Note</th></tr>
+        <thead><tr><th>Port</th><th>Status</th><th>Note</th></tr></thead>
+        <tbody>
         {% for port in r.open_ports %}
         <tr><td>{{ port.port }}</td>
           <td class="{{ {'pass':'pass','warn':'high','medium':'medium','info':'info'}[port.status] }}">
             {{ {'pass':'expected','warn':'unbranded - review','medium':'CDN edge','info':'handshake only'}[port.status] }}</td>
           <td class="note">{{ port.note }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No unexpected ports open among the common set checked.</p>{% endif %}
@@ -486,10 +503,12 @@
       {% else %}
       <div class="table-scroll">
       <table>
-        <tr><th>Method</th><th>Response</th></tr>
+        <thead><tr><th>Method</th><th>Response</th></tr></thead>
+        <tbody>
         {% for m in r.http_methods %}
         <tr><td>{{ m.method }}</td><td>{{ m.code }}{% if m.allow %} (Allow: {{ m.allow }}){% endif %}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% endif %}
@@ -503,8 +522,10 @@
       {% else %}
       {% if r.open_redirect %}
       <div class="table-scroll">
-      <table><tr><th>Path</th><th>Parameter</th></tr>
+      <table><thead><tr><th>Path</th><th>Parameter</th></tr></thead>
+        <tbody>
         {% for hit in r.open_redirect %}<tr><td><code>{{ hit.path }}</code></td><td><code>{{ hit.param }}</code></td></tr>{% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No open-redirect behavior found on tested paths/parameters.</p>{% endif %}
@@ -519,7 +540,7 @@
       {% else %}
       {% if r.directory_listing %}
       <div class="table-scroll">
-      <table><tr><th>Path</th></tr>{% for d in r.directory_listing %}<tr><td><code>{{ d.path }}</code></td></tr>{% endfor %}</table>
+      <table><thead><tr><th>Path</th></tr></thead><tbody>{% for d in r.directory_listing %}<tr><td><code>{{ d.path }}</code></td></tr>{% endfor %}</tbody></table>
       </div>
       {% else %}<p class="note">No directory listings found on common paths.</p>{% endif %}
       {% endif %}
@@ -545,11 +566,16 @@
       {% if 'dns_email' in locked %}{{ locked_card('dns_email') }}
       {% else %}
       <div class="table-scroll">
+      <!-- Row-header table (Domain/SPF/DMARC/CAA label the value beside them,
+           not a column below them) - deliberately no <thead>. Each <th>
+           carries scope="row" instead. Do not "fix" this into a <thead> table. -->
       <table>
-        <tr><th>Domain</th><td>{{ r.dns_email.domain }}</td></tr>
-        <tr><th>SPF</th><td>{% if r.dns_email.spf %}<code>{{ r.dns_email.spf }}</code>{% else %}not found{% endif %}</td></tr>
-        <tr><th>DMARC</th><td>{% if r.dns_email.dmarc %}<code>{{ r.dns_email.dmarc }}</code>{% else %}not found{% endif %}</td></tr>
-        <tr><th>CAA</th><td>{% if r.dns_email.caa %}{{ r.dns_email.caa|join(', ') }}{% else %}not found{% endif %}</td></tr>
+        <tbody>
+        <tr><th scope="row">Domain</th><td>{{ r.dns_email.domain }}</td></tr>
+        <tr><th scope="row">SPF</th><td>{% if r.dns_email.spf %}<code>{{ r.dns_email.spf }}</code>{% else %}not found{% endif %}</td></tr>
+        <tr><th scope="row">DMARC</th><td>{% if r.dns_email.dmarc %}<code>{{ r.dns_email.dmarc }}</code>{% else %}not found{% endif %}</td></tr>
+        <tr><th scope="row">CAA</th><td>{% if r.dns_email.caa %}{{ r.dns_email.caa|join(', ') }}{% else %}not found{% endif %}</td></tr>
+        </tbody>
       </table>
       </div>
       {% endif %}
@@ -563,8 +589,10 @@
       {% else %}
       {% if r.vulnerable_js %}
       <div class="table-scroll">
-      <table><tr><th>Library</th><th>Version</th><th>Source</th></tr>
+      <table><thead><tr><th>Library</th><th>Version</th><th>Source</th></tr></thead>
+        <tbody>
         {% for v in r.vulnerable_js %}<tr><td>{{ v.library }}</td><td>{{ v.version }}</td><td><code>{{ v.src }}</code></td></tr>{% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No recognizably outdated third-party JS libraries detected.</p>{% endif %}
@@ -579,20 +607,24 @@
       {% if r.crawl.forms %} &middot; {{ r.crawl.forms|length }} form(s) found (listed only, never auto-submitted){% endif %}.</p>
       {% if r.crawl.forms %}
       <div class="table-scroll">
-      <table><tr><th>Form action</th><th>Method</th><th>Inputs</th></tr>
+      <table><thead><tr><th>Form action</th><th>Method</th><th>Inputs</th></tr></thead>
+        <tbody>
         {% for f in r.crawl.forms %}<tr><td><code>{{ f.action }}</code></td><td>{{ f.method }}</td><td>{{ f.inputs|join(', ') }}</td></tr>{% endfor %}
+        </tbody>
       </table>
       </div>
       {% endif %}
       {% if 'xss_sqli' in locked %}{{ locked_card('xss_sqli') }}
       {% elif r.xss_sqli %}
       <div class="table-scroll">
-      <table><tr><th>URL</th><th>Param</th><th>XSS</th><th>SQLi</th></tr>
+      <table><thead><tr><th>URL</th><th>Param</th><th>XSS</th><th>SQLi</th></tr></thead>
+        <tbody>
         {% for t in r.xss_sqli %}
         <tr><td><code>{{ t.url }}</code></td><td>{{ t.param }}</td>
           <td class="{{ 'pass' if t.xss=='pass' else 'critical' }}">{{ t.xss|upper }}</td>
           <td class="{{ 'pass' if t.sqli=='pass' else ('high' if t.sqli=='review' else 'critical') }}">{{ t.sqli|upper }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No parameterized URLs found to test (nothing crawled and no seed URL supplied).</p>{% endif %}
