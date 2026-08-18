@@ -42,9 +42,12 @@
   <h2 class="section">Members</h2>
   <div class="card">
     {% if members %}
-    <div class="table-scroll">
+    <div class="table-scroll desktop-table">
     <table>
+      <thead>
       <tr><th>Email</th><th>Role</th><th>Email verified</th></tr>
+      </thead>
+      <tbody>
       {% for m in members %}
       <tr>
         <td>{{ m.email }}</td>
@@ -52,8 +55,20 @@
         <td><span class="pill {{ 'pass' if m.email_verified_at else 'medium' }}">{% if m.email_verified_at %}&#10003; Verified{% else %}&#9679; Pending{% endif %}</span></td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
     </div>
+    <ul class="mobile-record-cards">
+      {% for m in members %}
+      <li class="card record-card">
+        <div class="record-card-top">
+          <span class="record-card-id">{{ m.email }}</span>
+          <span class="pill {{ 'pass' if m.email_verified_at else 'medium' }}">{% if m.email_verified_at %}&#10003; Verified{% else %}&#9679; Pending{% endif %}</span>
+        </div>
+        <div class="record-card-meta">{{ role_labels.get(m.role.value, m.role.value) }}</div>
+      </li>
+      {% endfor %}
+    </ul>
     {% else %}
     <p style="color: var(--muted); font-size: 13px;">No members.</p>
     {% endif %}
