@@ -5,12 +5,12 @@ milestone_name: Production Audit, Hardening & Redesign
 current_phase: 8
 current_phase_name: Security Re-Audit & Hardening
 status: executing
-stopped_at: Phase 8 context gathered
-last_updated: "2026-08-18T20:56:59.388Z"
+stopped_at: "Phase 8 planned: 7 plans/5 waves, plan-checker PASSED"
+last_updated: "2026-08-18T22:07:45.080Z"
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 14
+  total_plans: 21
   completed_plans: 14
   percent: 60
 last_activity: 2026-08-18
@@ -29,34 +29,36 @@ non-destructive scans against their own infrastructure and get findings they can
 
 ## Current Position
 
-Phase: 7 (Responsive & Accessibility Compliance) — CODE-COMPLETE, requirements unconfirmed
-Plan: 7 of 7 (wave 4, the phase gate — DONE)
-Status: All seven plans (07-01..07-07) are now code-complete. 07-07 added phase-gate regression
-locks to tests/test_responsive_markup.py (-k phase_gate: scan-progress breakpoint lock, the
-six-template card-conversion scope lock with a verified negative control, scan_report's
-exclusion, Phase 6's component-override discipline, billing's no-table status), then fixed two
-narrow-width defects found by source-level review (no browser-driving tool exists in this repo):
-platform_admin.html's deletion-actions wrap + domain word-break, and scan_new_type.html's target
-word-break. Full suite green: 646 passed, 0 failed.
+Phase: 8 (Security Re-Audit & Hardening) — PLANNED, ready to execute
+Plan: 7 plans across 5 waves (08-01..08-07), all passed gsd-plan-checker verification
+Status: Discussed (08-CONTEXT.md, D-01..D-05), researched (08-RESEARCH.md — found one genuine
+open vulnerability: checks._mk_session() doesn't re-validate redirect hops against
+is_ssrf_safe_hostname(), SEC-03), validated (08-VALIDATION.md), and fully planned. Waves sequenced
+by blast radius per D-04: Wave 1 SEC-01+SEC-02 (08-01/08-02), Wave 2 SEC-09 (08-03), Wave 3
+SEC-03+SEC-04/05/06 (08-04/08-05), Wave 4 SEC-07/08/10 (08-06), Wave 5 the phase-gate + D-01/D-02
+live dev-server probe pass (08-07, autonomous: false). The planner's own multi-source coverage
+audit (GOAL/REQ/RESEARCH/CONTEXT) found zero unplanned items on its second pass; a first
+plan-checker run against an intermediate 5-plan snapshot found 2 blockers (SEC-07/08/10 and the
+live-probe script uncovered) which the planner had already independently fixed by the time its
+completion notification arrived (added 08-06/08-07 itself) — a duplicate revision agent spawned
+against the stale snapshot was caught and killed before writing, no conflict occurred. Final
+plan-checker run on all 7 plans: VERIFICATION PASSED, no issues.
 
-**Every checkpoint:human-verify gate across the entire phase (07-01 through 07-07) remains
-unanswered.** Grepping all seven summaries' frontmatter confirms `requirements-completed: []` in
-every one — RESP-01/02/03/04 and A11Y-01/02/03/04 have never been confirmed live by a human, not
-just in this plan. REQUIREMENTS.md correctly still lists all eight as Pending. Task 3 in 07-07
-proceeded on static/source review rather than Task 2's (never-answered) checkpoint output — an
-explicitly recorded deviation, not a silent skip. See 07-07-SUMMARY.md for the full accounting,
-including a correction of an earlier background-agent run's inaccurate "nothing pending" claim.
+Next step: `/gsd-execute-phase 8`.
 
-Per explicit user instruction (2026-08-18), work now proceeds to Phase 8 (Security Re-Audit &
-Hardening) without blocking on the outstanding human-verify walkthrough — the same
-"proceed past pending checkpoints on explicit authorization" pattern already used throughout
-Phases 6 and 7. The walkthrough remains a standing, undischarged human action.
+Phase 7 (Responsive & Accessibility Compliance) is CODE-COMPLETE but requirements unconfirmed —
+all 7 plans done, full suite green (646 passed), but every checkpoint:human-verify gate across
+the entire phase (07-01..07-07) remains unanswered by a human. RESP-01/02/03/04 and
+A11Y-01/02/03/04 stay Pending in REQUIREMENTS.md. See 07-07-SUMMARY.md for the full accounting.
+Per explicit user instruction (2026-08-18), work proceeded to Phase 8 without blocking on that
+walkthrough — the walkthrough remains a standing, undischarged human action.
 
 Phase 6 (Design System Consistency) remains at the same status as last recorded: all four plans'
 coded tasks committed, full suite green, each plan's checkpoint:human-verify still open pending
 confirmation.
 
-Progress: [██████████] 100% (Phase 7 code); requirement sign-off still pending
+Progress: [██████████] 100% (Phase 7 code, Phase 8 planning); Phase 7 requirement sign-off and
+Phase 8 execution both still pending
 
 ## Performance Metrics
 
@@ -157,6 +159,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-18T20:56:59.309Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-security-re-audit-hardening/08-CONTEXT.md
+Last session: 2026-08-18T22:07:45.014Z
+Stopped at: Phase 8 planned: 7 plans/5 waves, plan-checker PASSED
+Resume file: .planning/phases/08-security-re-audit-hardening/08-01-PLAN.md
