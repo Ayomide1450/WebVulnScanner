@@ -334,7 +334,22 @@ keyboard and assistive technology, built against the canonical component set Pha
      template, and text/UI-element color contrast — including severity-colored finding text/
      badges — meets WCAG AA against the dark theme's background colors, confirmed with a
      contrast-checking tool.
-**Plans**: TBD
+**Plans**: 7 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — Tracer: base.html responsive/a11y CSS foundation, proven end-to-end by converting dashboard.html's Scan History table to D-01 dual markup
+- [ ] 07-02-PLAN.md — org_admin.html's four record tables + org_verify_domain.html's Domains table to dual markup, CSRF forms preserved, deletion-reason input given an accessible name
+- [ ] 07-03-PLAN.md — api_tokens.html / assets.html / asset_detail.html record tables to dual markup, revoke confirm() preserved, .icon-btn deduplicated
+- [ ] 07-04-PLAN.md — RESP-02 auth/org-setup mobile layout: screenshot first, then tighten the brand-to-card gap and suppress the duplicate CTA in _auth_form_styles.html
+- [ ] 07-05-PLAN.md — scan_report.html's 23 diagnostic tables get correct thead/tbody semantics and a per-table 320px audit; _gauge.html's hardcoded hexes become token classes
+- [ ] 07-06-PLAN.md — Heading-hierarchy fixes on marketing.html and scan_new_advanced.html, plus app-wide accessibility regression locks and the keyboard-only walkthrough
+- [ ] 07-07-PLAN.md — Phase gate: four-width sweep of every page, RESP-04 scan-progress re-confirmation, and phase-wide regression locks
+
+**Execution waves**: wave 1 = 07-01 (establishes every new base.html class, breakpoint and token so
+no later plan needs to edit it); wave 2 = 07-02/07-03/07-04/07-05, all depending only on 07-01 and
+touching disjoint template sets, so they run in parallel; wave 3 = 07-06, whose accessibility
+locks must run over the final markup including the nine mobile-card blocks wave 2 adds; wave 4 =
+07-07, the live full-app sweep and phase gate, which can only run once everything has merged.
 
 **UI hint**: yes
 
