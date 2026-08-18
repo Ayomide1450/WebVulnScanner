@@ -97,9 +97,12 @@
   <h2 class="section">Pending Invitations</h2>
   <div class="card">
     {% if pending_invitations %}
-    <div class="table-scroll">
+    <div class="table-scroll desktop-table">
     <table>
+      <thead>
       <tr><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
       {% for inv in pending_invitations %}
       <tr>
         <td>{{ inv.email }}</td>
@@ -117,8 +120,30 @@
         </td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
     </div>
+    <ul class="mobile-record-cards">
+      {% for inv in pending_invitations %}
+      <li class="card record-card">
+        <div class="record-card-top">
+          <span class="record-card-id">{{ inv.email }}</span>
+          <span class="pill medium">&#9679; Pending</span>
+        </div>
+        <div class="record-card-meta">{{ role_labels.get(inv.role, inv.role) }}</div>
+        <div class="record-card-action">
+          <form method="POST" action="{{ url_for('org.resend_invitation', invitation_id=inv.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn secondary block">Resend</button>
+          </form>
+          <form method="POST" action="{{ url_for('org.revoke_invitation', invitation_id=inv.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn destructive block">Revoke</button>
+          </form>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
     {% else %}
     <p style="color: var(--muted); font-size: 13px;">No pending invitations.</p>
     {% endif %}
