@@ -37,4 +37,20 @@
   button:disabled { opacity: .5; cursor: not-allowed; }
   .swap { margin-top: 18px; font-size: 13px; color: var(--muted); text-align: center; }
   .swap a { color: var(--accent); text-decoration: none; }
+
+  /* Phase 7 (RESP-02): this partial is included by exactly the five auth
+     templates (login/signup/forgot_password/reset_password/verify_email)
+     and nothing else, which is what makes the otherwise-unscoped .topnav
+     selector below page-scoped in practice - it never reaches an
+     authenticated page or the marketing page's topnav. 640px is
+     deliberately the same threshold as base.html's existing topnav
+     stack rule (see base.html's @media (max-width: 640px) { .topnav {...} })
+     rather than a new breakpoint. The CTA suppression targets only
+     a.cta-link so the topnav Login link and the brand link stay reachable -
+     reset_password.html has no in-card counterpart link, so the topnav is
+     its only navigation path and must not be hidden. */
+  @media (max-width: 640px) {
+    .auth-wrap { padding-top: var(--space-5); }
+    .topnav .nav-links a.cta-link { display: none; }
+  }
 </style>
