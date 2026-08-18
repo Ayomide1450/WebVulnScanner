@@ -334,12 +334,12 @@ keyboard and assistive technology, built against the canonical component set Pha
      template, and text/UI-element color contrast — including severity-colored finding text/
      badges — meets WCAG AA against the dark theme's background colors, confirmed with a
      contrast-checking tool.
-**Plans**: 7 plans
+**Plans**: 1/7 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 07-01-PLAN.md — Tracer: base.html responsive/a11y CSS foundation, proven end-to-end by converting dashboard.html's Scan History table to D-01 dual markup
+- [x] 07-01-PLAN.md — Tracer: base.html responsive/a11y CSS foundation, proven end-to-end by converting dashboard.html's Scan History table to D-01 dual markup
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -450,6 +450,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Production Hardening & Reliability | v1.0 | 5/5 | Complete | 2026-08-13 |
 | 5. New Scan Flow Redesign | v1.1 | 1/3 | In Progress|  |
 | 6. Design System Consistency | v1.1 | 1/4 | In Progress|  |
-| 7. Responsive & Accessibility Compliance | v1.1 | 0/TBD | Not started | - |
+| 7. Responsive & Accessibility Compliance | v1.1 | 1/7 | In Progress|  |
 | 8. Security Re-Audit & Hardening | v1.1 | 0/TBD | Not started | - |
 | 9. SEO, Performance & UX States | v1.1 | 0/TBD | Not started | - |

@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Production Audit, Hardening & Redesign
-current_phase: 6
-current_phase_name: Design System Consistency
+current_phase: 7
+current_phase_name: Responsive & Accessibility Compliance
 status: executing
-stopped_at: Phase 7 UI-SPEC approved
-last_updated: "2026-08-18T10:32:02.924Z"
+stopped_at: "07-01 tasks 1-2 code-complete, Task 3 checkpoint:human-verify pending"
+last_updated: "2026-08-18T13:00:31.177Z"
 last_activity: 2026-08-18
-last_activity_desc: Executed Wave 2 (06-02/06-03/06-04) in parallel via three gsd-executor
+last_activity_desc: "Executed 07-01 (Phase 7's tracer plan): Task 1 committed 9182abe, Task 2"
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 14
+  completed_plans: 8
   percent: 40
 ---
 
@@ -25,19 +25,27 @@ See: .planning/PROJECT.md (updated 2026-08-15)
 
 **Core value:** Security engineers can trust WebVulnScanner to run safe, authorization-gated,
 non-destructive scans against their own infrastructure and get findings they can act on.
-**Current focus:** Phase 6 — Design System Consistency
+**Current focus:** Phase 7 — Responsive & Accessibility Compliance
 
 ## Current Position
 
-Phase: 6 (Design System Consistency) — EXECUTING
-Plan: 4 of 4 (Wave 1 + Wave 2 all code-complete)
-Status: All four plans' coded tasks committed and full test suite green (492/492). Each plan's
-checkpoint:human-verify task (gate=blocking) is still open — no confirmed human walkthrough yet,
-so DESIGN-01..04 are not yet marked complete in REQUIREMENTS.md. Deployed to production (fly.io)
-same session per explicit user instruction.
-Last activity: 2026-08-18 — Executed Wave 2 (06-02/06-03/06-04) in parallel via three gsd-executor
-agents; one (06-03) stalled mid-task and was resumed after its in-flight work was verified/committed
-manually.
+Phase: 7 (Responsive & Accessibility Compliance) — EXECUTING
+Plan: 1 of 7 (wave 1 tracer, tasks 1-2 code-complete)
+Status: base.html now carries the complete D-01 CSS surface (--bp-card token, .mobile-record-cards/
+.record-card* class family, the 430px table/card display swap, four .gauge-fg severity stroke
+rules, .icon-btn touch-target promotion) and dashboard.html's Scan History proves the dual-markup
+table/card pattern end to end. Full suite green (502/502, up from the 492-test pre-plan baseline).
+Task 3 (checkpoint:human-verify, gate=blocking) is still open — no confirmed live-browser
+walkthrough or measured .btn:disabled contrast ratio yet, so RESP-01/RESP-03/A11Y-04 are not yet
+marked complete in REQUIREMENTS.md and wave 2's five parallel plans should not start until it
+clears (base.html is confirmed additive-only and complete for their needs, but the human gate is
+what confirms the visual/keyboard/contrast behavior actually works).
+Last activity: 2026-08-18 — Executed 07-01 (Phase 7's tracer plan): Task 1 committed 9182abe, Task 2
+committed 5008fcd.
+
+Phase 6 (Design System Consistency) remains at the same status as last recorded: all four plans'
+coded tasks committed, full suite green, each plan's checkpoint:human-verify still open pending
+confirmation.
 
 Progress: [██████░░░░] 57%
 
@@ -67,6 +75,7 @@ Progress: [██████░░░░] 57%
 |------|----------|-------|-------|
 | Phase 05 P01 | 15min | 3 tasks | 8 files |
 | Phase 6 P01 | 55min | 2 tasks | 6 files |
+| Phase 07 P01 | 10min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -101,6 +110,7 @@ Recent decisions affecting current work:
 - [Phase ?]: 05-01: ?target= query parameter chosen as the wizard's cross-step state carrier (no server-side session state) — contract that 05-02's remaining scan-type Step-3 pages must follow.
 - [Phase ?]: 06-01: h2.section shrinks 15px->11px (Caption role) - it was the drifted outlier vs every other 11px uppercase eyebrow element, not the reverse
 - [Phase ?]: 06-01: Phase-4 HARD-05 lock test_admin_form_partial_untouched_by_this_phase rewritten to test_admin_form_partial_uses_canonical_button_treatment - Phase 6 intentionally supersedes that constraint
+- [Phase ?]: 07-01: dual-markup table/card pattern (D-01) proven on dashboard Scan History - .record-card gets no id attribute since both markup blocks coexist in the DOM simultaneously (T-07-02)
 
 ### Pending Todos
 
@@ -132,6 +142,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-18T10:32:02.825Z
-Stopped at: Phase 7 UI-SPEC approved
-Resume file: .planning/phases/07-responsive-accessibility-compliance/07-UI-SPEC.md
+Last session: 2026-08-18T13:00:29.575Z
+Stopped at: 07-01 tasks 1-2 code-complete, Task 3 checkpoint:human-verify pending
+Resume file: .planning/phases/07-responsive-accessibility-compliance/07-01-SUMMARY.md
