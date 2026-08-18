@@ -337,12 +337,23 @@ keyboard and assistive technology, built against the canonical component set Pha
 **Plans**: 7 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 07-01-PLAN.md — Tracer: base.html responsive/a11y CSS foundation, proven end-to-end by converting dashboard.html's Scan History table to D-01 dual markup
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 07-02-PLAN.md — org_admin.html's four record tables + org_verify_domain.html's Domains table to dual markup, CSRF forms preserved, deletion-reason input given an accessible name
 - [ ] 07-03-PLAN.md — api_tokens.html / assets.html / asset_detail.html record tables to dual markup, revoke confirm() preserved, .icon-btn deduplicated
 - [ ] 07-04-PLAN.md — RESP-02 auth/org-setup mobile layout: screenshot first, then tighten the brand-to-card gap and suppress the duplicate CTA in _auth_form_styles.html
 - [ ] 07-05-PLAN.md — scan_report.html's 23 diagnostic tables get correct thead/tbody semantics and a per-table 320px audit; _gauge.html's hardcoded hexes become token classes
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 07-06-PLAN.md — Heading-hierarchy fixes on marketing.html and scan_new_advanced.html, plus app-wide accessibility regression locks and the keyboard-only walkthrough
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 07-07-PLAN.md — Phase gate: four-width sweep of every page, RESP-04 scan-progress re-confirmation, and phase-wide regression locks
 
 **Execution waves**: wave 1 = 07-01 (establishes every new base.html class, breakpoint and token so
