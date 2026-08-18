@@ -275,9 +275,8 @@
       {% else %}
       <div class="table-scroll">
       <!-- Row-header table (Subject/Issuer/Expires/etc. label the value beside
-           them, not a column below them) - deliberately carries no column-header
-           wrapper. Each th carries scope="row" instead. Do not "fix" this into
-           a column-header table. -->
+           them, not a column below them) - deliberately no <thead>. Each <th>
+           carries scope="row" instead. Do not "fix" this into a <thead> table. -->
       <table>
         <tbody>
         <tr><th scope="row">Subject</th><td>{{ r.tls.subject }}</td></tr>
@@ -568,9 +567,8 @@
       {% else %}
       <div class="table-scroll">
       <!-- Row-header table (Domain/SPF/DMARC/CAA label the value beside them,
-           not a column below them) - deliberately carries no column-header
-           wrapper. Each th carries scope="row" instead. Do not "fix" this
-           into a column-header table. -->
+           not a column below them) - deliberately no <thead>. Each <th>
+           carries scope="row" instead. Do not "fix" this into a <thead> table. -->
       <table>
         <tbody>
         <tr><th scope="row">Domain</th><td>{{ r.dns_email.domain }}</td></tr>
