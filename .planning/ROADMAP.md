@@ -334,7 +334,7 @@ keyboard and assistive technology, built against the canonical component set Pha
      template, and text/UI-element color contrast — including severity-colored finding text/
      badges — meets WCAG AA against the dark theme's background colors, confirmed with a
      contrast-checking tool.
-**Plans**: 1/7 plans executed
+**Plans**: 5/7 plans executed
 
 Plans:
 **Wave 1**
@@ -343,10 +343,10 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 07-02-PLAN.md — org_admin.html's four record tables + org_verify_domain.html's Domains table to dual markup, CSRF forms preserved, deletion-reason input given an accessible name
-- [ ] 07-03-PLAN.md — api_tokens.html / assets.html / asset_detail.html record tables to dual markup, revoke confirm() preserved, .icon-btn deduplicated
-- [ ] 07-04-PLAN.md — RESP-02 auth/org-setup mobile layout: screenshot first, then tighten the brand-to-card gap and suppress the duplicate CTA in _auth_form_styles.html
-- [ ] 07-05-PLAN.md — scan_report.html's 23 diagnostic tables get correct thead/tbody semantics and a per-table 320px audit; _gauge.html's hardcoded hexes become token classes
+- [x] 07-02-PLAN.md — org_admin.html's four record tables + org_verify_domain.html's Domains table to dual markup, CSRF forms preserved, deletion-reason input given an accessible name
+- [x] 07-03-PLAN.md — api_tokens.html / assets.html / asset_detail.html record tables to dual markup, revoke confirm() preserved, .icon-btn deduplicated
+- [x] 07-04-PLAN.md — RESP-02 auth/org-setup mobile layout: screenshot first, then tighten the brand-to-card gap and suppress the duplicate CTA in _auth_form_styles.html
+- [x] 07-05-PLAN.md — scan_report.html's 23 diagnostic tables get correct thead/tbody semantics and a per-table 320px audit; _gauge.html's hardcoded hexes become token classes
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -450,6 +450,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Production Hardening & Reliability | v1.0 | 5/5 | Complete | 2026-08-13 |
 | 5. New Scan Flow Redesign | v1.1 | 1/3 | In Progress|  |
 | 6. Design System Consistency | v1.1 | 1/4 | In Progress|  |
-| 7. Responsive & Accessibility Compliance | v1.1 | 1/7 | In Progress|  |
+| 7. Responsive & Accessibility Compliance | v1.1 | 5/7 | In Progress|  |
 | 8. Security Re-Audit & Hardening | v1.1 | 0/TBD | Not started | - |
 | 9. SEO, Performance & UX States | v1.1 | 0/TBD | Not started | - |
