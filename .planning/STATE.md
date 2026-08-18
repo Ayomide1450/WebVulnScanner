@@ -5,15 +5,15 @@ milestone_name: Production Audit, Hardening & Redesign
 current_phase: 7
 current_phase_name: Responsive & Accessibility Compliance
 status: executing
-stopped_at: "07-05 tasks 1-2 code-complete (all 23 scan_report.html tables + _gauge.html token migration), Task 3 checkpoint:human-verify pending"
-last_updated: "2026-08-18T17:38:31.327Z"
+stopped_at: "07-06 tasks 1-2 code-complete (heading-hierarchy fixes + app-wide accessibility locks), Task 3 checkpoint:human-verify pending"
+last_updated: "2026-08-18T19:05:00.000Z"
 last_activity: 2026-08-18
-last_activity_desc: "Executed 07-01 (Phase 7's tracer plan): Task 1 committed 9182abe, Task 2"
+last_activity_desc: "Executed 07-06 (Phase 7 wave 3, final code plan): Task 1 committed ee58240, Task 2 committed ac151e8"
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
   percent: 40
 ---
 
@@ -30,24 +30,28 @@ non-destructive scans against their own infrastructure and get findings they can
 ## Current Position
 
 Phase: 7 (Responsive & Accessibility Compliance) — EXECUTING
-Plan: 2 of 7 (wave 1 tracer, tasks 1-2 code-complete)
-Status: base.html now carries the complete D-01 CSS surface (--bp-card token, .mobile-record-cards/
-.record-card* class family, the 430px table/card display swap, four .gauge-fg severity stroke
-rules, .icon-btn touch-target promotion) and dashboard.html's Scan History proves the dual-markup
-table/card pattern end to end. Full suite green (502/502, up from the 492-test pre-plan baseline).
-Task 3 (checkpoint:human-verify, gate=blocking) is still open — no confirmed live-browser
-walkthrough or measured .btn:disabled contrast ratio yet, so RESP-01/RESP-03/A11Y-04 are not yet
-marked complete in REQUIREMENTS.md and wave 2's five parallel plans should not start until it
-clears (base.html is confirmed additive-only and complete for their needs, but the human gate is
-what confirms the visual/keyboard/contrast behavior actually works).
-Last activity: 2026-08-18 — Executed 07-01 (Phase 7's tracer plan): Task 1 committed 9182abe, Task 2
-committed 5008fcd.
+Plan: 6 of 7 (wave 3, the phase's final code plan, tasks 1-2 code-complete)
+Status: All wave-1/2/3 code plans (07-01..07-06) are now code-complete. 07-06 closed the
+codebase's only two confirmed heading-hierarchy skips (marketing.html's sixteen h4->h3
+promotions, scan_new_advanced.html's four h4->h2 promotions, both size-pinned unchanged) and
+added tests/test_accessibility.py (91 tests, 4 -k-selectable families: heading_hierarchy,
+labels_and_icon_buttons, no_clickable_divs, focus_treatment) locking heading sequence, label
+coverage, icon-only accessible names, native-element-only interactivity, single-source focus
+treatment, and app-wide id-uniqueness across every reachable page including the nine mobile-card
+blocks wave 2 added. Full suite green (548/548, same baseline as 07-05, no regressions).
+Task 3 (checkpoint:human-verify, gate=blocking) is still open — no confirmed live keyboard-only
+walkthrough at desktop/320px or visual heading-size regression check yet, so A11Y-01/A11Y-02/
+A11Y-03 are not yet marked complete in REQUIREMENTS.md. Wave 4 (07-07, the phase gate) should not
+start until this clears, since 07-UI-SPEC.md's one unresolved UI Consideration row (full
+keyboard-walkthrough coverage) is only discharged by that checkpoint.
+Last activity: 2026-08-18 — Executed 07-06 (Phase 7's final wave-3 plan): Task 1 committed
+ee58240, Task 2 committed ac151e8.
 
 Phase 6 (Design System Consistency) remains at the same status as last recorded: all four plans'
 coded tasks committed, full suite green, each plan's checkpoint:human-verify still open pending
 confirmation.
 
-Progress: [█████████░] 86%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
@@ -77,6 +81,7 @@ Progress: [█████████░] 86%
 | Phase 6 P01 | 55min | 2 tasks | 6 files |
 | Phase 07 P01 | 10min | 2 tasks | 3 files |
 | Phase 07 P05 | ~50min | 2 tasks | 3 files |
+| Phase 07 P06 | ~45min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -113,6 +118,7 @@ Recent decisions affecting current work:
 - [Phase ?]: 06-01: Phase-4 HARD-05 lock test_admin_form_partial_untouched_by_this_phase rewritten to test_admin_form_partial_uses_canonical_button_treatment - Phase 6 intentionally supersedes that constraint
 - [Phase ?]: 07-01: dual-markup table/card pattern (D-01) proven on dashboard Scan History - .record-card gets no id attribute since both markup blocks coexist in the DOM simultaneously (T-07-02)
 - [Phase ?]: 07-05: continued a prior stalled session by re-auditing all 23 scan_report.html tables against actual file content (not assumed prior-session state) before making any edit; confirmed 14 tables already correct, completed the remaining 9 plus the untouched _gauge.html hex-to-token migration.
+- [Phase ?]: 07-06: the plan's acceptance criteria assumed the API-tokens page lives at `/account/api-tokens`; the real registered route (built programmatically from app.url_map per the plan's own instruction) is `/tokens` (webvulnscanner/api_tokens_routes.py's url_prefix) — the module's page list follows the actual codebase, documented as a plan-text mismatch, not a code defect.
 
 ### Pending Todos
 
@@ -144,6 +150,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-18T17:38:31.291Z
-Stopped at: 07-05 tasks 1-2 code-complete (all 23 scan_report.html tables + _gauge.html token migration), Task 3 checkpoint:human-verify pending
-Resume file: None
+Last session: 2026-08-18T19:05:00.000Z
+Stopped at: 07-06 tasks 1-2 code-complete (heading-hierarchy fixes + app-wide accessibility locks), Task 3 checkpoint:human-verify pending
+Resume file: .planning/phases/07-responsive-accessibility-compliance/07-06-SUMMARY.md

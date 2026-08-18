@@ -334,7 +334,7 @@ keyboard and assistive technology, built against the canonical component set Pha
      template, and text/UI-element color contrast — including severity-colored finding text/
      badges — meets WCAG AA against the dark theme's background colors, confirmed with a
      contrast-checking tool.
-**Plans**: 5/7 plans executed
+**Plans**: 6/7 plans executed
 
 Plans:
 **Wave 1**
@@ -350,7 +350,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 07-06-PLAN.md — Heading-hierarchy fixes on marketing.html and scan_new_advanced.html, plus app-wide accessibility regression locks and the keyboard-only walkthrough
+- [x] 07-06-PLAN.md — Heading-hierarchy fixes on marketing.html and scan_new_advanced.html, plus app-wide accessibility regression locks and the keyboard-only walkthrough
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
