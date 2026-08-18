@@ -20,9 +20,12 @@
 
   <div class="card">
     {% if assets %}
-    <div class="table-scroll">
+    <div class="table-scroll desktop-table">
     <table>
+      <thead>
       <tr><th>Name</th><th>Target</th><th>Cadence</th><th>Next run</th><th>Latest status</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
       {% for a in assets %}
       {% set latest = a.scans|sort(attribute='created_at')|last if a.scans else None %}
       <tr>
@@ -40,8 +43,31 @@
         <td><a class="row-link" href="{{ url_for('asset.asset_detail', asset_id=a.id) }}">View &rarr;</a></td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
     </div>
+    <ul class="mobile-record-cards">
+      {% for a in assets %}
+      {% set latest = a.scans|sort(attribute='created_at')|last if a.scans else None %}
+      <li class="card record-card">
+        <div class="record-card-top">
+          <a class="record-card-id" href="{{ url_for('asset.asset_detail', asset_id=a.id) }}">{{ a.name }}</a>
+          {% if latest %}
+          <span class="status-pill {{ latest.status.value }}">{{ latest.status.value }}</span>
+          {% else %}
+          -
+          {% endif %}
+        </div>
+        <div class="record-card-meta">
+          <code>{{ a.target_url }}</code><br>
+          {{ a.cadence }} &middot; next run {{ a.next_run_at }}
+        </div>
+        <div class="record-card-action">
+          <a class="btn secondary block" href="{{ url_for('asset.asset_detail', asset_id=a.id) }}">View &rarr;</a>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
     {% else %}
     <p style="color: var(--muted); font-size: 13px;">
       No assets yet. Register a domain as an Asset to scan it automatically on a schedule,

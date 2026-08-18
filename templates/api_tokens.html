@@ -93,9 +93,12 @@
 
   <div class="card">
     {% if tokens %}
-    <div class="table-scroll">
+    <div class="table-scroll desktop-table">
     <table>
+      <thead>
       <tr><th>Name</th><th>Created</th><th>Last used</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
       {% for t in tokens %}
       <tr>
         <td class="token-name">{{ t.name }}</td>
@@ -120,8 +123,34 @@
         </td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
     </div>
+    <ul class="mobile-record-cards">
+      {% for t in tokens %}
+      <li class="card record-card">
+        <div class="record-card-top">
+          <span class="record-card-id token-name">{{ t.name }}</span>
+          {% if t.revoked_at %}
+          <span class="pill info">Revoked</span>
+          {% else %}
+          <span class="pill pass">Active</span>
+          {% endif %}
+        </div>
+        <div class="record-card-meta">
+          Created {{ t.created_at }} &middot; last used {{ t.last_used_at if t.last_used_at else "Never" }}
+        </div>
+        {% if not t.revoked_at %}
+        <div class="record-card-action">
+          <form class="revoke-token-form" method="POST" action="{{ url_for('api_tokens.revoke_token', token_id=t.id) }}" data-token-name="{{ t.name }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn destructive block">Revoke</button>
+          </form>
+        </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
     {% else %}
     <p style="color: var(--muted); font-size: 13px; margin:0;">
       <b style="color: var(--text);">No API tokens yet</b><br>
