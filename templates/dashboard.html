@@ -10,34 +10,34 @@
   a.row-link:hover { text-decoration:underline; }
 
   .dash-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }
-  .dash-header .sub { color: var(--muted); font-size: 13.5px; margin: 4px 0 0; }
+  .dash-header .sub { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
 
   /* Item 2: four compact summary cards, item 8: less wasted vertical space
      than the old single oversized score card. */
   .summary-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:14px; margin-top:20px; }
   .summary-card { padding:16px 18px; }
-  .summary-card .label { display:flex; align-items:center; gap:7px; color: var(--muted); font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; }
+  .summary-card .label { display:flex; align-items:center; gap:7px; color: var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
   .summary-card .label .icon { width:14px; height:14px; }
-  .summary-card .value { font-size:26px; font-weight:800; font-family:"Fira Code",monospace; margin-top:8px; }
+  .summary-card .value { font-size:26px; font-weight:600; font-family:"Fira Code",monospace; margin-top:8px; }
   .summary-card .value small { font-size:14px; color: var(--muted); font-weight:600; }
-  .summary-card .foot { font-size:12px; color: var(--muted); margin-top:4px; }
+  .summary-card .foot { font-size:13px; color: var(--muted); margin-top:4px; }
   @media (max-width: 860px) { .summary-grid { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 460px) { .summary-grid { grid-template-columns: 1fr 1fr; gap:10px; } .summary-card { padding:13px 14px; } .summary-card .value { font-size:21px; } }
 
   /* Item 3: latest-scan card */
   .latest-card { display:flex; gap:var(--space-5); align-items:center; flex-wrap:wrap; }
   .latest-meta { flex:1; min-width:240px; }
-  .latest-meta dl { display:grid; grid-template-columns: max-content 1fr; gap:6px 16px; margin:12px 0 0; font-size:13.5px; }
+  .latest-meta dl { display:grid; grid-template-columns: max-content 1fr; gap:6px 16px; margin:12px 0 0; font-size:13px; }
   .latest-meta dt { color: var(--muted); }
   .latest-meta dd { margin:0; }
-  .latest-target { font-size:15px; font-weight:700; word-break:break-all; }
+  .latest-target { font-size:15px; font-weight:600; word-break:break-all; }
 
   /* Item 5: recent findings */
   .sev-summary { display:flex; gap:10px; flex-wrap:wrap; margin: 4px 0 16px; }
-  .sev-summary .stat { display:flex; align-items:center; gap:6px; font-size:13px; font-weight:700; }
+  .sev-summary .stat { display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; }
   .sev-summary .stat .dot { width:8px; height:8px; border-radius:50%; background:currentColor; }
-  .finding .cat { color: var(--muted); font-size: 11px; text-transform:uppercase; letter-spacing:.06em; font-family:"Fira Code",monospace; display:block; margin-bottom:2px; }
-  .finding .view-link { display:inline-block; margin-top:6px; font-size:12.5px; font-weight:600; color: var(--accent); text-decoration:none; }
+  .finding .cat { display:block; margin-bottom:2px; }
+  .finding .view-link { display:inline-block; margin-top:6px; font-size:13px; font-weight:600; color: var(--accent); text-decoration:none; }
   .finding .view-link:hover { text-decoration:underline; }
   .findings-more { text-align:center; padding-top:4px; }
 
@@ -54,7 +54,7 @@
   .target-row code { flex-shrink:0; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .target-row svg { flex-shrink:0; }
 
-  .empty-state { text-align:center; padding: 28px 16px; color: var(--muted); font-size:13.5px; }
+  .empty-state { text-align:center; padding: 28px 16px; color: var(--muted); font-size:13px; }
   .empty-state .icon { width:28px; height:28px; margin-bottom:10px; color: var(--muted); }
 </style>
 {% endblock %}
@@ -122,7 +122,7 @@
     <div class="card summary-card">
       <div class="label"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-linecap="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/></svg>Last Scan</div>
       {% if latest %}
-        <div class="value" style="font-size:16px;">{{ latest.created_at.strftime('%b %d, %Y') }}</div>
+        <div class="value" style="font-size:15px;">{{ latest.created_at.strftime('%b %d, %Y') }}</div>
         <div class="foot"><span class="status-pill {{ latest.status.value }}">{{ latest.status.value }}</span></div>
       {% else %}
         <div class="value"><small>&mdash;</small></div>
@@ -197,7 +197,7 @@
       {% else %}
       <div class="empty-state">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>
-        <div style="color: var(--text); font-weight:700; font-size:14.5px;">No security issues found</div>
+        <div style="color: var(--text); font-weight:600; font-size:15px;">No security issues found</div>
         <div>Your latest scan did not detect any actionable vulnerabilities.</div>
       </div>
       {% endif %}
@@ -219,7 +219,7 @@
     {% endfor %}
     {% set n = scored|length %}
     {% if n > 0 %}
-    <p style="color: var(--muted); font-size: 12.5px; margin: 0 0 14px;">Track how your website's security score changes across scans.</p>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">Track how your website's security score changes across scans.</p>
     {% set pad_l = 34 %}{% set pad_r = 20 %}{% set pad_t = 18 %}{% set pad_b = 26 %}
     {% set plot_w = 90 * ([n, 6]|max) %}{% set plot_h = 130 %}
     {% set svg_w = pad_l + plot_w + pad_r %}{% set svg_h = pad_t + plot_h + pad_b %}
@@ -270,14 +270,14 @@
     </svg>
     </div>
     {% else %}
-    <p style="color: var(--muted); font-size: 12.5px; margin:0;">Not enough completed scans yet for a trend line.</p>
+    <p style="color: var(--muted); font-size: 13px; margin:0;">Not enough completed scans yet for a trend line.</p>
     {% endif %}
   </div>
 
   {% if target_trends %}
   <h2 class="section">Trend by target ({{ target_trends|length }})</h2>
   <div class="card">
-    <p style="color: var(--muted); font-size: 12.5px; margin:0 0 14px;">Only targets with 2+ completed scans show a trend line.</p>
+    <p style="color: var(--muted); font-size: 13px; margin:0 0 14px;">Only targets with 2+ completed scans show a trend line.</p>
     {% for host, host_scans in target_trends.items() %}
       {% set n = host_scans|length %}
       {% set sw = 260 %}{% set sh = 36 %}
@@ -294,8 +294,8 @@
         <svg width="{{ sw }}" height="{{ sh }}" viewBox="0 0 {{ sw }} {{ sh }}" preserveAspectRatio="none">
           <polyline points="{{ pts|join(' ') }}" fill="none" stroke="var(--accent)" stroke-width="2"></polyline>
         </svg>
-        <span style="font-size:13px; font-weight:700;">{{ last_score }}</span>
-        <span style="font-size:12px; color: {{ 'var(--critical)' if delta < 0 else ('var(--accent)' if delta > 0 else 'var(--muted)') }};">
+        <span style="font-size:13px; font-weight:600;">{{ last_score }}</span>
+        <span style="font-size:11px; color: {{ 'var(--critical)' if delta < 0 else ('var(--accent)' if delta > 0 else 'var(--muted)') }};">
           {{ '+' if delta > 0 else '' }}{{ delta }} over {{ n }} scans
         </span>
       </div>
