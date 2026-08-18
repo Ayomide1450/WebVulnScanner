@@ -30,9 +30,27 @@ not yet exist on disk, so this module defines its own
 """
 import re
 
-from webvulnscanner.models import Plan, Scan, ScanStatus
+from webvulnscanner.models import Plan, Report, Scan, ScanStatus
 
 from tests.conftest import login, make_api_token, make_asset, make_org, make_user
+
+
+def _make_scan_with_report(db, asset, user, org, risk_score):
+    """A completed base Scan plus its Report row, `data` populated directly
+    (skips the on-disk-file read path entirely - `compliance_coverage()`
+    reads `report.data` first) so the Compliance coverage table has at
+    least one real row instead of falling back to the "not enough
+    completed scans yet" empty branch."""
+    s = Scan(
+        asset_id=asset.id, user_id=user.id, org_id=org.id,
+        target_url=asset.target_url, scan_type="base",
+        status=ScanStatus.COMPLETED, risk_score=risk_score,
+    )
+    db.session.add(s)
+    db.session.flush()
+    r = Report(scan_id=s.id, json_path=f"unused_{s.id}.json", data={"findings": [], "locked_checks": []})
+    db.session.add(r)
+    return s
 
 
 def _assert_no_duplicate_ids(body):
@@ -211,12 +229,7 @@ def test_asset_detail_scan_history_table_cards_both_blocks_present(db, client):
     org = make_org(plan=Plan.PAID, name="Detail Org A")
     user = make_user("detail-a@example.com", org=org)
     a = make_asset(org, user, name="Detail Asset A")
-    s = Scan(
-        asset_id=a.id, user_id=user.id, org_id=org.id,
-        target_url=a.target_url, scan_type="base",
-        status=ScanStatus.COMPLETED, risk_score=77,
-    )
-    db.session.add(s)
+    _make_scan_with_report(db, a, user, org, risk_score=77)
     db.session.commit()
 
     login(client, "detail-a@example.com")
@@ -263,12 +276,7 @@ def test_asset_detail_compliance_coverage_stays_a_table_with_thead_tbody(db, cli
     org = make_org(plan=Plan.PAID, name="Detail Org C")
     user = make_user("detail-c@example.com", org=org)
     a = make_asset(org, user, name="Detail Asset C")
-    s = Scan(
-        asset_id=a.id, user_id=user.id, org_id=org.id,
-        target_url=a.target_url, scan_type="base",
-        status=ScanStatus.COMPLETED, risk_score=90,
-    )
-    db.session.add(s)
+    _make_scan_with_report(db, a, user, org, risk_score=90)
     db.session.commit()
 
     login(client, "detail-c@example.com")

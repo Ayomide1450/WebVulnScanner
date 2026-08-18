@@ -39,9 +39,9 @@
      target per 01-UI-SPEC.md's Spacing Scale exception. Pause/resume reuse
      .btn.secondary (never accent - a schedule toggle isn't a conversion
      action); delete reuses .error-box's exact rgba treatment as its
-     destructive color, per 01-UI-SPEC.md's Color contract. */
-  .icon-btn { min-width: 44px; min-height: 44px; padding: 0; justify-content:center; }
-  .icon-btn .icon { width:18px; height:18px; }
+     destructive color, per 01-UI-SPEC.md's Color contract. .icon-btn
+     itself now comes from base.html (promoted in plan 07-01) - the local
+     copy that used to live here was removed in plan 07-03. */
   /* The destructive-button and disabled-button treatments now come from
      base.html's canonical rules - see its comments. */
 </style>
@@ -161,9 +161,19 @@
         As of the most recent completed scan of each scan type this Asset has run
         ({{ coverage.scan_types|join(', ') }}) &mdash; not this Asset's all-time history.
       </p>
+      {# D-01 per-table triage (07-RESEARCH.md "Curated-vs-diagnostic table
+         triage"): this is a two-column diagnostic dump (OWASP category ->
+         status), not a record list with a primary action or a detail view
+         to link to - so it stays a table at every width and only gains
+         thead/tbody here. Do not "finish the job" by converting it to
+         .mobile-record-cards; there is no per-row action for a card to
+         hold. #}
       <div class="table-scroll">
       <table>
+        <thead>
         <tr><th>OWASP Top 10 category</th><th>Status</th></tr>
+        </thead>
+        <tbody>
         {% for row in coverage.rows %}
         <tr>
           <td>{{ row.owasp }}</td>
@@ -184,6 +194,7 @@
           </td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}
@@ -235,9 +246,12 @@
   {% if scans %}
   <h2 class="section">Scan history</h2>
   <div class="card">
-    <div class="table-scroll">
+    <div class="table-scroll desktop-table">
     <table>
+      <thead>
       <tr><th>Type</th><th>Status</th><th>Risk score</th><th>Created</th><th></th></tr>
+      </thead>
+      <tbody>
       {% for s in scans %}
       <tr>
         <td>{{ s.scan_type }}</td>
@@ -247,8 +261,25 @@
         <td><a class="row-link" href="{{ url_for('scan.scan_detail', scan_id=s.id) }}">View &rarr;</a></td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
     </div>
+    <ul class="mobile-record-cards">
+      {% for s in scans %}
+      <li class="card record-card">
+        <div class="record-card-top">
+          <span class="record-card-id">{{ s.scan_type }}</span>
+          <span class="status-pill {{ s.status.value }}">{{ s.status.value }}</span>
+        </div>
+        <div class="record-card-meta">
+          {{ s.risk_score if s.risk_score is not none else '-' }} / 100 &middot; {{ s.created_at }}
+        </div>
+        <div class="record-card-action">
+          <a class="btn secondary block" href="{{ url_for('scan.scan_detail', scan_id=s.id) }}">View &rarr;</a>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
   </div>
   {% endif %}
 </div>
