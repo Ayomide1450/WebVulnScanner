@@ -29,7 +29,7 @@ the finish review, the verdict, and DESIGN.md.
 
   /* ---- Status bar ------------------------------------------------- */
   .soc-header { display:flex; justify-content:space-between; align-items:flex-end; gap:20px; flex-wrap:wrap; margin-top: 20px; }
-  .soc-header h1 { font-size: 24px; margin: 6px 0 0; letter-spacing: -0.01em; }
+  .soc-header h1 { margin: 6px 0 0; }
   /* .status-pill / .status-pill .dot now live in base.html (shared with
      dashboard.html and org_admin.html) - no local override here. */
   .soc-header-meta { color: var(--muted); font-size: 13px; font-family: "Fira Code", monospace; text-align:right; }
@@ -54,26 +54,26 @@ the finish review, the verdict, and DESIGN.md.
   }
   .bar-fill { background: linear-gradient(135deg, var(--accent), var(--accent2)); height:100%; width:0%; transition: width .3s ease; }
 
-  .console-feed { list-style:none; margin:0; padding:0; font-size: 13.5px; }
+  .console-feed { list-style:none; margin:0; padding:0; font-size: 13px; }
   .console-feed li { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding: 9px 0; border-bottom: 1px solid var(--border); }
   .console-feed li:last-child { border-bottom: none; }
   .console-feed .feed-icon { width:15px; height:15px; color: var(--muted); flex-shrink:0; }
   .console-feed .feed-label { color: var(--text); font-weight:600; flex-shrink:0; }
-  .console-feed .feed-detail { color: var(--muted); font-family: "Fira Code", monospace; font-size: 12.5px; flex: 1 1 auto; min-width: 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .console-feed .feed-detail { color: var(--muted); font-family: "Fira Code", monospace; font-size: 13px; flex: 1 1 auto; min-width: 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .console-feed .feed-badge { flex-shrink:0; }
-  .console-feed .feed-time { color: var(--muted); font-family: "Fira Code", monospace; font-size: 11.5px; flex-shrink:0; margin-left:auto; min-width: 32px; text-align:right; }
+  .console-feed .feed-time { color: var(--muted); font-family: "Fira Code", monospace; font-size: 11px; flex-shrink:0; margin-left:auto; min-width: 32px; text-align:right; }
   .console-feed li.feed-in { animation: feed-in .3s ease forwards; }
   @keyframes feed-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
-  .feed-empty .feed-label { color: var(--muted); font-weight:500; font-style:italic; }
+  .feed-empty .feed-label { color: var(--muted); font-weight:600; font-style:italic; }
 
   .status-line.stale { margin-top: 12px; color: var(--medium); font-size: 13px; }
 
   /* ---- Live intelligence sidebar ------------------------------------ */
   .intel-panel { padding: 22px; }
   .intel-panel h2.section { margin-top: 0; }
-  .intel-row { display:flex; justify-content:space-between; align-items:baseline; padding: 7px 0; font-size: 13.5px; }
+  .intel-row { display:flex; justify-content:space-between; align-items:baseline; padding: 7px 0; font-size: 13px; }
   .intel-row span { color: var(--muted); }
-  .intel-row strong { font-family: "Fira Code", monospace; font-weight:700; }
+  .intel-row strong { font-family: "Fira Code", monospace; font-weight:600; }
   .intel-severity { display:flex; align-items:center; gap:8px; margin-top: 4px; }
   .intel-divider { border:none; border-top: 1px solid var(--border); margin: 14px 0; }
   .intel-target-row { display:flex; align-items:center; gap:9px; font-size: 13px; color: var(--muted); padding: 4px 0; }

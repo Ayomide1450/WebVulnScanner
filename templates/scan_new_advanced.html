@@ -3,21 +3,21 @@
 {% block head %}
 {% include "_scan_form_styles.html" %}
 <style>
-  .adv-group { border: 1px solid var(--border, #2a2f3a); border-radius: 10px; margin-bottom: 12px; padding: 0; overflow: hidden; }
+  .adv-group { border: 1px solid var(--border, #2a2f3a); border-radius: var(--radius); margin-bottom: 12px; padding: 0; overflow: hidden; }
   .adv-group > summary { list-style: none; cursor: pointer; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .adv-group > summary::-webkit-details-marker { display: none; }
   .adv-group > summary .adv-group-title { display: flex; flex-direction: column; gap: 2px; }
-  .adv-group > summary h4 { margin: 0; font-size: 15px; }
+  .adv-group > summary h4 { margin: 0; }
   .adv-group > summary .adv-group-blurb { font-size: 13px; color: var(--muted, #8a93a6); font-weight: 400; }
   .adv-group[open] > summary { border-bottom: 1px solid var(--border, #2a2f3a); }
   .adv-group-body { padding: 14px 16px 16px; }
-  .adv-detected-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(52, 199, 89, 0.15); color: #34c759; white-space: nowrap; }
+  .adv-detected-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(34,197,94,.14); color: var(--accent); font-weight: 600; white-space: nowrap; }
   .adv-chevron { transition: transform 0.15s ease; flex-shrink: 0; }
   .adv-group[open] .adv-chevron { transform: rotate(90deg); }
-  .adv-field-help { font-size: 12px; color: var(--muted, #8a93a6); margin: -6px 0 10px; }
+  .adv-field-help { font-size: 13px; color: var(--muted, #8a93a6); margin: -6px 0 10px; }
   #advDetectStatus { font-size: 13px; margin-top: 8px; min-height: 18px; }
   #advDetectStatus.detecting { color: var(--telemetry, #4a9eff); }
-  #advDetectStatus.found { color: #34c759; }
+  #advDetectStatus.found { color: var(--accent); }
   #advDetectStatus.none { color: var(--muted, #8a93a6); }
 </style>
 {% endblock %}
@@ -69,7 +69,7 @@
 
       <div class="check-row">
         <input type="checkbox" id="authorized_adv" name="authorized_adv" required>
-        <label for="authorized_adv" style="margin:0; font-weight:500;">
+        <label for="authorized_adv" style="margin:0; font-weight:400;">
           I own this target, or I have explicit authorization to security-test it.
         </label>
       </div>
@@ -182,7 +182,7 @@
   <div class="card">
     <div class="locked-state">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-      <h2 style="margin:0 0 4px; font-size:16px;">{{ availability.label }}</h2>
+      <h2 style="margin:0 0 4px;">{{ availability.label }}</h2>
       <p>Advanced checks send real auth-bypass/injection payloads, so they're gated behind a
       server-verified domain-ownership proof, not just a checkbox. Upgrade your plan and verify
       the domain you want to test to unlock this page.</p>

@@ -292,8 +292,11 @@ def test_admin_form_partial_uses_canonical_button_treatment():
 # --------------------------------------------------------------------------
 
 def test_scan_report_no_longer_duplicates_table_rule(client, db):
+    """table/th/td and h1/h2.section are all canonical in base.html (Phase 4 promoted the table rule;
+    Phase 6's 06-01/06-04 promoted h1/h2.section) - scan_report.html should define none of them
+    locally."""
     import pathlib
 
     text = pathlib.Path("templates/scan_report.html").read_text(encoding="utf-8")
     assert "border-collapse" not in text
-    assert "h2.section" in text
+    assert "h2.section {" not in text
