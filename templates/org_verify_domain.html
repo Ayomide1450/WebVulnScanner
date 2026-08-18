@@ -6,7 +6,7 @@
 {% block content %}
 <div class="wrap">
   <h1>Verify a domain</h1>
-  <p style="color: var(--muted); font-size: 13.5px;">
+  <p style="color: var(--muted); font-size: 13px;">
     Proving ownership of a domain unlocks org-verified checks (reflected
     XSS/SQLi and the advanced/authenticated scan groups) against it.
   </p>
@@ -63,7 +63,7 @@
     </div>
   </div>
   {% else %}
-  <div class="warn-box"><span class="ico">&#9888;&#65039;</span><div>No domains added yet.</div></div>
+  <div class="warn-box"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-warning"/></svg><div>No domains added yet.</div></div>
   {% endif %}
 </div>
 {% endblock %}

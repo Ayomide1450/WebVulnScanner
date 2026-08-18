@@ -6,8 +6,8 @@
   .stat-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:14px; margin-bottom: 8px; }
   @media (max-width: 700px) { .stat-grid { grid-template-columns: 1fr 1fr; } }
   .stat-card { padding: 16px 18px; }
-  .stat-card .label { color: var(--muted); font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; }
-  .stat-card .value { font-size:26px; font-weight:800; font-family:"Fira Code",monospace; margin-top:6px; }
+  .stat-card .label { color: var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
+  .stat-card .value { font-size:26px; font-weight:600; font-family:"Fira Code",monospace; margin-top:6px; }
   .deletion-card { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); margin-bottom: var(--space-3); background: rgba(255,255,255,.02); }
   .deletion-card:last-child { margin-bottom: 0; }
   .deletion-row { display:flex; gap: var(--space-5); flex-wrap: wrap; margin-bottom: 12px; }
@@ -22,7 +22,7 @@
 {% block content %}
 <div class="wrap">
   <h1>Platform Admin</h1>
-  <p style="color: var(--muted); font-size: 13.5px;">
+  <p style="color: var(--muted); font-size: 13px;">
     Cross-org operator view - separate from any organization's own
     <code>/org/admin</code> page. Only accounts granted
     <code>is_platform_admin</code> (via the <code>flask grant-platform-admin</code> CLI command) can reach this.
@@ -74,7 +74,7 @@
     </div>
     {% endfor %}
     {% else %}
-    <p style="color: var(--muted); font-size: 13.5px;">No pending domain-deletion requests.</p>
+    <p style="color: var(--muted); font-size: 13px;">No pending domain-deletion requests.</p>
     {% endif %}
   </div>
 </div>

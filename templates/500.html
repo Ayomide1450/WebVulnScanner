@@ -4,8 +4,8 @@
 <div class="wrap" style="text-align:center; padding-top:80px;">
   <div class="card" style="max-width:480px; margin:0 auto; padding:40px 32px;">
     <svg class="icon" style="width:32px;height:32px;color:var(--critical);margin-bottom:12px;" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 2.5 17.5A1.8 1.8 0 0 0 4 20.2h16a1.8 1.8 0 0 0 1.5-2.7L13.7 3.9a1.8 1.8 0 0 0-3.4 0Z"/></svg>
-    <h1 style="margin:0 0 8px; font-size:22px;">Something went wrong</h1>
-    <p style="color:var(--muted); font-size:14px; margin:0 0 22px;">An unexpected error occurred on our
+    <h1 style="margin:0 0 8px; font-size:20px;">Something went wrong</h1>
+    <p style="color:var(--muted); font-size:13px; margin:0 0 22px;">An unexpected error occurred on our
     end. Nothing you did caused this - try again in a moment.</p>
     <a class="btn primary" href="{{ url_for('scan.dashboard') if current_user.is_authenticated else url_for('public.index') }}">
       {{ 'Back to dashboard' if current_user.is_authenticated else 'Back home' }}
