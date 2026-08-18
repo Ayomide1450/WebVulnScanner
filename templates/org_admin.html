@@ -223,9 +223,12 @@
   <h2 class="section">Scan History <span style="text-transform:none; letter-spacing:normal; font-weight:400;">(who ran what, when, against what target)</span></h2>
   <div class="card hud-grid">
     {% if scans %}
-    <div class="table-scroll">
+    <div class="table-scroll desktop-table">
     <table>
+      <thead>
       <tr><th>Target</th><th>Type</th><th>Run by</th><th>Status</th><th>Security Score</th><th>Created</th><th></th></tr>
+      </thead>
+      <tbody>
       {% for s in scans %}
       <tr>
         <td><code>{{ s.target_url }}</code></td>
@@ -239,8 +242,30 @@
         </td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
     </div>
+    <ul class="mobile-record-cards">
+      {% for s in scans %}
+      <li class="card record-card">
+        <div class="record-card-top">
+          <code class="record-card-id">{{ s.target_url }}</code>
+          <span class="status-pill {{ s.status.value }}">{% if s.status.value in ('running', 'queued') %}<span class="dot glow-pulse"></span>{% endif %}{{ s.status.value }}</span>
+        </div>
+        <div class="record-card-meta">
+          {{ scan_type_labels.get(s.scan_type, s.scan_type|title) }}
+          &middot; {{ s.user.email if s.user else '-' }}
+          &middot; {{ ('Security Score: ' + s.risk_score|string + '/100') if s.risk_score is not none else '-' }}
+          &middot; {{ s.created_at.strftime('%b %d') }}
+        </div>
+        {% if s.report %}
+        <div class="record-card-action">
+          <a class="btn secondary block" href="{{ url_for('scan.scan_report', scan_id=s.id) }}">View Report &rarr;</a>
+        </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
     {% else %}
     <p style="color: var(--muted); font-size: 13px;">No scans recorded for this org yet.</p>
     {% endif %}
