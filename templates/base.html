@@ -38,6 +38,12 @@
     --container-form: 760px;
     --container-app: 1040px;
     --container-marketing: 1180px;
+    /* Documentation-only (Phase 7 / D-01) - CSS media queries cannot consume
+       a custom property, so the literal 430px in the @media rule below the
+       .mobile-record-cards block is the single authoritative copy. This
+       token exists only so the value is discoverable/greppable next to the
+       other layout tokens above. */
+    --bp-card: 430px;
   }
 
   * { box-sizing: border-box; }
@@ -142,6 +148,15 @@
   .gauge-wrap svg { transform: rotate(-90deg); }
   .gauge-bg { fill:none; stroke: rgba(255,255,255,.06); stroke-width: 10; }
   .gauge-fg { fill:none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 1s ease; filter: drop-shadow(0 0 6px currentColor); }
+  /* Token-based SVG stroke rules, additive to the base .gauge-fg rule above -
+     let _gauge.html emit a class instead of a raw hex stroke="" attribute.
+     Defined here (rather than in the plan that consumes them) so base.html,
+     the sole wave-1-owned file, already carries the full class surface
+     wave 2's plans need. */
+  .gauge-fg.pass { stroke: var(--pass); }
+  .gauge-fg.medium { stroke: var(--medium); }
+  .gauge-fg.high { stroke: var(--high); }
+  .gauge-fg.critical { stroke: var(--critical); }
   .gauge-num { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
   .gauge-num .n { font-size: 26px; font-weight: 600; font-family:"Fira Code",monospace; }
   .gauge-num .g { font-size: 11px; color: var(--muted); }
@@ -184,6 +199,34 @@
      the cut-off columns - .table-scroll makes it a horizontal scroll
      instead. Wrap every <table> in the app with <div class="table-scroll">. */
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* D-01: dual-markup table/card swap. Every record-list table in the app
+     renders BOTH a semantic <table> (wrapped ".table-scroll desktop-table")
+     and a curated ".mobile-record-cards" <ul> from the same collection -
+     the @media rule below shows exactly one of the two at any width. See
+     07-UI-SPEC.md's "Mobile Stacked-Card Pattern (D-01)" and "Breakpoints"
+     sections for the full card anatomy and the 430px boundary rationale. */
+  .mobile-record-cards { display: none; list-style: none; margin: 0; padding: 0; }
+  /* Applied together with .card on the same <li> - only adjusts what .card
+     does not already supply (background/border/border-radius stay .card's).
+     margin-bottom:0 because the list's own `gap` owns inter-card spacing
+     instead of .card's 18px bottom margin. */
+  .record-card { padding: var(--space-4); margin-bottom: 0; }
+  .record-card-top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); min-width: 0; }
+  .record-card-id { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .record-card-meta { font-size: 13px; color: var(--muted); margin-top: var(--space-2); word-break: break-word; }
+  /* Progressive-disclosure hook for wave-2 pages that need to reveal more
+     per-record detail than the curated summary line - dashboard.html itself
+     does not use this, but it's defined here so base.html (the sole
+     wave-1-owned file) already carries every class wave 2 needs. */
+  .record-card-details { margin-top: var(--space-2); font-size: 13px; color: var(--muted); }
+  .record-card-details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--text); font-weight: 600; }
+  .record-card-action { margin-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+  .record-card-action form { margin: 0; }
+  @media (max-width: 430px) {
+    .desktop-table { display: none; }
+    .mobile-record-cards { display: flex; flex-direction: column; gap: var(--space-3); }
+  }
 
   /* Operator-console motion language. .glow-pulse generalizes the
      currentColor drop-shadow glow _gauge.html's .gauge-fg already proved;
