@@ -43,7 +43,7 @@
 
       <div class="check-row">
         <input type="checkbox" id="authorized_api" name="authorized_api" required>
-        <label for="authorized_api" style="margin:0; font-weight:500;">
+        <label for="authorized_api" style="margin:0; font-weight:400;">
           I own this domain, or I have explicit authorization to security-test it.
         </label>
       </div>
@@ -56,7 +56,7 @@
   <div class="card">
     <div class="locked-state">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-      <h2 style="margin:0 0 4px; font-size:16px;">{{ availability.label }}</h2>
+      <h2 style="margin:0 0 4px;">{{ availability.label }}</h2>
       <p>API scanning checks a wordlist of paths and reads your site's own JavaScript to find
       endpoints - an active check that needs a Paid plan to unlock.</p>
       <div class="locked-actions">

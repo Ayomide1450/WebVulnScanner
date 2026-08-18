@@ -45,14 +45,14 @@
 
       <div class="check-row">
         <input type="checkbox" id="media_download" name="media_download" {% if request.form.get('media_download') %}checked{% endif %}>
-        <label for="media_download" style="margin:0; font-weight:500;">
+        <label for="media_download" style="margin:0; font-weight:400;">
           Also save a copy of what's found (stored on the server under <code>downloads/</code>)
         </label>
       </div>
 
       <div class="check-row">
         <input type="checkbox" id="authorized_media" name="authorized_media" required>
-        <label for="authorized_media" style="margin:0; font-weight:500;">
+        <label for="authorized_media" style="margin:0; font-weight:400;">
           I own this domain, or I have explicit authorization to security-test it.
         </label>
       </div>
@@ -65,7 +65,7 @@
   <div class="card">
     <div class="locked-state">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-      <h2 style="margin:0 0 4px; font-size:16px;">{{ availability.label }}</h2>
+      <h2 style="margin:0 0 4px;">{{ availability.label }}</h2>
       <p>Media scanning crawls multiple pages and optionally saves files - an active check that
       needs a Paid plan to unlock.</p>
       <div class="locked-actions">
