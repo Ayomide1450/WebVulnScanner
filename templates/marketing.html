@@ -8,12 +8,12 @@
      inventing a second design system - see CLAUDE.md "Frontend design
      system". Only new, page-scoped rules live here. */
 
-  .mkt-wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+  .mkt-wrap { max-width: var(--container-marketing); margin: 0 auto; padding: 0 24px; }
 
   /* ---- Hero -------------------------------------------------------- */
   .hero { padding: 64px 24px 0; text-align: center; }
   .hero-inner { max-width: 880px; margin: 0 auto; }
-  .eyebrow { display:inline-flex; align-items:center; gap:7px; font-family:"Fira Code",monospace; font-size:12.5px; color: var(--accent); background: var(--accent-dim); border:1px solid rgba(34,197,94,.3); padding:6px 14px; border-radius:999px; margin-bottom:28px; }
+  .eyebrow { display:inline-flex; align-items:center; gap:7px; font-family:"Fira Code",monospace; font-size:11px; color: var(--accent); background: var(--accent-dim); border:1px solid rgba(34,197,94,.3); padding:6px 14px; border-radius:999px; margin-bottom:28px; }
   .eyebrow .dot { width:6px; height:6px; border-radius:50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 
   .terminal { max-width: 480px; margin: 0 auto 22px; text-align:left; background: var(--panel); border:1px solid var(--border); border-radius: 10px; padding: 16px 18px; height: 202px; overflow: hidden; transition: height 320ms ease, margin-bottom 320ms ease, padding 320ms ease, opacity 220ms ease; }
@@ -24,11 +24,11 @@
   @keyframes blink { 50% { opacity: 0; } }
 
   .hero h1 {
-    font-size: clamp(38px, 5.4vw, 68px);
-    line-height: 1.06;
-    letter-spacing: -0.025em;
+    font-size: clamp(40px, 5vw, 64px);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
     margin: 0 0 22px;
-    font-weight: 700;
+    font-weight: 600;
   }
   .hero h1 .accent-text { color: var(--accent); }
   .hero .sub {
@@ -48,7 +48,7 @@
   }
   .scan-form input[type="text"]::placeholder { color: var(--muted); }
   .scan-form .btn.primary { white-space: nowrap; padding: 13px 24px; font-size: 15px; }
-  .scan-reassure { margin: 16px 0 0; font-size: 13.5px; color: var(--muted); display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; }
+  .scan-reassure { margin: 16px 0 0; font-size: 13px; color: var(--muted); display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; }
   .scan-reassure .icon { width:14px; height:14px; color: var(--accent); }
   @media (max-width: 560px) {
     .scan-form { flex-direction: column; }
@@ -59,21 +59,21 @@
   .mkt-section { padding: 76px 24px; border-top: 1px solid var(--border); }
   .mkt-section.tight { padding-top: 56px; padding-bottom: 56px; }
   .section-head { max-width: 700px; margin: 0 auto 44px; text-align:center; }
-  .section-head .kicker { display:block; font-family:"Fira Code",monospace; font-size:12.5px; color: var(--accent); text-transform:uppercase; letter-spacing:.1em; margin-bottom:12px; }
-  .section-head h2 { font-size: clamp(28px, 3.2vw, 40px); letter-spacing:-0.02em; margin: 0 0 12px; }
-  .section-head p { color: var(--muted); font-size: 16.5px; line-height:1.6; margin:0; }
+  .section-head .kicker { display:block; font-family:"Fira Code",monospace; font-size:11px; color: var(--accent); text-transform:uppercase; letter-spacing:.1em; margin-bottom:12px; }
+  .section-head h2 { font-size: clamp(28px, 3vw, 36px); letter-spacing:-0.01em; margin: 0 0 12px; }
+  .section-head p { color: var(--muted); font-size: 15px; line-height:1.6; margin:0; }
 
   /* ---- Trust strip ------------------------------------------------- */
   .trust-strip { display:flex; flex-wrap:wrap; justify-content:center; gap: 14px 40px; max-width: 980px; margin: 0 auto; padding: 28px 24px; }
-  .trust-item { display:flex; align-items:center; gap:10px; color: var(--muted); font-size: 14.5px; }
+  .trust-item { display:flex; align-items:center; gap:10px; color: var(--muted); font-size: 15px; }
   .trust-item .icon { color: var(--accent); width:18px; height:18px; flex-shrink:0; }
   .trust-item b { color: var(--text); font-weight:600; }
 
   /* ---- What we check grid ------------------------------------------- */
-  .check-grid { max-width: 1180px; margin: 0 auto; display:grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .check-grid { max-width: var(--container-marketing); margin: 0 auto; display:grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
   .check-item { background: var(--panel); border:1px solid var(--border); border-radius: 12px; padding: 18px 20px; display:flex; gap: 12px; align-items:flex-start; }
   .check-item .icon { width:20px; height:20px; color: var(--accent); flex-shrink:0; margin-top:2px; }
-  .check-item h4 { margin:0 0 4px; font-size: 14.5px; font-weight:600; }
+  .check-item h4 { margin:0 0 4px; font-size: 14px; }
   .check-item p { margin:0; color: var(--muted); font-size: 13px; line-height:1.5; }
   @media (max-width: 1024px) { .check-grid { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 560px) { .check-grid { grid-template-columns: 1fr; } }
@@ -81,16 +81,16 @@
   /* ---- Report preview ------------------------------------------------ */
   .report-preview { max-width: 760px; margin: 0 auto; background: linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--border); border-radius: 18px; overflow:hidden; }
   .report-preview .rp-head { display:flex; align-items:center; justify-content:space-between; padding: 16px 24px; border-bottom:1px solid var(--border); gap:12px; flex-wrap:wrap; }
-  .report-preview .rp-head .rp-target { font-family:"Fira Code",monospace; font-size: 13.5px; color: var(--muted); }
+  .report-preview .rp-head .rp-target { font-family:"Fira Code",monospace; font-size: 13px; color: var(--muted); }
   .report-preview .rp-body { display:flex; gap: 32px; padding: 28px 24px; flex-wrap:wrap; }
   .rp-score { display:flex; align-items:center; gap:20px; flex-shrink:0; }
-  .rp-score .num { font-family:"Fira Code",monospace; font-size: 44px; font-weight:800; color: var(--accent); line-height:1; }
+  .rp-score .num { font-family:"Fira Code",monospace; font-size: 44px; font-weight:600; color: var(--accent); line-height:1; }
   .rp-score .num small { font-size: 18px; color: var(--muted); font-weight:600; }
-  .rp-score .label { font-size:12.5px; color: var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-top:4px; }
+  .rp-score .label { font-size:11px; color: var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-top:4px; }
   .rp-counts { display:flex; flex-direction:column; gap:6px; justify-content:center; }
-  .rp-counts .row { display:flex; align-items:center; gap:10px; font-size: 13.5px; }
+  .rp-counts .row { display:flex; align-items:center; gap:10px; font-size: 13px; }
   .rp-counts .row .sev-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-  .rp-counts .row .n { font-family:"Fira Code",monospace; font-weight:700; min-width:18px; text-align:right; }
+  .rp-counts .row .n { font-family:"Fira Code",monospace; font-weight:600; min-width:18px; text-align:right; }
   .rp-findings { border-top:1px solid var(--border); padding: 18px 24px 22px; display:flex; flex-direction:column; gap:10px; }
   .rp-findings .finding { margin-bottom:0; }
   .rp-tag { font-size: 11px; text-transform:uppercase; letter-spacing:.08em; color: var(--muted); padding: 12px 24px 0; }
@@ -98,32 +98,32 @@
   /* ---- How it works --------------------------------------------------- */
   .steps { max-width: 1000px; margin: 0 auto; display:grid; grid-template-columns: repeat(4, 1fr); gap: 20px; counter-reset: step; }
   .step { position:relative; padding-top: 8px; }
-  .step .step-num { font-family:"Fira Code",monospace; font-size: 13px; color: var(--accent); font-weight:700; margin-bottom:10px; }
+  .step .step-num { font-family:"Fira Code",monospace; font-size: 13px; color: var(--accent); font-weight:600; margin-bottom:10px; }
   .step h4 { margin: 0 0 6px; font-size:16px; }
-  .step p { margin:0; color: var(--muted); font-size:13.5px; line-height:1.55; }
+  .step p { margin:0; color: var(--muted); font-size:13px; line-height:1.55; }
   @media (max-width: 900px) { .steps { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 560px) { .steps { grid-template-columns: 1fr; } }
 
   /* ---- Tier / feature cards ------------------------------------------- */
-  .tier-grid { max-width: 1180px; margin: 0 auto; display:grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: stretch; }
+  .tier-grid { max-width: var(--container-marketing); margin: 0 auto; display:grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: stretch; }
   .tier-card { display:flex; flex-direction:column; background: linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--border); border-radius:18px; padding: 30px 28px; transition: border-color 150ms ease, transform 150ms ease; }
   .tier-card:hover { border-color: rgba(34,197,94,.4); transform: translateY(-2px); }
   .tier-card .tier-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; background: var(--accent-dim); margin-bottom: 20px; }
   .tier-card .tier-icon .icon { width:22px; height:22px; color: var(--accent); }
-  .tier-card .tier-badge { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color: var(--accent); margin-bottom: 8px; }
-  .tier-card h3 { margin: 0 0 10px; font-size: 21px; }
-  .tier-card > p { margin: 0 0 18px; color: var(--muted); font-size: 14.5px; line-height:1.55; }
+  .tier-card .tier-badge { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color: var(--accent); margin-bottom: 8px; }
+  .tier-card h3 { margin: 0 0 10px; font-size: 20px; }
+  .tier-card > p { margin: 0 0 18px; color: var(--muted); font-size: 15px; line-height:1.55; }
   .tier-card ul { list-style:none; margin: 0; padding: 0; display:flex; flex-direction:column; gap: 9px; flex: 1; }
-  .tier-card li { display:flex; align-items:flex-start; gap:9px; font-size: 13.5px; color: var(--text); line-height: 1.4; }
+  .tier-card li { display:flex; align-items:flex-start; gap:9px; font-size: 13px; color: var(--text); line-height: 1.4; }
   .tier-card li .icon { width:15px; height:15px; color: var(--accent); flex-shrink:0; margin-top:2px; }
   @media (max-width: 1024px) { .tier-grid { grid-template-columns: 1fr; } }
 
   /* ---- Final CTA ------------------------------------------------------ */
   .final-cta { text-align:center; max-width: 640px; margin: 0 auto; }
-  .final-cta h2 { font-size: clamp(26px, 3.2vw, 36px); margin: 0 0 14px; letter-spacing:-0.02em; }
-  .final-cta p { color: var(--muted); font-size: 16px; margin: 0 0 30px; }
+  .final-cta h2 { font-size: clamp(28px, 3vw, 36px); margin: 0 0 14px; letter-spacing:-0.01em; }
+  .final-cta p { color: var(--muted); font-size: 15px; margin: 0 0 30px; }
   .cta-row { display:flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
-  .cta { text-decoration:none; padding: 15px 28px; border-radius: 10px; font-weight:700; font-size:15.5px; transition: filter 150ms ease, transform 150ms ease; }
+  .cta { text-decoration:none; padding: 15px 28px; border-radius: 10px; font-weight:600; font-size:15px; transition: filter 150ms ease, transform 150ms ease; }
   .cta:hover { filter: brightness(1.08); }
   .cta:active { transform: translateY(1px); }
   .cta.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#04150a; }
