@@ -400,7 +400,40 @@ test. This phase verifies and closes gaps; it does not weaken or redesign `autho
      verification rejects replay/double-activation/amount-tampering/cross-org access, and
      production-mode 400/401/403/404/429/500 responses never leak a stack trace, file path, SQL
      fragment, or environment variable.
-**Plans**: TBD
+**Plans**: 7 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 08-01-PLAN.md — SEC-01 cross-org IDOR: tracer proof on the org-invitation family, a url_map enumeration lock so a future ID-accepting route can't ship untested, and the three uncovered routes closed
+- [ ] 08-02-PLAN.md — SEC-02 CSRF: the repo's first WTF_CSRF_ENABLED=True app, one token-less-POST-returns-400 proof per blueprint, and a csrf.exempt() scope lock
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 08-03-PLAN.md — SEC-09 billing: route-level cross-org 403 with zero network calls, replay no-op on a PAID invoice, create_invoice tampering gates, and injected-org_id refusal
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 08-04-PLAN.md — SEC-03 the phase's one real code fix: _SSRFSafeSession redirect-hop guard in checks._mk_session(), proven against a real local server's request log, plus the frozen-surface and orchestrator locks
+- [ ] 08-05-PLAN.md — SEC-04/05/06 injection & traversal sweep: six escaping proofs, standing autoescape and raw-SQL locks, and one containment-checked report reader replacing three inline REPORTS_DIR opens
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 08-06-PLAN.md — SEC-07/08/10: adversarial next-param coverage plus a sole-surface redirect lock, the first TESTING=False error-leakage tests across six status codes, and a self-tested milestone secrets sweep
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 08-07-PLAN.md — Phase gate: the D-01 live dev-server probe against a disposable-DB instance, and the per-requirement evidence gate
+
+**Execution waves**: sequenced by blast radius per 08-CONTEXT.md D-04, not by ROADMAP requirement
+order. Wave 1 = 08-01 + 08-02 (a hit on cross-org IDOR or CSRF is a full authorization bypass across
+the multi-tenant model; disjoint test files so they run in parallel); wave 2 = 08-03 (billing is
+direct financial impact, and it also discharges the one endpoint 08-01's coverage registry leaves
+deferred); wave 3 = 08-04 + 08-05, the phase's only production code changes, touching disjoint
+modules (checks.py vs scan_engine.py + three route files) so they parallelize; wave 4 = 08-06, the
+lower-blast-radius tail whose source-level scans must read the wave-3 tree; wave 5 = 08-07, which
+can only run once every plan has merged. If the phase is interrupted mid-way, the highest-risk gaps
+are the ones already closed.
 
 ### Phase 9: SEO, Performance & UX States
 
