@@ -7,7 +7,13 @@
   .adv-group > summary { list-style: none; cursor: pointer; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .adv-group > summary::-webkit-details-marker { display: none; }
   .adv-group > summary .adv-group-title { display: flex; flex-direction: column; gap: 2px; }
-  .adv-group > summary h4 { margin: 0; }
+  /* A11Y-02: these four accordion-group headings are <h2> (promoted from
+     <h4>) - they are the page's primary content divisions, so h1 -> h2 is
+     the semantically correct level, with the page's other h2 (the
+     locked-state availability heading) as a fifth sibling. Size is pinned
+     to what the h4 role rendered (14px/1.35), not base.html's
+     h2 { font-size: 20px }, since Phase 7 introduces no new typography. */
+  .adv-group > summary h2 { margin: 0; font-size: 14px; line-height: 1.35; letter-spacing: normal; }
   .adv-group > summary .adv-group-blurb { font-size: 13px; color: var(--muted, #8a93a6); font-weight: 400; }
   .adv-group[open] > summary { border-bottom: 1px solid var(--border, #2a2f3a); }
   .adv-group-body { padding: 14px 16px 16px; }
@@ -78,7 +84,7 @@
       <details class="adv-group" id="advGroupLogin">
         <summary>
           <div class="adv-group-title">
-            <h4>Can someone log in as another user without the password?</h4>
+            <h2>Can someone log in as another user without the password?</h2>
             <span class="adv-group-blurb">Tests your login form for a bypass, and checks it isn't vulnerable to a brute-force password-guessing attack.</span>
           </div>
           <span class="adv-detected-badge" id="advLoginDetectedBadge" hidden>Auto-detected</span>
@@ -107,7 +113,7 @@
       <details class="adv-group">
         <summary>
           <div class="adv-group-title">
-            <h4>Can a page's address be used to steal data from your database?</h4>
+            <h2>Can a page's address be used to steal data from your database?</h2>
             <span class="adv-group-blurb">Tests one page that takes an ID or search term in its address (SQL injection).</span>
           </div>
           <svg class="icon adv-chevron" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
@@ -124,7 +130,7 @@
       <details class="adv-group">
         <summary>
           <div class="adv-group-title">
-            <h4>Can someone plant malicious code in something other users will see?</h4>
+            <h2>Can someone plant malicious code in something other users will see?</h2>
             <span class="adv-group-blurb">Tests a comment, review, or profile field for stored cross-site scripting (XSS).</span>
           </div>
           <svg class="icon adv-chevron" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
@@ -149,7 +155,7 @@
       <details class="adv-group">
         <summary>
           <div class="adv-group-title">
-            <h4>Can one user see another user's private data?</h4>
+            <h2>Can one user see another user's private data?</h2>
             <span class="adv-group-blurb">Tests whether changing an ID in a URL exposes someone else's records (IDOR).</span>
           </div>
           <svg class="icon adv-chevron" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>

@@ -44,7 +44,10 @@
   button:hover:not(:disabled) { filter: brightness(1.08); }
   .adv-group { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
   .adv-group:first-child { margin-top: 4px; padding-top: 0; border-top: none; }
-  .adv-group h4 { margin: 0 0 2px; }
+  /* A11Y-02: matches scan_new_advanced.html's own `.adv-group > summary h2`
+     rule - both selectors target the same four promoted headings and must
+     stay in sync, or the accordion spacing breaks on one but not the other. */
+  .adv-group h2 { margin: 0 0 2px; }
   .adv-group input[type=text] { padding: 9px 11px; font-size: 13px; }
   .adv-group label { margin-top: 10px; font-size: 13px; }
   .section-title { display:flex; justify-content:space-between; align-items:center; }
