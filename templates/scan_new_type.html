@@ -2,6 +2,12 @@
 {% block title %}Select scan type - WebVulnScanner{% endblock %}
 {% block head %}
 {% include "_scan_form_styles.html" %}
+<style>
+  /* Long target URLs/domains have no natural break point (no spaces); without this the
+     intro line can force horizontal page scroll at 320-375px. Same treatment as
+     billing.html's .invoice-address and platform_admin.html's .deletion-value. */
+  .sub code { word-break: break-all; }
+</style>
 {% endblock %}
 {% block content %}
 <div class="wrap">

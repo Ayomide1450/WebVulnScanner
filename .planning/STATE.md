@@ -5,15 +5,15 @@ milestone_name: Production Audit, Hardening & Redesign
 current_phase: 7
 current_phase_name: Responsive & Accessibility Compliance
 status: executing
-stopped_at: "07-06 tasks 1-2 code-complete (heading-hierarchy fixes + app-wide accessibility locks), Task 3 checkpoint:human-verify pending"
-last_updated: "2026-08-18T19:05:00.000Z"
+stopped_at: "07-07 (Phase 7 wave 4, final plan) code-complete: phase-gate regression locks + two narrow-width fixes committed, full suite green (646 passed). Task 2 checkpoint:human-verify never answered by a human - proceeding to Phase 8 on explicit user authorization, matching every other Phase 7/6 checkpoint."
+last_updated: "2026-08-18T21:49:00.000Z"
 last_activity: 2026-08-18
-last_activity_desc: "Executed 07-06 (Phase 7 wave 3, final code plan): Task 1 committed ee58240, Task 2 committed ac151e8"
+last_activity_desc: "Executed 07-07 (Phase 7's final wave-4 plan): Task 1 committed 8ccbcff, Task 3 committed c7b94bf + this session's scan_new_type.html fix. 07-07-SUMMARY.md written. Phase 7 is now fully code-complete across all 7 plans."
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 14
-  completed_plans: 13
+  completed_plans: 14
   percent: 40
 ---
 
@@ -29,29 +29,34 @@ non-destructive scans against their own infrastructure and get findings they can
 
 ## Current Position
 
-Phase: 7 (Responsive & Accessibility Compliance) — EXECUTING
-Plan: 6 of 7 (wave 3, the phase's final code plan, tasks 1-2 code-complete)
-Status: All wave-1/2/3 code plans (07-01..07-06) are now code-complete. 07-06 closed the
-codebase's only two confirmed heading-hierarchy skips (marketing.html's sixteen h4->h3
-promotions, scan_new_advanced.html's four h4->h2 promotions, both size-pinned unchanged) and
-added tests/test_accessibility.py (91 tests, 4 -k-selectable families: heading_hierarchy,
-labels_and_icon_buttons, no_clickable_divs, focus_treatment) locking heading sequence, label
-coverage, icon-only accessible names, native-element-only interactivity, single-source focus
-treatment, and app-wide id-uniqueness across every reachable page including the nine mobile-card
-blocks wave 2 added. Full suite green (548/548, same baseline as 07-05, no regressions).
-Task 3 (checkpoint:human-verify, gate=blocking) is still open — no confirmed live keyboard-only
-walkthrough at desktop/320px or visual heading-size regression check yet, so A11Y-01/A11Y-02/
-A11Y-03 are not yet marked complete in REQUIREMENTS.md. Wave 4 (07-07, the phase gate) should not
-start until this clears, since 07-UI-SPEC.md's one unresolved UI Consideration row (full
-keyboard-walkthrough coverage) is only discharged by that checkpoint.
-Last activity: 2026-08-18 — Executed 07-06 (Phase 7's final wave-3 plan): Task 1 committed
-ee58240, Task 2 committed ac151e8.
+Phase: 7 (Responsive & Accessibility Compliance) — CODE-COMPLETE, requirements unconfirmed
+Plan: 7 of 7 (wave 4, the phase gate — DONE)
+Status: All seven plans (07-01..07-07) are now code-complete. 07-07 added phase-gate regression
+locks to tests/test_responsive_markup.py (-k phase_gate: scan-progress breakpoint lock, the
+six-template card-conversion scope lock with a verified negative control, scan_report's
+exclusion, Phase 6's component-override discipline, billing's no-table status), then fixed two
+narrow-width defects found by source-level review (no browser-driving tool exists in this repo):
+platform_admin.html's deletion-actions wrap + domain word-break, and scan_new_type.html's target
+word-break. Full suite green: 646 passed, 0 failed.
+
+**Every checkpoint:human-verify gate across the entire phase (07-01 through 07-07) remains
+unanswered.** Grepping all seven summaries' frontmatter confirms `requirements-completed: []` in
+every one — RESP-01/02/03/04 and A11Y-01/02/03/04 have never been confirmed live by a human, not
+just in this plan. REQUIREMENTS.md correctly still lists all eight as Pending. Task 3 in 07-07
+proceeded on static/source review rather than Task 2's (never-answered) checkpoint output — an
+explicitly recorded deviation, not a silent skip. See 07-07-SUMMARY.md for the full accounting,
+including a correction of an earlier background-agent run's inaccurate "nothing pending" claim.
+
+Per explicit user instruction (2026-08-18), work now proceeds to Phase 8 (Security Re-Audit &
+Hardening) without blocking on the outstanding human-verify walkthrough — the same
+"proceed past pending checkpoints on explicit authorization" pattern already used throughout
+Phases 6 and 7. The walkthrough remains a standing, undischarged human action.
 
 Phase 6 (Design System Consistency) remains at the same status as last recorded: all four plans'
 coded tasks committed, full suite green, each plan's checkpoint:human-verify still open pending
 confirmation.
 
-Progress: [█████████░] 93%
+Progress: [██████████] 100% (Phase 7 code); requirement sign-off still pending
 
 ## Performance Metrics
 
@@ -82,6 +87,7 @@ Progress: [█████████░] 93%
 | Phase 07 P01 | 10min | 2 tasks | 3 files |
 | Phase 07 P05 | ~50min | 2 tasks | 3 files |
 | Phase 07 P06 | ~45min | 2 tasks | 4 files |
+| Phase 07 P07 | ~25min | 2 of 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -119,6 +125,7 @@ Recent decisions affecting current work:
 - [Phase ?]: 07-01: dual-markup table/card pattern (D-01) proven on dashboard Scan History - .record-card gets no id attribute since both markup blocks coexist in the DOM simultaneously (T-07-02)
 - [Phase ?]: 07-05: continued a prior stalled session by re-auditing all 23 scan_report.html tables against actual file content (not assumed prior-session state) before making any edit; confirmed 14 tables already correct, completed the remaining 9 plus the untouched _gauge.html hex-to-token migration.
 - [Phase ?]: 07-06: the plan's acceptance criteria assumed the API-tokens page lives at `/account/api-tokens`; the real registered route (built programmatically from app.url_map per the plan's own instruction) is `/tokens` (webvulnscanner/api_tokens_routes.py's url_prefix) — the module's page list follows the actual codebase, documented as a plan-text mismatch, not a code defect.
+- [Phase ?]: 07-07: Task 3 proceeded without Task 2's checkpoint answers (never answered by a human, no browser tool available) — fixed only the specific risk shapes Task 2's own text named, in the five files Task 3 declared in scope, and recorded this as an explicit deviation rather than silently treating the phase as done. An earlier background-agent run for this plan reported "nothing pending on 07-07-PLAN.md" after only re-running the test suite; that claim was inaccurate (Task 2 was never done, and scan_new_type.html's fix was still outstanding) and is corrected in 07-07-SUMMARY.md rather than carried forward.
 
 ### Pending Todos
 
@@ -150,6 +157,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-18T19:05:00.000Z
-Stopped at: 07-06 tasks 1-2 code-complete (heading-hierarchy fixes + app-wide accessibility locks), Task 3 checkpoint:human-verify pending
-Resume file: .planning/phases/07-responsive-accessibility-compliance/07-06-SUMMARY.md
+Last session: 2026-08-18T21:49:00.000Z
+Stopped at: 07-07 code-complete (Phase 7 fully code-complete, all 7 plans). Full suite green (646 passed). All eight Phase 7 requirement IDs remain Pending pending human live verification. Proceeding to Phase 8 per explicit user instruction.
+Resume file: .planning/phases/07-responsive-accessibility-compliance/07-07-SUMMARY.md
