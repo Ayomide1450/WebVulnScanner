@@ -221,6 +221,14 @@
     {% endfor %}
   {% endif %}
 
+  {# The tables below (Detailed check output, through the media/api sections
+     further down) are D-01's named exception: 1-7 column diagnostic
+     attribute dumps of raw check output, not record lists with a primary
+     action, so they deliberately stay tables wrapped in .table-scroll
+     rather than becoming .mobile-record-cards - see 07-RESEARCH.md Pattern
+     3 and 07-UI-SPEC.md's Mobile Stacked-Card Pattern section. The
+     per-table 320px fits/scrolls/breaks audit result lives in
+     07-05-SUMMARY.md, not here. #}
   {% if scan.scan_type == 'base' %}
   <h2 class="section">Detailed check output</h2>
 
@@ -657,19 +665,25 @@
       {% else %}
       <p class="note">Baseline response time: {{ r.results.sqli_login.baseline_time }}s</p>
       <div class="table-scroll">
-      <table><tr><th>Auth-bypass payload</th><th>Result</th></tr>
+      <table>
+        <thead><tr><th>Auth-bypass payload</th><th>Result</th></tr></thead>
+        <tbody>
         {% for row in r.results.sqli_login.bypass_rows %}
         <tr><td><code>{{ row.payload }}</code></td>
           <td class="{{ 'critical' if 'BYPASS' in row.result else 'pass' }}">{{ row.result }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       <div class="table-scroll">
-      <table style="margin-top:12px;"><tr><th>Time-based payload</th><th>Elapsed</th><th>Result</th></tr>
+      <table style="margin-top:12px;">
+        <thead><tr><th>Time-based payload</th><th>Elapsed</th><th>Result</th></tr></thead>
+        <tbody>
         {% for row in r.results.sqli_login.timing_rows %}
         <tr><td><code>{{ row.payload }}</code></td><td>{{ row.elapsed if row.elapsed is defined else '-' }}s</td>
           <td class="{{ 'critical' if row.result == 'DELAYED' else 'pass' }}">{{ row.result }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% endif %}
@@ -684,11 +698,14 @@
     <div class="details-body">
       <p class="note">Rate-limiting observed: {{ 'yes' if r.results.bruteforce.rate_limited else 'no' }}</p>
       <div class="table-scroll">
-      <table><tr><th>Attempt</th><th>Result</th></tr>
+      <table>
+        <thead><tr><th>Attempt</th><th>Result</th></tr></thead>
+        <tbody>
         {% for row in r.results.bruteforce.attempts %}
         <tr><td>#{{ loop.index }}</td>
           <td class="{{ 'critical' if 'SUCCEEDED' in row.result else 'pass' }}">{{ row.result }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
     </div>
@@ -715,11 +732,14 @@
     <summary>Stored XSS probe (3 payload variants) <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       <div class="table-scroll">
-      <table><tr><th>Variant</th><th>Result</th></tr>
+      <table>
+        <thead><tr><th>Variant</th><th>Result</th></tr></thead>
+        <tbody>
         {% for row in r.results.xss_stored.rows %}
         <tr><td>{{ row.variant }}</td>
           <td class="{{ 'critical' if row.result == 'CONFIRMED' else 'pass' }}">{{ row.result }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
     </div>
@@ -732,12 +752,15 @@
     <summary>IDOR check (cross-account + anonymous) <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       <div class="table-scroll">
-      <table><tr><th>Resource ID</th><th>Status</th><th>Cross-account code</th><th>Anonymous code</th></tr>
+      <table>
+        <thead><tr><th>Resource ID</th><th>Status</th><th>Cross-account code</th><th>Anonymous code</th></tr></thead>
+        <tbody>
         {% for row in r.results.idor.rows %}
         <tr><td><code>{{ row.id }}</code></td>
           <td class="{{ 'critical' if row.status in ('EXPOSED','PUBLIC') else ('pass' if row.status == 'denied' else 'info') }}">{{ row.status or row.detail }}</td>
           <td>{{ row.cross_account_code }}</td><td>{{ row.anonymous_code }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
     </div>
@@ -756,7 +779,10 @@
     <div class="details-body">
       <div class="table-scroll">
       <table>
+        <thead>
         <tr><th>URL</th><th>Kind</th><th>Status</th><th>Size</th><th>Suspicious path</th><th>EXIF</th><th>Downloaded</th></tr>
+        </thead>
+        <tbody>
         {% for item in r.media.media_items %}
         <tr>
           <td><code>{{ item.url }}</code></td>
@@ -768,6 +794,7 @@
           <td>{{ item.downloaded_to or '-' }}</td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       <p class="note" style="margin-top:10px;">Embedded video players (YouTube/Vimeo/etc.) are listed for
@@ -787,7 +814,10 @@
     <div class="details-body">
       <div class="table-scroll">
       <table>
+        <thead>
         <tr><th>Path</th><th>Code</th><th>Status</th></tr>
+        </thead>
+        <tbody>
         {% for row in r.results.schema %}
         <tr>
           <td><code>{{ row.path }}</code></td>
@@ -795,6 +825,7 @@
           <td class="{{ 'high' if row.status == 'warn' else 'pass' }}">{{ row.status }}</td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
     </div>
@@ -805,13 +836,17 @@
     <div class="details-body">
       <div class="table-scroll">
       <table>
+        <thead>
         <tr><th>Path</th><th>Status</th></tr>
+        </thead>
+        <tbody>
         {% for row in r.results.wordlist %}
         <tr>
           <td><code>{{ row.path }}</code></td>
           <td class="{{ row.severity if row.status == 'warn' else 'pass' }}">{{ row.status }}</td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
     </div>
@@ -823,13 +858,17 @@
       {% if r.results.js_discovery.rows %}
       <div class="table-scroll">
       <table>
+        <thead>
         <tr><th>URL</th><th>Status</th></tr>
+        </thead>
+        <tbody>
         {% for row in r.results.js_discovery.rows %}
         <tr>
           <td><code>{{ row.url }}</code></td>
           <td class="{{ row.severity if row.status == 'warn' else 'pass' }}">{{ row.status }}</td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}
