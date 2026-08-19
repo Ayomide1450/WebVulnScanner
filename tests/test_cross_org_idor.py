@@ -103,10 +103,7 @@ REGISTRY = {
     "asset.delete_asset": "tests/test_asset_routes.py::test_pause_resume_delete_all_three_404_for_non_owning_org",
     "asset.pause_asset": "tests/test_asset_routes.py::test_pause_resume_delete_all_three_404_for_non_owning_org",
     "asset.resume_asset": "tests/test_asset_routes.py::test_pause_resume_delete_all_three_404_for_non_owning_org",
-    "asset.update_schedule": Deferred(
-        "Task 3 (08-01, same plan) adds the schedule denial test with a no-mutation "
-        "assertion to tests/test_asset_routes.py."
-    ),
+    "asset.update_schedule": "tests/test_asset_routes.py::test_schedule_cross_org_is_404_and_does_not_mutate_cadence_or_scan_type",
     "org.approve_domain_deletion": RoleGated(
         "tests/test_org_routes.py::test_org_admin_cannot_approve_their_own_deletion_request",
         "Cross-org BY DESIGN: platform_admin_required is a role gate (a platform admin reviews "
@@ -127,10 +124,7 @@ REGISTRY = {
     "scan.scan_detail": "tests/test_scan_ownership.py::test_admin_of_a_different_org_cannot_view_scan",
     "scan.scan_events": "tests/test_scan_ownership.py::test_scan_events_denies_cross_org_access",
     "scan.scan_report": "tests/test_scan_ownership.py::test_scan_report_and_scan_compare_enforce_ownership_too",
-    "scan.scan_report_csv": Deferred(
-        "Task 3 (08-01, same plan) adds the CSV-export denial test with a marker-absence "
-        "assertion to tests/test_scan_ownership.py."
-    ),
+    "scan.scan_report_csv": "tests/test_scan_ownership.py::test_scan_report_csv_cross_org_is_404_and_leaks_no_finding_text",
     "scan.scan_status": "tests/test_scan_status.py::test_status_different_org_gets_404",
 }
 
