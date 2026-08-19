@@ -42,7 +42,6 @@ enough not to warrant its own module.
 import csv
 import io
 import json
-import os
 import re
 import threading
 import time
@@ -57,7 +56,6 @@ from webvulnscanner.checks import (
     CHECK_CATEGORY,
     CHECK_COMPLIANCE,
     CHECK_LABELS,
-    REPORTS_DIR,
     detect_login_form,
     is_ssrf_safe_hostname,
     normalize_target,
@@ -65,7 +63,14 @@ from webvulnscanner.checks import (
 from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, domain_is_org_verified, effective_tier
 from webvulnscanner.extensions import db
 from webvulnscanner.models import Report, Role, Scan, ScanEvent, ScanEventPhase, ScanStatus
-from webvulnscanner.scan_engine import run_advanced_scan, run_api_scan, run_media_scan, run_scan, save_report
+from webvulnscanner.scan_engine import (
+    read_report_file,
+    run_advanced_scan,
+    run_api_scan,
+    run_media_scan,
+    run_scan,
+    save_report,
+)
 
 scan = Blueprint("scan", __name__)
 
@@ -1073,11 +1078,7 @@ def _load_report_json(scan_row):
         return None
     if scan_row.report.data is not None:
         return scan_row.report.data
-    try:
-        with open(os.path.join(REPORTS_DIR, scan_row.report.json_path), encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError):
-        return None
+    return read_report_file(scan_row.report.json_path)
 
 
 def _previous_completed_scan(s):

@@ -497,3 +497,48 @@ def save_report(report, prefix, hostname):
     with open(os.path.join(REPORTS_DIR, fname), "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2)
     return fname
+
+
+def read_report_file(filename):
+    """Reads and parses an on-disk report JSON file from REPORTS_DIR given
+    its stored filename - `save_report()`'s symmetric counterpart, and the
+    one shared reader for what used to be three independent inline
+    "open a REPORTS_DIR-joined path" blocks in `scan_routes.py`,
+    `api_routes.py` and `asset_routes.py`.
+
+    This exists because those three call sites each independently joined a
+    DB-stored filename (`Report.json_path`) onto `REPORTS_DIR` with no
+    containment check. Path traversal is NOT reachable today:
+    `save_report()` above is the only writer of `Report.json_path` in this
+    codebase, and it always builds the filename server-side from a hostname
+    and a timestamp - never from a request parameter - so no
+    request-controlled value reaches the join. This function is therefore
+    defence in depth against a fourth caller with different provenance,
+    not a fix for a live vulnerability; do not describe it as one.
+
+    Containment is checked by resolving BOTH sides to real paths before
+    comparing - REPORTS_DIR itself is derived from `__file__`
+    (`checks.APP_DIR`) and could sit behind a symlink on some hosts, so
+    resolving only the candidate side would reject every legitimate read
+    the moment that happened. Returns the parsed JSON object, or `None` on
+    any of: containment failure, a missing file, an unreadable file,
+    invalid JSON, or a filename value that makes path resolution itself
+    raise (e.g. an embedded null byte) - the same single failure signal
+    every caller here already treats identically to "file not found",
+    preserving each call site's own pre-existing not-available branch.
+    """
+    try:
+        reports_root = os.path.realpath(REPORTS_DIR)
+        candidate = os.path.realpath(os.path.join(REPORTS_DIR, filename))
+        contained = os.path.commonpath([reports_root, candidate]) == reports_root
+    except (OSError, ValueError, TypeError):
+        return None
+
+    if not contained:
+        return None
+
+    try:
+        with open(candidate, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
