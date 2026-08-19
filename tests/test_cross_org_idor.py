@@ -24,12 +24,15 @@ naming the exact rule string, the moment a `<int:>`-accepting endpoint has no en
 endpoint that no longer exists. Together they're the only mechanism in this phase that makes
 SEC-01 survive the next route somebody adds without reading this file first.
 
-Two registry entries are NOT plain test references:
+Two registry value shapes are NOT plain test references:
 
 - `Deferred(reason)` marks an endpoint whose cross-org coverage is intentionally owned
-  elsewhere rather than silently missing. `billing.verify_invoice_route` is deferred to plan
-  08-03 (SEC-09) per the phase's threat register (T-08-05, disposition "transfer") - it still
-  has to be *named* here, just not resolved to a test yet.
+  elsewhere rather than silently missing - it still has to be *named* here, just not resolved
+  to a test yet. No entry currently uses this shape: `billing.verify_invoice_route` was the
+  one Deferred entry (owned by plan 08-03/SEC-09 per the phase's threat register, T-08-05,
+  disposition "transfer") and has since been discharged to a real test reference
+  (`tests/test_billing_routes.py::test_cross_org_verify_is_refused_and_makes_no_changes`); the
+  class is kept for the next endpoint that needs the same two-step registration.
 - `RoleGated(test_ref, note)` marks an endpoint that is cross-org BY DESIGN: the two
   platform-admin domain-deletion routes (`approve_domain_deletion`/`reject_domain_deletion`)
   are guarded by `platform_admin_required`, a role gate, not an org_id comparison - a platform
@@ -89,12 +92,7 @@ class RoleGated:
 # Built from the real `app.url_map` (see _id_accepting_rules below), cross-checked against
 # 08-01-PLAN.md's Task 2 route-inventory table.
 REGISTRY = {
-    "billing.verify_invoice_route": Deferred(
-        "Cross-org coverage owned by plan 08-03 (SEC-09), not this plan - registered in the "
-        "threat register as T-08-05 (disposition: transfer), re-checked at the 08-07 phase "
-        "gate. billing_routes.verify_invoice_route already aborts 403 (not 404) for a "
-        "cross-org caller; 08-01 does not touch billing_routes.py."
-    ),
+    "billing.verify_invoice_route": "tests/test_billing_routes.py::test_cross_org_verify_is_refused_and_makes_no_changes",
     "api.trigger_scan": "tests/test_api_routes.py::test_trigger_scan_different_org_gets_404_no_scan_created",
     "api.scan_status": "tests/test_api_routes.py::test_scan_status_different_org_gets_404",
     "api.fetch_report": "tests/test_api_routes.py::test_fetch_report_different_org_gets_404",
