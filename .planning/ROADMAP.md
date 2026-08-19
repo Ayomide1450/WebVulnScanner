@@ -400,7 +400,7 @@ test. This phase verifies and closes gaps; it does not weaken or redesign `autho
      verification rejects replay/double-activation/amount-tampering/cross-org access, and
      production-mode 400/401/403/404/429/500 responses never leak a stack trace, file path, SQL
      fragment, or environment variable.
-**Plans**: 3/7 plans executed
+**Plans**: 5/7 plans executed
 
 Plans:
 **Wave 1**
@@ -414,8 +414,8 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 08-04-PLAN.md — SEC-03 the phase's one real code fix: _SSRFSafeSession redirect-hop guard in checks._mk_session(), proven against a real local server's request log, plus the frozen-surface and orchestrator locks
-- [ ] 08-05-PLAN.md — SEC-04/05/06 injection & traversal sweep: six escaping proofs, standing autoescape and raw-SQL locks, and one containment-checked report reader replacing three inline REPORTS_DIR opens
+- [x] 08-04-PLAN.md — SEC-03 the phase's one real code fix: _SSRFSafeSession redirect-hop guard in checks._mk_session(), proven against a real local server's request log, plus the frozen-surface and orchestrator locks
+- [x] 08-05-PLAN.md — SEC-04/05/06 injection & traversal sweep: six escaping proofs, standing autoescape and raw-SQL locks, and one containment-checked report reader replacing three inline REPORTS_DIR opens
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -484,5 +484,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. New Scan Flow Redesign | v1.1 | 1/3 | In Progress|  |
 | 6. Design System Consistency | v1.1 | 1/4 | In Progress|  |
 | 7. Responsive & Accessibility Compliance | v1.1 | 5/7 | In Progress|  |
-| 8. Security Re-Audit & Hardening | v1.1 | 3/7 | In Progress|  |
+| 8. Security Re-Audit & Hardening | v1.1 | 5/7 | In Progress|  |
 | 9. SEO, Performance & UX States | v1.1 | 0/TBD | Not started | - |

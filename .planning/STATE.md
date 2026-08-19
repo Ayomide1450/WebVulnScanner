@@ -5,16 +5,16 @@ milestone_name: Production Audit, Hardening & Redesign
 current_phase: 08
 current_phase_name: Security Re-Audit & Hardening
 status: executing
-stopped_at: "Phase 8 planned: 7 plans/5 waves, plan-checker PASSED"
-last_updated: "2026-08-19T06:40:07.699Z"
+stopped_at: "Phase 8 Wave 3 (08-04, 08-05) complete and merged to master (720/720 tests). Wave 4 (08-06) next, then Wave 5 (08-07, non-autonomous phase gate)."
+last_updated: "2026-08-19T12:18:41.294Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 21
-  completed_plans: 14
-  percent: 60
-last_activity: 2026-08-18
-last_activity_desc: "Executed 07-07 (Phase 7's final wave-4 plan): Task 1 committed 8ccbcff, Task 3 committed c7b94bf + this session's scan_new_type.html fix. 07-07-SUMMARY.md written. Phase 7 is now fully code-complete across all 7 plans."
+  completed_plans: 18
+  percent: 71
+last_activity: 2026-08-19
+last_activity_desc: "Recovered two stranded worktrees from an interrupted prior session (08-04 and 08-05 each had 2 of 3 tasks committed, one uncommitted-but-complete task, no SUMMARY.md). Verified each worktree's uncommitted work independently (targeted + full suite green in each), finished 08-04 Task 3 (orchestrator session-construction lock, D-05 backfill, with a live negative control) and confirmed 08-05 Task 3 (SEC-06 containment reader) was already complete, wrote both SUMMARY.md files, merged both branches to master with zero conflicts, ran the full suite on the merged result (720 passed), and removed the stray worktrees/branches. Phase 8 Wave 3 (SEC-03/04/05/06) is now fully closed."
 ---
 
 # Project State
@@ -30,21 +30,15 @@ non-destructive scans against their own infrastructure and get findings they can
 ## Current Position
 
 Phase: 08 (Security Re-Audit & Hardening) — EXECUTING
-Plan: 1 of 7
-Status: Executing Phase 08
-open vulnerability: checks._mk_session() doesn't re-validate redirect hops against
-is_ssrf_safe_hostname(), SEC-03), validated (08-VALIDATION.md), and fully planned. Waves sequenced
-by blast radius per D-04: Wave 1 SEC-01+SEC-02 (08-01/08-02), Wave 2 SEC-09 (08-03), Wave 3
-SEC-03+SEC-04/05/06 (08-04/08-05), Wave 4 SEC-07/08/10 (08-06), Wave 5 the phase-gate + D-01/D-02
-live dev-server probe pass (08-07, autonomous: false). The planner's own multi-source coverage
-audit (GOAL/REQ/RESEARCH/CONTEXT) found zero unplanned items on its second pass; a first
-plan-checker run against an intermediate 5-plan snapshot found 2 blockers (SEC-07/08/10 and the
-live-probe script uncovered) which the planner had already independently fixed by the time its
-completion notification arrived (added 08-06/08-07 itself) — a duplicate revision agent spawned
-against the stale snapshot was caught and killed before writing, no conflict occurred. Final
-plan-checker run on all 7 plans: VERIFICATION PASSED, no issues.
+Plan: 6 of 7 (08-01..08-05 complete; 08-06 next; 08-07 is the non-autonomous phase gate)
+Status: Executing Phase 08 — Wave 3 (SEC-03/04/05/06) closed this session
+Waves sequenced by blast radius per D-04: Wave 1 SEC-01+SEC-02 (08-01/08-02, done), Wave 2 SEC-09
+(08-03, done), Wave 3 SEC-03+SEC-04/05/06 (08-04/08-05, done this session — see Session
+Continuity below for the recovery story), Wave 4 SEC-07/08/10 (08-06, not started), Wave 5 the
+phase-gate + D-01/D-02 live dev-server probe pass (08-07, autonomous: false — needs a real
+running instance and human involvement, not a plain executor dispatch).
 
-Next step: `/gsd-execute-phase 8`.
+Next step: `/gsd-execute-phase 8` (picks up Wave 4 / 08-06).
 
 Phase 7 (Responsive & Accessibility Compliance) is CODE-COMPLETE but requirements unconfirmed —
 all 7 plans done, full suite green (646 passed), but every checkpoint:human-verify gate across
@@ -159,6 +153,19 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-18T22:07:45.014Z
-Stopped at: Phase 8 planned: 7 plans/5 waves, plan-checker PASSED
-Resume file: .planning/phases/08-security-re-audit-hardening/08-01-PLAN.md
+Last session: 2026-08-19T12:18:41.294Z
+Stopped at: Phase 8 Wave 3 (08-04, 08-05) complete and merged to master (720/720 tests)
+Resume file: .planning/phases/08-security-re-audit-hardening/08-06-PLAN.md
+
+**Recovery note (this session):** found two stray worktrees (`worktree-agent-a3eff7a57c8233cfd`
+for 08-04, `worktree-agent-ac4cbc2a32af79847` for 08-05) left over from an interrupted prior
+session — each had 2 of 3 tasks already committed, plus a 3rd task's work sitting complete but
+uncommitted (08-05's) or not yet started (08-04's). Per the orchestrator's own worktree-recovery
+guidance (never discard a worktree with real committed+uncommitted work silently): verified each
+worktree's state independently (targeted tests, then full suite - both green before touching
+anything), finished 08-04's remaining task (orchestrator session-construction lock, with a live
+negative control), confirmed 08-05's remaining task was already complete and correct, wrote both
+SUMMARY.md files (08-05's records that its Task 1/2 negative-control failure text had to be
+re-captured live since the original run never saved it, per its own commit message), merged both
+branches to master with zero conflicts, ran the full suite on the merged tree (720 passed), and
+removed both stray worktrees/branches. No work was lost or redone from scratch.
