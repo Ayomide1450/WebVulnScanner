@@ -79,22 +79,24 @@ def test_robots_txt_disallows_every_non_public_blueprint(client, app):
     }
     assert expected_blueprints <= blueprints_seen
 
-    # Every one of those blueprints must have at least one Disallow: line
-    # matching one of its rules' first path segments.
+    # Every SINGLE rule belonging to a non-public/non-static blueprint must
+    # be covered by a Disallow: line that is a literal prefix of its path -
+    # not merely "one sample rule per blueprint", since a blueprint with no
+    # url_prefix (auth, scan) can have several distinct first-path-segments
+    # of its own (e.g. auth's /login vs /signup vs /forgot-password each
+    # produce their own Disallow line).
     with app.app_context():
-        for blueprint in expected_blueprints:
-            sample_rules = [
-                r for r in app.url_map.iter_rules()
-                if r.endpoint.split(".", 1)[0] == blueprint
-            ]
-            assert sample_rules, blueprint
-            matched = False
-            for rule in sample_rules:
-                segment = rule.rule.strip("/").split("/")[0]
-                if segment and f"Disallow: /{segment}" in body:
-                    matched = True
-                    break
-            assert matched, f"no Disallow: line found covering blueprint {blueprint!r}"
+        disallowed_rules = [
+            r for r in app.url_map.iter_rules()
+            if r.endpoint.split(".", 1)[0] not in ("public", "static")
+        ]
+    assert disallowed_rules
+    for rule in disallowed_rules:
+        segment = rule.rule.strip("/").split("/")[0]
+        assert segment, rule.rule
+        assert f"Disallow: /{segment}" in body, (
+            f"{rule.endpoint} ({rule.rule}) has no matching Disallow: line"
+        )
 
 
 def test_sitemap_xml_returns_200_xml_content_type(client):
