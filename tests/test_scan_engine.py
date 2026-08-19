@@ -292,6 +292,57 @@ def test_no_orchestrator_carries_an_inline_scoring_block():
 
 
 # --------------------------------------------------------------------------
+# SEC-03 / D-05 backfill: every scan orchestrator must acquire its HTTP
+# session from checks._mk_session() - the single choke point where plan
+# 08-04's SSRF redirect guard (_SSRFSafeSession) is installed - and from
+# nowhere else. Parsed per-function (not a whole-file occurrence count),
+# same technique as the _score_report lock directly above: a whole-file
+# `grep -c` would pass with four calls even if one orchestrator had two and
+# another had none, which is exactly the regression this must catch.
+# --------------------------------------------------------------------------
+
+
+def test_every_orchestrator_acquires_its_session_via_mk_session():
+    import inspect
+
+    orchestrators = (
+        scan_engine.run_scan, scan_engine.run_advanced_scan,
+        scan_engine.run_media_scan, scan_engine.run_api_scan,
+    )
+    regressed = []
+    for fn in orchestrators:
+        src = inspect.getsource(fn)
+        if "_mk_session()" not in src:
+            regressed.append(fn.__name__)
+    assert not regressed, (
+        f"{regressed} no longer acquires its HTTP session via checks._mk_session() - "
+        "_mk_session() is the only place the SSRF redirect guard (_SSRFSafeSession) is "
+        "installed, so an orchestrator constructing its session another way would be an "
+        "unguarded outbound client that bypasses the guard entirely."
+    )
+
+
+def test_scan_engine_module_never_constructs_a_bare_requests_session():
+    import inspect
+    import re
+
+    src = inspect.getsource(scan_engine)
+    # Comment-filtered: strip full-line comments, then strip trailing
+    # inline comments, so an explanatory comment mentioning the term
+    # cannot accidentally satisfy or break the match.
+    code_only = "\n".join(
+        line.split("#", 1)[0] for line in src.splitlines()
+        if not line.strip().startswith("#")
+    )
+    bare_session = re.search(r"\brequests\.Session\s*\(", code_only)
+    assert bare_session is None, (
+        "webvulnscanner/scan_engine.py constructs a requests.Session() directly - every "
+        "HTTP session in the scan engine must come from checks._mk_session() so the SSRF "
+        "redirect guard applies. Route the construction through _mk_session() instead."
+    )
+
+
+# --------------------------------------------------------------------------
 # run_advanced_scan
 #
 # run_advanced_scan is exercised via direct invocation only (D-04) -
