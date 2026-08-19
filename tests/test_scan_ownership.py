@@ -19,7 +19,8 @@ test_scan_report_and_scan_compare_enforce_ownership_too).
 """
 import pytest
 
-from webvulnscanner.models import Role, ScanStatus
+from webvulnscanner.extensions import db as _db
+from webvulnscanner.models import Report, Role, ScanStatus
 
 from tests.conftest import login, make_org, make_scan, make_user
 
@@ -153,6 +154,56 @@ def test_scan_events_denies_cross_org_access(client, scenario):
     login(client, "admin@org2.com")
     resp = client.get(f"/scan/{scenario['scan'].id}/events")
     assert resp.status_code == 404
+
+
+# --------------------------------------------------------------------------
+# SEC-01 (08-01, Task 3): scan.scan_report_csv cross-org denial. Same
+# ownership guard as scan_report (_check_ownership, checked before the
+# report-existence check) - reused rather than reinvented, per
+# scan_report_csv's own docstring. Report.data is populated directly (the
+# source of truth per Report's docstring in models.py) so this test needs
+# no filesystem state and no background scan thread.
+# --------------------------------------------------------------------------
+
+CSV_LEAK_MARKER = "MARKER-08-01-CSV-LEAK-CHECK-9f3c1a"
+
+
+def _attach_report_with_marker(scan):
+    report_data = {
+        "hostname": "example.com",
+        "target": "https://example.com",
+        "findings": [
+            {
+                "category": "headers", "title": "Missing security header",
+                "severity": "medium", "owasp_category": "A05:2021-Security Misconfiguration",
+                "detail": CSV_LEAK_MARKER, "recommendation": "Add the header.",
+            },
+        ],
+    }
+    r = Report(scan_id=scan.id, json_path="unused-for-this-test.json", data=report_data)
+    _db.session.add(r)
+    _db.session.flush()
+    return r
+
+
+def test_scan_report_csv_cross_org_is_404_and_leaks_no_finding_text(client, scenario, db):
+    _attach_report_with_marker(scenario["scan"])
+    _db.session.commit()
+
+    # Negative: a different org's admin must not see the CSV, or the marker.
+    login(client, "admin@org2.com")
+    resp = client.get(f"/scan/{scenario['scan'].id}/export.csv")
+    assert resp.status_code == 404
+    assert CSV_LEAK_MARKER.encode() not in resp.data
+
+    # Positive control: the owner gets a real CSV with the marker present -
+    # proves the 404 above came from the ownership guard, not a missing
+    # report or a broken route.
+    login(client, "owner@org1.com")
+    resp2 = client.get(f"/scan/{scenario['scan'].id}/export.csv")
+    assert resp2.status_code == 200
+    assert resp2.content_type.startswith("text/csv")
+    assert CSV_LEAK_MARKER.encode() in resp2.data
 
 
 def test_scan_detail_redirects_to_report_when_completed(client, scenario, db):

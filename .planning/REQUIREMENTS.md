@@ -166,7 +166,7 @@ one roadmap phase.
 
 ### Security Re-Audit (SEC)
 
-- [ ] **SEC-01**: Every route that accepts an object ID (scan/report/asset/domain/invoice/token/
+- [x] **SEC-01**: Every route that accepts an object ID (scan/report/asset/domain/invoice/token/
       org/user) is verified server-side to enforce ownership/org-membership before returning data —
       audited across GET/POST/PUT/DELETE and the `/api/v1/*` surface, with a regression test per
       route family where one doesn't already exist.
@@ -315,7 +315,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | A11Y-02 | Phase 7 | Pending |
 | A11Y-03 | Phase 7 | Pending |
 | A11Y-04 | Phase 7 | Pending |
-| SEC-01 | Phase 8 | Pending |
+| SEC-01 | Phase 8 | Complete |
 | SEC-02 | Phase 8 | Pending |
 | SEC-03 | Phase 8 | Pending |
 | SEC-04 | Phase 8 | Pending |

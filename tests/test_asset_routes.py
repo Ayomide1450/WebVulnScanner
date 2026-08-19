@@ -464,6 +464,32 @@ def test_pause_resume_delete_all_three_404_for_non_owning_org(db, client):
     assert client.post(f"/assets/{asset_id}/delete", follow_redirects=False).status_code == 404
 
 
+def test_schedule_cross_org_is_404_and_does_not_mutate_cadence_or_scan_type(db, client):
+    # SEC-01 (08-01, Task 3): asserting only the 404 would still pass if the
+    # mutation happened before _check_asset_access ran - re-reading the row
+    # is the only assertion that catches that ordering bug.
+    org_a = make_org(plan=Plan.PAID, name="Owner Org 2")
+    user_a = make_user("owner2@example.com", org=org_a)
+    a = make_asset(org_a, user_a, name="Protected Asset", cadence="daily", schedule_scan_type="base")
+
+    org_b = make_org(plan=Plan.PAID, name="Intruder Org")
+    make_user("intruder@example.com", org=org_b)
+    db.session.commit()
+    asset_id = a.id
+
+    login(client, "intruder@example.com")
+    resp = client.post(
+        f"/assets/{asset_id}/schedule",
+        data={"cadence": "weekly", "schedule_scan_type": "media"},
+        follow_redirects=False,
+    )
+
+    assert resp.status_code == 404
+    refreshed = Asset.query.get(asset_id)
+    assert refreshed.cadence == "daily"
+    assert refreshed.schedule_scan_type == "base"
+
+
 # --------------------------------------------------------------------------
 # COMP-03: summarize_compliance() - the pure checked/failing/not-checked
 # aggregation (plan 03-03, Task 1). No DB, no filesystem - hand-built report
