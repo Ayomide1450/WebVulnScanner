@@ -24,10 +24,20 @@ the value is validated, not merely required to be non-empty). One
 token-less-POST-returns-400 proof is repeated per cookie-authenticated
 blueprint (auth/org/billing/asset/api_tokens/scan), since `CSRFProtect` is
 wired app-wide and a single proof per blueprint is what confirms nothing
-silently exempted a whole surface.
+silently exempted a whole surface. Finally, the module locks
+`csrf.exempt()`'s scope to exactly the Bearer-token `/api/v1` blueprint
+(the one deliberate, documented exemption - token auth is not
+cookie-based, so CSRF doesn't apply to it), proves that exemption doesn't
+regress the API surface under enforcement, and proves every POST-form
+template in `templates/` emits a token by one of this codebase's two known
+idioms (an explicit hidden input rendering `csrf_token()`, or a WTForms
+`hidden_tag()` call - the four auth templates use the second and would be
+false-flagged by a single-pattern check).
 
 `tests/conftest.py` is not modified anywhere in this module.
 """
+import pathlib
+import re
 from datetime import datetime, timezone
 
 import pytest
@@ -48,7 +58,11 @@ from webvulnscanner.models import (
     VerifyMethod,
 )
 
-from tests.conftest import TestConfig, make_asset, make_org, make_user
+from tests.conftest import TestConfig, make_api_token, make_asset, make_org, make_user
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+WEBVULNSCANNER_DIR = REPO_ROOT / "webvulnscanner"
+TEMPLATES_DIR = REPO_ROOT / "templates"
 
 
 # --------------------------------------------------------------------------
@@ -347,3 +361,137 @@ def test_advanced_detect_without_csrf_token_returns_400(csrf_client, csrf_db):
     )
 
     assert resp.status_code == 400
+
+
+# --------------------------------------------------------------------------
+# Task 3a: csrf.exempt() scope lock - exactly one call site, in
+# api_routes.py, applied to the `api` blueprint. Same source-parsing
+# regression-lock shape as tests/test_scan_engine.py's
+# test_no_orchestrator_carries_an_inline_scoring_block and
+# tests/test_scheduler.py's test_fire_dispatches_only_on_base_media_api_no_advanced_branch.
+# --------------------------------------------------------------------------
+
+
+def _find_csrf_exempt_call_sites():
+    """Reads every .py file under webvulnscanner/, strips full-line
+    comments (a trailing inline comment on a real call site is still
+    counted - only a comment-only line is skipped), and collects every
+    line containing an exempt call. A future second exemption anywhere
+    fails this with the offending file/line named, rather than an opaque
+    count mismatch."""
+    hits = []
+    for path in sorted(WEBVULNSCANNER_DIR.rglob("*.py")):
+        for lineno, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if raw_line.strip().startswith("#"):
+                continue
+            code_part = raw_line.split("#", 1)[0]
+            if "csrf.exempt(" in code_part:
+                hits.append((path, lineno, raw_line.strip()))
+    return hits
+
+
+def test_csrf_exempt_applied_to_exactly_one_blueprint():
+    hits = _find_csrf_exempt_call_sites()
+    assert len(hits) == 1, (
+        f"expected exactly one csrf.exempt() call site (webvulnscanner/api_routes.py's "
+        f"Bearer-token blueprint), found {len(hits)}: "
+        f"{[(str(p.relative_to(REPO_ROOT)), n, line) for p, n, line in hits]}"
+    )
+    path, _lineno, line = hits[0]
+    assert path.name == "api_routes.py", (
+        f"the sole csrf.exempt() call site moved out of api_routes.py into {path.name} - "
+        f"the Bearer-token API surface is no longer where CSRF exemption is scoped"
+    )
+    assert "csrf.exempt(api)" in line, (
+        f"api_routes.py's exempt call no longer reads 'csrf.exempt(api)' - found: {line!r}"
+    )
+
+
+# Negative control performed manually while writing this test (not itself
+# a permanent test - a second csrf.exempt(api) call was added directly
+# below the real one in webvulnscanner/api_routes.py, this test was run
+# alone, and reverted immediately after). Observed failure:
+#
+#   AssertionError: expected exactly one csrf.exempt() call site
+#   (webvulnscanner/api_routes.py's Bearer-token blueprint), found 2:
+#   [('webvulnscanner\\api_routes.py', 35, 'csrf.exempt(api)'),
+#    ('webvulnscanner\\api_routes.py', 36, 'csrf.exempt(api)  # TEMP ...')]
+#   assert 2 == 1
+#
+# `git diff --stat` confirmed api_routes.py was clean again afterward -
+# recorded in 08-02-SUMMARY.md.
+
+
+# --------------------------------------------------------------------------
+# Task 3b: the Bearer-token API surface must still work under CSRF
+# enforcement - a CSRF fix that broke it would be a regression, not
+# hardening.
+# --------------------------------------------------------------------------
+
+
+def test_bearer_token_trigger_scan_not_blocked_by_csrf_enforcement(csrf_client, csrf_db, monkeypatch):
+    spawned = []
+    monkeypatch.setattr(
+        "webvulnscanner.scheduler._spawn_scan_thread",
+        lambda scan_id, scan_type, **kwargs: spawned.append((scan_id, scan_type, kwargs)),
+    )
+
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    csrf_db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+    a = make_asset(org, user, name="Asset", schedule_scan_type="base")
+    csrf_db.session.commit()
+
+    resp = csrf_client.post(
+        f"/api/v1/assets/{a.id}/scans",
+        headers={"Authorization": f"Bearer {raw_token}"},
+    )
+
+    assert resp.status_code != 400, (
+        f"Bearer-token POST to the exempt API route was rejected by CSRF (status "
+        f"{resp.status_code}) - the exemption is no longer working"
+    )
+    assert resp.status_code == 202
+    assert len(spawned) == 1
+
+
+# --------------------------------------------------------------------------
+# Task 3c: every POST-form template emits a csrf token by one of the two
+# known idioms. Not a single-pattern check - the four auth templates
+# (login, signup, forgot_password, reset_password) use WTForms'
+# hidden_tag() exclusively and would be false-flagged by a check that only
+# looked for the explicit csrf_token() input.
+# --------------------------------------------------------------------------
+
+_POST_FORM_RE = re.compile(r'method\s*=\s*["\']post["\']', re.IGNORECASE)
+
+
+def _post_form_templates():
+    return sorted(p for p in TEMPLATES_DIR.glob("*.html") if _POST_FORM_RE.search(p.read_text(encoding="utf-8")))
+
+
+def test_every_post_form_template_emits_a_known_csrf_idiom():
+    explicit_idiom, wtforms_idiom, neither = [], [], []
+    for path in _post_form_templates():
+        text = path.read_text(encoding="utf-8")
+        has_explicit = "csrf_token()" in text
+        has_wtforms = "hidden_tag()" in text
+        if has_explicit:
+            explicit_idiom.append(path.name)
+        if has_wtforms:
+            wtforms_idiom.append(path.name)
+        if not (has_explicit or has_wtforms):
+            neither.append(path.name)
+
+    assert not neither, (
+        f"POST-form template(s) emit neither known CSRF idiom (explicit csrf_token() "
+        f"input nor WTForms hidden_tag()): {neither}"
+    )
+    # explicit_idiom (10): api_tokens, asset_detail, asset_new, billing,
+    #   org_admin (invite-resend/revoke buttons), platform_admin,
+    #   scan_new_advanced, scan_new_api, scan_new_base, scan_new_media
+    # wtforms_idiom (6): forgot_password, login, org_admin (invite form),
+    #   org_verify_domain (add-domain form), reset_password, signup
+    # (org_admin.html uses both idioms across different forms on the same
+    #  page - recorded in 08-02-SUMMARY.md.)
