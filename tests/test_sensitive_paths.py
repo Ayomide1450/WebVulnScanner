@@ -13,6 +13,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
+from webvulnscanner import checks
 from webvulnscanner.checks import _mk_session, check_sensitive_paths
 
 
@@ -233,9 +234,20 @@ def edge_case_server():
     thread.join(timeout=2)
 
 
-def test_redirect_to_login_is_not_confirmed_exposure(edge_case_server):
+def test_redirect_to_login_is_not_confirmed_exposure(edge_case_server, monkeypatch):
     """/.env -> 302 -> /login must NOT be classified as exposed, and the
-    redirect chain must be recorded as evidence."""
+    redirect chain must be recorded as evidence.
+
+    Monkeypatches is_ssrf_safe_hostname() for the duration of this test:
+    SEC-03's _mk_session() guard (08-04) re-validates every redirect hop's
+    hostname, and this fixture's relative Location resolves to the same
+    loopback host edge_case_server itself binds to - correctly classified
+    unsafe outside tests, which would otherwise stop the chain before it's
+    followed. This test is about redirect-chain evidence capture in
+    check_sensitive_paths(), not SSRF classification (that's
+    tests/test_ssrf_guard.py's job), so the guard is bypassed here rather
+    than routed through a real public target."""
+    monkeypatch.setattr(checks, "is_ssrf_safe_hostname", lambda hostname: True)
     data, _ = check_sensitive_paths(edge_case_server, _mk_session())
     row = _row(data, "/.env")
     assert row["classification"] != "confirmed"
@@ -244,9 +256,13 @@ def test_redirect_to_login_is_not_confirmed_exposure(edge_case_server):
     assert row["evidence"]["status"] == 200  # final, post-redirect status
 
 
-def test_redirect_to_unrelated_page_is_not_confirmed_exposure(edge_case_server):
+def test_redirect_to_unrelated_page_is_not_confirmed_exposure(edge_case_server, monkeypatch):
     """/.git/config -> 301 -> /some-page must NOT be automatically
-    classified as exposed, and the redirect must be recorded as evidence."""
+    classified as exposed, and the redirect must be recorded as evidence.
+
+    See test_redirect_to_login_is_not_confirmed_exposure's docstring above
+    for why is_ssrf_safe_hostname() is monkeypatched here."""
+    monkeypatch.setattr(checks, "is_ssrf_safe_hostname", lambda hostname: True)
     data, _ = check_sensitive_paths(edge_case_server, _mk_session())
     row = _row(data, "/.git/config")
     assert row["classification"] != "confirmed"

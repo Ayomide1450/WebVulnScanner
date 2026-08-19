@@ -16,7 +16,9 @@ scan target lets a route-level test exercise the guard for real without
 either mocking or touching the network - and since the guard rejects them
 before a Scan row is created, no background thread ever spawns.
 """
+import hashlib
 import http.server
+import inspect
 import socket
 import socketserver
 import threading
@@ -24,6 +26,7 @@ import threading
 import pytest
 import requests
 
+from webvulnscanner import checks
 from webvulnscanner.checks import UA, _mk_session, _SSRFSafeSession, is_ssrf_safe_hostname
 from webvulnscanner.models import Plan, Scan
 
@@ -468,3 +471,142 @@ def test_redirect_with_unparseable_hostname_is_not_followed(location):
 # try/except or pytest.raises. That absence is itself the proof for the
 # "no exception escapes" acceptance criterion: a raised exception in any of
 # them would fail the test outright, not silently pass.
+
+
+# --------------------------------------------------------------------------
+# Legitimate-redirect regression coverage (08-RESEARCH.md Pitfall 2: don't
+# reject a hop merely because the hostname changed) + the frozen-surface and
+# delegation locks (Pitfall 4: don't "finish" this by quietly weakening
+# is_ssrf_safe_hostname or reinventing its logic inside the new class).
+# --------------------------------------------------------------------------
+
+class _PlainHTTPOverHTTPSAdapter(requests.adapters.HTTPAdapter):
+    """Test-only adapter: rewrites an https:// request's URL to http://
+    before sending it, so a real local plain-HTTP test server can stand in
+    for a TLS endpoint. Exists purely to test a same-host scheme-upgrade
+    redirect without this repo taking on a `cryptography` dependency
+    (absent from requirements-dev.txt, and this plan's prohibitions say not
+    to add one) just to mint a throwaway self-signed certificate for one
+    test. Mounted only on a session built specifically for this test -
+    never touches `_mk_session()`/production code."""
+
+    def send(self, request, **kwargs):
+        request.url = request.url.replace("https://", "http://", 1)
+        return super().send(request, **kwargs)
+
+
+def test_scheme_upgrade_redirect_same_host_is_followed(monkeypatch):
+    routes = {}
+    port, log = _start_server(routes)
+    routes["/"] = (301, f"https://scheme-upgrade.example.test:{port}/next", None)
+    routes["/next"] = (200, None, b"upgraded")
+    monkeypatch.setattr(
+        socket, "getaddrinfo", _fake_public_via_loopback("scheme-upgrade.example.test"),
+    )
+
+    session = _mk_session()
+    session.mount("https://", _PlainHTTPOverHTTPSAdapter())
+    resp = session.get(f"http://scheme-upgrade.example.test:{port}/", timeout=5)
+
+    # resp.url reads http:// here (not https://) because the adapter above
+    # rewrites the outbound request before requests records it - a
+    # test-infrastructure artifact of avoiding a real TLS handshake, not a
+    # scheme downgrade performed by the guard. The log proves what actually
+    # matters: both hops were fetched, i.e. the same-host scheme-upgrade
+    # redirect was followed, not rejected.
+    assert log == ["/", "/next"]
+    assert resp.status_code == 200
+
+
+def test_apex_to_www_redirect_is_followed(monkeypatch):
+    www_port, www_log = _start_server({"/": (200, None, b"www content")})
+    apex_port, apex_log = _start_server({
+        "/": (302, f"http://www.apex.example.test:{www_port}/", None),
+    })
+    monkeypatch.setattr(
+        socket, "getaddrinfo",
+        _fake_public_via_loopback("apex.example.test", "www.apex.example.test"),
+    )
+
+    session = _mk_session()
+    resp = session.get(f"http://apex.example.test:{apex_port}/", timeout=5)
+
+    assert apex_log == ["/"]
+    assert www_log == ["/"]
+    assert resp.status_code == 200
+    assert resp.url == f"http://www.apex.example.test:{www_port}/"
+
+
+def test_cross_domain_public_redirect_is_followed(monkeypatch):
+    other_port, other_log = _start_server({"/": (200, None, b"other domain content")})
+    origin_port, origin_log = _start_server({
+        "/": (302, f"http://other-public.example.test:{other_port}/", None),
+    })
+    monkeypatch.setattr(
+        socket, "getaddrinfo",
+        _fake_public_via_loopback("origin-public.example.test", "other-public.example.test"),
+    )
+
+    session = _mk_session()
+    resp = session.get(f"http://origin-public.example.test:{origin_port}/", timeout=5)
+
+    assert origin_log == ["/"]
+    assert other_log == ["/"], "hostname changing alone must not be treated as a rejection reason"
+    assert resp.status_code == 200
+    assert resp.url == f"http://other-public.example.test:{other_port}/"
+
+
+def test_allow_redirects_false_returns_redirect_unfollowed():
+    # Mirrors checks.py:536 and :1049's call pattern - this documents and
+    # locks that those two call sites are unaffected by this change, since
+    # allow_redirects=False never enters resolve_redirects()'s
+    # self.send()-per-hop loop at all.
+    entry_port, entry_log = _start_server({
+        "/": (302, "http://127.0.0.1:1/unreachable", None),
+    })
+
+    session = _mk_session()
+    resp = session.get(f"http://127.0.0.1:{entry_port}/", timeout=5, allow_redirects=False)
+
+    assert entry_log == ["/"]
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == "http://127.0.0.1:1/unreachable"
+
+
+# This hash was computed from is_ssrf_safe_hostname()'s source at the point
+# this plan started (08-04, SEC-03) - the function's pre-plan baseline.
+_IS_SSRF_SAFE_HOSTNAME_SOURCE_SHA256 = (
+    "546fc01009d3e9e737221df4fac42c6ac8d2041e7c63dd30421865bfe968c3dd"
+)
+
+
+def test_is_ssrf_safe_hostname_source_is_byte_identical_to_pre_plan_baseline():
+    src = inspect.getsource(checks.is_ssrf_safe_hostname).replace("\r\n", "\n")
+    actual_hash = hashlib.sha256(src.encode("utf-8")).hexdigest()
+    assert actual_hash == _IS_SSRF_SAFE_HOSTNAME_SOURCE_SHA256, (
+        "is_ssrf_safe_hostname()'s source has changed. This function is FROZEN per "
+        "CLAUDE.md ('Do not weaken or remove ... checks.is_ssrf_safe_hostname()') - "
+        "a change here needs a deliberate, explicit decision recorded in "
+        "PROJECT.md/CLAUDE.md, not a quiet test-baseline update to make this pass."
+    )
+
+
+def test_ssrf_safe_session_delegates_to_is_ssrf_safe_hostname_not_its_own_classification():
+    src = inspect.getsource(checks._SSRFSafeSession.get_redirect_target)
+    # Filter out full-line comments so an explanatory comment mentioning the
+    # forbidden term can't accidentally satisfy or break this assertion.
+    code_only = "\n".join(
+        line for line in src.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    )
+    assert "is_ssrf_safe_hostname(" in code_only, (
+        "_SSRFSafeSession.get_redirect_target() must delegate to is_ssrf_safe_hostname() - "
+        "no call to it found in the method body."
+    )
+    # Derived from checks.py's own `import ipaddress`, not retyped here.
+    forbidden_module_name = checks.ipaddress.__name__
+    assert forbidden_module_name not in code_only, (
+        f"_SSRFSafeSession.get_redirect_target() references {forbidden_module_name!r} "
+        "directly - it must not define its own address classification; "
+        "is_ssrf_safe_hostname() is the single source of truth for what counts unsafe."
+    )
