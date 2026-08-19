@@ -22,12 +22,19 @@ payload constant is defined once below and both its escaped and raw forms
 are derived from it via `markupsafe.escape` (the exact function Jinja2's
 autoescape calls), never retyped.
 """
+import pathlib
+import re
+
 from markupsafe import escape as _markupsafe_escape
 
 from webvulnscanner.extensions import db as _db
 from webvulnscanner.models import DomainVerification, Report, Role, Scan, ScanStatus, VerifyMethod
 
 from tests.conftest import login, make_org, make_scan, make_user
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+WEBVULNSCANNER_DIR = REPO_ROOT / "webvulnscanner"
+TEMPLATES_DIR = REPO_ROOT / "templates"
 
 # Single module-level payload: a tag (would execute if unescaped) plus an
 # attribute-breaking quote (would let a partial-escaping bug still break out
@@ -218,3 +225,195 @@ def test_csv_export_contains_raw_payload_unescaped(client, db):
     assert "<script>alert('xss')</script>" in body
     assert ESCAPED_PAYLOAD not in body
     assert resp.mimetype == "text/csv"
+
+
+# --------------------------------------------------------------------------
+# Task 2: standing, comment-filtered source-level locks for SEC-04's
+# escaping guarantee and SEC-05's SQL-parameterization guarantee. These
+# convert Task 1's one-time proof (and 08-RESEARCH.md's one-time grep) into
+# assertions that run on every suite invocation - a future |safe filter,
+# Markup() wrap, string-template render, or raw-SQL string anywhere in this
+# codebase fails the suite instead of waiting for the next manual audit.
+#
+# Comment filtering matters here specifically because this module's own
+# prose (above and in this section) necessarily discusses the very
+# constructs it forbids - an unfiltered grep-style lock could be tripped by
+# its own docstring, or worse, could be satisfied by commenting out the
+# forbidden construct instead of removing it.
+# --------------------------------------------------------------------------
+
+
+def _strip_jinja_comment_spans(text):
+    """Yields (lineno, code_only_line) pairs for a Jinja template's source,
+    with the contents of every {# ... #} comment block blanked out (spans
+    can cross multiple lines) while preserving line numbers and any real
+    code sharing a line with a comment marker - so a template's own
+    commented-out discussion of |safe/autoescape can never trip the lock,
+    and a real offending line is still reported at its true line number."""
+    out = []
+    in_comment = False
+    for lineno, raw_line in enumerate(text.splitlines(), start=1):
+        pieces = []
+        i = 0
+        while i < len(raw_line):
+            if in_comment:
+                end = raw_line.find("#}", i)
+                if end == -1:
+                    i = len(raw_line)
+                else:
+                    in_comment = False
+                    i = end + 2
+            else:
+                start = raw_line.find("{#", i)
+                if start == -1:
+                    pieces.append(raw_line[i:])
+                    i = len(raw_line)
+                else:
+                    pieces.append(raw_line[i:start])
+                    in_comment = True
+                    i = start + 2
+        out.append((lineno, "".join(pieces)))
+    return out
+
+
+def _find_unsafe_filter_or_autoescape_off():
+    """Comment-filtered scan of every template under templates/ (including
+    partials) for the escaping-disabling |safe filter or an
+    autoescape-disabling {% autoescape false %} block. Returns
+    (path, lineno, stripped_line, mechanism) tuples."""
+    hits = []
+    for path in sorted(TEMPLATES_DIR.rglob("*.html")):
+        for lineno, code_line in _strip_jinja_comment_spans(path.read_text(encoding="utf-8")):
+            if re.search(r"\|\s*safe\b", code_line):
+                hits.append((path, lineno, code_line.strip(), "|safe filter"))
+            if re.search(r"\{%-?\s*autoescape\s+false\s*-?%\}", code_line):
+                hits.append((path, lineno, code_line.strip(), "{% autoescape false %}"))
+    return hits
+
+
+def test_no_template_disables_autoescaping_or_uses_safe_filter():
+    hits = _find_unsafe_filter_or_autoescape_off()
+    assert not hits, "escaping-disabling construct(s) found (SEC-04 regression): " + "; ".join(
+        f"{p.relative_to(REPO_ROOT).as_posix()}:{n} uses {mech} -> {line!r}"
+        for p, n, line, mech in hits
+    )
+
+
+def _find_markup_construction_or_string_template_render():
+    """Comment-filtered (full-line only, matching test_csrf_enforcement.py's
+    established idiom) scan of every .py under webvulnscanner/ for
+    Markup(...) construction or render_template_string(...) calls - the two
+    ways a Python module (rather than a template) could reintroduce
+    unescaped HTML. Returns (path, lineno, stripped_line) tuples."""
+    hits = []
+    for path in sorted(WEBVULNSCANNER_DIR.rglob("*.py")):
+        for lineno, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if raw_line.strip().startswith("#"):
+                continue
+            code_part = raw_line.split("#", 1)[0]
+            if re.search(r"\bMarkup\s*\(", code_part) or re.search(r"\brender_template_string\s*\(", code_part):
+                hits.append((path, lineno, raw_line.strip()))
+    return hits
+
+
+def test_no_module_constructs_markup_or_renders_template_string():
+    hits = _find_markup_construction_or_string_template_render()
+    assert not hits, "markup-construction/string-template-render call(s) found (SEC-04 regression): " + "; ".join(
+        f"{p.relative_to(REPO_ROOT).as_posix()}:{n} -> {line!r}" for p, n, line in hits
+    )
+
+
+def _find_raw_sql_execute_call_sites():
+    """Comment-filtered (full-line only) scan of every .py under
+    webvulnscanner/ for a direct `.execute(` call - the only shape a raw or
+    string-interpolated SQL statement could enter this codebase through,
+    since every ORM/Core query-builder call (Model.query.filter(...),
+    select(...), update(...), etc.) never itself calls .execute() in
+    application code; only db.session.execute(...) does. Returns a list of
+    (module_path_posix, enclosing_function_name) tuples, the same
+    module+function-keyed shape test_csrf_enforcement.py's
+    test_csrf_exempt_applied_to_exactly_one_blueprint uses for its own
+    exact-set lock."""
+    hits = []
+    for path in sorted(WEBVULNSCANNER_DIR.rglob("*.py")):
+        current_function = None
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            if raw_line.strip().startswith("#"):
+                continue
+            code_part = raw_line.split("#", 1)[0]
+            func_match = re.match(r"\s*def\s+(\w+)\s*\(", code_part)
+            if func_match:
+                current_function = func_match.group(1)
+            if ".execute(" in code_part:
+                hits.append((path.relative_to(REPO_ROOT).as_posix(), current_function))
+    return hits
+
+
+def test_raw_sql_execute_call_sites_are_exactly_the_two_known_ones():
+    hits = _find_raw_sql_execute_call_sites()
+    expected = {
+        ("webvulnscanner/public_routes.py", "healthz"),
+        ("webvulnscanner/scheduler.py", "_try_claim"),
+    }
+    assert set(hits) == expected, (
+        f"raw db.session.execute() call site(s) changed (SEC-05 regression) - expected "
+        f"exactly {sorted(expected)}, found {sorted(set(hits))}. A new call site needs "
+        f"either becoming an ORM/Core query-builder call instead, or an explicit, "
+        f"reviewed addition to this allowlist plus its own literal/bound-parameter proof."
+    )
+
+
+def test_healthcheck_sql_argument_is_a_literal_string_constant():
+    """public_routes.healthz() is one of the two allowlisted raw-execute call
+    sites - defensible only because its argument is a literal string, never
+    built from a variable, f-string, or .format() call."""
+    import inspect
+
+    from webvulnscanner.public_routes import healthz
+
+    src = inspect.getsource(healthz)
+    assert re.search(r'db\.text\(\s*"SELECT 1"\s*\)', src), (
+        "public_routes.healthz() no longer calls db.text() with the literal "
+        "'SELECT 1' string constant - if this becomes a variable or an "
+        "f-string, this allowlist entry needs re-auditing as a potential "
+        "raw-SQL injection point."
+    )
+    assert "f\"" not in src and "f'" not in src and ".format(" not in src, (
+        "public_routes.healthz() appears to build its SQL text dynamically "
+        "rather than passing a literal string constant to db.text()"
+    )
+
+
+def test_scheduler_update_binds_values_as_parameters():
+    """scheduler._try_claim() is the other allowlisted raw-execute call site
+    - defensible only because it's a SQLAlchemy Core update() statement
+    whose values are bound via .values(...), never formatted directly into
+    a SQL string."""
+    import inspect
+
+    from webvulnscanner.scheduler import _try_claim
+
+    src = inspect.getsource(_try_claim)
+    assert re.search(r"\.values\(", src), (
+        "scheduler._try_claim() no longer calls .values(...) on its Core "
+        "update() statement - if values started being formatted directly "
+        "into a string instead of bound via .values(), this would become a "
+        "raw-SQL injection point."
+    )
+    assert not re.search(r"f\"|f'|%\s*\(|\.format\(", src), (
+        "scheduler._try_claim() appears to format SQL text directly rather "
+        "than binding parameters via SQLAlchemy Core's .values()"
+    )
+    assert "db.text(" not in src, (
+        "scheduler._try_claim() now uses db.text() for raw SQL text instead "
+        "of the Core update() statement builder - re-audit as a potential "
+        "raw-SQL injection point"
+    )
+
+
+# Negative controls performed manually while writing this section (not
+# themselves permanent tests - each forbidden construct was introduced in a
+# scratch edit, the relevant test was run alone to confirm it failed naming
+# the right file/line, then the edit was reverted; `git diff --stat` was
+# confirmed clean afterward). Failure messages recorded verbatim in
+# 08-05-SUMMARY.md.
