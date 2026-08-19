@@ -5,16 +5,16 @@ milestone_name: Production Audit, Hardening & Redesign
 current_phase: 08
 current_phase_name: Security Re-Audit & Hardening
 status: executing
-stopped_at: "Phase 8 Wave 3 (08-04, 08-05) complete and merged to master (720/720 tests). Wave 4 (08-06) next, then Wave 5 (08-07, non-autonomous phase gate)."
-last_updated: "2026-08-19T12:18:41.294Z"
+stopped_at: "Phase 8 Wave 4 (08-06) complete and merged to master (740/740 tests). Wave 5 (08-07, non-autonomous phase gate) is the only plan left in this phase."
+last_updated: "2026-08-19T14:00:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 21
-  completed_plans: 18
-  percent: 71
+  completed_plans: 19
+  percent: 76
 last_activity: 2026-08-19
-last_activity_desc: "Recovered two stranded worktrees from an interrupted prior session (08-04 and 08-05 each had 2 of 3 tasks committed, one uncommitted-but-complete task, no SUMMARY.md). Verified each worktree's uncommitted work independently (targeted + full suite green in each), finished 08-04 Task 3 (orchestrator session-construction lock, D-05 backfill, with a live negative control) and confirmed 08-05 Task 3 (SEC-06 containment reader) was already complete, wrote both SUMMARY.md files, merged both branches to master with zero conflicts, ran the full suite on the merged result (720 passed), and removed the stray worktrees/branches. Phase 8 Wave 3 (SEC-03/04/05/06) is now fully closed."
+last_activity_desc: "Merged Wave 4 (08-06: SEC-07 redirect-origin confinement, SEC-08 secrets sweep, SEC-10 error-leakage) after a clean fresh gsd-executor dispatch (no recovery needed, unlike Wave 3). One sanctioned production-code deviation: adversarial testing of auth_routes._safe_next() found a real gap (backslash-prefixed and embedded-newline next= values), proven live before fixing, closed under the plan's own D-03 contingency clause, not a scope violation. Full suite 740 passed after merge. Wave 3's recovery (08-04, 08-05) from the prior entry is unchanged/still accurate."
 ---
 
 # Project State
@@ -30,15 +30,18 @@ non-destructive scans against their own infrastructure and get findings they can
 ## Current Position
 
 Phase: 08 (Security Re-Audit & Hardening) — EXECUTING
-Plan: 6 of 7 (08-01..08-05 complete; 08-06 next; 08-07 is the non-autonomous phase gate)
-Status: Executing Phase 08 — Wave 3 (SEC-03/04/05/06) closed this session
+Plan: 7 of 7 (08-01..08-06 complete; 08-07 is the last plan, the non-autonomous phase gate)
+Status: Executing Phase 08 — Waves 3 and 4 (SEC-03/04/05/06/07/08/10) closed this session
 Waves sequenced by blast radius per D-04: Wave 1 SEC-01+SEC-02 (08-01/08-02, done), Wave 2 SEC-09
 (08-03, done), Wave 3 SEC-03+SEC-04/05/06 (08-04/08-05, done this session — see Session
-Continuity below for the recovery story), Wave 4 SEC-07/08/10 (08-06, not started), Wave 5 the
-phase-gate + D-01/D-02 live dev-server probe pass (08-07, autonomous: false — needs a real
-running instance and human involvement, not a plain executor dispatch).
+Continuity below for the recovery story), Wave 4 SEC-07/08/10 (08-06, done this session — clean
+fresh dispatch, no recovery needed), Wave 5 the phase-gate + D-01/D-02 live dev-server probe pass
+(08-07, autonomous: false — needs a real running instance and human involvement, not a plain
+executor dispatch). This is the only plan left in the phase.
 
-Next step: `/gsd-execute-phase 8` (picks up Wave 4 / 08-06).
+Next step: 08-07 needs a locally-running dev server (`.venv\Scripts\python app.py`) and the
+`scripts/live_probe_phase8.py` script this plan builds, fired against it. Not a background
+executor dispatch like the prior waves — do this one interactively/foreground.
 
 Phase 7 (Responsive & Accessibility Compliance) is CODE-COMPLETE but requirements unconfirmed —
 all 7 plans done, full suite green (646 passed), but every checkpoint:human-verify gate across
