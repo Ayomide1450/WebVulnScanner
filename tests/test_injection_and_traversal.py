@@ -22,15 +22,19 @@ payload constant is defined once below and both its escaped and raw forms
 are derived from it via `markupsafe.escape` (the exact function Jinja2's
 autoescape calls), never retyped.
 """
+import json
+import os
 import pathlib
 import re
 
 from markupsafe import escape as _markupsafe_escape
 
+from webvulnscanner.checks import REPORTS_DIR
 from webvulnscanner.extensions import db as _db
 from webvulnscanner.models import DomainVerification, Report, Role, Scan, ScanStatus, VerifyMethod
+from webvulnscanner.scan_engine import read_report_file
 
-from tests.conftest import login, make_org, make_scan, make_user
+from tests.conftest import login, make_api_token, make_org, make_scan, make_user
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 WEBVULNSCANNER_DIR = REPO_ROOT / "webvulnscanner"
@@ -417,3 +421,238 @@ def test_scheduler_update_binds_values_as_parameters():
 # the right file/line, then the edit was reverted; `git diff --stat` was
 # confirmed clean afterward). Failure messages recorded verbatim in
 # 08-05-SUMMARY.md.
+
+
+# --------------------------------------------------------------------------
+# Task 3: scan_engine.read_report_file() - one containment-checked report
+# reader, replacing the three former independent inline
+# open(os.path.join(REPORTS_DIR, ...)) blocks in scan_routes.py,
+# api_routes.py and asset_routes.py.
+#
+# Reachability note (recorded here and in 08-05-SUMMARY.md): path traversal
+# on report reads is NOT exploitable today. Report.json_path is written
+# only by scan_engine.save_report() from a server-generated
+# hostname+timestamp filename, never from a request parameter - no
+# request-controlled value reaches the join at any of the three call sites.
+# This section's containment guarantee is defence in depth against a
+# fourth caller with different provenance, not a fix for a live
+# vulnerability.
+# --------------------------------------------------------------------------
+
+
+def test_read_report_file_rejects_parent_directory_traversal(tmp_path):
+    """A real sentinel file is created OUTSIDE REPORTS_DIR (under pytest's
+    tmp_path), and a filename is computed as the parent-traversing relative
+    path from REPORTS_DIR to that sentinel - os.path.relpath's output is,
+    by construction, exactly the kind of value os.path.join(REPORTS_DIR,
+    ...) would need to walk back out to the sentinel. Because the sentinel
+    file genuinely exists and contains valid JSON, a containment bug here
+    would make this test actually succeed and return the sentinel's
+    content - proving the guard works, not just that a nonexistent path
+    predictably fails."""
+    sentinel = tmp_path / "sentinel_traversal.json"
+    sentinel.write_text('{"secret": "sentinel-value-should-never-be-read"}', encoding="utf-8")
+    traversal_filename = os.path.relpath(sentinel, start=REPORTS_DIR)
+
+    result = read_report_file(traversal_filename)
+
+    assert result is None
+
+
+def test_read_report_file_rejects_absolute_path(tmp_path):
+    """A real sentinel file's absolute path is passed directly as the
+    'filename' - os.path.join(REPORTS_DIR, absolute_path) discards
+    REPORTS_DIR entirely per os.path.join's own documented semantics (an
+    absolute second component wins), so without the containment check this
+    would open the sentinel file directly, not merely traverse into a
+    sibling directory."""
+    sentinel = tmp_path / "sentinel_absolute.json"
+    sentinel.write_text('{"secret": "sentinel-value-should-never-be-read"}', encoding="utf-8")
+
+    result = read_report_file(str(sentinel))
+
+    assert result is None
+
+
+def test_read_report_file_returns_none_for_value_that_raises_during_resolution():
+    """A filename containing an embedded null byte makes the eventual
+    open() call raise ValueError ('embedded null character') rather than
+    succeeding - proving read_report_file's own try/except covers a raise
+    anywhere in its read path, not only a clean containment mismatch, and
+    returns None like every other failure mode instead of propagating an
+    unexpected exception type into its three callers."""
+    result = read_report_file("bad\x00name.json")
+
+    assert result is None
+
+
+def test_read_report_file_returns_parsed_json_for_a_legitimate_filename(tmp_path, monkeypatch):
+    """Direct positive-control proof at the function level (in addition to
+    the three call-site positive controls below): a legitimate,
+    server-generated-shaped filename for a file that exists returns the
+    parsed JSON, byte-identical to what the previous inline code returned.
+    REPORTS_DIR is monkeypatched to tmp_path here specifically so this one
+    function-level test never touches the repo's real reports/ directory."""
+    from webvulnscanner import scan_engine
+
+    monkeypatch.setattr(scan_engine, "REPORTS_DIR", str(tmp_path))
+    payload = {"score": 77, "findings": []}
+    (tmp_path / "legit_20260101_000000.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    result = scan_engine.read_report_file("legit_20260101_000000.json")
+
+    assert result == payload
+
+
+def _find_inline_reports_dir_open_call_sites():
+    """Comment-filtered scan of every .py under webvulnscanner/ for the
+    exact open(os.path.join(REPORTS_DIR, ...)) shape the three converted
+    call sites used to have - a fourth call site reintroducing this pattern
+    instead of calling scan_engine.read_report_file() would silently
+    regress SEC-06's containment guarantee. scan_engine.save_report()'s own
+    write-mode open() call (the one legitimate origin of files under
+    REPORTS_DIR) is excluded by checking for the "w"/'w' mode argument on
+    the same line, rather than by excluding the whole file - so a NEW
+    inline read added directly in scan_engine.py would still be caught."""
+    hits = []
+    pattern = re.compile(r"open\s*\(\s*os\.path\.join\s*\(\s*REPORTS_DIR")
+    for path in sorted(WEBVULNSCANNER_DIR.rglob("*.py")):
+        for lineno, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if raw_line.strip().startswith("#"):
+                continue
+            code_part = raw_line.split("#", 1)[0]
+            if pattern.search(code_part) and '"w"' not in code_part and "'w'" not in code_part:
+                hits.append((path, lineno, raw_line.strip()))
+    return hits
+
+
+def test_no_module_inlines_an_open_on_a_reports_dir_join():
+    hits = _find_inline_reports_dir_open_call_sites()
+    assert not hits, "inline open(os.path.join(REPORTS_DIR, ...)) call site(s) found (SEC-06 regression - route this through scan_engine.read_report_file() instead): " + "; ".join(
+        f"{p.relative_to(REPO_ROOT).as_posix()}:{n} -> {line!r}" for p, n, line in hits
+    )
+
+
+def _write_real_report_file(scan_row, report_data, filename):
+    """Writes report_data as a real on-disk JSON file under the repo's
+    actual REPORTS_DIR and links it via a Report row with data=None, so
+    the on-disk fallback branch (not the Report.data fast path) is the one
+    actually exercised - same convention as test_scan_routes.py's
+    _attach_report / test_api_routes.py's _make_report. Returns the full
+    path so the caller can os.remove(path) in a finally block, keeping the
+    repo's reports/ directory clean after the test."""
+    path = os.path.join(REPORTS_DIR, filename)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(report_data, f)
+    _db.session.add(Report(scan_id=scan_row.id, json_path=filename, data=None))
+    _db.session.commit()
+    return path
+
+
+def test_scan_routes_report_page_uses_on_disk_fallback_via_read_report_file(client, db):
+    """Positive control for scan_routes._load_report_json()'s converted
+    call site: GET /scan/<id>/report still renders a legitimate report
+    through the on-disk fallback exactly as before the SEC-06 conversion."""
+    org = make_org(name="Fallback Org Scan Routes")
+    user = make_user("fallback-scan-routes@example.com", org=org, role=Role.MEMBER)
+    scan = make_scan(user, org=org, target_url="https://example.com",
+                      scan_type="probe", status=ScanStatus.COMPLETED)
+    report_data = _make_report_data(finding_title="fallback-proof-marker", finding_detail="ok")
+    path = _write_real_report_file(scan, report_data, f"test-containment-scan-{scan.id}.json")
+    try:
+        login(client, "fallback-scan-routes@example.com")
+        resp = client.get(f"/scan/{scan.id}/report")
+        body = resp.get_data(as_text=True)
+
+        assert resp.status_code == 200
+        assert "fallback-proof-marker" in body
+    finally:
+        os.remove(path)
+
+
+def test_api_routes_fetch_report_uses_on_disk_fallback_via_read_report_file(client, db):
+    """Positive control for api_routes.fetch_report()'s converted call
+    site: GET /api/v1/scans/<id>/report still returns the exact on-disk
+    JSON through the on-disk fallback, preserving its 200/JSON-body
+    contract."""
+    org = make_org(name="Fallback Org API Routes")
+    user = make_user("fallback-api-routes@example.com", org=org, role=Role.MEMBER)
+    _, raw_token = make_api_token(user, name="fallback-tok")
+    scan = make_scan(user, org=org, target_url="https://example.com",
+                      scan_type="probe", status=ScanStatus.COMPLETED)
+    report_data = _make_report_data(finding_title="fallback-proof-marker", finding_detail="ok")
+    path = _write_real_report_file(scan, report_data, f"test-containment-api-{scan.id}.json")
+    try:
+        resp = client.get(f"/api/v1/scans/{scan.id}/report",
+                           headers={"Authorization": f"Bearer {raw_token}"})
+
+        assert resp.status_code == 200
+        assert resp.get_json() == report_data
+    finally:
+        os.remove(path)
+
+
+def test_asset_routes_compliance_coverage_uses_on_disk_fallback_via_read_report_file(client, db):
+    """Positive control for asset_routes._render_asset_detail()'s converted
+    call site (compliance_coverage() -> summarize_compliance()): GET
+    /assets/<id> still aggregates a legitimate report through the on-disk
+    fallback. scan_type='media' is used (rather than the 'probe' sentinel
+    the other two positive controls use) specifically because
+    summarize_compliance() always contributes at least one coverage row
+    for a successfully-read media report regardless of its finding
+    content (SCAN_TYPE_CHECK_NAMES['media'] = {'media'}) - so
+    'coverage.rows' being non-empty (the compliance table rendering
+    instead of the "Not enough completed scans yet" empty state) is itself
+    the proof the on-disk fallback returned real data, not None."""
+    org = make_org(name="Fallback Org Asset Routes")
+    user = make_user("fallback-asset-routes@example.com", org=org, role=Role.MEMBER)
+    asset_row = _make_asset_for_coverage(org, user)
+    scan = make_scan(user, org=org, target_url="https://example.com",
+                      scan_type="media", status=ScanStatus.COMPLETED)
+    scan.asset_id = asset_row.id
+    _db.session.commit()
+    report_data = _make_report_data(finding_title="fallback-proof-marker", finding_detail="ok")
+    path = _write_real_report_file(scan, report_data, f"test-containment-asset-{scan.id}.json")
+    try:
+        login(client, "fallback-asset-routes@example.com")
+        resp = client.get(f"/assets/{asset_row.id}")
+        body = resp.get_data(as_text=True)
+
+        assert resp.status_code == 200
+        assert "Not enough completed scans yet to show compliance coverage." not in body
+        assert "media" in body
+    finally:
+        os.remove(path)
+
+
+def _make_asset_for_coverage(org, user):
+    """Minimal Asset row for the asset_routes positive control above -
+    local rather than imported from tests.conftest's make_asset, which
+    this module doesn't otherwise need and whose full field set would add
+    unrelated noise to this containment-focused test."""
+    from datetime import datetime, timezone
+
+    from webvulnscanner.models import Asset
+
+    now = datetime.now(timezone.utc)
+    a = Asset(
+        org_id=org.id, created_by_user_id=user.id, authorized_by_user_id=user.id,
+        authorized_at=now, name="Fallback Coverage Asset", target_url="https://example.com",
+        hostname="example.com", cadence="daily", schedule_scan_type="media",
+        next_run_at=now, is_paused=False, deleted_at=None,
+    )
+    _db.session.add(a)
+    _db.session.commit()
+    return a
+
+
+# Negative controls performed manually while writing this section (not
+# themselves permanent tests - each forbidden construct/edge case was
+# introduced in a scratch edit, the relevant test was run alone to confirm
+# it failed as expected, then reverted; `git diff --stat` was confirmed
+# clean afterward). Failure messages recorded verbatim in 08-05-SUMMARY.md:
+#   1. The inline-open lock (test_no_module_inlines_an_open_on_a_reports_dir_join)
+#   2. A containment case: temporarily short-circuited read_report_file's
+#      containment check to always True, confirming
+#      test_read_report_file_rejects_parent_directory_traversal then failed
+#      by actually returning the sentinel's secret content.

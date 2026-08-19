@@ -12,17 +12,15 @@ scan_routes._check_ownership() directly rather than re-implementing org/
 solo scoping, so a token can never see more than its creating user's
 session already could.
 """
-import json
-import os
 from functools import wraps
 
 from flask import Blueprint, abort, jsonify
 from flask_login import current_user
 
 from webvulnscanner.asset_routes import _check_asset_access, _scoped_asset_query
-from webvulnscanner.checks import REPORTS_DIR
 from webvulnscanner.extensions import csrf, limiter
 from webvulnscanner.models import Asset, Scan
+from webvulnscanner.scan_engine import read_report_file
 from webvulnscanner.scan_routes import _check_ownership
 from webvulnscanner.scheduler import _fire
 
@@ -200,10 +198,8 @@ def fetch_report(scan_id):
     if s.report.data is not None:
         report = s.report.data
     else:
-        try:
-            with open(os.path.join(REPORTS_DIR, s.report.json_path), encoding="utf-8") as f:
-                report = json.load(f)
-        except (OSError, ValueError):
+        report = read_report_file(s.report.json_path)
+        if report is None:
             return jsonify(error="report file is unavailable"), 500
 
     return jsonify(report), 200
