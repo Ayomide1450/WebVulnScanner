@@ -16,11 +16,15 @@ scan target lets a route-level test exercise the guard for real without
 either mocking or touching the network - and since the guard rejects them
 before a Scan row is created, no background thread ever spawns.
 """
+import http.server
 import socket
+import socketserver
+import threading
 
 import pytest
+import requests
 
-from webvulnscanner.checks import is_ssrf_safe_hostname
+from webvulnscanner.checks import UA, _mk_session, _SSRFSafeSession, is_ssrf_safe_hostname
 from webvulnscanner.models import Plan, Scan
 
 from tests.conftest import login, make_org, make_user
@@ -249,3 +253,218 @@ def test_new_scan_base_missing_authorized_checkbox_is_rejected_before_ssrf_check
     assert resp.status_code == 200
     assert b"authorized" in resp.data.lower()
     assert Scan.query.count() == 0
+
+
+# --------------------------------------------------------------------------
+# _SSRFSafeSession / _mk_session() - redirect-hop re-validation (SEC-03).
+#
+# checks._mk_session() is the single factory every check function's
+# requests.Session comes from (see scan_engine.py's four `session =
+# _mk_session()` lines). Before this section, that session was a plain
+# `requests.Session()`: a target that resolves public at submission time
+# and then 302s to a private/loopback/link-local/cloud-metadata address was
+# followed with no re-check at all - the confirmed-open vulnerability this
+# plan closes. `_SSRFSafeSession` re-validates every redirect hop's
+# hostname through the same, unmodified `is_ssrf_safe_hostname()` used at
+# submission time.
+#
+# These tests exercise real `_mk_session()`/`_SSRFSafeSession` objects
+# against real local `http.server` instances in daemon threads for the
+# cases where that's practical - not a mock of the override - because
+# 08-RESEARCH.md's Assumption A3 (that overriding `resolve_redirects()` and
+# filtering what it yields would suffice) was built and PROVEN WRONG by an
+# earlier version of this test file: the "private" target's own request log
+# showed it WAS fetched, because `resolve_redirects()`'s loop calls
+# `self.send()` - the real network request - before it ever yields a
+# response for the override to inspect. See `_SSRFSafeSession`'s docstring
+# in checks.py for the full account, and 08-04-SUMMARY.md for the recorded
+# finding. The actual fix overrides `get_redirect_target()` instead, which
+# `resolve_redirects()` consults BEFORE sending each hop - proven below.
+# --------------------------------------------------------------------------
+
+_REAL_GETADDRINFO = socket.getaddrinfo
+
+
+class _RoutedHandler(http.server.BaseHTTPRequestHandler):
+    """Configured per-server via ROUTES/LOG class attributes - http.server
+    instantiates one handler object per request itself, so there's no
+    constructor hook to pass per-test config through; _start_server() below
+    builds a fresh subclass per server instead."""
+
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        self.LOG.append(self.path)
+        status, location, body = self.ROUTES.get(self.path, (404, None, b"not found"))
+        self.send_response(status)
+        if location is not None:
+            self.send_header("Location", location)
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
+
+
+def _start_server(routes):
+    """Real local HTTP server, ephemeral loopback port, daemon thread.
+    `routes`: request path -> (status, location_header_or_None, body_bytes).
+    Returns (port, request_log) - request_log records every path asked for,
+    which is what the blocked-hop tests below assert against directly,
+    rather than trusting a response status/shape alone (a connection
+    refusal can look superficially like a guard rejection; a server's own
+    request log cannot be fooled that way)."""
+    log = []
+    handler_cls = type("_Handler", (_RoutedHandler,), {"ROUTES": routes, "LOG": log})
+    server = socketserver.TCPServer(("127.0.0.1", 0), handler_cls)
+    port = server.server_address[1]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return port, log
+
+
+def _fake_public_via_loopback(*public_hostnames):
+    """socket.getaddrinfo replacement for this section's real-round-trip
+    tests, used to make a hostname read as PUBLIC to is_ssrf_safe_hostname
+    while a real local test server still receives the connection.
+
+    is_ssrf_safe_hostname() always calls socket.getaddrinfo(host, None) -
+    see its source above - while the real outbound TCP connection always
+    calls it with the actual port number. This dispatches on that
+    difference: for any hostname in `public_hostnames`, a lookup with
+    port=None (is_ssrf_safe_hostname's own check) returns a genuine public
+    IP, so the guard reads it as safe exactly like a real public hostname;
+    a lookup with a real port (the actual connection) returns
+    127.0.0.1-with-that-port, so the request actually reaches this test's
+    local server. Any other hostname falls through to the real resolver
+    unchanged. Without this, a test hostname that's actually reachable
+    (i.e. resolves to loopback) would also always resolve to loopback for
+    is_ssrf_safe_hostname's own check and be correctly - but unhelpfully -
+    classified unsafe, since loopback is loopback regardless of who's
+    asking."""
+    def _impl(host, port, *args, **kwargs):
+        if host in public_hostnames:
+            if port is None:
+                return _fake_getaddrinfo("93.184.216.34")(host, port)
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))]
+        return _REAL_GETADDRINFO(host, port, *args, **kwargs)
+    return _impl
+
+
+def test_mk_session_returns_ssrf_safe_session_with_ua_header():
+    session = _mk_session()
+    assert isinstance(session, _SSRFSafeSession)
+    assert session.headers["User-Agent"] == UA
+
+
+def test_redirect_to_loopback_target_is_never_fetched():
+    # Both "servers" here are real, bound to 127.0.0.1 - loopback is
+    # naturally unsafe per is_ssrf_safe_hostname with no DNS mocking
+    # needed, so this is the plan's required real-server-request-log proof:
+    # if the guard failed, private_log would record the "/secret" request.
+    private_port, private_log = _start_server({"/secret": (200, None, b"SECRET")})
+    entry_port, entry_log = _start_server({
+        "/": (302, f"http://127.0.0.1:{private_port}/secret", None),
+    })
+
+    session = _mk_session()
+    resp = session.get(f"http://127.0.0.1:{entry_port}/", timeout=5)
+
+    assert entry_log == ["/"]
+    assert private_log == [], (
+        "guard failed: the loopback target's own request log shows it was fetched"
+    )
+    assert resp.status_code == 302
+    assert resp.url == f"http://127.0.0.1:{entry_port}/"
+
+
+# RFC1918/link-local/cloud-metadata addresses can't be bound as a real local
+# server in a sandboxed test environment (and 169.254.169.254 specifically
+# must never be dialed for real in a test - on a real cloud VM that address
+# is the live metadata service, so even attempting the connection would be
+# the wrong kind of "proof"). Unlike the loopback case above, these three
+# call the real, unmocked _SSRFSafeSession.get_redirect_target() directly
+# against a manually-built Response - not a mock of the override, the
+# actual method, exercised with a literal IP that needs no DNS mocking
+# either (matching this file's existing
+# test_literal_loopback_ip_is_unsafe_without_mocking pattern). This is the
+# "equivalent assertion" for these three address classes: it proves the
+# same blocking decision the loopback test proves by network observation,
+# without ever letting a socket touch these addresses.
+@pytest.mark.parametrize("target_url,reason", [
+    ("http://10.0.0.5/internal", "RFC1918 private"),
+    ("http://169.254.1.1/internal", "link-local"),
+    ("http://169.254.169.254/latest/meta-data/", "cloud metadata endpoint"),
+])
+def test_redirect_to_unsafe_literal_ip_is_blocked_without_dialing_it(target_url, reason):
+    session = _SSRFSafeSession()
+    resp = requests.Response()
+    resp.status_code = 302
+    resp.url = "http://entry.example.test/"
+    resp.headers["Location"] = target_url
+    assert session.get_redirect_target(resp) is None, reason
+
+
+def test_redirect_to_public_hostname_is_followed(monkeypatch):
+    target_port, target_log = _start_server({"/": (200, None, b"final destination")})
+    entry_port, entry_log = _start_server({
+        "/": (302, f"http://public-target.example.test:{target_port}/", None),
+    })
+    monkeypatch.setattr(
+        socket, "getaddrinfo",
+        _fake_public_via_loopback("public-entry.example.test", "public-target.example.test"),
+    )
+
+    session = _mk_session()
+    resp = session.get(f"http://public-entry.example.test:{entry_port}/", timeout=5)
+
+    assert entry_log == ["/"]
+    assert target_log == ["/"], "a legitimate public-to-public redirect must still be followed"
+    assert resp.status_code == 200
+    assert resp.url == f"http://public-target.example.test:{target_port}/"
+
+
+def test_safe_safe_unsafe_chain_stops_at_last_safe_hop(monkeypatch):
+    # hop3 is a real loopback server (naturally unsafe, no mocking needed) -
+    # if the guard fails, its own request log proves it, exactly like
+    # test_redirect_to_loopback_target_is_never_fetched above.
+    hop3_port, hop3_log = _start_server({"/secret": (200, None, b"should never be reached")})
+    hop2_port, hop2_log = _start_server({
+        "/": (302, f"http://127.0.0.1:{hop3_port}/secret", None),
+    })
+    hop1_port, hop1_log = _start_server({
+        "/": (302, f"http://hop2.example.test:{hop2_port}/", None),
+    })
+    monkeypatch.setattr(
+        socket, "getaddrinfo",
+        _fake_public_via_loopback("hop1.example.test", "hop2.example.test"),
+    )
+
+    session = _mk_session()
+    resp = session.get(f"http://hop1.example.test:{hop1_port}/", timeout=5)
+
+    assert hop1_log == ["/"]
+    assert hop2_log == ["/"]
+    assert hop3_log == [], "chain must stop before the unsafe third hop, not fetch it and stop after"
+    assert resp.status_code == 302
+    assert resp.url == f"http://hop2.example.test:{hop2_port}/"
+
+
+@pytest.mark.parametrize("location", [
+    "mailto:test@example.com",   # absolute URL, different scheme, no netloc
+    "javascript:alert(1)",       # same shape, classic no-hostname payload
+])
+def test_redirect_with_unparseable_hostname_is_not_followed(location):
+    entry_port, entry_log = _start_server({"/": (302, location, None)})
+
+    session = _mk_session()
+    resp = session.get(f"http://127.0.0.1:{entry_port}/", timeout=5)
+
+    assert entry_log == ["/"]
+    assert resp.status_code == 302
+    assert resp.url == f"http://127.0.0.1:{entry_port}/"
+
+
+# Every test in this section returns a plain Response from session.get()/
+# get_redirect_target() and asserts on it directly - none wraps the call in
+# try/except or pytest.raises. That absence is itself the proof for the
+# "no exception escapes" acceptance criterion: a raised exception in any of
+# them would fail the test outright, not silently pass.

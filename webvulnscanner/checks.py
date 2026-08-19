@@ -358,8 +358,77 @@ VULN_JS_LIBS = {
 }
 
 
+class _SSRFSafeSession(requests.Session):
+    """A `requests.Session` that re-validates every redirect hop against
+    `is_ssrf_safe_hostname()`, not just the original submission-time
+    target.
+
+    Why here and not at the 33 individual `session.get()`/`session.post()`
+    call sites in this module: `_mk_session()` is the single place every
+    check function's session is constructed, so installing the guard here
+    covers all of them - including any check written the normal way in the
+    future - without a 33-call-site change and without a second place this
+    logic could drift out of sync.
+
+    IMPLEMENTATION NOTE - why this overrides `get_redirect_target()` and not
+    `resolve_redirects()`: 08-RESEARCH.md's Assumption A3 proposed overriding
+    `resolve_redirects()` (delegate to `super().resolve_redirects()`, inspect
+    each yielded response, `return` early on an unsafe one). That was built
+    and proven WRONG end to end against a real local HTTP server before this
+    version was written: `requests.Session.resolve_redirects()` is a
+    generator whose loop body calls `self.send(req, ...)` - which performs
+    the actual network connection - BEFORE it yields the resulting response.
+    Wrapping the generator and inspecting what it yields therefore inspects
+    each hop AFTER it has already been fetched; the private/loopback/
+    metadata target had already been connected to by the time the override
+    could see it and say no. A live-server proof (`tests/test_ssrf_guard.py`)
+    caught this: the "blocked" target's request log was NOT empty.
+
+    `get_redirect_target(resp)` is the method `resolve_redirects()` calls,
+    on every iteration, to decide what URL (if any) to follow next -
+    strictly BEFORE that URL is ever sent. Overriding it here means: resolve
+    the `Location` header to an absolute URL against the response it came
+    from (so a relative redirect like `/next` is checked against the host
+    that produced it, not treated as hostless), extract that URL's hostname,
+    and pass it to the existing, unmodified `is_ssrf_safe_hostname()` - the
+    exact same predicate `scan_routes._unsafe_target_error` uses at
+    submission time, so there is only ever one definition of "unsafe" in
+    this codebase, never a second one drifting independently in here. An
+    unresolvable/empty hostname is treated as unsafe too, matching
+    `is_ssrf_safe_hostname`'s own fail-closed convention. When unsafe, this
+    returns `None` - exactly what the parent method returns for "there is no
+    further redirect to follow" - which is why no other method needs
+    touching: `resolve_redirects()`'s own loop (cookie jar, auth-header
+    stripping, method-downgrade semantics across hops - all still handled by
+    `requests` itself, not reimplemented here) simply stops on its own,
+    never calling `self.send()` for that hop at all. Nothing is fetched,
+    nothing is yielded for it, and no exception is raised - the caller keeps
+    the last response it already has (often the redirect response itself),
+    matching the degrade-cleanly convention every `check_*` function in this
+    module follows.
+
+    This does NOT close DNS rebinding - a hostname that resolves safe here
+    and differently at TCP-connect time is still unguarded, exactly as
+    `is_ssrf_safe_hostname`'s own docstring already discloses. Closing that
+    would need a custom transport/adapter that connects to the exact IP
+    verified here; it is an accepted residual gap for this milestone (see
+    REQUIREMENTS.md's Out of Scope table), not something this class claims
+    to solve.
+    """
+
+    def get_redirect_target(self, resp):
+        location = super().get_redirect_target(resp)
+        if location is None:
+            return None
+        absolute_url = urljoin(resp.url, location)
+        hostname = urlparse(absolute_url).hostname
+        if not hostname or not is_ssrf_safe_hostname(hostname):
+            return None
+        return location
+
+
 def _mk_session():
-    s = requests.Session()
+    s = _SSRFSafeSession()
     s.headers.update({"User-Agent": UA})
     return s
 
