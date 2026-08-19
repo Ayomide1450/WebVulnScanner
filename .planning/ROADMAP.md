@@ -210,7 +210,7 @@ them).
 - [ ] **Phase 5: New Scan Flow Redesign** - `/scan/new` becomes a guided Select Domain → Select Type → Confirm Authorization → Start Scan flow instead of four disconnected single-form pages.
 - [ ] **Phase 6: Design System Consistency** - Every template draws from one canonical typography scale, spacing scale, component style set, and container-width convention.
 - [ ] **Phase 7: Responsive & Accessibility Compliance** - Every page renders correctly from 320px to desktop and is fully operable by keyboard/assistive technology.
-- [ ] **Phase 8: Security Re-Audit & Hardening** - Every ID-accepting route, form, redirect, and file-serving path across the app (including v1.0's new API/scheduler/admin surfaces) is verified to enforce its existing safety guarantees, with gaps closed.
+- [x] **Phase 8: Security Re-Audit & Hardening** - Every ID-accepting route, form, redirect, and file-serving path across the app (including v1.0's new API/scheduler/admin surfaces) is verified to enforce its existing safety guarantees, with gaps closed.
 - [ ] **Phase 9: SEO, Performance & UX States** - Public pages are correctly indexable, list-heavy pages don't degrade at scale, and every page communicates loading/empty/error states clearly.
 
 ## Phase Details
@@ -400,7 +400,7 @@ test. This phase verifies and closes gaps; it does not weaken or redesign `autho
      verification rejects replay/double-activation/amount-tampering/cross-org access, and
      production-mode 400/401/403/404/429/500 responses never leak a stack trace, file path, SQL
      fragment, or environment variable.
-**Plans**: 6/7 plans executed
+**Plans**: 7/7 plans executed
 
 Plans:
 **Wave 1**
@@ -423,7 +423,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 08-07-PLAN.md — Phase gate: the D-01 live dev-server probe against a disposable-DB instance, and the per-requirement evidence gate
+- [x] 08-07-PLAN.md — Phase gate: the D-01 live dev-server probe against a disposable-DB instance, and the per-requirement evidence gate
 
 **Execution waves**: sequenced by blast radius per 08-CONTEXT.md D-04, not by ROADMAP requirement
 order. Wave 1 = 08-01 + 08-02 (a hit on cross-org IDOR or CSRF is a full authorization bypass across
@@ -484,5 +484,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. New Scan Flow Redesign | v1.1 | 1/3 | In Progress|  |
 | 6. Design System Consistency | v1.1 | 1/4 | In Progress|  |
 | 7. Responsive & Accessibility Compliance | v1.1 | 5/7 | In Progress|  |
-| 8. Security Re-Audit & Hardening | v1.1 | 6/7 | In Progress|  |
+| 8. Security Re-Audit & Hardening | v1.1 | 7/7 | Complete | 2026-08-19 |
 | 9. SEO, Performance & UX States | v1.1 | 0/TBD | Not started | - |
