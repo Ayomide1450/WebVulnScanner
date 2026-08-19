@@ -29,6 +29,7 @@ Same sys.path-insertion idiom tests/test_secrets_hygiene.py already
 established for importing a scripts/ module directly (scripts/ has no
 __init__.py and is not a package).
 """
+import importlib
 import inspect
 import re
 import sys
@@ -231,3 +232,63 @@ def test_no_case_kind_bypasses_a_real_ownership_or_csrf_mechanism():
     known_kinds = {"get", "post_with_csrf", "bearer_post", "post_csrf_condition"}
     bad = [c["name"] for c in live_probe.CASES if c["kind"] not in known_kinds]
     assert not bad, f"case(s) with an unrecognized kind: {bad}"
+
+
+# ---------------------------------------------------------------------------
+# Phase evidence gate (08-07 Task 3, T-08-48): all six of this phase's new
+# test modules must exist on disk AND collect at least one test each, so a
+# module lost to a bad merge across five waves fails the suite loudly instead
+# of silently reducing coverage. Derived as an explicit list, not a glob over
+# tests/ - the point is to fail when one of THESE modules disappears, not to
+# count files in general.
+#
+# "Collects at least one test" is checked by actually importing the module
+# (via the tests.* package, same import shape test_live_probe_script.py
+# itself already uses for tests.test_cross_org_idor above) and counting
+# module-level callables named test_* - the same objects pytest's own
+# collector would gather from a plain-function test module. Every module
+# listed here uses plain functions, not test classes (confirmed by reading
+# each module's summary in 08-01 through 08-06), so this mirrors pytest's
+# real collection result rather than approximating it via a source-text scan.
+# ---------------------------------------------------------------------------
+
+PHASE_8_TEST_MODULES = [
+    ("tests/test_cross_org_idor.py", "tests.test_cross_org_idor", "08-01"),
+    ("tests/test_csrf_enforcement.py", "tests.test_csrf_enforcement", "08-02"),
+    ("tests/test_injection_and_traversal.py", "tests.test_injection_and_traversal", "08-05"),
+    ("tests/test_error_leakage.py", "tests.test_error_leakage", "08-06"),
+    ("tests/test_secrets_hygiene.py", "tests.test_secrets_hygiene", "08-06"),
+    ("tests/test_live_probe_script.py", "tests.test_live_probe_script", "08-07"),
+]
+
+
+def test_all_six_phase_8_test_modules_exist_and_collect_at_least_one_test():
+    problems = []
+    for rel_path, dotted_module, plan in PHASE_8_TEST_MODULES:
+        full_path = PROJECT_ROOT / rel_path
+        if not full_path.is_file():
+            problems.append(
+                f"{rel_path} (created by plan {plan}) is MISSING from disk entirely"
+            )
+            continue
+        try:
+            module = importlib.import_module(dotted_module)
+        except Exception as exc:  # pragma: no cover - failure path, message is the point
+            problems.append(
+                f"{rel_path} (created by plan {plan}) exists but failed to import: {exc!r}"
+            )
+            continue
+        test_count = sum(
+            1
+            for name, obj in vars(module).items()
+            if name.startswith("test_") and (inspect.isfunction(obj) or inspect.isclass(obj))
+        )
+        if test_count < 1:
+            problems.append(
+                f"{rel_path} (created by plan {plan}) exists and imports but collects "
+                f"zero tests - a module lost its contents without being lost as a file"
+            )
+    assert not problems, (
+        "Phase 8 evidence-gate collection assertion failed (T-08-48 - a phase test "
+        "module lost to a bad merge):\n" + "\n".join(f"  - {p}" for p in problems)
+    )
