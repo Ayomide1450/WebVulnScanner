@@ -1,5 +1,20 @@
 {% extends "base.html" %}
 {% block title %}WebVulnScanner - Find security vulnerabilities before attackers do{% endblock %}
+{% block meta_description %}<meta name="description" content="WebVulnScanner runs safe, authorization-gated vulnerability scans against your own infrastructure so security teams find security issues before attackers do.">{% endblock %}
+{% block canonical %}<link rel="canonical" href="{{ url_for('public.index', _external=True) }}">{% endblock %}
+{% block og_tags %}
+<meta property="og:type" content="website">
+<meta property="og:title" content="WebVulnScanner - Find security vulnerabilities before attackers do">
+<meta property="og:description" content="WebVulnScanner runs safe, authorization-gated vulnerability scans against your own infrastructure so security teams find security issues before attackers do.">
+<meta property="og:url" content="{{ url_for('public.index', _external=True) }}">
+<meta property="og:image" content="{{ url_for('static', filename='apple-touch-icon.png', _external=True) }}">
+{% endblock %}
+{% block twitter_tags %}
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="WebVulnScanner - Find security vulnerabilities before attackers do">
+<meta name="twitter:description" content="WebVulnScanner runs safe, authorization-gated vulnerability scans against your own infrastructure so security teams find security issues before attackers do.">
+<meta name="twitter:image" content="{{ url_for('static', filename='apple-touch-icon.png', _external=True) }}">
+{% endblock %}
 {% block head %}
 <style>
   /* ---------------------------------------------------------------------

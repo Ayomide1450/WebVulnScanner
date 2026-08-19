@@ -15,6 +15,10 @@ This module grows across all three tasks in 09-01-PLAN.md:
 """
 import xml.etree.ElementTree as ET
 
+import pytest
+
+from tests.conftest import login, make_org, make_user
+
 # ---------------------------------------------------------------------------
 # Task 1: favicon set
 # ---------------------------------------------------------------------------
@@ -122,3 +126,50 @@ def test_sitemap_xml_never_lists_authenticated_route_prefixes(client):
     )
     for prefix in forbidden_prefixes:
         assert prefix not in body, prefix
+
+
+# ---------------------------------------------------------------------------
+# Task 3: public-page meta tags (positive) + authenticated-page absence (negative)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("path", ["/", "/terms", "/privacy"])
+def test_public_pages_render_full_seo_tag_set(client, path):
+    resp = client.get(path)
+    html = resp.get_data(as_text=True)
+
+    # meta description, 150-160 chars
+    match_start = html.find('<meta name="description" content="')
+    assert match_start != -1, path
+    content_start = match_start + len('<meta name="description" content="')
+    content_end = html.find('"', content_start)
+    description = html[content_start:content_end]
+    assert 150 <= len(description) <= 160, (path, len(description), description)
+
+    assert '<link rel="canonical"' in html
+    assert 'property="og:title"' in html
+    assert 'property="og:description"' in html
+    assert 'property="og:image"' in html
+    assert 'property="og:url"' in html
+    assert 'name="twitter:card"' in html
+    assert 'name="twitter:title"' in html
+    assert 'name="twitter:description"' in html
+    assert 'name="twitter:image"' in html
+
+
+def test_authenticated_pages_render_none_of_the_seo_tags(client, db):
+    org = make_org()
+    user = make_user("seo-negative-test@example.com", org=org)
+    login(client, user.email)
+
+    forbidden_markers = (
+        '<meta name="description"',
+        '<link rel="canonical"',
+        'property="og:',
+        'name="twitter:',
+    )
+
+    for path in ("/dashboard", "/scan/new/base", "/account/billing"):
+        resp = client.get(path)
+        html = resp.get_data(as_text=True)
+        for marker in forbidden_markers:
+            assert marker not in html, (path, marker)
