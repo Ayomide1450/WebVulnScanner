@@ -466,7 +466,25 @@ condition clearly instead of going blank or stalling silently.
 
   5. A failed/errored scan, a timed-out scan, and a duplicate concurrent scan attempt each
      surface a clear, specific message to the user rather than a generic failure or silent stall.
-**Plans**: TBD
+**Plans**: 0/4 plans executed
+
+Plans:
+**Wave 1**
+
+- [ ] 09-01-PLAN.md — SEO-01..04: dynamic robots.txt/sitemap.xml built from app.url_map, base.html head-block contract, marketing/terms/privacy meta+OG+Twitter tags, favicon set
+- [ ] 09-02-PLAN.md — STATE-01/02: shared _empty_state.html partial (migrates 3 existing + adopts 7 new call sites) and the real submitting-state gap closure across 12 forms
+- [ ] 09-04-PLAN.md — STATE-03: duplicate-concurrent-scan guard across all four scan types, a scan-level wall-clock timeout watchdog with a race-safe terminal-write guard, and distinct failed/timed-out/duplicate messaging
+
+**Wave 2** *(blocked on Wave 1 completion — depends on 09-02's empty-state partial and 09-04's scan_routes.py edits merging first)*
+
+- [ ] 09-03-PLAN.md — PERF-01/02: a data-size-independent query-count audit proof for dashboard/org-admin, plus real DB-level pagination_nav-driven pagination for scan history, asset list, org members, and a scan report's findings list
+
+**Execution waves**: sequenced by file overlap, not by ROADMAP requirement order. Wave 1 = 09-01 +
+09-02 + 09-04, three fully file-disjoint plans (SEO routes/templates vs. UI-state templates vs.
+scan-lifecycle route logic never touch the same file). Wave 2 = 09-03 alone, since its pagination
+work both composes with 09-02's empty-state partial at the zero-row case and edits scan_routes.py
+in the same functions area 09-04 also touched, so sequencing after both avoids a same-file merge
+race while adding zero net latency (09-01/09-02/09-04 have no dependency on each other).
 
 **UI hint**: yes
 
