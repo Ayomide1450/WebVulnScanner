@@ -15,7 +15,10 @@ created: 2026-08-19
 documented dark OLED design system in `templates/base.html` (see `CLAUDE.md`'s "Frontend design
 system" section, and Phase 6/7's own UI-SPECs). Per `09-CONTEXT.md`, this phase does **not**
 introduce new colors, spacing values, or typography sizes — every value below is copied verbatim
-from `templates/base.html`. Two genuinely new markup shapes are introduced (`_empty_state.html`'s
+from `templates/base.html`. Two pre-existing `base.html` tokens sit outside this phase's own
+standard-scale footprint (`--space-3`/12px, and an earlier drafting error around a 5th font size)
+— see the "Inherited exception" notes in the Spacing Scale and Typography sections below for exact
+scope; neither is used by this phase's own new markup. Two genuinely new markup shapes are introduced (`_empty_state.html`'s
 CTA-slot API per D-04, and numbered-pagination controls per D-03) because no existing partial
 covers either; everything else (submitting-state extension D-05, scan-state messaging D-06/
 STATE-03, SEO `<head>` tags D-01/D-02) is a copy/behavior change layered onto existing components
@@ -38,24 +41,44 @@ button text-swap pattern) — not a new visual pattern.
 
 ## Spacing Scale
 
-Declared values (existing `base.html` custom properties — reused verbatim, all multiples of 4):
+Standard 8-point scale (4, 8, 16, 24, 32, 48, 64) — this phase's two genuinely new component
+shapes (`_empty_state.html` partial, pagination controls) are built entirely from these tokens,
+no new pixel values invented:
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--space-1` | 4px | Icon-to-text gaps |
-| `--space-2` | 8px | Compact spacing (e.g. pagination control gaps) |
-| `--space-3` | 12px | `.warn-box`/`.error-box`/`.info-box` internal padding — reused verbatim for scan-state (STATE-03) messages |
-| `--space-4` | 16px | Default element spacing, `.card` internal gaps — empty-state partial padding |
+| `--space-1` | 4px | Icon-to-text gaps — empty-state body's `margin-top` below its title |
+| `--space-2` | 8px | Compact spacing — pagination control gaps, empty-state icon-to-title `margin-top` |
+| `--space-4` | 16px | Default element spacing, `.card` internal gaps — empty-state partial container sides |
 | `--space-5` | 24px | Section padding |
-| `--space-6` | 32px | Layout gaps |
+| `--space-6` | 32px | Layout gaps — empty-state partial container top/bottom |
 | `--space-7` | 48px | Major section breaks |
 
-Exceptions: none. The two new component shapes this phase adds (empty-state partial, pagination
-controls) must use only these tokens — no new pixel values invented. `dashboard.html`'s existing
-local `.empty-state { padding: 28px 16px; }` rule is the one pre-existing exception this phase
-inherits (28px does not map to the scale) — when migrating it into `_empty_state.html`, round it
-to `var(--space-6)` (32px) top/bottom, `var(--space-4)` (16px) sides, closing this drift rather
-than carrying it into the new shared partial.
+### Inherited exception: `--space-3` (12px)
+
+`base.html` also defines `--space-3: 12px`. It is a multiple of 4 but **not** on the standard
+8-point scale above. It is a pre-existing token — established by Phase 6's design-system pass,
+**not introduced by Phase 9** — and it is used exclusively by `.error-box`/`.info-box`'s existing
+internal padding (`padding: var(--space-3) var(--space-4)`, verbatim in `base.html`) and
+`.warn-box`'s existing `gap: 12px`. This phase's STATE-03 scan-failed / scan-timed-out /
+duplicate-concurrent-scan messages reuse those three boxes verbatim (per the Copywriting Contract
+below) and therefore inherit that 12px padding as-is — no new markup declares or introduces it.
+
+**Confirmed not used by this phase's own new markup**: the `_empty_state.html` partial and the
+pagination controls draw only from the standard-scale table above. (An earlier draft of this
+partial's title `margin-top` used `var(--space-3)`; it has been corrected to `var(--space-2)` —
+see New Component Specifications below — specifically so neither new component shape introduces
+this exception value.)
+
+Fixing `--space-3` at the token level (renaming it off the 8-point scale, or migrating its two
+call sites to a standard value) is deferred to a future `base.html` cleanup pass — that is Phase
+6/7-level token work, out of scope for this reuse-only phase per `09-CONTEXT.md`'s domain
+statement, and Phase 6/7's own checkpoints are still open per STATE.md.
+
+`dashboard.html`'s existing local `.empty-state { padding: 28px 16px; }` rule is a second,
+separate pre-existing drift (28px maps to neither the standard scale nor `--space-3`) — when
+migrating it into `_empty_state.html`, round it to `var(--space-6)` (32px) top/bottom, `var(--space-4)`
+(16px) sides, closing this drift rather than carrying it into the new shared partial.
 
 ---
 
