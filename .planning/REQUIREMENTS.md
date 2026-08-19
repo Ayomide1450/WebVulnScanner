@@ -171,37 +171,37 @@ one roadmap phase.
       audited across GET/POST/PUT/DELETE and the `/api/v1/*` surface, with a regression test per
       route family where one doesn't already exist.
 
-- [ ] **SEC-02**: Every state-changing form/route (domain add/delete/verify, scan submission,
+- [x] **SEC-02**: Every state-changing form/route (domain add/delete/verify, scan submission,
       billing actions, org/member changes, account changes, admin actions) is confirmed to carry
       CSRF protection, with any gap closed.
 
-- [ ] **SEC-03**: `is_ssrf_safe_hostname()` and its call sites are re-verified against redirect-
+- [x] **SEC-03**: `is_ssrf_safe_hostname()` and its call sites are re-verified against redirect-
       following behavior in the scan HTTP clients — an SSRF-safe initial hostname that redirects to
       a private/loopback/metadata address must not be followed unchecked.
 
-- [ ] **SEC-04**: A targeted sweep for reflected/stored XSS confirms user-controlled strings (org
+- [x] **SEC-04**: A targeted sweep for reflected/stored XSS confirms user-controlled strings (org
       name, domain name, finding detail/title text, AI-generated summary text, error messages) are
       never rendered as unescaped HTML.
 
-- [ ] **SEC-05**: A sweep of all database queries confirms no raw/string-interpolated SQL exists
+- [x] **SEC-05**: A sweep of all database queries confirms no raw/string-interpolated SQL exists
       outside parameterized SQLAlchemy usage.
 
-- [ ] **SEC-06**: Report/media/CSV download and any file-path-accepting route are confirmed to
+- [x] **SEC-06**: Report/media/CSV download and any file-path-accepting route are confirmed to
       reject path-traversal input (`../`, absolute paths) and cannot serve a file outside its
       intended directory.
 
-- [ ] **SEC-07**: Login/logout/invite/next-param redirect targets are confirmed to only ever
+- [x] **SEC-07**: Login/logout/invite/next-param redirect targets are confirmed to only ever
       redirect within the app's own origin (`_safe_next()`-style guard applied everywhere a
       redirect target is user-influenced).
 
-- [ ] **SEC-08**: A repo-wide secrets sweep confirms no API key/password/token/wallet credential is
+- [x] **SEC-08**: A repo-wide secrets sweep confirms no API key/password/token/wallet credential is
       hardcoded in source, templates, JS, logs, or committed history added this milestone.
 
-- [ ] **SEC-09**: `billing.py`/`billing_routes.py` invoice verification is re-confirmed to reject
+- [x] **SEC-09**: `billing.py`/`billing_routes.py` invoice verification is re-confirmed to reject
       replay, double-activation, amount tampering, and cross-org invoice access — extending the
       existing collision-retry test coverage if a gap is found.
 
-- [ ] **SEC-10**: 400/401/403/404/429/500 error responses are confirmed to never leak a stack
+- [x] **SEC-10**: 400/401/403/404/429/500 error responses are confirmed to never leak a stack
       trace, file path, SQL fragment, or environment variable in production mode.
 
 ### SEO & Metadata (SEO)
@@ -316,15 +316,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | A11Y-03 | Phase 7 | Pending |
 | A11Y-04 | Phase 7 | Pending |
 | SEC-01 | Phase 8 | Complete |
-| SEC-02 | Phase 8 | Pending |
-| SEC-03 | Phase 8 | Pending |
-| SEC-04 | Phase 8 | Pending |
-| SEC-05 | Phase 8 | Pending |
-| SEC-06 | Phase 8 | Pending |
-| SEC-07 | Phase 8 | Pending |
-| SEC-08 | Phase 8 | Pending |
-| SEC-09 | Phase 8 | Pending |
-| SEC-10 | Phase 8 | Pending |
+| SEC-02 | Phase 8 | Complete |
+| SEC-03 | Phase 8 | Complete |
+| SEC-04 | Phase 8 | Complete |
+| SEC-05 | Phase 8 | Complete |
+| SEC-06 | Phase 8 | Complete |
+| SEC-07 | Phase 8 | Complete |
+| SEC-08 | Phase 8 | Complete |
+| SEC-09 | Phase 8 | Complete |
+| SEC-10 | Phase 8 | Complete |
 | SEO-01 | Phase 9 | Pending |
 | SEO-02 | Phase 9 | Pending |
 | SEO-03 | Phase 9 | Pending |
