@@ -20,18 +20,35 @@ Everything below proves *enforcement*, not markup presence: a token-less
 POST to a state-changing, cookie-authenticated route must return 400 and
 produce no database side effect; the same POST with a valid token must
 still succeed; a wrong-but-well-formed token must be rejected too (proving
-the value is validated, not merely required to be non-empty).
+the value is validated, not merely required to be non-empty). One
+token-less-POST-returns-400 proof is repeated per cookie-authenticated
+blueprint (auth/org/billing/asset/api_tokens/scan), since `CSRFProtect` is
+wired app-wide and a single proof per blueprint is what confirms nothing
+silently exempted a whole surface.
 
 `tests/conftest.py` is not modified anywhere in this module.
 """
+from datetime import datetime, timezone
+
 import pytest
 from bs4 import BeautifulSoup
 
 from webvulnscanner import create_app
 from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import Invitation, Role
+from webvulnscanner.models import (
+    ApiToken,
+    Asset,
+    CryptoInvoice,
+    DomainVerification,
+    Invitation,
+    PasswordReset,
+    Plan,
+    Role,
+    Scan,
+    VerifyMethod,
+)
 
-from tests.conftest import TestConfig, make_org, make_user
+from tests.conftest import TestConfig, make_asset, make_org, make_user
 
 
 # --------------------------------------------------------------------------
@@ -187,3 +204,146 @@ def test_invite_with_valid_csrf_token_returns_302_and_creates_one_row(csrf_clien
 
     assert resp.status_code == 302, f"expected 302 for a valid-token invite POST, got {resp.status_code}"
     assert Invitation.query.count() == 1
+
+
+# --------------------------------------------------------------------------
+# Task 2: one token-less-POST-returns-400 proof per cookie-authenticated
+# blueprint, each with a paired no-side-effect assertion. Org is already
+# covered above via /org/admin/invite. Each case runs as a user who WOULD
+# be authorized for that route (an ORG_ADMIN for billing, the asset's own
+# org member for asset delete), so the only thing that can make the
+# request fail is the missing/invalid CSRF token - not a 403 from a role
+# decorator or a 429 from a rate limit (TestConfig keeps the limiter
+# disabled) masquerading as a CSRF rejection.
+# --------------------------------------------------------------------------
+
+
+def test_auth_forgot_password_without_csrf_token_returns_400_no_reset_row(csrf_client, csrf_db):
+    make_user("user@example.com")
+    csrf_db.session.commit()
+
+    resp = csrf_client.post(
+        "/forgot-password",
+        data={"email": "user@example.com"},
+        follow_redirects=False,
+    )
+
+    assert resp.status_code == 400
+    assert PasswordReset.query.count() == 0
+
+
+def test_billing_create_invoice_without_csrf_token_returns_400_no_invoice_row(csrf_client, csrf_db):
+    org = make_org(plan=Plan.FREE, name="Org")
+    make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
+    csrf_db.session.commit()
+
+    _login(csrf_client, "admin@example.com")
+
+    resp = csrf_client.post(
+        "/account/billing/invoice",
+        data={"target_plan": Plan.PAID.value, "token_symbol": "USDT", "billing_cycle": "monthly"},
+        follow_redirects=False,
+    )
+
+    assert resp.status_code == 400
+    assert CryptoInvoice.query.count() == 0
+
+
+def test_asset_delete_without_csrf_token_returns_400_not_deleted(csrf_client, csrf_db):
+    org = make_org(name="Org")
+    user = make_user("member@example.com", org=org, role=Role.MEMBER)
+    csrf_db.session.commit()
+    a = make_asset(org, user, name="Asset")
+    csrf_db.session.commit()
+    asset_id = a.id
+
+    _login(csrf_client, "member@example.com")
+
+    resp = csrf_client.post(f"/assets/{asset_id}/delete", follow_redirects=False)
+
+    assert resp.status_code == 400
+    refreshed = Asset.query.get(asset_id)
+    assert refreshed.deleted_at is None
+
+
+def test_api_tokens_create_without_csrf_token_returns_400_no_token_row(csrf_client, csrf_db):
+    org = make_org(name="Org")
+    make_user("member@example.com", org=org, role=Role.MEMBER)
+    csrf_db.session.commit()
+
+    _login(csrf_client, "member@example.com")
+
+    resp = csrf_client.post(
+        "/tokens/new",
+        data={"name": "CI pipeline"},
+        follow_redirects=False,
+    )
+
+    assert resp.status_code == 400
+    assert ApiToken.query.count() == 0
+
+
+def test_scan_new_base_without_csrf_token_returns_400_no_scan_row(csrf_client, csrf_db):
+    org = make_org(name="Org")
+    make_user("member@example.com", org=org, role=Role.MEMBER)
+    csrf_db.session.commit()
+
+    _login(csrf_client, "member@example.com")
+
+    # A private literal IP - tests/test_ssrf_guard.py's own pattern for a
+    # target that _unsafe_target_error would reject anyway. CSRFProtect's
+    # before_request hook runs before new_scan_base's own body (including
+    # its SSRF check), so a missing token alone must already 400 here - the
+    # private-IP target is a defense-in-depth belt so this test is still
+    # safe (no Scan row, no background thread) even if that ordering
+    # assumption were ever wrong.
+    resp = csrf_client.post(
+        "/scan/new/base",
+        data={"authorized": "on", "target": "10.0.0.5"},
+        follow_redirects=False,
+    )
+
+    assert resp.status_code == 400
+    assert Scan.query.count() == 0
+
+
+def _seed_org_verified_member(csrf_db, domain="example.com"):
+    """Advanced's own form only renders (csrf_token included) once
+    `availability.unlocked` is true - Tier.ORG_VERIFIED *and* a verified
+    DomainVerification row for the exact target - see
+    scan_routes._scan_type_availability's Advanced branch. Seeds both so
+    the Smart Setup pair below exercises the real, unlocked form rather
+    than the locked upsell state."""
+    org = make_org(plan=Plan.ORG_VERIFIED, name="Org")
+    user = make_user("member@example.com", org=org, role=Role.MEMBER)
+    csrf_db.session.add(DomainVerification(
+        org_id=org.id, domain=domain, method=VerifyMethod.DNS_TXT,
+        token="verify-token", verified_at=datetime.now(timezone.utc),
+    ))
+    csrf_db.session.commit()
+    return org, user
+
+
+def test_advanced_form_renders_a_csrf_token_input(csrf_client, csrf_db):
+    _seed_org_verified_member(csrf_db)
+    _login(csrf_client, "member@example.com")
+
+    resp = csrf_client.get("/scan/new/advanced?target=https://example.com")
+    soup = BeautifulSoup(resp.get_data(as_text=True), "html.parser")
+    assert soup.find("input", {"name": "csrf_token"}) is not None, (
+        "scan_new_advanced.html no longer renders a csrf_token input - Smart Setup's "
+        "conditional fetch() would silently start omitting the token too"
+    )
+
+
+def test_advanced_detect_without_csrf_token_returns_400(csrf_client, csrf_db):
+    _seed_org_verified_member(csrf_db)
+    _login(csrf_client, "member@example.com")
+
+    resp = csrf_client.post(
+        "/scan/new/advanced/detect",
+        data={"authorized_adv": "on", "target": "10.0.0.5"},
+        follow_redirects=False,
+    )
+
+    assert resp.status_code == 400
