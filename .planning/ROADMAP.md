@@ -400,7 +400,7 @@ test. This phase verifies and closes gaps; it does not weaken or redesign `autho
      verification rejects replay/double-activation/amount-tampering/cross-org access, and
      production-mode 400/401/403/404/429/500 responses never leak a stack trace, file path, SQL
      fragment, or environment variable.
-**Plans**: 2/7 plans executed
+**Plans**: 3/7 plans executed
 
 Plans:
 **Wave 1**
@@ -410,7 +410,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 08-03-PLAN.md — SEC-09 billing: route-level cross-org 403 with zero network calls, replay no-op on a PAID invoice, create_invoice tampering gates, and injected-org_id refusal
+- [x] 08-03-PLAN.md — SEC-09 billing: route-level cross-org 403 with zero network calls, replay no-op on a PAID invoice, create_invoice tampering gates, and injected-org_id refusal
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -484,5 +484,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. New Scan Flow Redesign | v1.1 | 1/3 | In Progress|  |
 | 6. Design System Consistency | v1.1 | 1/4 | In Progress|  |
 | 7. Responsive & Accessibility Compliance | v1.1 | 5/7 | In Progress|  |
-| 8. Security Re-Audit & Hardening | v1.1 | 2/7 | In Progress|  |
+| 8. Security Re-Audit & Hardening | v1.1 | 3/7 | In Progress|  |
 | 9. SEO, Performance & UX States | v1.1 | 0/TBD | Not started | - |
