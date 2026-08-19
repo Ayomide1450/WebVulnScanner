@@ -400,13 +400,13 @@ test. This phase verifies and closes gaps; it does not weaken or redesign `autho
      verification rejects replay/double-activation/amount-tampering/cross-org access, and
      production-mode 400/401/403/404/429/500 responses never leak a stack trace, file path, SQL
      fragment, or environment variable.
-**Plans**: 7 plans
+**Plans**: 2/7 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 08-01-PLAN.md — SEC-01 cross-org IDOR: tracer proof on the org-invitation family, a url_map enumeration lock so a future ID-accepting route can't ship untested, and the three uncovered routes closed
-- [ ] 08-02-PLAN.md — SEC-02 CSRF: the repo's first WTF_CSRF_ENABLED=True app, one token-less-POST-returns-400 proof per blueprint, and a csrf.exempt() scope lock
+- [x] 08-01-PLAN.md — SEC-01 cross-org IDOR: tracer proof on the org-invitation family, a url_map enumeration lock so a future ID-accepting route can't ship untested, and the three uncovered routes closed
+- [x] 08-02-PLAN.md — SEC-02 CSRF: the repo's first WTF_CSRF_ENABLED=True app, one token-less-POST-returns-400 proof per blueprint, and a csrf.exempt() scope lock
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -484,5 +484,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. New Scan Flow Redesign | v1.1 | 1/3 | In Progress|  |
 | 6. Design System Consistency | v1.1 | 1/4 | In Progress|  |
 | 7. Responsive & Accessibility Compliance | v1.1 | 5/7 | In Progress|  |
-| 8. Security Re-Audit & Hardening | v1.1 | 0/TBD | Not started | - |
+| 8. Security Re-Audit & Hardening | v1.1 | 2/7 | In Progress|  |
 | 9. SEO, Performance & UX States | v1.1 | 0/TBD | Not started | - |

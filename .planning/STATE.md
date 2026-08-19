@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Production Audit, Hardening & Redesign
-current_phase: 8
+current_phase: 08
 current_phase_name: Security Re-Audit & Hardening
 status: executing
 stopped_at: "Phase 8 planned: 7 plans/5 waves, plan-checker PASSED"
-last_updated: "2026-08-18T22:07:45.080Z"
+last_updated: "2026-08-19T06:40:07.699Z"
 progress:
   total_phases: 5
   completed_phases: 3
@@ -25,13 +25,13 @@ See: .planning/PROJECT.md (updated 2026-08-15)
 
 **Core value:** Security engineers can trust WebVulnScanner to run safe, authorization-gated,
 non-destructive scans against their own infrastructure and get findings they can act on.
-**Current focus:** Phase 8 — Security Re-Audit & Hardening
+**Current focus:** Phase 08 — Security Re-Audit & Hardening
 
 ## Current Position
 
-Phase: 8 (Security Re-Audit & Hardening) — PLANNED, ready to execute
-Plan: 7 plans across 5 waves (08-01..08-07), all passed gsd-plan-checker verification
-Status: Discussed (08-CONTEXT.md, D-01..D-05), researched (08-RESEARCH.md — found one genuine
+Phase: 08 (Security Re-Audit & Hardening) — EXECUTING
+Plan: 1 of 7
+Status: Executing Phase 08
 open vulnerability: checks._mk_session() doesn't re-validate redirect hops against
 is_ssrf_safe_hostname(), SEC-03), validated (08-VALIDATION.md), and fully planned. Waves sequenced
 by blast radius per D-04: Wave 1 SEC-01+SEC-02 (08-01/08-02), Wave 2 SEC-09 (08-03), Wave 3
