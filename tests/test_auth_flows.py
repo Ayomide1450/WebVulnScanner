@@ -7,6 +7,8 @@ Fixture emails use .com/.org/.dev-style fake domains, never .test/.invalid/
 those reserved TLDs even with deliverability checking off (see CLAUDE.md's
 Commands section / handoff.md for how this was found).
 """
+import pathlib
+import re
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -16,6 +18,9 @@ from webvulnscanner.email_stub import EmailSender
 from webvulnscanner.models import Organization, PasswordReset, Plan, Role, User
 
 from tests.conftest import login, make_org, make_user
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+WEBVULNSCANNER_DIR = REPO_ROOT / "webvulnscanner"
 
 
 class _SpyEmailSender(EmailSender):
@@ -305,12 +310,39 @@ def test_login_remember_me_sets_remember_cookie(client, db):
     assert any(name == "remember_token" for name in cookie_names)
 
 
-def test_login_ignores_absolute_url_next_param(client, db):
-    # _safe_next() must reject a `next` that isn't a relative in-app path -
-    # otherwise the post-login redirect becomes an open redirect.
+import urllib.parse
+
+# SEC-07 adversarial `next` shapes (08-06). Each probes the edges of
+# _safe_next()'s two literal conditions ("starts with a slash", "does not
+# start with two") - see auth_routes.py's own docstring for why the
+# backslash and embedded-newline cases required a real fix (a live finding,
+# not just a missing test - see 08-06-SUMMARY.md).
+#
+# Every payload is delivered via urllib.parse.urlencode(), which round-trips
+# through Werkzeug's own query-string percent-decoding back to exactly the
+# string written here by the time it reaches _safe_next() - so what's typed
+# below is what the guard actually sees, regardless of how a real browser
+# would have encoded the same value.
+_ADVERSARIAL_NEXT_CASES = [
+    pytest.param("http://evil.example.com/phish", id="absolute_http_url"),
+    pytest.param("https://evil.example.com/phish", id="absolute_https_url"),
+    pytest.param("//evil.example.com", id="protocol_relative_url"),
+    pytest.param("/\\evil.example.com", id="backslash_prefixed_path"),
+    pytest.param(" https://evil.example.com/phish", id="whitespace_prefixed_absolute_url"),
+    pytest.param("/ok\nSet-Cookie: evil=1", id="embedded_newline"),
+]
+
+
+@pytest.mark.parametrize("payload", _ADVERSARIAL_NEXT_CASES)
+def test_login_rejects_adversarial_next_params_and_falls_back_to_default(client, db, payload):
+    # Every shape here must land on the in-app default - not merely "not
+    # the payload". A guard that redirected somewhere else off-origin would
+    # pass a weaker "!=" assertion; this is the strict one 08-06-PLAN.md
+    # requires.
     make_user("owner@example.com")
+    qs = urllib.parse.urlencode({"next": payload})
     resp = client.post(
-        "/login?next=https://evil.example.com/phish",
+        f"/login?{qs}",
         data={"email": "owner@example.com", "password": "password123"},
         follow_redirects=False,
     )
@@ -318,10 +350,18 @@ def test_login_ignores_absolute_url_next_param(client, db):
     assert resp.headers["Location"] == "/dashboard"
 
 
-def test_login_ignores_protocol_relative_next_param(client, db):
+def test_login_rejects_double_percent_encoded_next_param(client, db):
+    # A distinct shape from the family above: this one is built by hand,
+    # not via urlencode(), specifically so the raw query string sent over
+    # the wire is "%252F%252Fevil.example.com" - Werkzeug's single-pass
+    # percent-decoding turns that into the literal string "%2F%2Fevil.example.com"
+    # (one decode: %25 -> "%", "2F" stays as two literal characters) rather
+    # than "//evil.example.com" - proving a second decode pass never
+    # happens anywhere between the query string and _safe_next(), so
+    # double-encoding buys an attacker nothing here.
     make_user("owner@example.com")
     resp = client.post(
-        "/login?next=//evil.example.com",
+        "/login?next=%252F%252Fevil.example.com",
         data={"email": "owner@example.com", "password": "password123"},
         follow_redirects=False,
     )
@@ -330,6 +370,9 @@ def test_login_ignores_protocol_relative_next_param(client, db):
 
 
 def test_login_honors_relative_next_param(client, db):
+    # The positive control, immediately adjacent to the adversarial family
+    # above - without this, every rejection above would also pass on a
+    # _safe_next() that always returned the default no matter what.
     make_user("owner@example.com")
     resp = client.post(
         "/login?next=/scan/new",
@@ -356,6 +399,153 @@ def test_logout_ends_the_session(client, db):
     resp = client.get("/dashboard", follow_redirects=False)
     assert resp.status_code == 302
     assert "/login" in resp.headers["Location"]
+
+
+def test_logout_ignores_a_next_param_supplied_on_the_logout_request(client, db):
+    # logout() takes no `next` at all - it always redirects to
+    # url_for("auth.login") with no user input reaching the redirect
+    # target. SEC-07 names logout by name; this turns "it ignores input
+    # entirely" into an assertion rather than a reading of the source.
+    make_user("owner@example.com")
+    login(client, "owner@example.com")
+
+    resp = client.get(
+        "/logout?next=https://evil.example.com/phish", follow_redirects=False,
+    )
+
+    assert resp.status_code == 302
+    assert resp.headers["Location"] == "/login"
+
+
+# --------------------------------------------------------------------------
+# SEC-07 sole-surface source lock: _safe_next() must be the only
+# user-influenced redirect target anywhere in webvulnscanner/, and the only
+# next-parameter-style helper defined. Same comment-filtered, full-line-only
+# source-scanning idiom as tests/test_csrf_enforcement.py's
+# _find_csrf_exempt_call_sites and tests/test_injection_and_traversal.py's
+# autoescape/Markup/execute-call-site locks (08-02/08-05).
+# --------------------------------------------------------------------------
+
+_REDIRECT_CALL_RE = re.compile(r"(?<![\w.])redirect\(")
+
+# The exact, closed set of call sites allowed to build a redirect() target
+# from _safe_next() - module name + line number. A fourth call site (a new
+# route reusing _safe_next(), or the same three moving) fails this by name
+# rather than by count.
+_EXPECTED_SAFE_NEXT_CALL_SITES = {
+    ("auth_routes.py", 161),
+    ("auth_routes.py", 273),
+    ("auth_routes.py", 287),
+}
+
+
+def _find_redirect_call_sites():
+    """Reads every .py file under webvulnscanner/, strips full-line '#'
+    comments (a trailing inline comment on a real call site is still
+    counted - only a comment-only line is skipped), and collects every
+    `redirect(...)` call together with the text immediately following the
+    opening paren, so each call's argument can be classified without
+    needing to fully parse nested parens."""
+    hits = []
+    for path in sorted(WEBVULNSCANNER_DIR.rglob("*.py")):
+        for lineno, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if raw_line.strip().startswith("#"):
+                continue
+            code_part = raw_line.split("#", 1)[0]
+            for m in _REDIRECT_CALL_RE.finditer(code_part):
+                argument = code_part[m.end():].strip()
+                hits.append((path.relative_to(REPO_ROOT), path.name, lineno, argument, code_part.strip()))
+    return hits
+
+
+def test_only_safe_next_redirects_take_a_request_derived_argument():
+    hits = _find_redirect_call_sites()
+    assert hits, "no redirect() call sites found at all - the scan itself is broken"
+
+    safe_next_sites = set()
+    violations = []
+    for rel_path, name, lineno, argument, line in hits:
+        if argument.startswith("_safe_next("):
+            safe_next_sites.add((name, lineno))
+            continue
+        if argument.startswith("url_for("):
+            continue
+        violations.append(f"{rel_path}:{lineno} -> redirect({argument!r}) (full line: {line!r})")
+
+    assert not violations, (
+        "redirect() call site(s) with an argument that is neither url_for(...) "
+        "nor _safe_next() (SEC-07 regression) - a request-derived redirect "
+        f"target outside _safe_next() may have been introduced: {violations}"
+    )
+    assert safe_next_sites == _EXPECTED_SAFE_NEXT_CALL_SITES, (
+        f"the set of _safe_next()-based redirect() call sites changed - "
+        f"expected exactly {sorted(_EXPECTED_SAFE_NEXT_CALL_SITES)}, "
+        f"found {sorted(safe_next_sites)}"
+    )
+
+
+# Negative control performed manually while writing this test (not itself a
+# permanent test): a scratch route
+#   @auth.route("/_neg_control_redirect")
+#   def _neg_control_redirect():
+#       return redirect(request.args.get("next"))
+# was added directly below logout() in webvulnscanner/auth_routes.py, this
+# test was run alone, and the route was reverted immediately after. Observed
+# failure (recorded verbatim, mirroring 08-02's/08-05's own negative-control
+# recording convention):
+#
+#   AssertionError: redirect() call site(s) with an argument that is neither
+#   url_for(...) nor _safe_next() (SEC-07 regression) - a request-derived
+#   redirect target outside _safe_next() may have been introduced:
+#   ['webvulnscanner\\auth_routes.py:301 -> redirect(\'request.args.get("next"))\') '
+#    "(full line: 'return redirect(request.args.get(\"next\"))')"]
+#
+# `git diff --stat webvulnscanner/auth_routes.py` confirmed empty afterward.
+
+
+_NEXT_HELPER_DEF_RE = re.compile(r"^\s*def\s+(\w*next\w*)\s*\(", re.IGNORECASE)
+
+
+def _find_next_parameter_helper_defs():
+    """Same comment-filtered scan, looking for any function definition
+    whose name contains 'next' (case-insensitive) - catches a second,
+    divergent next-parameter guard being added anywhere in the app, not
+    just a second call to the existing one."""
+    hits = []
+    for path in sorted(WEBVULNSCANNER_DIR.rglob("*.py")):
+        for lineno, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if raw_line.strip().startswith("#"):
+                continue
+            code_part = raw_line.split("#", 1)[0]
+            m = _NEXT_HELPER_DEF_RE.match(code_part)
+            if m:
+                hits.append((path.name, lineno, m.group(1)))
+    return hits
+
+
+def test_only_one_next_parameter_helper_is_defined():
+    hits = _find_next_parameter_helper_defs()
+    assert hits == [("auth_routes.py", 90, "_safe_next")], (
+        f"expected exactly one next-parameter-style helper "
+        f"(auth_routes.py's _safe_next, line 90), found {hits} - a second, "
+        f"possibly divergent redirect-target guard may have been added"
+    )
+
+
+# Negative control performed manually while writing this test (not itself a
+# permanent test): a second helper
+#   def _get_safe_next_url(default="/dashboard"):
+#       return default
+# was added directly below logout() in webvulnscanner/auth_routes.py, this
+# test was run alone, and the helper was reverted immediately after.
+# Observed failure:
+#
+#   AssertionError: expected exactly one next-parameter-style helper
+#   (auth_routes.py's _safe_next, line 90), found [('auth_routes.py', 90,
+#   '_safe_next'), ('auth_routes.py', 299, '_get_safe_next_url')] - a
+#   second, possibly divergent redirect-target guard may have been added
+#
+# `git diff --stat webvulnscanner/auth_routes.py` confirmed empty afterward.
 
 
 # --------------------------------------------------------------------------

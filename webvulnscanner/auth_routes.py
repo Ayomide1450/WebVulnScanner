@@ -89,9 +89,50 @@ class ResetPasswordForm(FlaskForm):
 
 def _safe_next(default="/dashboard"):
     """Only follow a `next` param if it's a relative in-app path - avoids
-    turning the post-login redirect into an open redirect."""
+    turning the post-login redirect into an open redirect.
+
+    Beyond the original two conditions (starts with a single slash, does
+    not start with two), also rejects any value containing a backslash or
+    a CR/LF control character (SEC-07 adversarial-input hardening, added
+    08-06):
+
+    - A backslash right after the leading slash (e.g. "/\\evil.example.com")
+      is not rejected by "starts with / and not //" alone - it still passes
+      both conditions verbatim. Today this app is not actually exploitable
+      by it (Werkzeug's header-writing machinery percent-encodes the
+      backslash to %5C before it ever reaches a Location header, so a
+      browser never sees a literal "\\" to normalize into "//" per the
+      WHATWG URL Standard's special-scheme backslash handling) - but that
+      safety is Werkzeug's behavior, not this guard's, and relying on an
+      unrelated layer to neutralize an input this function was supposed to
+      already reject is exactly the kind of implicit safety net that can
+      silently disappear (a different WSGI middleware, a raw
+      string-concatenated Location header written some other way, etc.).
+      Reject it here explicitly so "only a plain in-app relative path
+      passes" is this function's own guarantee, not an accident of what
+      happens to sit downstream of it.
+    - A CR or LF character is not rejected either, and is a genuine live
+      bug independent of the open-redirect question: request.args already
+      URL-decodes a percent-encoded newline before this function ever sees
+      it, so a value like "next=/ok%0d%0aX" reaches here as a real "\\r\\n"
+      in the string; passing it straight into Flask's redirect helper then
+      raises an uncaught ValueError ("Header values must not contain
+      newline characters") from inside login()/signup()/reset_password()
+      with TESTING=True, and would fall through to the app's generic 500
+      page under TESTING=False (SEC-10) - not a redirect at all. Rejecting
+      it here means a malformed `next` value degrades to the ordinary
+      default redirect, the same as every other invalid shape this
+      function already handles, instead of crashing the request.
+    """
     next_url = request.args.get("next")
-    if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+    if (
+        next_url
+        and next_url.startswith("/")
+        and not next_url.startswith("//")
+        and "\\" not in next_url
+        and "\r" not in next_url
+        and "\n" not in next_url
+    ):
         return next_url
     return default
 
