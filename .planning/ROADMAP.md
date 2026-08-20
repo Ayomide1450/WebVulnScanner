@@ -198,7 +198,7 @@ retrofitted into it afterward)
 
 **UI hint**: no (findings render through the existing Phase 13 UI, no new page/component)
 
-### Phase 15: Request Expert Assessment
+### Phase 15: Request Expert Assessment ✅ COMPLETE (2026-08-20)
 
 **Goal**: A visible CTA lets a user request a deeper, human-led assessment; submissions are
 captured with enough detail to scope real work and are visible to platform admins.
@@ -211,7 +211,8 @@ captured with enough detail to scope real work and are visible to platform admin
   2. The form collects all 11 specified fields and creates an `AssessmentRequest` row.
   3. Platform admins can view submitted requests.
   4. The form is CSRF-protected and rate-limited like every other state-changing form in the app.
-**Plans**: 0/TBD plans executed
+**Plans**: 1/1 plans executed (executed directly, no PLAN.md - matches Phases 11-14's lean
+approach). Complete.
 
 **UI hint**: yes (one new form page + one new admin list view, reusing `_admin_form_styles.html`/
 existing admin-panel table patterns)

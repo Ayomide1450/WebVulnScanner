@@ -3,7 +3,7 @@
 {% block head %}
 {% include "_admin_form_styles.html" %}
 <style>
-  .stat-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:14px; margin-bottom: 8px; }
+  .stat-grid { display:grid; grid-template-columns: repeat(5, 1fr); gap:14px; margin-bottom: 8px; }
   @media (max-width: 700px) { .stat-grid { grid-template-columns: 1fr 1fr; } }
   .stat-card { padding: 16px 18px; }
   .stat-card .label { color: var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
@@ -41,6 +41,7 @@
     <div class="card stat-card"><div class="label">Users</div><div class="value">{{ counts.users }}</div></div>
     <div class="card stat-card"><div class="label">Scans</div><div class="value">{{ counts.scans }}</div></div>
     <div class="card stat-card"><div class="label">Pending deletions</div><div class="value">{{ counts.pending_deletions }}</div></div>
+    <div class="card stat-card"><div class="label">Assessment requests</div><div class="value">{{ counts.assessment_requests }}</div></div>
   </div>
 
   <h2 class="section">Pending domain-deletion requests</h2>
@@ -83,6 +84,65 @@
     {% endfor %}
     {% else %}
     <p style="color: var(--muted); font-size: 13px;">No pending domain-deletion requests.</p>
+    {% endif %}
+  </div>
+
+  <h2 class="section">Expert assessment requests</h2>
+  <div class="card">
+    {% if assessment_requests %}
+    {% for a in assessment_requests %}
+    <div class="deletion-card">
+      <div class="deletion-row">
+        <div>
+          <div class="deletion-label">Company</div>
+          <div class="deletion-value">{{ a.company_name }}</div>
+        </div>
+        <div>
+          <div class="deletion-label">Domain</div>
+          <div class="deletion-value"><code>{{ a.domain }}</code></div>
+        </div>
+        <div>
+          <div class="deletion-label">Assessment type</div>
+          <div class="deletion-value">{{ a.assessment_type.value }}</div>
+        </div>
+        <div>
+          <div class="deletion-label">Status</div>
+          <div class="deletion-value"><span class="pill {{ 'pass' if a.status.value == 'closed' else 'medium' }}">{{ a.status.value|upper }}</span></div>
+        </div>
+        <div>
+          <div class="deletion-label">Requested</div>
+          <div class="deletion-value">{{ a.created_at.strftime('%b %d, %Y %H:%M UTC') }}</div>
+        </div>
+      </div>
+      <div class="deletion-row">
+        <div>
+          <div class="deletion-label">Contact</div>
+          <div class="deletion-value">{{ a.contact_name }} &middot; {{ a.contact_email }}{% if a.contact_phone %} &middot; {{ a.contact_phone }}{% endif %}</div>
+        </div>
+        <div>
+          <div class="deletion-label">Organization</div>
+          <div class="deletion-value">{{ a.organization.name if a.organization else 'none' }}</div>
+        </div>
+        {% if a.timeline %}
+        <div>
+          <div class="deletion-label">Timeline</div>
+          <div class="deletion-value">{{ a.timeline }}</div>
+        </div>
+        {% endif %}
+        {% if a.domain_count %}
+        <div>
+          <div class="deletion-label"># Domains</div>
+          <div class="deletion-value">{{ a.domain_count }}</div>
+        </div>
+        {% endif %}
+      </div>
+      {% if a.scope %}<p style="color: var(--muted); font-size:13px; margin: 0 0 8px;"><b>Scope:</b> {{ a.scope }}</p>{% endif %}
+      {% if a.auth_requirements %}<p style="color: var(--muted); font-size:13px; margin: 0 0 8px;"><b>Auth requirements:</b> {{ a.auth_requirements }}</p>{% endif %}
+      {% if a.notes %}<p style="color: var(--muted); font-size:13px; margin: 0;"><b>Notes:</b> {{ a.notes }}</p>{% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <p style="color: var(--muted); font-size: 13px;">No assessment requests yet.</p>
     {% endif %}
   </div>
 </div>

@@ -20,7 +20,7 @@ from sqlalchemy.orm import joinedload
 
 from webvulnscanner.decorators import platform_admin_required
 from webvulnscanner.extensions import db
-from webvulnscanner.models import DomainVerification, Organization, Scan, User
+from webvulnscanner.models import AssessmentRequest, DomainVerification, Organization, Scan, User
 
 admin = Blueprint("admin", __name__, url_prefix="/platform-admin")
 
@@ -35,14 +35,22 @@ def platform_dashboard():
         .order_by(DomainVerification.deletion_requested_at.asc())
         .all()
     )
+    assessment_requests = (
+        AssessmentRequest.query
+        .options(joinedload(AssessmentRequest.organization), joinedload(AssessmentRequest.requested_by))
+        .order_by(AssessmentRequest.created_at.desc())
+        .all()
+    )
     counts = {
         "organizations": db.session.query(Organization).count(),
         "users": db.session.query(User).count(),
         "scans": db.session.query(Scan).count(),
         "pending_deletions": len(pending_deletions),
+        "assessment_requests": len(assessment_requests),
     }
     return render_template(
         "platform_admin.html",
         pending_deletions=pending_deletions,
+        assessment_requests=assessment_requests,
         counts=counts,
     )

@@ -81,10 +81,16 @@
         {% endif %}
       </p>
     </div>
-    <a class="btn primary" href="{{ url_for('scan.new_scan') }}">
-      <svg class="icon" style="width:16px;height:16px;" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
-      New Scan
-    </a>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <a class="btn secondary" href="{{ url_for('assessment.request_assessment') }}">
+        <svg class="icon" style="width:16px;height:16px;" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/></svg>
+        Request Expert Assessment
+      </a>
+      <a class="btn primary" href="{{ url_for('scan.new_scan') }}">
+        <svg class="icon" style="width:16px;height:16px;" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
+        New Scan
+      </a>
+    </div>
   </div>
 
   {# ---- Item 1/2: Security Score + 3 supporting summary cards -------- #}

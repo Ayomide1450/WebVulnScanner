@@ -101,16 +101,16 @@ product framing, it does not change what the scanner is allowed to do to a targe
 
 ### Request Expert Assessment (CTA) — Phase 15
 
-- [ ] **CTA-01**: A "Request Expert Assessment" call-to-action is visible on the scan report and/
+- [x] **CTA-01**: A "Request Expert Assessment" call-to-action is visible on the scan report and/
       or dashboard pages, reusing the existing `.btn`/`.card` components.
-- [ ] **CTA-02**: A new `AssessmentRequest` model + form collects: company, domain, contact name,
+- [x] **CTA-02**: A new `AssessmentRequest` model + form collects: company, domain, contact name,
       email, phone, assessment type (External Security Assessment / Web Application Assessment /
       API Security Assessment / Authenticated Assessment / Full Security Assessment / Continuous
       Monitoring), scope, authentication requirements, number of applications/domains, preferred
       timeline, additional information.
-- [ ] **CTA-03**: Submitted requests are stored and visible to platform admins (reusing the
+- [x] **CTA-03**: Submitted requests are stored and visible to platform admins (reusing the
       existing platform-admin panel pattern), not just emailed and discarded.
-- [ ] **CTA-04**: The submission form is CSRF-protected and rate-limited like every other
+- [x] **CTA-04**: The submission form is CSRF-protected and rate-limited like every other
       state-changing form in the app (`extensions.limiter` pattern).
 
 ## Future Requirements
@@ -146,6 +146,6 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FSCH-01..05 | Phase 12 | Complete |
 | SCORE-01..05 | Phase 13 | Complete |
 | CHECK-01..06 | Phase 14 | Complete |
-| CTA-01..04 | Phase 15 | Pending |
+| CTA-01..04 | Phase 15 | Complete |
 
 **Coverage:** 32/32 requirements mapped (9 deferred from v1.2, 23 new for v1.3 across 5 phases).

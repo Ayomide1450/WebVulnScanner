@@ -25,12 +25,14 @@ non-destructive scans against their own infrastructure and get findings they can
 
 ## Current Position
 
-Phase: 15 (Request Expert Assessment) — up next, last phase of v1.3
+Phase: 15 (Request Expert Assessment) — complete, last phase of v1.3
 Plan: —
-Status: Phase 14 (Net-New Checks) complete; ready to start Phase 15
-Last activity: 2026-08-20 — Phase 14 executed directly (check_file_upload/privacy_exposure/
-caching_sensitive_data added; security.txt + GraphQL confirmed already existing, not duplicated),
-839 passed
+Status: Phase 15 complete. v1.3 fully shipped (all 5 phases done).
+Last activity: 2026-08-20 — Phase 15 executed directly: `AssessmentRequest` model +
+`assessment_requests` migration, `assessment_routes.py` blueprint (CSRF + 5/hour rate limit,
+matching `/signup`'s idiom), `assessment_request.html` form, CTA links added to
+dashboard.html/scan_report.html, submitted requests surfaced on `/platform-admin` alongside the
+existing pending-deletions queue. 843 passed.
 
 **Note:** v1.2's Phase 10 (Live Verification Closeout, 9 requirements) is not abandoned - it's
 real, valid, deferred work reprioritized behind v1.3 per explicit user instruction. It stays in

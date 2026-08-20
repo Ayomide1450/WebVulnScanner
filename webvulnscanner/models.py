@@ -438,3 +438,51 @@ class OrgAuditEvent(db.Model):
 
     organization = db.relationship("Organization")
     actor = db.relationship("User")
+
+
+class AssessmentType(enum.Enum):
+    EXTERNAL = "External Security Assessment"
+    WEB_APP = "Web Application Assessment"
+    API = "API Security Assessment"
+    AUTHENTICATED = "Authenticated Assessment"
+    FULL = "Full Security Assessment"
+    CONTINUOUS = "Continuous Monitoring"
+
+
+class AssessmentRequestStatus(enum.Enum):
+    NEW = "new"
+    CONTACTED = "contacted"
+    CLOSED = "closed"
+
+
+class AssessmentRequest(db.Model):
+    """A "Request Expert Assessment" lead (Phase 15, CTA-01..04) - a human-
+    fulfilled service inquiry, not something a check or scan can satisfy
+    automatically. Submitted from a CTA on the dashboard/scan report, tied
+    to the submitting user/org when the submitter is logged in (every
+    current call site requires login), and surfaced to platform admins on
+    `/platform-admin` for manual follow-up - mirrors the pending-domain-
+    deletion queue's read/act pattern on that same page, but this queue is
+    informational only (no approve/reject action; `status` is set by an
+    operator via a separate maintenance path, not a route in this phase)."""
+    __tablename__ = "assessment_requests"
+
+    id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=True)
+    requested_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    company_name = db.Column(db.String(255), nullable=False)
+    domain = db.Column(db.String(255), nullable=False)
+    contact_name = db.Column(db.String(255), nullable=False)
+    contact_email = db.Column(db.String(255), nullable=False)
+    contact_phone = db.Column(db.String(64), nullable=True)
+    assessment_type = db.Column(db.Enum(AssessmentType), nullable=False)
+    scope = db.Column(db.Text, nullable=True)
+    auth_requirements = db.Column(db.Text, nullable=True)
+    domain_count = db.Column(db.Integer, nullable=True)
+    timeline = db.Column(db.String(255), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    status = db.Column(db.Enum(AssessmentRequestStatus), nullable=False, default=AssessmentRequestStatus.NEW)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+
+    organization = db.relationship("Organization")
+    requested_by = db.relationship("User")
