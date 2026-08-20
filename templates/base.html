@@ -327,13 +327,25 @@
      it apart without a hard visual break like a second nav bar. */
   .topnav .nav-links a.nav-logout { padding-left: 18px; border-left: 1px solid var(--border); }
 
-  /* Below ~640px the nav-links row wraps under the brand with only the
-     flex `gap`, which reads as the site name crowding straight into the
-     menu with no deliberate spacing. Stack them explicitly with real
-     margin instead of leaning on wrap+gap for the narrow case. */
+  /* Anonymous Login/Sign up (Phase 10 live-verification feedback, 08-20):
+     these read as too small/subtle as plain 13px text links, and on mobile
+     the whole nav collapsed to a column that put them under the brand on
+     the left instead of staying right-aligned like desktop. Both are real
+     .btn instances now (proper tap target, matches every other primary/
+     secondary action in the app) and .topnav-anon is exempted from the
+     column-stacking media query below - the anonymous nav is only ever
+     these two items, which always fit in a row even at 320px, unlike the
+     7+-item authenticated nav the stacking rule exists for. */
+  .topnav .nav-links a.nav-auth-btn { padding: 9px 16px; font-size: 13px; }
+
+  /* Below ~640px the (authenticated) nav-links row wraps under the brand
+     with only the flex `gap`, which reads as the site name crowding
+     straight into the menu with no deliberate spacing. Stack them
+     explicitly with real margin instead of leaning on wrap+gap for the
+     narrow case. */
   @media (max-width: 640px) {
-    .topnav { flex-direction: column; align-items: flex-start; }
-    .topnav .nav-links { margin-left: 0; margin-top: 6px; }
+    .topnav:not(.topnav-anon) { flex-direction: column; align-items: flex-start; }
+    .topnav:not(.topnav-anon) .nav-links { margin-left: 0; margin-top: 6px; }
   }
 
   /* width:100% - same shrink-to-fit fix as .topnav above (direct flex
@@ -372,7 +384,7 @@
     <symbol id="icon-check" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></symbol>
   </svg>
 
-  <div class="topnav">
+  <div class="topnav{{ ' topnav-anon' if not current_user.is_authenticated }}">
     <a class="brand-link" href="/">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>
       Glassbox
@@ -392,8 +404,8 @@
         {% endif %}
         <a href="{{ url_for('auth.logout') }}" class="nav-logout">Logout</a>
       {% else %}
-        <a href="{{ url_for('auth.login') }}">Login</a>
-        <a href="{{ url_for('auth.signup') }}" class="cta-link">Sign up</a>
+        <a href="{{ url_for('auth.login') }}" class="btn ghost nav-auth-btn">Login</a>
+        <a href="{{ url_for('auth.signup') }}" class="btn primary nav-auth-btn">Sign up</a>
       {% endif %}
     </div>
   </div>
