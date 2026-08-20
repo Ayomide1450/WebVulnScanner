@@ -477,7 +477,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion — depends on 09-02's empty-state partial and 09-04's scan_routes.py edits merging first)*
 
-- [ ] 09-03-PLAN.md — PERF-01/02: a data-size-independent query-count audit proof for dashboard/org-admin, plus real DB-level pagination_nav-driven pagination for scan history, asset list, org members, and a scan report's findings list
+- [x] 09-03-PLAN.md — PERF-01/02: a data-size-independent query-count audit proof for dashboard/org-admin, plus real DB-level pagination_nav-driven pagination for scan history, asset list, org members, and a scan report's findings list
 
 **Execution waves**: sequenced by file overlap, not by ROADMAP requirement order. Wave 1 = 09-01 +
 09-02 + 09-04, three fully file-disjoint plans (SEO routes/templates vs. UI-state templates vs.
