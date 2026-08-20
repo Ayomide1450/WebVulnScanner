@@ -43,8 +43,13 @@
        page-local one-off max-width. */
     --container-auth: 440px;
     --container-form: 760px;
-    --container-app: 1040px;
+    --container-app: 1200px;
     --container-marketing: 1180px;
+    /* App-shell horizontal gutter (navbar/content/footer) - scales from
+       20px on narrow/mobile viewports up to 40px on wide desktop, rather
+       than a fixed 20px that reads as cramped once --container-app grew.
+       clamp() covers the whole range without a dedicated breakpoint. */
+    --gutter-app: clamp(20px, 4vw, 40px);
     /* Documentation-only (Phase 7 / D-01) - CSS media queries cannot consume
        a custom property, so the literal 430px in the @media rule below the
        .mobile-record-cards block is the single authoritative copy. This
@@ -280,22 +285,25 @@
   a.back:hover { text-decoration:underline; }
 
   /* Top nav */
-  /* justify-content:space-between pushes .nav-links to the far right at
-     desktop widths, so gap here only governs the wrapped/narrow case (see
-     the max-width:640px override below) - the desktop brand-to-menu
-     distance is set explicitly via .nav-links margin-left instead, since
-     16px read as tighter than the 22px between individual nav-links items
-     themselves (the brand looked like part of the menu, not separate). */
-  .topnav { max-width: var(--container-app); margin: 0 auto; padding: 20px 20px 0; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+  /* justify-content:space-between is kept as the baseline so brand and
+     nav occupy opposite ends of the row (and so the row still behaves
+     sensibly if flex-wrap ever puts more than these two items in play);
+     the actual desktop brand-to-menu distance is guaranteed by
+     .nav-links' own margin-left:auto below - gap here only governs the
+     wrapped/narrow case (see the max-width:640px override below). */
+  .topnav { max-width: var(--container-app); margin: 0 auto; padding: 20px var(--gutter-app) 0; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
   .topnav .brand-link { color: var(--text); text-decoration:none; font-weight:600; font-size:16px; display:flex; align-items:center; gap:9px; }
   .topnav .brand-link .icon { color: var(--accent); width:22px; height:22px; }
-  /* margin-left guarantees a floor on the brand-to-menu distance -
-     justify-content:space-between alone wasn't enough: with this many nav
-     items the row is nearly full-width already, so its "space between"
-     collapsed down to the bare 16px flex `gap`, tighter than the 22px
-     between individual links and reading like the brand was part of the
-     menu rather than a separate element. */
-  .topnav .nav-links { display:flex; gap:22px; align-items:center; flex-wrap:wrap; margin-left: 28px; }
+  /* margin-left:auto claims all remaining row space for the gap in front
+     of .nav-links (stronger than a fixed floor) - justify-content:
+     space-between alone wasn't reliable: with many nav items the row
+     nears full width and "space between" can collapse toward the bare
+     16px flex `gap`, tighter than the 22px between individual links, so
+     the brand read as part of the menu rather than a separate element.
+     Also the fix for the same drift on the anonymous Login/Sign up pair,
+     which otherwise sat close enough to the brand to read as attached to
+     it instead of as a distinct authentication block. */
+  .topnav .nav-links { display:flex; gap:22px; align-items:center; flex-wrap:wrap; margin-left: auto; }
   .topnav .nav-links a { color: var(--muted); text-decoration:none; font-size: 13px; font-weight:600; transition: color 150ms ease; }
   .topnav .nav-links a:hover { color: var(--text); }
   .topnav .nav-links a.cta-link { color: var(--accent); }
@@ -313,10 +321,10 @@
     .topnav .nav-links { margin-left: 0; margin-top: 6px; }
   }
 
-  .wrap { max-width: var(--container-app); margin: 0 auto; padding: var(--space-6) 20px calc(var(--space-7) * 2); }
+  .wrap { max-width: var(--container-app); margin: 0 auto; padding: var(--space-6) var(--gutter-app) calc(var(--space-7) * 2); }
 
   .site-footer { border-top: 1px solid var(--border); margin-top: auto; }
-  .footer-inner { max-width: var(--container-app); margin: 0 auto; padding: 20px; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; color: var(--muted); font-size: 13px; }
+  .footer-inner { max-width: var(--container-app); margin: 0 auto; padding: 20px var(--gutter-app); display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; color: var(--muted); font-size: 13px; }
   .footer-inner a { color: var(--muted); text-decoration:none; }
   .footer-inner a:hover { color: var(--text); }
 </style>
