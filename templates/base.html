@@ -4,7 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}WebVulnScanner{% endblock %}</title>
-<link rel="icon" href="data:,">
+{% block meta_description %}{% endblock %}
+{% block canonical %}{% endblock %}
+{% block og_tags %}{% endblock %}
+{% block twitter_tags %}{% endblock %}
+<link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+<link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png') }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
 <style>
   /* ---- Design system: OLED dark, Fira Code / Fira Sans -------------------
      Generated via ui-ux-pro-max (security/dev-tool dashboard preset).

@@ -1,5 +1,20 @@
 {% extends "base.html" %}
 {% block title %}Terms of Service - WebVulnScanner{% endblock %}
+{% block meta_description %}<meta name="description" content="Read the Terms of Service governing your account, billing, and authorized use of WebVulnScanner's rule-based vulnerability scanning and reporting platform.">{% endblock %}
+{% block canonical %}<link rel="canonical" href="{{ url_for('public.terms', _external=True) }}">{% endblock %}
+{% block og_tags %}
+<meta property="og:type" content="website">
+<meta property="og:title" content="Terms of Service - WebVulnScanner">
+<meta property="og:description" content="Read the Terms of Service governing your account, billing, and authorized use of WebVulnScanner's rule-based vulnerability scanning and reporting platform.">
+<meta property="og:url" content="{{ url_for('public.terms', _external=True) }}">
+<meta property="og:image" content="{{ url_for('static', filename='apple-touch-icon.png', _external=True) }}">
+{% endblock %}
+{% block twitter_tags %}
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Terms of Service - WebVulnScanner">
+<meta name="twitter:description" content="Read the Terms of Service governing your account, billing, and authorized use of WebVulnScanner's rule-based vulnerability scanning and reporting platform.">
+<meta name="twitter:image" content="{{ url_for('static', filename='apple-touch-icon.png', _external=True) }}">
+{% endblock %}
 {% block head %}
 {% include "_legal_styles.html" %}
 {% endblock %}
