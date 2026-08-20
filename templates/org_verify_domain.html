@@ -2,8 +2,10 @@
 {% block title %}Verify a domain - WebVulnScanner{% endblock %}
 {% block head %}
 {% include "_admin_form_styles.html" %}
+{% include "_empty_state.html" %}
 {% endblock %}
 {% block content %}
+{% from "_empty_state.html" import empty_state %}
 <div class="wrap">
   <h1>Verify a domain</h1>
   <p style="color: var(--muted); font-size: 13px;">
@@ -97,7 +99,9 @@
     </ul>
   </div>
   {% else %}
-  <div class="warn-box"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-warning"/></svg><div>No domains added yet.</div></div>
+  {% call empty_state('No domains added yet.', '') %}
+  <use href="#icon-lock"/>
+  {% endcall %}
   {% endif %}
 </div>
 {% endblock %}

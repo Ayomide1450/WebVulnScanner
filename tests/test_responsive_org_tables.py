@@ -273,7 +273,12 @@ def test_verify_domain_zero_records_shows_no_cards_and_one_warn_box(client, db):
     resp = client.get("/org/verify-domain")
     body = resp.get_data(as_text=True)
 
-    assert body.count('class="warn-box"') == 1
+    # Phase 9 (09-02) migrated this page's empty state from the old
+    # standalone .warn-box markup to the shared _empty_state.html partial
+    # (closing the CLAUDE.md-documented exception) - assert the new
+    # component instead of the retired one.
+    assert body.count('class="empty-state"') == 1
+    assert 'class="warn-box"' not in body
     # Scoped to the real markup class, not a bare substring - base.html's
     # own embedded <style> block contains the prose/selector substring
     # "record-card" on every page regardless of whether any card renders

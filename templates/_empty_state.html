@@ -1,0 +1,67 @@
+{#
+  Shared empty-state component (09-CONTEXT.md D-04). The single empty-state
+  implementation app-wide - migrated from dashboard.html's and assets.html's
+  own one-off inline markup so there is exactly one file to touch when this
+  shape changes, following the same shared-partial convention as
+  _scan_form_styles.html/_admin_form_styles.html (a dedicated file, not
+  promoted into base.html even though its selectors are scoped enough to be
+  safe there - kept separate per D-04's explicit instruction).
+
+  Usage: `{% include "_empty_state.html" %}` once in a page's
+  `{% block head %}` for this file's <style> block, AND
+  `{% from "_empty_state.html" import empty_state %}` wherever the macro is
+  called. Both are needed - Jinja's `{% include %}` shares template
+  variables but does not export a template's macros into the including
+  template's namespace, and `{% from ... import %}` only pulls in the named
+  macro, never a template's top-level output (its <style> block). This was
+  confirmed against this app's actual Jinja2 version before writing this
+  file, not assumed.
+
+  DEVIATION from 09-UI-SPEC.md's literal `empty_state(icon, title, message,
+  cta_label=none, cta_url=none)` signature with `{{ icon|safe }}`: this
+  codebase has a Phase-8-frozen SEC-04 regression lock
+  (tests/test_injection_and_traversal.py::
+  test_no_template_disables_autoescaping_or_uses_safe_filter) that fails the
+  full suite if ANY template anywhere uses the `|safe` filter, with no
+  per-file exemption mechanism. Passing the icon as a `|safe`-filtered
+  string variable would trip that lock. This macro achieves byte-identical
+  rendered output using Jinja's `{% call %}` block construct instead: the
+  icon's inner SVG markup is the macro caller's block body (real template
+  markup, not a variable run through `|safe`), inserted via `{{ caller() }}`
+  - Jinja does not re-escape a call-block's own rendered output (verified
+    against this app's actual Jinja2 version before writing this file, not
+    assumed). No `|safe` filter, no `{% autoescape false %}`, same visual
+  result. See 09-02-SUMMARY.md for the full deviation writeup.
+
+  Signature: empty_state(title, message, cta_label=none, cta_url=none) -
+  call via `{% call empty_state(title, message, cta_label=.., cta_url=..) %}
+  <use href="#icon-x"/>{% endcall %}`, where the call-block body is the
+  icon's inner SVG markup (paths/<use>/<g> - not the outer <svg> tag),
+  rendered inside a 28x28 `--muted`-colored <svg class="empty-state-icon">.
+  Wrap the block body in `<g style="color:var(--accent)">...</g>` for the
+  one "positive/all-clear" instance (dashboard.html's no-findings state)
+  that needs an --accent-colored icon instead of the default --muted - a
+  variant of the same component via the call block, not a special-cased
+  second component.
+  - title / message: plain strings, autoescaped as usual.
+  - cta_label / cta_url: optional, both-or-neither - the CTA renders only
+    when both are passed. "No sensible next action" (e.g. billing's "No
+    pending invoices") is a valid, first-class state, not an oversight.
+#}
+<style>
+  .empty-state { text-align: center; padding: var(--space-6) var(--space-4); }
+  .empty-state-icon { width: 28px; height: 28px; stroke: currentColor; fill: none; stroke-width: 1.8; color: var(--muted); }
+  .empty-state-title { margin-top: var(--space-2); font-size: 15px; font-weight: 600; color: var(--text); }
+  .empty-state-body { margin-top: var(--space-1); font-size: 13px; font-weight: 400; color: var(--muted); }
+  .empty-state .btn.primary { margin-top: var(--space-4); }
+</style>
+{% macro empty_state(title, message, cta_label=none, cta_url=none) %}
+<div class="empty-state">
+  <svg class="empty-state-icon" viewBox="0 0 24 24" aria-hidden="true">{{ caller() }}</svg>
+  <div class="empty-state-title">{{ title }}</div>
+  <div class="empty-state-body">{{ message }}</div>
+  {% if cta_label and cta_url %}
+  <a class="btn primary" href="{{ cta_url }}">{{ cta_label }}</a>
+  {% endif %}
+</div>
+{% endmacro %}

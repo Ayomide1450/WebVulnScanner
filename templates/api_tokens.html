@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}API Tokens - WebVulnScanner{% endblock %}
 {% block head %}
+{% include "_empty_state.html" %}
 <style>
   /* h1/.card/.warn-box/.pill/.btn/table/.table-scroll come from base.html -
      see its comments. This page mixes .btn.primary/.secondary/.destructive
@@ -50,6 +51,7 @@
 </style>
 {% endblock %}
 {% block content %}
+{% from "_empty_state.html" import empty_state %}
 <div class="wrap">
   <h1>API Tokens</h1>
   <p class="intro">
@@ -152,11 +154,9 @@
       {% endfor %}
     </ul>
     {% else %}
-    <p style="color: var(--muted); font-size: 13px; margin:0;">
-      <b style="color: var(--text);">No API tokens yet</b><br>
-      Generate a token to authenticate CLI and API requests as yourself.
-      <a class="row-link" style="color: var(--accent); text-decoration:none;" href="#create-token-form">Generate your first token &rarr;</a>
-    </p>
+    {% call empty_state('No API tokens yet', 'Generate a token to authenticate CLI and API requests as yourself.', cta_label='Generate your first token →', cta_url='#create-token-form') %}
+    <use href="#icon-key"/>
+    {% endcall %}
     {% endif %}
   </div>
 </div>

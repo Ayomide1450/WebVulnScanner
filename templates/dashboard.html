@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Dashboard - WebVulnScanner{% endblock %}
 {% block head %}
+{% include "_empty_state.html" %}
 <style>
   /* h1/h2.section/.card/table/th/td live in base.html - see its comments.
      Everything below is additive, dashboard-only layout. */
@@ -53,12 +54,10 @@
   .target-row:last-child { border-bottom:none; }
   .target-row code { flex-shrink:0; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .target-row svg { flex-shrink:0; }
-
-  .empty-state { text-align:center; padding: 28px 16px; color: var(--muted); font-size:13px; }
-  .empty-state .icon { width:28px; height:28px; margin-bottom:10px; color: var(--muted); }
 </style>
 {% endblock %}
 {% block content %}
+{% from "_empty_state.html" import empty_state %}
 {# Shared "latest scan" status-pill renderer - used by both the scored and
    unscored branches of the card below, which render the identical pill
    markup for the same Scan.status field. Nests a pulsing state dot when
@@ -195,14 +194,19 @@
         <div class="findings-more"><a class="row-link" href="{{ url_for('scan.scan_report', scan_id=latest.id) }}">View all {{ actionable|length }} findings &rarr;</a></div>
         {% endif %}
       {% else %}
-      <div class="empty-state">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>
-        <div style="color: var(--text); font-weight:600; font-size:15px;">No security issues found</div>
-        <div>Your latest scan did not detect any actionable vulnerabilities.</div>
-      </div>
+      {% call empty_state('No security issues found', 'Your latest scan did not detect any actionable vulnerabilities.') %}
+      <g style="color:var(--accent)"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></g>
+      {% endcall %}
       {% endif %}
     {% else %}
-    <div class="empty-state">
+    {# Out of this plan's migration scope (a scan-status transitional
+       message, not a first-run/no-data state) - left as its own local
+       markup, not the empty_state() macro. The inline style below
+       preserves this block's pre-existing color/font-size now that
+       _empty_state.html's shared .empty-state rule no longer carries
+       them (those moved to .empty-state-title/.empty-state-body, which
+       this plain-text block doesn't use). #}
+    <div class="empty-state" style="color: var(--muted); font-size: 13px;">
       Your latest scan {{ 'is still running' if latest.status.value in ('queued','running') else 'did not produce a report' }} &mdash;
       findings will show here once it completes.
     </div>
@@ -344,7 +348,9 @@
       {% endfor %}
     </ul>
     {% else %}
-    <div class="empty-state">No scans yet. <a class="row-link" href="{{ url_for('scan.new_scan') }}">Run your first scan &rarr;</a></div>
+    {% call empty_state('No scans yet.', '', cta_label='Run your first scan →', cta_url=url_for('scan.new_scan')) %}
+    <use href="#icon-radar"/>
+    {% endcall %}
     {% endif %}
   </div>
 </div>
