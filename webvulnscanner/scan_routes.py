@@ -106,6 +106,43 @@ def _check_ownership(s):
         abort(404)
 
 
+def _find_running_scan(user_id, target_url, scan_type):
+    """Returns the most recent `QUEUED` or `RUNNING` `Scan` row matching
+    `(user_id, target_url, scan_type)` exactly, or `None` if no such scan
+    exists (STATE-03/D-06's duplicate-concurrent-scan guard).
+
+    Deliberately scoped to include `scan_type`, not just `(user_id,
+    target_url)`: a base scan and an api scan against the same target are
+    two different checks running in parallel, not two copies of the same
+    scan - the guard's purpose is refusing a redundant re-submission of a
+    scan that is already in flight, not serializing all of a user's
+    activity against one target. This is a narrower reading of D-06's
+    literal wording ("a RUNNING scan already exists for the same
+    target+user"), documented deliberately in 09-04-SUMMARY.md.
+
+    Every new-scan call site (see `_launch_base_scan`, `new_scan_advanced`,
+    `new_scan_media`, `new_scan_api`) calls this with the exact same
+    `target_url` expression it's about to store on the `Scan` row it would
+    otherwise create, so the guard's query and the stored data can never
+    drift apart."""
+    return (
+        Scan.query.filter(
+            Scan.user_id == user_id,
+            Scan.target_url == target_url,
+            Scan.scan_type == scan_type,
+            Scan.status.in_([ScanStatus.QUEUED, ScanStatus.RUNNING]),
+        )
+        .order_by(Scan.created_at.desc())
+        .first()
+    )
+
+
+# Exact Copywriting Contract text (09-UI-SPEC.md) for a duplicate-concurrent-
+# scan redirect - shared by every new_scan_* route so the flashed message can
+# never drift between call sites.
+DUPLICATE_SCAN_MESSAGE = "A scan is already running for this target — showing its live progress."
+
+
 # --------------------------------------------------------------------------
 # Background-thread scan execution
 # --------------------------------------------------------------------------
@@ -197,14 +234,55 @@ def _run_scan_in_background(app, scan_id, scan_type, **kwargs):
             fname = save_report(report, prefix, hostname)
             db.session.add(Report(scan_id=scan_id, json_path=fname, data=report))
             s = Scan.query.get(scan_id)
+            # Race guard (T-09-12): if _timeout_watchdog() already marked
+            # this scan FAILED-by-timeout while this orchestrator was still
+            # finishing up, this late finish must not resurrect the row as
+            # COMPLETED or erase the timeout's specific error_message - the
+            # watchdog's write wins whichever side finishes second.
+            if s.status == ScanStatus.FAILED:
+                return
             s.status = ScanStatus.COMPLETED
             s.risk_score = report["score"]
             s.completed_at = datetime.now(timezone.utc)
             db.session.commit()
         except Exception as e:  # noqa: BLE001 - a failed scan must not leave the row stuck RUNNING
             s = Scan.query.get(scan_id)
+            # Same race guard as the success path above: don't overwrite a
+            # timeout's specific error_message with this generic exception
+            # text if the watchdog already beat this except block to it.
+            if s.status == ScanStatus.FAILED:
+                return
             s.status = ScanStatus.FAILED
             s.error_message = str(e)
+            db.session.commit()
+
+
+def _timeout_watchdog(app_obj, scan_id):
+    """Fires once, on its own `threading.Timer` thread, `SCAN_TIMEOUT_SECONDS`
+    after `_spawn_scan_thread` starts a scan (STATE-03/D-06). Runs with no
+    request context and no `current_user` - it operates purely on the
+    `scan_id`/`app_obj` captured at spawn time, the same trust level
+    `_run_scan_in_background`'s own thread already has.
+
+    Re-reads the row's current status first: if the scan already reached a
+    terminal state (COMPLETED or FAILED) on its own before this fired, it's
+    a no-op - the scan simply finished within its deadline, nothing to do.
+    Only a still-QUEUED-or-RUNNING row gets force-marked FAILED with the
+    specific timeout message.
+
+    This races with `_run_scan_in_background`'s own two terminal writes
+    (success -> COMPLETED, exception -> FAILED); both sides guard on
+    re-reading status immediately before writing (see their "race guard"
+    comments) so whichever of {orchestrator finishes, watchdog fires}
+    happens second cannot clobber whichever happened first (T-09-12)."""
+    with app_obj.app_context():
+        s = Scan.query.get(scan_id)
+        if s is None:
+            return
+        if s.status in (ScanStatus.QUEUED, ScanStatus.RUNNING):
+            s.status = ScanStatus.FAILED
+            s.error_message = "This scan exceeded its time limit and was stopped."
+            s.completed_at = datetime.now(timezone.utc)
             db.session.commit()
 
 
@@ -217,6 +295,18 @@ def _spawn_scan_thread(scan_id, scan_type, **kwargs):
         daemon=True,
     )
     thread.start()
+
+    # Second, independent background timer (STATE-03/D-06) - guarantees this
+    # scan reaches a terminal state within SCAN_TIMEOUT_SECONDS even if the
+    # scan thread above hangs indefinitely (a stalled network call with no
+    # outer bound). Not stored/cancelled: letting it fire and no-op on an
+    # already-terminal scan is the intended behavior, not a missed
+    # cancellation - see _timeout_watchdog's docstring.
+    watchdog_timer = threading.Timer(
+        app_obj.config["SCAN_TIMEOUT_SECONDS"], _timeout_watchdog, args=(app_obj, scan_id),
+    )
+    watchdog_timer.daemon = True
+    watchdog_timer.start()
 
 
 # --------------------------------------------------------------------------
@@ -581,8 +671,10 @@ def _launch_base_scan(user, tier, raw_target, manual_test_url=None):
     `new_scan_base`'s per-target loop already ran inline before this was
     extracted: normalize_target() -> _unsafe_target_error() (the SSRF gate
     every new_scan_* route calls before a Scan row is created) ->
+    _find_running_scan() (STATE-03's duplicate-concurrent-scan guard) ->
     domain_is_org_verified() -> create the Scan row -> spawn the background
-    thread. Returns (scan, None) on success or (None, error_string) on a
+    thread. Returns `(scan, None, is_duplicate)` on success (a fresh launch
+    or a reused already-running scan) or `(None, error_string, False)` on a
     validation/safety failure - never raises past its own SSRF/normalize
     checks.
 
@@ -592,17 +684,26 @@ def _launch_base_scan(user, tier, raw_target, manual_test_url=None):
     ownership/SSRF gate as one launched from the form - not a
     reimplementation that could quietly drift from it. `user` is a plain
     parameter (not `current_user`) precisely so api_routes.py can pass the
-    User the API key resolves to."""
+    User the API key resolves to.
+
+    `is_duplicate=True` means an existing QUEUED/RUNNING Scan for this
+    exact (user, target, "base") triple was found and returned instead of
+    creating a new row - the caller must not treat that as a fresh launch
+    (no new thread was spawned)."""
     base_url = normalize_target(raw_target)
     if not base_url:
-        return None, "not a valid domain/URL"
+        return None, "not a valid domain/URL", False
     unsafe = _unsafe_target_error(base_url, org_id=user.org_id)
     if unsafe:
-        return None, unsafe
+        return None, unsafe, False
     if manual_test_url:
         unsafe = _unsafe_target_error(manual_test_url, org_id=user.org_id)
         if unsafe:
-            return None, unsafe
+            return None, unsafe, False
+
+    existing = _find_running_scan(user.id, base_url, "base")
+    if existing is not None:
+        return existing, None, True
 
     org_verified = domain_is_org_verified(user.organization, base_url)
     s = Scan(user_id=user.id, org_id=user.org_id,
@@ -615,7 +716,7 @@ def _launch_base_scan(user, tier, raw_target, manual_test_url=None):
         base_url=base_url, manual_test_url=manual_test_url,
         tier=tier, org_verified=org_verified,
     )
-    return s, None
+    return s, None, False
 
 
 @scan.route("/scan/new/base", methods=["GET", "POST"])
@@ -670,21 +771,23 @@ def new_scan_base():
                 prefill_target=_prefill_target("target"), **_tier_flags(tier),
             )
 
-    launched, skipped = [], []
+    launched, skipped, duplicates = [], [], []
     for raw in raw_targets:
         # A seed test_url only makes sense against a single target -
         # applying it across a whole batch would test every target with
         # another site's query-string shape.
-        s, err = _launch_base_scan(
+        s, err, is_duplicate = _launch_base_scan(
             current_user, tier, raw,
             manual_test_url=manual_test_url if len(raw_targets) == 1 else None,
         )
         if s is None:
             skipped.append((raw, err))
+        elif is_duplicate:
+            duplicates.append(s)
         else:
             launched.append(s)
 
-    if not launched:
+    if not launched and not duplicates:
         return render_template(
             "scan_new_base.html",
             error="None of the entered targets could be scanned: " +
@@ -695,10 +798,39 @@ def new_scan_base():
     if skipped:
         flash("Skipped: " + "; ".join(f"{t} ({why})" for t, why in skipped), "error")
 
+    # A single-target submission that turned out to be a duplicate redirects
+    # exactly like the other three scan types - straight to the existing
+    # scan's progress page with the info-flash, no separate "launched"
+    # branch to fall into.
+    if not launched and len(duplicates) == 1:
+        flash(DUPLICATE_SCAN_MESSAGE, "info")
+        return redirect(url_for("scan.scan_detail", scan_id=duplicates[0].id))
+
+    # Preserve the existing single-launched-target redirect exactly as it
+    # was before this task: a submission that resulted in exactly one
+    # freshly-launched scan goes straight to that scan's detail page,
+    # regardless of whether any other targets in the same batch turned out
+    # to be duplicates (those are reported via the separate info flash
+    # below, not by changing this redirect's destination).
     if len(launched) == 1:
+        if duplicates:
+            flash(
+                f"{len(duplicates)} target(s) already had a scan running - showing existing "
+                "progress for those, not starting new ones.",
+                "info",
+            )
         return redirect(url_for("scan.scan_detail", scan_id=launched[0].id))
 
-    flash(f"Started {len(launched)} base scans.", "info")
+    if duplicates:
+        flash(
+            f"{len(duplicates)} target(s) already had a scan running - showing existing progress "
+            "for those, not starting new ones.",
+            "info",
+        )
+
+    if launched:
+        flash(f"Started {len(launched)} base scans.", "info")
+
     return redirect(url_for("scan.dashboard"))
 
 
@@ -769,6 +901,11 @@ def new_scan_advanced():
     domain_probe_url = (advanced["login_url"] or advanced["sqli_union_url"]
                          or advanced["stored_xss_submit_url"] or advanced["idor_url_template"])
     org_verified = domain_is_org_verified(current_user.organization, domain_probe_url) if domain_probe_url else False
+
+    existing = _find_running_scan(current_user.id, domain_probe_url or "advanced-scan", "advanced")
+    if existing is not None:
+        flash(DUPLICATE_SCAN_MESSAGE, "info")
+        return redirect(url_for("scan.scan_detail", scan_id=existing.id))
 
     s = Scan(user_id=current_user.id, org_id=current_user.org_id,
               target_url=domain_probe_url or "advanced-scan",
@@ -875,6 +1012,11 @@ def new_scan_media():
             **_media_render_kwargs(tier),
         )
 
+    existing = _find_running_scan(current_user.id, base_url, "media")
+    if existing is not None:
+        flash(DUPLICATE_SCAN_MESSAGE, "info")
+        return redirect(url_for("scan.scan_detail", scan_id=existing.id))
+
     s = Scan(user_id=current_user.id, org_id=current_user.org_id,
               target_url=base_url, scan_type="media", status=ScanStatus.QUEUED)
     db.session.add(s)
@@ -918,6 +1060,11 @@ def new_scan_api():
             error="API exposure scanning requires a Paid plan or higher. Upgrade on the Billing page to unlock it.",
             **_api_render_kwargs(tier),
         )
+
+    existing = _find_running_scan(current_user.id, base_url, "api")
+    if existing is not None:
+        flash(DUPLICATE_SCAN_MESSAGE, "info")
+        return redirect(url_for("scan.scan_detail", scan_id=existing.id))
 
     s = Scan(user_id=current_user.id, org_id=current_user.org_id,
               target_url=base_url, scan_type="api", status=ScanStatus.QUEUED)
