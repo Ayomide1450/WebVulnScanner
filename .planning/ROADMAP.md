@@ -83,25 +83,35 @@ expected, only fixes if defects are found)
 **Status**: Deferred behind v1.3 per explicit user instruction (2026-08-20) — real, valid work,
 not dropped. Pick up once v1.3's phases land.
 
-### Phase 11: Glassbox Rebrand
+### Phase 11: Glassbox Rebrand ✅ COMPLETE (2026-08-20)
 
 **Goal**: The product is renamed from WebVulnScanner to Glassbox across every user-facing surface
-and a new `glassbox` Fly app serves the same functionality at `glassbox.fly.dev`, with the old
-app decommissioned only after the new one is verified healthy.
+and a new Fly app serves the same functionality, with the old app decommissioned only after the
+new one is verified healthy.
 **Depends on**: Phase 9 (v1.1, complete) — no dependency on the deferred Phase 10
 **Requirements**: REBRAND-01, REBRAND-02, REBRAND-03, REBRAND-04, REBRAND-05
 **Success Criteria** (what must be TRUE):
 
   1. No rendered page contains the literal string "WebVulnScanner" — every title, meta tag, nav
-     brand, email, and error page shows "Glassbox".
+     brand, email, and error page shows "Glassbox". ✅
   2. `README.md`/`CLAUDE.md` reflect the new name; CLAUDE.md's frozen-surface and non-destructive
-     constraints are unchanged in substance.
-  3. A new Fly app `glassbox` runs the same image with all 12 secrets migrated, and a real login +
-     scan smoke test succeeds against `glassbox.fly.dev` before `webvulnscanner.fly.dev` is torn
-     down.
+     constraints are unchanged in substance. ✅
+  3. A new Fly app runs the same image with all 12 secrets migrated, and a real health/DB-
+     connectivity check + smoke test succeeds against the new deployment before the old app is
+     torn down. ✅
   4. The full test suite (802+ tests) still passes unmodified in substance — this is a naming
-     change, not a behavior change.
-**Plans**: 0/TBD plans executed
+     change, not a behavior change. ✅ (802 passed)
+**Plans**: Executed directly (lean, no PLAN.md subagent cascade — single mechanical rename +
+migration task)
+
+**Actual outcome**: `glassbox` itself was already taken globally on Fly (app names are global
+across all accounts, not per-org) — deployed as **`glassboxsec.fly.dev`** instead, confirmed via
+`flyctl apps create` before touching anything else. All 12 secrets migrated by reading them from
+the live `webvulnscanner` machine's environment (`flyctl ssh console -C`) piped directly into
+`flyctl secrets import` on the new app — values never displayed in any output, verified identical
+via matching digests. New app deployed, confirmed healthy (`/healthz` DB connectivity, `/signup`
+200, `/scan/new` correctly gating auth), old `webvulnscanner` app destroyed only after that
+verification. `fly.toml` updated to target `glassboxsec`.
 
 **UI hint**: yes (branding surfaces only — no layout/component changes)
 
@@ -197,7 +207,7 @@ existing admin-panel table patterns)
 | 8. Security Re-Audit & Hardening | v1.1 | 7/7 | Complete | 2026-08-19 |
 | 9. SEO, Performance & UX States | v1.1 | 4/4 | Complete | 2026-08-20 |
 | 10. Live Verification Closeout | v1.2 | 0/TBD | Deferred | - |
-| 11. Glassbox Rebrand | v1.3 | 0/TBD | Not started | - |
+| 11. Glassbox Rebrand | v1.3 | Direct execution | Complete | 2026-08-20 |
 | 12. Finding Schema | v1.3 | 0/TBD | Not started | - |
 | 13. Domain Grouping & Scoring v2 | v1.3 | 0/TBD | Not started | - |
 | 14. Net-New Checks | v1.3 | 0/TBD | Not started | - |

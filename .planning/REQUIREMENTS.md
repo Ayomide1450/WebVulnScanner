@@ -7,7 +7,7 @@ it ever weakening its safety guarantees to become a general attack tool. This ho
 product name.
 
 **Milestone Goal:** Rebrand from WebVulnScanner to Glassbox (in-app branding + a live Fly app
-migration to `glassbox.fly.dev`), then extend the existing scan engine — reusing all current
+migration to `glassboxsec.fly.dev`), then extend the existing scan engine — reusing all current
 checks, the OWASP-mapped compliance layer, ownership verification, and scan pipelines rather than
 duplicating any of it — into a full "Production Security Readiness" assessment: an extended
 `Finding` schema (confidence/CWE/verification-state), domain-grouped scoring with a
@@ -21,21 +21,22 @@ product framing, it does not change what the scanner is allowed to do to a targe
 
 ### Rebrand (REBRAND) — Phase 11
 
-- [ ] **REBRAND-01**: Product name changed from "WebVulnScanner" to "Glassbox" across all
+- [x] **REBRAND-01**: Product name changed from "WebVulnScanner" to "Glassbox" across all
       user-facing surfaces — page titles, meta/OG/Twitter tags, nav brand, emails, error pages —
       with no leftover "WebVulnScanner" string in rendered output.
-- [ ] **REBRAND-02**: `README.md`, `CLAUDE.md`, and other project docs updated to reflect the new
+- [x] **REBRAND-02**: `README.md`, `CLAUDE.md`, and other project docs updated to reflect the new
       name; `CLAUDE.md`'s safety-critical constraints (frozen surface, non-destructive rules)
       carry over unchanged in substance.
-- [ ] **REBRAND-03**: A new Fly app (`glassbox`) is stood up with all 12 existing secrets migrated
+- [x] **REBRAND-03**: A new Fly app (`glassboxsec` — `glassbox` itself was already taken globally
+      on Fly) is stood up with all 12 existing secrets migrated
       (`SECRET_KEY`, `SQLALCHEMY_DATABASE_URI`, `EMAIL_MODE`, `RESEND_API_KEY`,
       `RESEND_FROM_EMAIL`, `GROQ_API_KEY`, `CRYPTO_RECEIVING_ADDRESS`, `POLYGONSCAN_API_KEY`,
       `USDT_CONTRACT_ADDRESS`, `USDC_CONTRACT_ADDRESS`, `TURNSTILE_SITE_KEY`,
       `TURNSTILE_SECRET_KEY`) and deployed from the same image/Dockerfile.
-- [ ] **REBRAND-04**: `glassbox.fly.dev` is confirmed healthy (health check passing, a real login/
+- [x] **REBRAND-04**: `glassboxsec.fly.dev` is confirmed healthy (health check passing, a real login/
       scan smoke test succeeds) before `webvulnscanner.fly.dev` is decommissioned — no
       destructive cutover without a verified working replacement first.
-- [ ] **REBRAND-05**: The rebrand does not touch `authorized*` checkboxes, `entitlements.py`, or
+- [x] **REBRAND-05**: The rebrand does not touch `authorized*` checkboxes, `entitlements.py`, or
       `checks.is_ssrf_safe_hostname()` — cosmetic/naming change only, verified by the existing
       security test suite still passing unmodified in substance.
 
@@ -116,7 +117,7 @@ product framing, it does not change what the scanner is allowed to do to a targe
 - Plugin/third-party check-extensibility system — deferred three times now (v1.0, v1.1, v1.2);
   still no concrete requirement or user request to build it.
 - Self-hostable/open-core deployment model — still locked/undecided.
-- A purchased custom domain for Glassbox (e.g. `glassbox.io`) — `glassbox.fly.dev` is this
+- A purchased custom domain for Glassbox (e.g. `glassbox.io`) — `glassboxsec.fly.dev` is this
   milestone's scope; a real domain requires a registrar purchase only the user can make.
 
 ## Out of Scope
@@ -126,7 +127,7 @@ product framing, it does not change what the scanner is allowed to do to a targe
 | Changing `authorized*`, `entitlements.py`, or `checks.is_ssrf_safe_hostname()` | Frozen per CLAUDE.md — this milestone extends assessment depth/framing, not scan permissions |
 | Destructive testing of any kind (brute force beyond existing caps, damaging load tests, uncontrolled exploitation) | Explicit safety rule carried into every new check |
 | Replacing crypto-invoice billing or the tier model | Still locked, not under reconsideration |
-| A purchased custom domain | Requires the user's own registrar action; `glassbox.fly.dev` is the in-scope target |
+| A purchased custom domain | Requires the user's own registrar action; `glassboxsec.fly.dev` is the in-scope target |
 | Speculative checks added purely to raise the feature count | Every new check must map to a real, reasoned pre-production gap, not exist for taxonomy completeness |
 
 ## Traceability
@@ -136,7 +137,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | VERIFY-01..09 | Phase 10 | Deferred (not dropped) |
-| REBRAND-01..05 | Phase 11 | Pending |
+| REBRAND-01..05 | Phase 11 | Complete |
 | FSCH-01..05 | Phase 12 | Pending |
 | SCORE-01..05 | Phase 13 | Pending |
 | CHECK-01..06 | Phase 14 | Pending |

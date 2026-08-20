@@ -25,10 +25,11 @@ non-destructive scans against their own infrastructure and get findings they can
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 12 (Finding Schema) — up next
 Plan: —
-Status: Defining requirements
-Last activity: 2026-08-20 — Milestone v1.3 started
+Status: Phase 11 (Glassbox Rebrand) complete; ready to start Phase 12
+Last activity: 2026-08-20 — Phase 11 executed directly (branding rename + Fly app migration to
+glassboxsec.fly.dev), 802 tests passing, live and verified healthy
 
 **Note:** v1.2's Phase 10 (Live Verification Closeout, 9 requirements) is not abandoned - it's
 real, valid, deferred work reprioritized behind v1.3 per explicit user instruction. It stays in
