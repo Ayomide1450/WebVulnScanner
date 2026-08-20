@@ -67,10 +67,20 @@ def _scoped_asset_query():
     )
 
 
+ASSETS_PER_PAGE = 20
+
+
 @asset.route("")
 @login_required
 def list_assets():
-    assets = _scoped_asset_query().order_by(Asset.created_at.desc()).all()
+    page = request.args.get("page", 1, type=int)
+    # PERF-02: real DB-level pagination (.paginate(), not a Python slice of
+    # an already-fully-fetched list) - no stat/trend on this page depends
+    # on the full asset list, unlike dashboard()'s scans query above.
+    assets = (
+        _scoped_asset_query().order_by(Asset.created_at.desc())
+        .paginate(page=page, per_page=ASSETS_PER_PAGE, error_out=False)
+    )
     return render_template("assets.html", assets=assets)
 
 

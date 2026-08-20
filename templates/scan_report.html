@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Scan report - WebVulnScanner{% endblock %}
 {% block head %}
+{% include "_pagination.html" %}
 <style>
   h1 { margin-top: 20px; }
   .meta { color: var(--muted); font-size:13px; margin-bottom: 20px; }
@@ -96,6 +97,7 @@
 </style>
 {% endblock %}
 {% block content %}
+{% from "_pagination.html" import pagination_nav %}
 {% set org_verified_checks = ['xss_sqli', 'sqli_login', 'bruteforce', 'sqli_union', 'xss_stored', 'idor'] %}
 {% macro locked_card(name) %}
 <div class="finding locked-card">
@@ -205,7 +207,7 @@
     {% endfor %}
   {% else %}
     {% set ns = namespace(current_cat=None, first=true) %}
-    {% for f in r.findings|sort(attribute='category') %}
+    {% for f in findings_page %}
       {% if f.category != ns.current_cat %}
         {% if not ns.first %}</div></details>{% endif %}
         {% set ns.current_cat = f.category %}
@@ -219,6 +221,9 @@
     {% else %}
       <p class="empty">No findings.</p>
     {% endfor %}
+    {% if r.findings %}
+    {{ pagination_nav(findings_page_num, findings_total_pages) }}
+    {% endif %}
   {% endif %}
 
   {# The tables below (Detailed check output, through the media/api sections

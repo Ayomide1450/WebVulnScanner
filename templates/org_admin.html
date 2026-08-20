@@ -3,6 +3,7 @@
 {% block head %}
 {% include "_admin_form_styles.html" %}
 {% include "_empty_state.html" %}
+{% include "_pagination.html" %}
 <style>
   .plan-card { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
   .plan-stats { display:flex; gap:22px; flex-wrap:wrap; margin-top:6px; }
@@ -24,6 +25,7 @@
 {% endblock %}
 {% block content %}
 {% from "_empty_state.html" import empty_state %}
+{% from "_pagination.html" import pagination_nav %}
 <div class="wrap">
   <h1>{{ org.name if org else 'Organization' }}</h1>
 
@@ -33,7 +35,7 @@
       <div class="plan-stats">
         <span class="stat">Verified domains &middot; <b>{{ verified_domain_count }}</b></span>
         <span class="stat">Scans &middot; <b>{{ scans|length }}</b></span>
-        <span class="stat">Members &middot; <b>{{ members|length }}</b></span>
+        <span class="stat">Members &middot; <b>{{ member_count }}</b></span>
       </div>
     </div>
     {% if org and org.plan.value == 'free' %}
@@ -43,14 +45,14 @@
 
   <h2 class="section">Members</h2>
   <div class="card">
-    {% if members %}
+    {% if members_page and members_page.total > 0 %}
     <div class="table-scroll desktop-table">
     <table>
       <thead>
       <tr><th>Email</th><th>Role</th><th>Email verified</th></tr>
       </thead>
       <tbody>
-      {% for m in members %}
+      {% for m in members_page.items %}
       <tr>
         <td>{{ m.email }}</td>
         <td>{{ role_labels.get(m.role.value, m.role.value) }}</td>
@@ -61,7 +63,7 @@
     </table>
     </div>
     <ul class="mobile-record-cards">
-      {% for m in members %}
+      {% for m in members_page.items %}
       <li class="card record-card">
         <div class="record-card-top">
           <span class="record-card-id">{{ m.email }}</span>
@@ -71,6 +73,7 @@
       </li>
       {% endfor %}
     </ul>
+    {{ pagination_nav(members_page.page, members_page.pages) }}
     {% else %}
     {% call empty_state('No members.', '') %}
     <use href="#icon-network"/>
