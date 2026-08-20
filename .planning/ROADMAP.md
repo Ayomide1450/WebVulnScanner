@@ -471,9 +471,9 @@ condition clearly instead of going blank or stalling silently.
 Plans:
 **Wave 1**
 
-- [ ] 09-01-PLAN.md — SEO-01..04: dynamic robots.txt/sitemap.xml built from app.url_map, base.html head-block contract, marketing/terms/privacy meta+OG+Twitter tags, favicon set
-- [ ] 09-02-PLAN.md — STATE-01/02: shared _empty_state.html partial (migrates 3 existing + adopts 7 new call sites) and the real submitting-state gap closure across 12 forms
-- [ ] 09-04-PLAN.md — STATE-03: duplicate-concurrent-scan guard across all four scan types, a scan-level wall-clock timeout watchdog with a race-safe terminal-write guard, and distinct failed/timed-out/duplicate messaging
+- [x] 09-01-PLAN.md — SEO-01..04: dynamic robots.txt/sitemap.xml built from app.url_map, base.html head-block contract, marketing/terms/privacy meta+OG+Twitter tags, favicon set
+- [x] 09-02-PLAN.md — STATE-01/02: shared _empty_state.html partial (migrates 3 existing + adopts 7 new call sites) and the real submitting-state gap closure across 12 forms
+- [x] 09-04-PLAN.md — STATE-03: duplicate-concurrent-scan guard across all four scan types, a scan-level wall-clock timeout watchdog with a race-safe terminal-write guard, and distinct failed/timed-out/duplicate messaging
 
 **Wave 2** *(blocked on Wave 1 completion — depends on 09-02's empty-state partial and 09-04's scan_routes.py edits merging first)*
 
