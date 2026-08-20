@@ -115,7 +115,7 @@ verification. `fly.toml` updated to target `glassboxsec`.
 
 **UI hint**: yes (branding surfaces only — no layout/component changes)
 
-### Phase 12: Finding Schema
+### Phase 12: Finding Schema ✅ COMPLETE (2026-08-20)
 
 **Goal**: Every `Finding` carries an honest `confidence` value (and, where applicable, `cwe`/
 `verification_state`), kept conceptually separate from `severity`, so nothing is ever reported as
@@ -125,12 +125,20 @@ more certain than the evidence supports.
 **Success Criteria** (what must be TRUE):
 
   1. `Finding` has `confidence`/`cwe`/`verification_state` fields with `confidence` restricted to
-     the 5 defined values.
+     the 5 defined values. ✅
   2. Every existing `Finding(...)` call site in `checks.py` has an explicit, reasoned `confidence`
-     value — a regression test fails if any call site is left on a default.
+     value — a regression test fails if any call site is left on a default. ✅
   3. The scan report displays confidence (and CWE/OWASP where present) per finding using existing
-     `.pill`/`.badge` components, with no new visual clutter.
-**Plans**: 0/TBD plans executed
+     `.pill`/`.badge` components, with no new visual clutter. ✅
+**Plans**: Executed directly (lean)
+
+**Actual outcome**: All 53 real `Finding(...)` call sites individually categorized (not
+bulk-defaulted) and backfilled via a paren-balanced source rewrite script. AST-based coverage
+lock (`tests/test_finding_confidence.py`) proves every call site passes an explicit
+`confidence=` from `CONFIDENCE_LEVELS`. `_serialize_findings()` already used `asdict(f)`, so the
+new fields flowed into report JSON with zero serialization changes. `scan_report.html` renders
+confidence/CWE via the existing `.pill.compliance` component (same one the OWASP pill already
+used). 805 passed (1 pre-existing unrelated flaky test, confirmed).
 
 **UI hint**: yes (report page finding-card additions only)
 
@@ -208,7 +216,7 @@ existing admin-panel table patterns)
 | 9. SEO, Performance & UX States | v1.1 | 4/4 | Complete | 2026-08-20 |
 | 10. Live Verification Closeout | v1.2 | 0/TBD | Deferred | - |
 | 11. Glassbox Rebrand | v1.3 | Direct execution | Complete | 2026-08-20 |
-| 12. Finding Schema | v1.3 | 0/TBD | Not started | - |
+| 12. Finding Schema | v1.3 | Direct execution | Complete | 2026-08-20 |
 | 13. Domain Grouping & Scoring v2 | v1.3 | 0/TBD | Not started | - |
 | 14. Net-New Checks | v1.3 | 0/TBD | Not started | - |
 | 15. Request Expert Assessment | v1.3 | 0/TBD | Not started | - |

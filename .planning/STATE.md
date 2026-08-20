@@ -25,11 +25,11 @@ non-destructive scans against their own infrastructure and get findings they can
 
 ## Current Position
 
-Phase: 12 (Finding Schema) — up next
+Phase: 13 (Domain Grouping & Scoring v2) — up next
 Plan: —
-Status: Phase 11 (Glassbox Rebrand) complete; ready to start Phase 12
-Last activity: 2026-08-20 — Phase 11 executed directly (branding rename + Fly app migration to
-glassboxsec.fly.dev), 802 tests passing, live and verified healthy
+Status: Phase 12 (Finding Schema) complete; ready to start Phase 13
+Last activity: 2026-08-20 — Phase 12 executed directly (confidence/cwe/verification_state added
+to Finding, all 53 call sites backfilled, AST coverage lock, report UI updated), 805 passed
 
 **Note:** v1.2's Phase 10 (Live Verification Closeout, 9 requirements) is not abandoned - it's
 real, valid, deferred work reprioritized behind v1.3 per explicit user instruction. It stays in

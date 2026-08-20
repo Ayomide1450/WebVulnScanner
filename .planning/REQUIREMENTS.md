@@ -42,19 +42,19 @@ product framing, it does not change what the scanner is allowed to do to a targe
 
 ### Finding Schema (FSCH) — Phase 12
 
-- [ ] **FSCH-01**: `Finding` dataclass gains a `confidence` field with exactly five allowed values
+- [x] **FSCH-01**: `Finding` dataclass gains a `confidence` field with exactly five allowed values
       (Confirmed / Strong Evidence / Potential / Informational / Not Externally Verifiable),
       kept conceptually separate from `severity` — nothing is ever labeled "Confirmed" without
       an evidence basis for it.
-- [ ] **FSCH-02**: `Finding` dataclass gains an optional `cwe` field, populated only where a check
+- [x] **FSCH-02**: `Finding` dataclass gains an optional `cwe` field, populated only where a check
       genuinely maps to a specific CWE (not speculative/blanket-filled).
-- [ ] **FSCH-03**: `Finding` dataclass gains a `verification_state` field distinguishing
+- [x] **FSCH-03**: `Finding` dataclass gains a `verification_state` field distinguishing
       Discovered / Observed / Potential Risk / Confirmed Finding, primarily for attack-surface
       and exposure-type findings.
-- [ ] **FSCH-04**: All existing `Finding(...)` construction sites across `checks.py` are backfilled
+- [x] **FSCH-04**: All existing `Finding(...)` construction sites across `checks.py` are backfilled
       with an honest `confidence` value — a regression test proves no call site is left on a
       silent/implicit default.
-- [ ] **FSCH-05**: The scan report renders `confidence` and, where present, `cwe`/OWASP mapping
+- [x] **FSCH-05**: The scan report renders `confidence` and, where present, `cwe`/OWASP mapping
       per finding without visually cluttering the existing report layout (reuses existing
       `.pill`/`.badge` components per `CLAUDE.md`'s frontend design system — no new component
       family introduced).
@@ -138,7 +138,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | VERIFY-01..09 | Phase 10 | Deferred (not dropped) |
 | REBRAND-01..05 | Phase 11 | Complete |
-| FSCH-01..05 | Phase 12 | Pending |
+| FSCH-01..05 | Phase 12 | Complete |
 | SCORE-01..05 | Phase 13 | Pending |
 | CHECK-01..06 | Phase 14 | Pending |
 | CTA-01..04 | Phase 15 | Pending |
