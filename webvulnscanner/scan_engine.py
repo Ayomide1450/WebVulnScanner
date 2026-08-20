@@ -1,5 +1,5 @@
 """
-Scan orchestrators for WebVulnScanner.
+Scan orchestrators for Glassbox.
 
 `run_scan`, `run_advanced_scan`, `run_media_scan` relocated verbatim from
 `app.py` (Workstream 2 of the auth/entitlement plan). Workstream 3 adds

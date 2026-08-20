@@ -312,7 +312,7 @@ def _send_invite_email(email, role):
     sender = current_app.extensions["email_sender"]
     sender.send(
         to=email,
-        subject=f"You're invited to join {current_user.organization.name} on WebVulnScanner",
+        subject=f"You're invited to join {current_user.organization.name} on Glassbox",
         body=(
             f"You've been invited to join {current_user.organization.name} "
             f"as {role}.\n\nClick the link below to sign up:\n\n{invite_link}"

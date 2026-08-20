@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block title %}WebVulnScanner - Web Application Vulnerability Scanner for AppSec Teams{% endblock %}
+{% block title %}Glassbox - Web Application Vulnerability Scanner for AppSec Teams{% endblock %}
 {% block meta_description %}<meta name="description" content="Authorization-gated web application vulnerability scanner mapped to OWASP Top 10, with CVE-aware dependency checks and non-destructive, plain-English reports.">{% endblock %}
 {% block canonical %}<link rel="canonical" href="{{ url_for('public.index', _external=True) }}">{% endblock %}
 {% block og_tags %}
 <meta property="og:type" content="website">
-<meta property="og:title" content="WebVulnScanner - Web Application Vulnerability Scanner for AppSec Teams">
+<meta property="og:title" content="Glassbox - Web Application Vulnerability Scanner for AppSec Teams">
 <meta property="og:description" content="Authorization-gated web application vulnerability scanner mapped to OWASP Top 10, with CVE-aware dependency checks and non-destructive, plain-English reports.">
 <meta property="og:url" content="{{ url_for('public.index', _external=True) }}">
 <meta property="og:image" content="{{ url_for('static', filename='apple-touch-icon.png', _external=True) }}">
 {% endblock %}
 {% block twitter_tags %}
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="WebVulnScanner - Web Application Vulnerability Scanner for AppSec Teams">
+<meta name="twitter:title" content="Glassbox - Web Application Vulnerability Scanner for AppSec Teams">
 <meta name="twitter:description" content="Authorization-gated web application vulnerability scanner mapped to OWASP Top 10, with CVE-aware dependency checks and non-destructive, plain-English reports.">
 <meta name="twitter:image" content="{{ url_for('static', filename='apple-touch-icon.png', _external=True) }}">
 {% endblock %}
@@ -160,7 +160,7 @@
 <!-- ============ Hero ============ -->
 <div class="hero">
   <div class="hero-inner">
-    <div class="eyebrow"><span class="dot"></span> Autonomous Security Validation Platform</div>
+    <div class="eyebrow"><span class="dot"></span> Automated Web Application Security Scanner</div>
 
     <div class="terminal" id="bootTerminal" aria-hidden="true">
       <pre id="bootLines"></pre>
@@ -168,9 +168,9 @@
 
     <h1 id="heroHeadline">Find security vulnerabilities <span class="accent-text">before attackers do.</span></h1>
     <p class="sub" id="heroSub">
-      WebVulnScanner automatically scans your website for exposed secrets, security
-      misconfigurations, vulnerable JavaScript libraries, and other common weaknesses -
-      then hands you a prioritized, plain-English report.
+      Glassbox runs automated vulnerability assessments against your web app's attack
+      surface - exposed secrets, security misconfigurations, vulnerable JavaScript libraries, and
+      other weaknesses - then hands you a prioritized, plain-English report.
     </p>
 
     <div class="scan-box">
@@ -216,8 +216,8 @@
 <div class="mkt-section tight">
   <div class="section-head">
     <span class="kicker">Coverage</span>
-    <h2>What WebVulnScanner checks</h2>
-    <p>Every scan pulls from the same rule-based check engine - no black box, no guessing what was actually tested.</p>
+    <h2>What Glassbox checks</h2>
+    <p>Every scan pulls from the same rule-based web application security check engine - no black box, no guessing what was actually tested.</p>
   </div>
   <div class="mkt-wrap">
     <div class="check-grid">
@@ -239,7 +239,7 @@
       </div>
       <div class="check-item">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="4" y="14" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <div><h3>CORS misconfiguration</h3><p>Overly permissive cross-origin sharing rules.</p></div>
+        <div><h3>CORS misconfiguration</h3><p>Overly permissive cross-origin sharing rules - a common security misconfiguration.</p></div>
       </div>
       <div class="check-item">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 12h16m0 0-5-5m5 5-5 5"/></svg>
@@ -342,7 +342,7 @@
       <div class="step">
         <div class="step-num">01</div>
         <h3>Enter your domain</h3>
-        <p>Give WebVulnScanner a URL and confirm you own or are authorized to test it.</p>
+        <p>Give Glassbox a URL and confirm you own or are authorized to test it.</p>
       </div>
       <div class="step">
         <div class="step-num">02</div>

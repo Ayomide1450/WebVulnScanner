@@ -243,7 +243,7 @@ def signup():
         sender = current_app.extensions["email_sender"]
         sender.send(
             to=email,
-            subject="Verify your WebVulnScanner email",
+            subject="Verify your Glassbox email",
             body=f"Click the link below to verify your email address:\n\n{verify_url}",
         )
 
@@ -316,7 +316,7 @@ def forgot_password():
             sender = current_app.extensions["email_sender"]
             sender.send(
                 to=email,
-                subject="Reset your WebVulnScanner password",
+                subject="Reset your Glassbox password",
                 body=f"Click the link below to reset your password (expires in "
                      f"{RESET_TOKEN_EXPIRY_MINUTES} minutes):\n\n{reset_url}",
             )

@@ -176,7 +176,7 @@ def test_403_renders_generic_page_and_leaks_nothing(prod_client, prod_db):
     resp = prod_client.get("/org/admin")
     assert resp.status_code == 403
     body = resp.get_data(as_text=True)
-    assert "WebVulnScanner" not in body, "403 unexpectedly rendered the app's own themed page"
+    assert "Glassbox" not in body, "403 unexpectedly rendered the app's own themed page"
     _assert_no_leak(resp, "403")
 
 
@@ -195,7 +195,7 @@ def test_401_returns_a_minimal_json_body_and_leaks_nothing(prod_client, prod_db)
     assert resp.status_code == 401
     assert resp.content_type.startswith("application/json")
     body = resp.get_data(as_text=True)
-    assert "WebVulnScanner" not in body, "401 unexpectedly rendered the app's own themed page"
+    assert "Glassbox" not in body, "401 unexpectedly rendered the app's own themed page"
     _assert_no_leak(resp, "401")
 
 
@@ -215,7 +215,7 @@ def test_400_renders_generic_page_and_leaks_nothing(prod_client, prod_db):
     )
     assert resp.status_code == 400
     body = resp.get_data(as_text=True)
-    assert "WebVulnScanner" not in body, "400 unexpectedly rendered the app's own themed page"
+    assert "Glassbox" not in body, "400 unexpectedly rendered the app's own themed page"
     _assert_no_leak(resp, "400")
 
 

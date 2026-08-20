@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}WebVulnScanner{% endblock %}</title>
+<title>{% block title %}Glassbox{% endblock %}</title>
 {% block meta_description %}{% endblock %}
 {% block canonical %}{% endblock %}
 {% block og_tags %}{% endblock %}
@@ -375,7 +375,7 @@
   <div class="topnav">
     <a class="brand-link" href="/">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>
-      WebVulnScanner
+      Glassbox
     </a>
     <div class="nav-links">
       {% if current_user.is_authenticated %}
@@ -412,7 +412,7 @@
 
   <footer class="site-footer">
     <div class="footer-inner">
-      <span>&copy; {{ current_year }} WebVulnScanner</span>
+      <span>&copy; {{ current_year }} Glassbox</span>
       <span><a href="{{ url_for('public.terms') }}">Terms</a> &middot; <a href="{{ url_for('public.privacy') }}">Privacy</a></span>
     </div>
   </footer>

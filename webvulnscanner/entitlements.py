@@ -1,5 +1,5 @@
 """
-Entitlement / tier gating for WebVulnScanner (Workstream 3).
+Entitlement / tier gating for Glassbox (Workstream 3).
 
 This module is the one place allowed to bridge DB-backed concepts
 (`webvulnscanner.models.Plan`, `DomainVerification`) and the tier-ordering

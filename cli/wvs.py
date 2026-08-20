@@ -1,4 +1,4 @@
-"""wvs - thin CLI client for WebVulnScanner's /api/v1 surface. Talks only to
+"""wvs - thin CLI client for Glassbox's /api/v1 surface. Talks only to
 the HTTP API, never imports Flask or webvulnscanner directly.
 
 Commands:
@@ -93,7 +93,7 @@ def _raise_for_error_response(resp):
 
 @click.group()
 def cli():
-    """wvs - thin CLI client for WebVulnScanner's /api/v1 surface. Talks
+    """wvs - thin CLI client for Glassbox's /api/v1 surface. Talks
     only to the HTTP API, never imports Flask or webvulnscanner directly."""
 
 

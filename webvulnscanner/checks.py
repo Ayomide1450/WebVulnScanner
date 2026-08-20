@@ -1,5 +1,5 @@
 """
-Individual security checks for WebVulnScanner.
+Individual security checks for Glassbox.
 
 Relocated verbatim from the original single-file `app.py` (Workstream 2 of
 the auth/entitlement plan) — every function body below is byte-for-byte the
@@ -40,7 +40,7 @@ DOWNLOADS_DIR = os.path.join(APP_DIR, "downloads")
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
 REQUEST_TIMEOUT = 8
-UA = "Mozilla/5.0 (WebVulnScanner; personal-use; +local)"
+UA = "Mozilla/5.0 (Glassbox; personal-use; +local)"
 CANARY_HOST = "wvs-canary-check.invalid"
 XSS_MARKER = "xsscanary7f3a"
 MAX_BRUTEFORCE_ATTEMPTS = 5
