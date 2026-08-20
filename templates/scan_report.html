@@ -123,6 +123,8 @@
   {% set compliance_entry = CHECK_COMPLIANCE.get(f.get('check_name', ''), {}) %}
   <span class="pill compliance">{{ compliance_entry.get('owasp') or 'Uncategorized' }}</span>
   {% if compliance_entry.get('asvs') %}<span class="cat">ASVS {{ compliance_entry.get('asvs') }}</span>{% endif %}
+  {% if f.get('confidence') %}<span class="pill compliance" title="How certain this specific finding is - separate from severity">{{ f.confidence }}</span>{% endif %}
+  {% if f.get('cwe') %}<span class="pill compliance">{{ f.cwe }}</span>{% endif %}
   <div class="body">
     <b>{{ f.title }}</b>
     <div class="detail">{{ f.detail }}</div>
