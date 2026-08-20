@@ -8,7 +8,12 @@
      its local font-size override and cascades from base.html's new global
      h2 rule (20px). -->
 <style>
-  .legal-wrap { max-width: var(--container-form); margin: 0 auto; padding: var(--space-7) 22px calc(var(--space-7) * 2); }
+  /* width:100% - same direct-flex-child-of-body fix as base.html's
+     .topnav/.wrap (see that comment for the full mechanism). Long-form
+     legal text happens to mask this bug most of the time (its own
+     content is often wide enough to hit max-width on its own), but not
+     reliably - width:100% removes the dependency on content width. */
+  .legal-wrap { width: 100%; max-width: var(--container-form); margin: 0 auto; padding: var(--space-7) 22px calc(var(--space-7) * 2); }
   .legal-wrap h1 { margin-bottom: 4px; }
   .legal-wrap .updated { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
   .legal-wrap h2 { margin: 28px 0 8px; }

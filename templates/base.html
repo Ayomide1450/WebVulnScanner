@@ -291,7 +291,22 @@
      the actual desktop brand-to-menu distance is guaranteed by
      .nav-links' own margin-left:auto below - gap here only governs the
      wrapped/narrow case (see the max-width:640px override below). */
-  .topnav { max-width: var(--container-app); margin: 0 auto; padding: 20px var(--gutter-app) 0; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+  /* width:100% is load-bearing, not decorative: .topnav/.wrap are direct
+     flex children of the page's body element (display:flex; flex-
+     direction:column, for the sticky footer). A flex item's cross-axis
+     auto margins (margin:0 auto
+     here) disable stretch alignment per spec, so without an explicit
+     width the item falls back to shrink-to-fit sizing - it settles at its
+     own content's width instead of filling up to max-width, then
+     centering. For short content (this header's brand + 2-6 nav links)
+     that content width is far below --container-app, so the header
+     rendered narrow and left-clustered no matter what --container-app or
+     the gutter were set to - the real bug the visible "no separation"
+     symptom traced back to, confirmed via computed-style inspection of
+     the live Fly deployment (getBoundingClientRect() width << max-width).
+     width:100% forces the flex item to fill the cross axis first, so
+     max-width caps it and margin:auto centers it as intended. */
+  .topnav { width: 100%; max-width: var(--container-app); margin: 0 auto; padding: 20px var(--gutter-app) 0; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
   .topnav .brand-link { color: var(--text); text-decoration:none; font-weight:600; font-size:16px; display:flex; align-items:center; gap:9px; }
   .topnav .brand-link .icon { color: var(--accent); width:22px; height:22px; }
   /* margin-left:auto claims all remaining row space for the gap in front
@@ -321,7 +336,9 @@
     .topnav .nav-links { margin-left: 0; margin-top: 6px; }
   }
 
-  .wrap { max-width: var(--container-app); margin: 0 auto; padding: var(--space-6) var(--gutter-app) calc(var(--space-7) * 2); }
+  /* width:100% - same shrink-to-fit fix as .topnav above (direct flex
+     child of body with auto side-margins). */
+  .wrap { width: 100%; max-width: var(--container-app); margin: 0 auto; padding: var(--space-6) var(--gutter-app) calc(var(--space-7) * 2); }
 
   .site-footer { border-top: 1px solid var(--border); margin-top: auto; }
   .footer-inner { max-width: var(--container-app); margin: 0 auto; padding: 20px var(--gutter-app); display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; color: var(--muted); font-size: 13px; }

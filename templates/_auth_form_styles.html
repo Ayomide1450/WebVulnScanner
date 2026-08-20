@@ -12,7 +12,13 @@
      pair. This is the tracer proof block copied into
      _scan_form_styles.html/_admin_form_styles.html. -->
 <style>
-  .auth-wrap { max-width: var(--container-auth); margin: 0 auto; padding: var(--space-7) 22px calc(var(--space-7) * 2); }
+  /* width:100% - .auth-wrap is a direct flex child of the page's body
+     element (display:flex; flex-direction:column in base.html); without an
+     explicit width its auto side-margins disable flex stretch and it
+     shrink-wraps to the form's own content width instead of filling up
+     to max-width and centering (see base.html's .topnav/.wrap comment
+     for the full mechanism). */
+  .auth-wrap { width: 100%; max-width: var(--container-auth); margin: 0 auto; padding: var(--space-7) 22px calc(var(--space-7) * 2); }
   h1 { margin: 0 0 20px; }
   label { display: block; margin-top: var(--space-4); font-weight: 600; font-size: 13px; color: var(--text); }
   input[type=text], input[type=email], input[type=password], select, textarea {
