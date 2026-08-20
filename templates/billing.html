@@ -2,6 +2,7 @@
 {% block title %}Billing - WebVulnScanner{% endblock %}
 {% block head %}
 {% include "_admin_form_styles.html" %}
+{% include "_empty_state.html" %}
 <style>
   .invoice-card { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); margin-bottom: var(--space-3); background: rgba(255,255,255,.02); }
   .invoice-card:last-child { margin-bottom: 0; }
@@ -54,6 +55,7 @@
 </style>
 {% endblock %}
 {% block content %}
+{% from "_empty_state.html" import empty_state %}
 <div class="wrap">
   <h1>Billing</h1>
 
@@ -172,7 +174,9 @@
     </div>
     {% endfor %}
     {% else %}
-    <p style="color: var(--muted); font-size: 13px;">No pending invoices.</p>
+    {% call empty_state('No pending invoices.', '') %}
+    <use href="#icon-folder"/>
+    {% endcall %}
     {% endif %}
   </div>
   {% else %}

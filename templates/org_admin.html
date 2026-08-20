@@ -2,6 +2,7 @@
 {% block title %}Organization - WebVulnScanner{% endblock %}
 {% block head %}
 {% include "_admin_form_styles.html" %}
+{% include "_empty_state.html" %}
 <style>
   .plan-card { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
   .plan-stats { display:flex; gap:22px; flex-wrap:wrap; margin-top:6px; }
@@ -22,6 +23,7 @@
 </style>
 {% endblock %}
 {% block content %}
+{% from "_empty_state.html" import empty_state %}
 <div class="wrap">
   <h1>{{ org.name if org else 'Organization' }}</h1>
 
@@ -70,7 +72,9 @@
       {% endfor %}
     </ul>
     {% else %}
-    <p style="color: var(--muted); font-size: 13px;">No members.</p>
+    {% call empty_state('No members.', '') %}
+    <use href="#icon-network"/>
+    {% endcall %}
     {% endif %}
   </div>
 
@@ -216,7 +220,9 @@
       {% endfor %}
     </ul>
     {% else %}
-    <p style="color: var(--muted); font-size: 13px;">No domains added yet. <a class="back" href="{{ url_for('org.verify_domain_view') }}">Add one &rarr;</a></p>
+    {% call empty_state('No domains added yet.', '', cta_label='Add one →', cta_url=url_for('org.verify_domain_view')) %}
+    <use href="#icon-lock"/>
+    {% endcall %}
     {% endif %}
   </div>
 
@@ -267,7 +273,9 @@
       {% endfor %}
     </ul>
     {% else %}
-    <p style="color: var(--muted); font-size: 13px;">No scans recorded for this org yet.</p>
+    {% call empty_state('No scans recorded for this org yet.', '') %}
+    <use href="#icon-radar"/>
+    {% endcall %}
     {% endif %}
   </div>
 
@@ -283,7 +291,9 @@
       </div>
       {% endfor %}
     {% else %}
-    <p style="color: var(--muted); font-size: 13px; margin:0;">No organization activity recorded yet.</p>
+    {% call empty_state('No organization activity recorded yet.', '') %}
+    <use href="#icon-radar"/>
+    {% endcall %}
     {% endif %}
   </div>
 </div>
