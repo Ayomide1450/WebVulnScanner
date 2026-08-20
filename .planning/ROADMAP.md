@@ -4,7 +4,8 @@
 
 - ✅ **v1.0 Asset Inventory, API/CLI, Compliance & Hardening** - Phases 1-4 (shipped 2026-08-13)
 - ✅ **v1.1 Production Audit, Hardening & Redesign** - Phases 5-9 (shipped 2026-08-20)
-- 🚧 **v1.2 Live Verification Closeout** - Phase 10 (in progress)
+- ⏸️ **v1.2 Live Verification Closeout** - Phase 10 (deferred, not dropped - reprioritized behind v1.3)
+- 🚧 **v1.3 Glassbox Rebrand & Production Security Readiness** - Phases 11-15 (in progress)
 
 ## Phases
 
@@ -79,6 +80,109 @@ VERIFY-08, VERIFY-09
 **UI hint**: yes (this phase is entirely visual/live verification — no new component work
 expected, only fixes if defects are found)
 
+**Status**: Deferred behind v1.3 per explicit user instruction (2026-08-20) — real, valid work,
+not dropped. Pick up once v1.3's phases land.
+
+### Phase 11: Glassbox Rebrand
+
+**Goal**: The product is renamed from WebVulnScanner to Glassbox across every user-facing surface
+and a new `glassbox` Fly app serves the same functionality at `glassbox.fly.dev`, with the old
+app decommissioned only after the new one is verified healthy.
+**Depends on**: Phase 9 (v1.1, complete) — no dependency on the deferred Phase 10
+**Requirements**: REBRAND-01, REBRAND-02, REBRAND-03, REBRAND-04, REBRAND-05
+**Success Criteria** (what must be TRUE):
+
+  1. No rendered page contains the literal string "WebVulnScanner" — every title, meta tag, nav
+     brand, email, and error page shows "Glassbox".
+  2. `README.md`/`CLAUDE.md` reflect the new name; CLAUDE.md's frozen-surface and non-destructive
+     constraints are unchanged in substance.
+  3. A new Fly app `glassbox` runs the same image with all 12 secrets migrated, and a real login +
+     scan smoke test succeeds against `glassbox.fly.dev` before `webvulnscanner.fly.dev` is torn
+     down.
+  4. The full test suite (802+ tests) still passes unmodified in substance — this is a naming
+     change, not a behavior change.
+**Plans**: 0/TBD plans executed
+
+**UI hint**: yes (branding surfaces only — no layout/component changes)
+
+### Phase 12: Finding Schema
+
+**Goal**: Every `Finding` carries an honest `confidence` value (and, where applicable, `cwe`/
+`verification_state`), kept conceptually separate from `severity`, so nothing is ever reported as
+more certain than the evidence supports.
+**Depends on**: Phase 11
+**Requirements**: FSCH-01, FSCH-02, FSCH-03, FSCH-04, FSCH-05
+**Success Criteria** (what must be TRUE):
+
+  1. `Finding` has `confidence`/`cwe`/`verification_state` fields with `confidence` restricted to
+     the 5 defined values.
+  2. Every existing `Finding(...)` call site in `checks.py` has an explicit, reasoned `confidence`
+     value — a regression test fails if any call site is left on a default.
+  3. The scan report displays confidence (and CWE/OWASP where present) per finding using existing
+     `.pill`/`.badge` components, with no new visual clutter.
+**Plans**: 0/TBD plans executed
+
+**UI hint**: yes (report page finding-card additions only)
+
+### Phase 13: Domain Grouping & Scoring v2
+
+**Goal**: Findings are organized into 13 product-facing security domains instead of a flat list,
+and the score/readiness verdict reflects confidence and control coverage, not just a severity
+count — a user can see why the number is what it is.
+**Depends on**: Phase 12 (scoring/grouping needs `confidence` to exist first)
+**Requirements**: SCORE-01, SCORE-02, SCORE-03, SCORE-04, SCORE-05
+**Success Criteria** (what must be TRUE):
+
+  1. `SECURITY_DOMAIN_MAP` covers every check_name across all 4 orchestrators, same coverage-lock
+     pattern as the existing `CHECK_COMPLIANCE`.
+  2. The scan report groups findings by domain (Security Posture/Attack Surface/Authentication/
+     Authorization/API Security/Client Security/Configuration/Secrets/DNS & Domains/TLS/
+     Dependencies/Privacy/Production Readiness).
+  3. The score visibly reflects confidence-weighting and coverage, not severity count alone, and
+     a READY/READY WITH WARNINGS/NOT READY verdict is shown with a supporting breakdown.
+  4. Attack-surface findings show their `verification_state` in the UI.
+**Plans**: 0/TBD plans executed
+
+**UI hint**: yes (report page restructure — the milestone's largest UI change; reuse existing
+components per CLAUDE.md's frontend design system, no new component family)
+
+### Phase 14: Net-New Checks
+
+**Goal**: The check set is extended with the handful of genuinely missing pre-production checks
+(file upload, security.txt, privacy/PII, caching, GraphQL) — additive, non-destructive, following
+the existing check convention exactly.
+**Depends on**: Phase 13 (new checks should land under the domain-grouping/scoring model, not be
+retrofitted into it afterward)
+**Requirements**: CHECK-01, CHECK-02, CHECK-03, CHECK-04, CHECK-05, CHECK-06
+**Success Criteria** (what must be TRUE):
+
+  1. Each new check returns `(data, findings)`, never raises past its own function, and is
+     registered in `FEATURE_REQUIREMENTS`/`CHECK_COMPLIANCE`/`SECURITY_DOMAIN_MAP`.
+  2. File-upload/security.txt/privacy/caching/GraphQL checks are each read-only — no payload
+     uploaded, no destructive request sent to the target.
+  3. A coverage-lock test proves no new check is missing from any of the three registries above.
+**Plans**: 0/TBD plans executed
+
+**UI hint**: no (findings render through the existing Phase 13 UI, no new page/component)
+
+### Phase 15: Request Expert Assessment
+
+**Goal**: A visible CTA lets a user request a deeper, human-led assessment; submissions are
+captured with enough detail to scope real work and are visible to platform admins.
+**Depends on**: Phase 13 (CTA placement assumes the redesigned report page exists)
+**Requirements**: CTA-01, CTA-02, CTA-03, CTA-04
+**Success Criteria** (what must be TRUE):
+
+  1. "Request Expert Assessment" is visible on the report/dashboard using existing `.btn`/`.card`
+     components.
+  2. The form collects all 11 specified fields and creates an `AssessmentRequest` row.
+  3. Platform admins can view submitted requests.
+  4. The form is CSRF-protected and rate-limited like every other state-changing form in the app.
+**Plans**: 0/TBD plans executed
+
+**UI hint**: yes (one new form page + one new admin list view, reusing `_admin_form_styles.html`/
+existing admin-panel table patterns)
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -92,4 +196,9 @@ expected, only fixes if defects are found)
 | 7. Responsive & Accessibility Compliance | v1.1 | 7/7 | Complete | 2026-08-20 |
 | 8. Security Re-Audit & Hardening | v1.1 | 7/7 | Complete | 2026-08-19 |
 | 9. SEO, Performance & UX States | v1.1 | 4/4 | Complete | 2026-08-20 |
-| 10. Live Verification Closeout | v1.2 | 0/TBD | Not started | - |
+| 10. Live Verification Closeout | v1.2 | 0/TBD | Deferred | - |
+| 11. Glassbox Rebrand | v1.3 | 0/TBD | Not started | - |
+| 12. Finding Schema | v1.3 | 0/TBD | Not started | - |
+| 13. Domain Grouping & Scoring v2 | v1.3 | 0/TBD | Not started | - |
+| 14. Net-New Checks | v1.3 | 0/TBD | Not started | - |
+| 15. Request Expert Assessment | v1.3 | 0/TBD | Not started | - |
