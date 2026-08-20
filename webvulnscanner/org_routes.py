@@ -48,7 +48,7 @@ from webvulnscanner.domain_verification import (
     well_known_path_and_content,
 )
 from webvulnscanner.extensions import db
-from webvulnscanner.models import DomainVerification, Invitation, InvitationStatus, OrgAuditEvent, Role, Scan, VerifyMethod, _utcnow
+from webvulnscanner.models import DomainVerification, Invitation, InvitationStatus, OrgAuditEvent, Role, Scan, User, VerifyMethod, _utcnow
 
 org = Blueprint("org", __name__, url_prefix="/org")
 
@@ -232,12 +232,29 @@ def verify_domain_view():
     )
 
 
+MEMBERS_PER_PAGE = 20
+
+
 @org.route("/admin")
 @login_required
 @org_admin_required
 def admin():
     org_obj = current_user.organization
-    members = org_obj.users if org_obj else []
+    page = request.args.get("page", 1, type=int)
+    # PERF-02: the Members table is DB-level paginated at 20/page via a
+    # real .paginate() query on the underlying User query (org_obj.users is
+    # an already-loaded relationship list, not a Query - the plan/D-03 needs
+    # LIMIT/OFFSET issued at the DB layer, so this queries User directly,
+    # matching the Scan.query.filter_by(org_id=...) pattern already used a
+    # few lines below for the scans query). member_count stays a SEPARATE,
+    # unbounded .count() so the "Members · N" stat is never affected by
+    # which page of the table is currently being viewed.
+    member_count = User.query.filter_by(org_id=org_obj.id).count() if org_obj else 0
+    members_page = (
+        User.query.filter_by(org_id=org_obj.id).order_by(User.id)
+        .paginate(page=page, per_page=MEMBERS_PER_PAGE, error_out=False)
+        if org_obj else None
+    )
     domains = org_obj.domain_verifications if org_obj else []
     # Scan rows are written by scan_routes.py (a parallel workstream) - this
     # query is deliberately defensive and will just render an empty table
@@ -275,7 +292,8 @@ def admin():
     return render_template(
         "org_admin.html",
         org=org_obj,
-        members=members,
+        members_page=members_page,
+        member_count=member_count,
         domains=domains,
         scans=scans,
         invite_form=invite_form,

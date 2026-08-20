@@ -46,6 +46,7 @@ import re
 import threading
 import time
 from datetime import datetime, timezone
+from math import ceil
 from urllib.parse import urlparse
 
 from flask import Blueprint, Response, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
@@ -79,6 +80,16 @@ scan = Blueprint("scan", __name__)
 # ever reaches render_template() or the page - keeps an arbitrary/garbage
 # query-string value from being echoed anywhere (T-03-21).
 GROUPING_MODES = ("severity", "compliance")
+
+# PERF-02: the severity-grouped (default) findings view is paginated at
+# 20/page, same as the other three D-03 lists - a plain Python slice, not a
+# .paginate() query, since `report` is already a fully-loaded in-memory dict
+# (read from the on-disk/DB JSON blob), not a Query. The compliance-grouped
+# view (?group=compliance) is DELIBERATELY left unpaginated - its different
+# grouping semantics (by OWASP category, not a flat sorted list) are out of
+# this plan's scope (09-03-PLAN.md's explicit prohibition), deferred to a
+# future phase.
+FINDINGS_PER_PAGE = 20
 
 
 # --------------------------------------------------------------------------
@@ -370,17 +381,27 @@ SCAN_TYPE_LABELS = {
 }
 
 
+SCAN_HISTORY_PER_PAGE = 20
+
+
 @scan.route("/dashboard")
 @login_required
 def dashboard():
-    scans = (
+    page = request.args.get("page", 1, type=int)
+
+    # Full, unbounded history - PERF-02 must not shrink `latest`/
+    # `target_trends`/`completed_count` to whichever page of the Scan
+    # History table is currently being viewed (see this plan's
+    # prohibitions); `scan_history` below is a SEPARATE, paginated query
+    # feeding only the table itself.
+    all_scans = (
         Scan.query.filter_by(user_id=current_user.id)
         .order_by(Scan.created_at.desc())
         .all()
     )
-    latest = scans[0] if scans else None
-    target_trends = _per_target_trends(scans)
-    completed_count = sum(1 for s in scans if s.status == ScanStatus.COMPLETED)
+    latest = all_scans[0] if all_scans else None
+    target_trends = _per_target_trends(all_scans)
+    completed_count = sum(1 for s in all_scans if s.status == ScanStatus.COMPLETED)
 
     # Powers the "Recent Findings" section - only loaded when the latest
     # scan actually has a persisted report, same on-disk JSON every other
@@ -391,9 +412,20 @@ def dashboard():
     if latest is not None and latest.status == ScanStatus.COMPLETED and latest.report is not None:
         latest_report = _load_report_json(latest)
 
+    # PERF-02: the Scan History table itself is DB-level paginated at
+    # 20/page (a real .paginate() query, not a Python slice of `all_scans`)
+    # - error_out=False so an out-of-range ?page= value degrades to an
+    # empty .items list rather than a 404, same "degrade rather than error
+    # on bad input" convention as the rest of this app.
+    scan_history = (
+        Scan.query.filter_by(user_id=current_user.id)
+        .order_by(Scan.created_at.desc())
+        .paginate(page=page, per_page=SCAN_HISTORY_PER_PAGE, error_out=False)
+    )
+
     return render_template(
-        "dashboard.html", scans=scans, latest=latest, target_trends=target_trends,
-        completed_count=completed_count, latest_report=latest_report,
+        "dashboard.html", scans=all_scans, scan_history=scan_history, latest=latest,
+        target_trends=target_trends, completed_count=completed_count, latest_report=latest_report,
         scan_type_labels=SCAN_TYPE_LABELS,
     )
 
@@ -1299,8 +1331,21 @@ def scan_report(scan_id):
         group = "severity"
 
     compliance_groups = []
+    # findings_page/findings_page_num/findings_total_pages are only ever
+    # meaningful for the severity (default) view - group == "compliance"
+    # leaves them at these defaults, and scan_report.html's compliance
+    # branch never reads them (PERF-02's explicit scope boundary: the
+    # compliance-grouped view stays unpaginated).
+    findings_page, findings_page_num, findings_total_pages = [], 1, 1
     if group == "compliance":
         compliance_groups = group_findings_by_compliance(report.get("findings", []), CHECK_COMPLIANCE)
+    else:
+        sorted_findings = sorted(report.get("findings", []), key=lambda f: f.get("category", ""))
+        findings_total_pages = max(1, ceil(len(sorted_findings) / FINDINGS_PER_PAGE))
+        findings_page_num = max(1, request.args.get("page", 1, type=int))
+        findings_page_num = min(findings_page_num, findings_total_pages)
+        start = (findings_page_num - 1) * FINDINGS_PER_PAGE
+        findings_page = sorted_findings[start:start + FINDINGS_PER_PAGE]
 
     lifecycle = {}
     sensitive_paths = report.get("sensitive_paths")
@@ -1314,6 +1359,8 @@ def scan_report(scan_id):
     return render_template(
         "scan_report.html", scan=s, r=report, locked=report.get("locked_checks", []),
         CHECK_COMPLIANCE=CHECK_COMPLIANCE, group=group, compliance_groups=compliance_groups,
+        findings_page=findings_page, findings_page_num=findings_page_num,
+        findings_total_pages=findings_total_pages,
         sensitive_path_lifecycle=lifecycle, previous_scan=previous_scan,
     )
 

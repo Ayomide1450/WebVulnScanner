@@ -2,6 +2,7 @@
 {% block title %}Dashboard - WebVulnScanner{% endblock %}
 {% block head %}
 {% include "_empty_state.html" %}
+{% include "_pagination.html" %}
 <style>
   /* h1/h2.section/.card/table/th/td live in base.html - see its comments.
      Everything below is additive, dashboard-only layout. */
@@ -58,6 +59,7 @@
 {% endblock %}
 {% block content %}
 {% from "_empty_state.html" import empty_state %}
+{% from "_pagination.html" import pagination_nav %}
 {# Shared "latest scan" status-pill renderer - used by both the scored and
    unscored branches of the card below, which render the identical pill
    markup for the same Scan.status field. Nests a pulsing state dot when
@@ -309,14 +311,14 @@
 
   <h2 class="section">Scan History</h2>
   <div class="card">
-    {% if scans %}
+    {% if scan_history.total > 0 %}
     <div class="table-scroll desktop-table">
     <table>
       <thead>
       <tr><th>Target</th><th>Type</th><th>Status</th><th>Security Score</th><th>Created</th><th></th></tr>
       </thead>
       <tbody>
-      {% for s in scans %}
+      {% for s in scan_history.items %}
       <tr>
         <td><code>{{ s.target_url }}</code></td>
         <td>{{ scan_type_labels.get(s.scan_type, s.scan_type|title) }}</td>
@@ -330,7 +332,7 @@
     </table>
     </div>
     <ul class="mobile-record-cards">
-      {% for s in scans %}
+      {% for s in scan_history.items %}
       <li class="card record-card">
         <div class="record-card-top">
           <code class="record-card-id">{{ s.target_url }}</code>
@@ -347,6 +349,7 @@
       </li>
       {% endfor %}
     </ul>
+    {{ pagination_nav(scan_history.page, scan_history.pages) }}
     {% else %}
     {% call empty_state('No scans yet.', '', cta_label='Run your first scan →', cta_url=url_for('scan.new_scan')) %}
     <use href="#icon-radar"/>

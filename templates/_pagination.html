@@ -1,0 +1,76 @@
+{#
+  Shared pagination component (09-CONTEXT.md D-03). The single
+  pagination_nav() implementation app-wide - dashboard.html/assets.html/
+  org_admin.html/scan_report.html each `{% from "_pagination.html" import
+  pagination_nav %}` and call it immediately below the list/table it
+  paginates, never above (09-UI-SPEC.md's explicit placement rule).
+
+  Usage: `{% include "_pagination.html" %}` once in a page's
+  `{% block head %}` for this file's <style> block, AND
+  `{% from "_pagination.html" import pagination_nav %}` wherever the macro
+  is called - same two-step convention `_empty_state.html` documents, for
+  the same reason (`{% include %}` shares template variables but does not
+  export a template's macros into the including template's namespace, and
+  `{% from ... import %}` only pulls in the named macro, never a template's
+  top-level output such as its <style> block).
+
+  Signature: pagination_nav(page, total_pages) - renders 09-UI-SPEC.md's
+  "Numbered pagination controls (D-03)" markup verbatim: a desktop nav
+  (Prev / numbered pages / Next) and a mobile nav (Prev / "Page N of M" /
+  Next) are BOTH always present in the DOM; a `@media (max-width: 430px)`
+  rule - matching base.html's `--bp-card`/.desktop-table/.mobile-record-cards
+  breakpoint, the same dual-markup convention Phase 7 established for
+  tables - selects exactly one. Never a JS-driven show/hide.
+
+  The numbered-page row (`.pagination-pages`) is omitted entirely when
+  `total_pages <= 1` (09-UI-SPEC.md: "1 page: controls render but Prev/Next
+  both disabled, no page-number row, avoids a pointless '1' button alone").
+  Prev/Next themselves always render in both nav blocks and carry
+  `aria-disabled="true"` (rendered, not removed - screen readers still
+  announce the control exists at either page boundary) plus `tabindex="-1"`
+  whenever `page` is at that boundary - including the single-page case,
+  where both are disabled at once.
+
+  Callers own the zero-row case: render `empty_state(...)` (see
+  `_empty_state.html`) INSTEAD OF `pagination_nav(...)` when the underlying
+  Pagination object's `.total` is 0 - this macro assumes `total_pages >= 1`
+  and does not itself special-case an empty list.
+#}
+<style>
+  .pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-2); margin-top: var(--space-5); }
+  .pagination-pages { display: flex; align-items: center; gap: var(--space-2); }
+  .pagination-page {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 32px; min-height: 32px; padding: 0 4px;
+    font-family: "Fira Code", monospace; font-size: 13px; font-weight: 600;
+    color: var(--muted); border-radius: 6px; text-decoration: none;
+  }
+  .pagination-page.active { background: var(--accent-dim); color: var(--accent); }
+  .pagination a[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+  .pagination-count { font-size: 13px; color: var(--muted); }
+  /* Dual-markup swap, mirrors base.html's .desktop-table/.mobile-record-cards
+     @media (max-width: 430px) rule exactly - same --bp-card breakpoint. */
+  .pagination-mobile { display: none; }
+  @media (max-width: 430px) {
+    .pagination:not(.pagination-mobile) { display: none; }
+    .pagination-mobile { display: flex; }
+  }
+</style>
+{% macro pagination_nav(page, total_pages) %}
+<nav class="pagination" aria-label="Pagination">
+  <a class="btn secondary" href="?page={{ page - 1 }}" {% if page <= 1 %}aria-disabled="true" tabindex="-1"{% endif %}>Prev</a>
+  {% if total_pages > 1 %}
+  <div class="pagination-pages">
+    {% for p in range(1, total_pages + 1) %}
+    <a class="pagination-page{{ ' active' if p == page }}" href="?page={{ p }}" {% if p == page %}aria-current="page"{% endif %}>{{ p }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <a class="btn secondary" href="?page={{ page + 1 }}" {% if page >= total_pages %}aria-disabled="true" tabindex="-1"{% endif %}>Next</a>
+</nav>
+<nav class="pagination pagination-mobile" aria-label="Pagination">
+  <a class="btn secondary" href="?page={{ page - 1 }}" {% if page <= 1 %}aria-disabled="true" tabindex="-1"{% endif %}>Prev</a>
+  <span class="pagination-count">Page {{ page }} of {{ total_pages }}</span>
+  <a class="btn secondary" href="?page={{ page + 1 }}" {% if page >= total_pages %}aria-disabled="true" tabindex="-1"{% endif %}>Next</a>
+</nav>
+{% endmacro %}

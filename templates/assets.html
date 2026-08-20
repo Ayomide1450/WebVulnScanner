@@ -2,6 +2,7 @@
 {% block title %}Assets - WebVulnScanner{% endblock %}
 {% block head %}
 {% include "_empty_state.html" %}
+{% include "_pagination.html" %}
 <style>
   h1 { margin-top: 20px; }
   a.row-link { color: var(--accent); text-decoration:none; }
@@ -9,6 +10,7 @@
 {% endblock %}
 {% block content %}
 {% from "_empty_state.html" import empty_state %}
+{% from "_pagination.html" import pagination_nav %}
 <div class="wrap">
   <h1>Assets</h1>
   <p style="color: var(--muted); font-size: 13px;">
@@ -21,14 +23,14 @@
   </a>
 
   <div class="card">
-    {% if assets %}
+    {% if assets.total > 0 %}
     <div class="table-scroll desktop-table">
     <table>
       <thead>
       <tr><th>Name</th><th>Target</th><th>Cadence</th><th>Next run</th><th>Latest status</th><th>Actions</th></tr>
       </thead>
       <tbody>
-      {% for a in assets %}
+      {% for a in assets.items %}
       {% set latest = a.scans|sort(attribute='created_at')|last if a.scans else None %}
       <tr>
         <td><a class="row-link" href="{{ url_for('asset.asset_detail', asset_id=a.id) }}">{{ a.name }}</a></td>
@@ -49,7 +51,7 @@
     </table>
     </div>
     <ul class="mobile-record-cards">
-      {% for a in assets %}
+      {% for a in assets.items %}
       {% set latest = a.scans|sort(attribute='created_at')|last if a.scans else None %}
       <li class="card record-card">
         <div class="record-card-top">
@@ -70,6 +72,7 @@
       </li>
       {% endfor %}
     </ul>
+    {{ pagination_nav(assets.page, assets.pages) }}
     {% else %}
     {% call empty_state(
       'No assets yet.',
