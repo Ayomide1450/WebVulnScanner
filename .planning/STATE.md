@@ -1,20 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Production Audit, Hardening & Redesign
-status: Awaiting next milestone
-stopped_at: Phase 9 planned — 4 PLAN.md files written directly (no researcher/planner/checker
-last_updated: "2026-08-20T07:57:56.451Z"
+milestone: v1.2
+milestone_name: Live Verification Closeout
+status: planning
+last_updated: "2026-08-20T08:51:17.971Z"
 last_activity: 2026-08-20
-last_activity_desc: Milestone v1.1 completed and archived
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 25
-  completed_plans: 25
-  percent: 100
-current_phase: 08
-current_phase_name: Security Re-Audit & Hardening
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -29,10 +25,10 @@ non-destructive scans against their own infrastructure and get findings they can
 
 ## Current Position
 
-Phase: Milestone v1.1 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-08-20 — Milestone v1.1 completed and archived
+Status: Defining requirements
+Last activity: 2026-08-20 — Milestone v1.2 started
 
 ## Performance Metrics
 

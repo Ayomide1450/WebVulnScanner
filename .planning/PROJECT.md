@@ -73,10 +73,26 @@ weakening its safety guarantees to become a general attack tool.
   N+1 audit (none found) plus real pagination on every unbounded list, and closed empty/submitting/
   duplicate-scan/timeout UX states
 
-## Current Milestone: Planning next
+## Current Milestone: v1.2 Live Verification Closeout
 
-v1.1 shipped 2026-08-20. No v1.2 milestone has been scoped yet — run `/gsd-new-milestone` to
-define the next one (questioning → research → requirements → roadmap).
+**Goal:** Actually run the `checkpoint:human-verify` gates deferred at v1.1 close (phases 5, 6, 7,
+9 — responsive four-width sweep, keyboard/AT operability, WCAG AA contrast, live scan-progress
+feed re-check, and end-to-end UX flow confirmation) against the real Fly deployment, and fix any
+real defect found. No new feature scope — this closes debt v1.1 explicitly carried forward rather
+than compounding it further.
+
+### Active
+
+- [ ] Four-width responsive sweep (320px/375px/768px/1280px) of every page against
+      `https://webvulnscanner.fly.dev`, per 07-07-PLAN.md's original checklist
+- [ ] Keyboard-only operability walkthrough (every interactive element reachable/operable, visible
+      focus state)
+- [ ] WCAG AA contrast confirmation with a real contrast-checking tool (not just the token math)
+- [ ] Live scan-progress feed (SSE) re-confirmation at all four widths against a real running scan
+- [ ] End-to-end confirmation that Phase 5's New Scan wizard and Phase 9's UX states (empty/
+      submitting/duplicate-scan/timeout) actually behave correctly in a live browser
+- [ ] Fix any real defect found during the above (scoped to what the sweep surfaces — not a
+      redesign)
 
 ### Out of Scope
 
@@ -190,4 +206,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-20 — milestone v1.1 (Production Audit, Hardening & Redesign) shipped*
+*Last updated: 2026-08-20 — milestone v1.2 (Live Verification Closeout) started*
