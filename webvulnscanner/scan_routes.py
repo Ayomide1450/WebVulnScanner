@@ -57,6 +57,7 @@ from webvulnscanner.checks import (
     CHECK_CATEGORY,
     CHECK_COMPLIANCE,
     CHECK_LABELS,
+    SECURITY_DOMAIN_MAP,
     detect_login_form,
     is_ssrf_safe_hostname,
     normalize_target,
@@ -75,11 +76,12 @@ from webvulnscanner.scan_engine import (
 
 scan = Blueprint("scan", __name__)
 
-# Allowlist for the report page's `?group=` query parameter (COMP-02). Any
-# value not in this tuple is coerced to "severity" in scan_report() before it
-# ever reaches render_template() or the page - keeps an arbitrary/garbage
-# query-string value from being echoed anywhere (T-03-21).
-GROUPING_MODES = ("severity", "compliance")
+# Allowlist for the report page's `?group=` query parameter (COMP-02, and
+# v1.3 SCORE-02's "domain" mode). Any value not in this tuple is coerced to
+# "severity" in scan_report() before it ever reaches render_template() or
+# the page - keeps an arbitrary/garbage query-string value from being
+# echoed anywhere (T-03-21).
+GROUPING_MODES = ("severity", "compliance", "domain")
 
 # PERF-02: the severity-grouped (default) findings view is paginated at
 # 20/page, same as the other three D-03 lists - a plain Python slice, not a
@@ -1331,14 +1333,19 @@ def scan_report(scan_id):
         group = "severity"
 
     compliance_groups = []
+    domain_groups = []
     # findings_page/findings_page_num/findings_total_pages are only ever
-    # meaningful for the severity (default) view - group == "compliance"
-    # leaves them at these defaults, and scan_report.html's compliance
-    # branch never reads them (PERF-02's explicit scope boundary: the
-    # compliance-grouped view stays unpaginated).
+    # meaningful for the severity (default) view - group == "compliance" or
+    # "domain" leaves them at these defaults, and scan_report.html's
+    # compliance/domain branches never read them (PERF-02's explicit scope
+    # boundary: the compliance-grouped view stays unpaginated; domain
+    # follows the same precedent rather than inventing a new pagination
+    # rule for one grouping mode).
     findings_page, findings_page_num, findings_total_pages = [], 1, 1
     if group == "compliance":
         compliance_groups = group_findings_by_compliance(report.get("findings", []), CHECK_COMPLIANCE)
+    elif group == "domain":
+        domain_groups = group_findings_by_domain(report.get("findings", []), SECURITY_DOMAIN_MAP)
     else:
         sorted_findings = sorted(report.get("findings", []), key=lambda f: f.get("category", ""))
         findings_total_pages = max(1, ceil(len(sorted_findings) / FINDINGS_PER_PAGE))
@@ -1359,6 +1366,7 @@ def scan_report(scan_id):
     return render_template(
         "scan_report.html", scan=s, r=report, locked=report.get("locked_checks", []),
         CHECK_COMPLIANCE=CHECK_COMPLIANCE, group=group, compliance_groups=compliance_groups,
+        domain_groups=domain_groups,
         findings_page=findings_page, findings_page_num=findings_page_num,
         findings_total_pages=findings_total_pages,
         sensitive_path_lifecycle=lifecycle, previous_scan=previous_scan,
@@ -1433,6 +1441,36 @@ def group_findings_by_compliance(findings, mapping):
             groups.setdefault(category, []).append(f)
 
     result = [(category, groups[category]) for category in sorted(groups)]
+    if uncategorized:
+        result.append(("Uncategorized", uncategorized))
+    return result
+
+
+def group_findings_by_domain(findings, mapping):
+    """v1.3 SCORE-02: buckets a report's `findings` list by their mapped
+    security domain (SECURITY_DOMAIN_MAP), for the report page's new
+    "Domain" grouping mode - the product-facing reorganization SCORE-02
+    calls for, alongside the existing Severity/Compliance modes rather than
+    replacing either.
+
+    Same shape/contract as group_findings_by_compliance() above (plain
+    dicts in, `(domain, [finding, ...])` pairs out, "Uncategorized" always
+    last when non-empty) - the one difference is `mapping` here is a flat
+    `{check_name: domain_string}` dict (SECURITY_DOMAIN_MAP), not
+    CHECK_COMPLIANCE's `{check_name: {"owasp": ..., "asvs": ...}}` shape,
+    so it reads the value directly rather than pulling a sub-key.
+    """
+    groups = {}
+    uncategorized = []
+    for f in findings:
+        check_name = f.get("check_name") or ""
+        domain = mapping.get(check_name, "") if check_name else ""
+        if not domain:
+            uncategorized.append(f)
+        else:
+            groups.setdefault(domain, []).append(f)
+
+    result = [(domain, groups[domain]) for domain in sorted(groups)]
     if uncategorized:
         result.append(("Uncategorized", uncategorized))
     return result

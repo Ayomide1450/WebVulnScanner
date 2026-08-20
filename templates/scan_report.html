@@ -7,6 +7,13 @@
   .meta { color: var(--muted); font-size:13px; margin-bottom: 20px; }
   .score-summary h2 { margin: 0 0 6px; }
   .sev-pills { display:flex; gap:8px; flex-wrap:wrap; }
+  /* v1.3 SCORE-04: the production-readiness verdict, shown above the
+     severity pills - reuses .pill's existing severity color classes
+     (pass/medium/critical) rather than a new color family. */
+  .readiness-verdict { margin: 8px 0 14px; }
+  .readiness-verdict .coverage-note { margin-left: 8px; color: var(--muted); font-size: 12px; }
+  .readiness-reasons { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+  .readiness-reasons li { margin-bottom: 2px; }
 
   details { background: var(--panel); border:1px solid var(--border); border-radius: 12px; margin-bottom: 8px; overflow:hidden; }
   summary { padding: 13px 16px; cursor: pointer; font-weight: 600; font-size: 14px; list-style: none; display:flex; justify-content: space-between; align-items:center; }
@@ -125,6 +132,7 @@
   {% if compliance_entry.get('asvs') %}<span class="cat">ASVS {{ compliance_entry.get('asvs') }}</span>{% endif %}
   {% if f.get('confidence') %}<span class="pill compliance" title="How certain this specific finding is - separate from severity">{{ f.confidence }}</span>{% endif %}
   {% if f.get('cwe') %}<span class="pill compliance">{{ f.cwe }}</span>{% endif %}
+  {% if f.get('verification_state') %}<span class="pill compliance" title="Attack-surface verification stage">{{ f.verification_state }}</span>{% endif %}
   <div class="body">
     <b>{{ f.title }}</b>
     <div class="detail">{{ f.detail }}</div>
@@ -153,6 +161,18 @@
     {% include "_gauge.html" %}
     <div class="score-summary">
       <h2>This scan's risk score</h2>
+      {% if r.get('readiness_verdict') %}
+      {% set verdict_pill_class = {'READY': 'pass', 'READY WITH WARNINGS': 'medium', 'NOT READY': 'critical'}.get(r.readiness_verdict, 'info') %}
+      <div class="readiness-verdict">
+        <span class="pill {{ verdict_pill_class }}" style="font-size:13px; padding:6px 14px;">{{ r.readiness_verdict }}</span>
+        {% if r.get('check_coverage_pct') is not none %}<span class="coverage-note">{{ r.check_coverage_pct }}% of applicable checks ran</span>{% endif %}
+        {% if r.get('readiness_reasons') %}
+        <ul class="readiness-reasons">
+          {% for reason in r.readiness_reasons %}<li>{{ reason }}</li>{% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      {% endif %}
       <div class="sev-pills">
         {% for sev in ['critical','high','medium','low','info'] %}
           {% if r.severity_counts.get(sev, 0) > 0 %}
@@ -186,18 +206,25 @@
   {% if r.findings|length > 0 %}
   <div class="group-toggle">
     <span class="label">Group by:</span>
-    {% if group == 'severity' %}
-    <a class="btn secondary" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='severity') }}" aria-current="true">Severity</a>
-    <a class="btn ghost" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='compliance') }}">Compliance</a>
-    {% else %}
-    <a class="btn ghost" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='severity') }}">Severity</a>
-    <a class="btn secondary" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='compliance') }}" aria-current="true">Compliance</a>
-    {% endif %}
+    <a class="btn {{ 'secondary' if group == 'severity' else 'ghost' }}" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='severity') }}" {% if group == 'severity' %}aria-current="true"{% endif %}>Severity</a>
+    <a class="btn {{ 'secondary' if group == 'compliance' else 'ghost' }}" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='compliance') }}" {% if group == 'compliance' %}aria-current="true"{% endif %}>Compliance</a>
+    <a class="btn {{ 'secondary' if group == 'domain' else 'ghost' }}" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='domain') }}" {% if group == 'domain' %}aria-current="true"{% endif %}>Domain</a>
   </div>
   {% endif %}
   <h2 class="section">Findings ({{ r.findings|length }})</h2>
   {% if group == 'compliance' %}
     {% for category, group_findings in compliance_groups %}
+      <details open>
+        <summary>{{ category }} <span class="arrow">&#9656;</span></summary>
+        <div class="details-body">
+          {% for f in group_findings %}{{ finding_card(f) }}{% endfor %}
+        </div>
+      </details>
+    {% else %}
+      <p class="empty">No findings.</p>
+    {% endfor %}
+  {% elif group == 'domain' %}
+    {% for category, group_findings in domain_groups %}
       <details open>
         <summary>{{ category }} <span class="arrow">&#9656;</span></summary>
         <div class="details-body">

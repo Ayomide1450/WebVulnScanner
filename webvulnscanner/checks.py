@@ -155,6 +155,71 @@ CHECK_COMPLIANCE = {
     "js_discovery":      {"owasp": "A01:2021-Broken Access Control",     "asvs": "V13"},
 }
 
+# v1.3 SCORE-01: groups every check_name into one of the 11 product-facing
+# finding domains the scan report displays (parallel to CHECK_COMPLIANCE
+# above - same coverage-lock pattern, see tests/test_security_domains.py).
+# "Security Posture" and "Production Readiness" are deliberately NOT values
+# here - those are the report's aggregate summary/verdict sections, not
+# domains any single check's findings belong to.
+#
+# This is this project's own judgment mapping (same caveat CHECK_COMPLIANCE
+# already carries), not sourced from an authoritative taxonomy. A few checks
+# span domains and needed a call: xss_sqli/sqli_union/xss_stored/sri/
+# mixed_content are grouped under Client Security (the browser-facing half
+# of what they test) rather than splitting each into its own bucket;
+# cors/schema/wordlist/js_discovery all go to API Security since every one
+# of them probes the API/cross-origin surface specifically, distinct from
+# Configuration's general response/header hardening checks.
+SECURITY_DOMAIN_MAP = {
+    # base scan
+    "headers":           "Configuration",
+    "cookies":           "Configuration",
+    "tls":               "TLS",
+    "https_redirect":    "TLS",
+    "sensitive_paths":   "Attack Surface",
+    "robots_sitemap":    "Attack Surface",
+    "open_ports":        "Attack Surface",
+    "cors":              "API Security",
+    "http_methods":      "Configuration",
+    "open_redirect":     "Configuration",
+    "directory_listing": "Configuration",
+    "mixed_content":     "Client Security",
+    "dns_email":         "DNS & Domains",
+    "vulnerable_js":     "Dependencies",
+    "xss_sqli":          "Client Security",
+    "secrets":           "Secrets",
+    "sri":               "Client Security",
+    "jwt":               "Authentication",
+    # advanced scan
+    "sqli_login":        "Authentication",
+    "bruteforce":        "Authentication",
+    "sqli_union":        "Client Security",
+    "xss_stored":        "Client Security",
+    "idor":              "Authorization",
+    # media scan
+    "media":             "Privacy",
+    # api scan
+    "schema":            "API Security",
+    "wordlist":          "API Security",
+    "js_discovery":      "API Security",
+}
+
+# The 11 real finding-groups a check_name can map to, plus the two
+# aggregate-only sections a report can show (never a check_name's target).
+SECURITY_DOMAINS = (
+    "Attack Surface", "Authentication", "Authorization", "API Security",
+    "Client Security", "Configuration", "Secrets", "DNS & Domains", "TLS",
+    "Dependencies", "Privacy",
+)
+SECURITY_POSTURE_SECTIONS = ("Security Posture", "Production Readiness")
+
+
+def security_domain_for(check_name):
+    """Mirrors owasp_category_for()'s degrade-gracefully convention - a
+    check_name missing from SECURITY_DOMAIN_MAP falls back to
+    "Uncategorized" at render time instead of raising."""
+    return SECURITY_DOMAIN_MAP.get(check_name, "Uncategorized")
+
 # (label, regex, severity). High-confidence formats (AWS/Stripe/GitHub/private
 # keys) are critical/high; ambiguous generic patterns are medium to keep the
 # false-positive rate manageable; publishable keys/JWTs are info since those
@@ -259,6 +324,18 @@ CONFIDENCE_LEVELS = (
     "Informational",            # not a security claim at all (a policy note, a benign absence)
     "Not Externally Verifiable",  # the check itself could not complete/observe enough to judge
 )
+
+# v1.3 SCORE-03/SCORE-04: how much a finding's confidence should count
+# toward the production-readiness verdict (scan_engine._compute_readiness) -
+# a separate signal from the numeric risk score (scan_engine._score_report),
+# which stays untouched/severity-only (see that function's own docstring and
+# its source-parsing regression lock in tests/test_scan_engine.py - 20+
+# existing tests depend on its exact arithmetic, so this milestone extends
+# scoring via a companion signal instead of risking that lock). Informational
+# findings never gate readiness; Confirmed/Strong Evidence findings always
+# do; Potential/Not Externally Verifiable findings are visible but don't
+# alone block a READY verdict.
+READINESS_GATING_CONFIDENCE = {"Confirmed", "Strong Evidence"}
 
 
 @dataclass
@@ -884,7 +961,8 @@ def check_sensitive_paths(base_url, session):
                        recommendation="Verify that the sensitive file/path does not exist on the production "
                                        "server and that this blocking rule is intentional.")
             findings.append(Finding("Sensitive Path Exposure", f"Blocked path returned 403: /{path}", "low",
-                                     row["detail"], row["recommendation"], confidence="Potential"))
+                                     row["detail"], row["recommendation"], confidence="Potential",
+                                     verification_state="Potential Risk"))
             rows.append(row)
             continue
 
@@ -944,7 +1022,8 @@ def check_sensitive_paths(base_url, session):
             # the third-party LLM (see its docstring) - the matched fragment
             # must never be included there, only the signature label.
             findings.append(Finding("Sensitive Path Exposure", f"Confirmed exposure: /{path}", sev,
-                                     row["detail"] + " " + impact, remediation, confidence="Confirmed"))
+                                     row["detail"] + " " + impact, remediation, confidence="Confirmed",
+                                     verification_state="Confirmed Finding"))
         else:
             row.update(classification="needs_review", severity="medium", confidence="low",
                        title="Reachable, not confirmed",
@@ -953,7 +1032,8 @@ def check_sensitive_paths(base_url, session):
                        recommendation="Verify the resource manually or review the production server "
                                        "configuration.")
             findings.append(Finding("Sensitive Path Exposure", f"Unconfirmed reachable path: /{path}", "medium",
-                                     row["detail"], row["recommendation"], confidence="Potential"))
+                                     row["detail"], row["recommendation"], confidence="Potential",
+                                     verification_state="Potential Risk"))
         rows.append(row)
 
     # security.txt stays its own informational-only probe (not a vulnerability
@@ -1074,14 +1154,16 @@ def check_open_ports(hostname):
                     "The response is branded as your CDN (Cloudflare/etc.), not an unbranded origin service - "
                     "likely an 'alternate ports' feature left enabled rather than a real exposed backend.",
                     "If you don't intentionally use this port, disable alternate ports in your CDN's "
-                    "network/firewall settings to shrink probe-able surface.", confidence="Strong Evidence"))
+                    "network/firewall settings to shrink probe-able surface.", confidence="Strong Evidence",
+                    verification_state="Observed"))
             else:
                 rows.append({"port": port, "status": "warn",
                              "note": f"Responded with an unbranded service banner: {snippet}"})
                 findings.append(Finding(
                     "Network", f"Unbranded service responding on unexpected port {port}", "high",
                     "This does not look like your CDN/edge - it may be a real backend service exposed directly.",
-                    "Firewall this port or bind the service to localhost/a private network only.", confidence="Strong Evidence"))
+                    "Firewall this port or bind the service to localhost/a private network only.", confidence="Strong Evidence",
+                    verification_state="Potential Risk"))
     rows.sort(key=lambda r: r["port"])
     return rows, ip, findings
 
