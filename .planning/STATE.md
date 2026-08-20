@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Live Verification Closeout
+milestone: v1.3
+milestone_name: Glassbox Rebrand & Production Security Readiness
 status: planning
-last_updated: "2026-08-20T08:51:17.971Z"
+last_updated: "2026-08-20T11:15:10.906Z"
 last_activity: 2026-08-20
 progress:
   total_phases: 0
@@ -25,10 +25,14 @@ non-destructive scans against their own infrastructure and get findings they can
 
 ## Current Position
 
-Phase: 10 (Live Verification Closeout) — roadmapped, ready to plan
+Phase: Not started (defining requirements)
 Plan: —
-Status: Roadmap approved, awaiting /gsd-plan-phase 10
-Last activity: 2026-08-20 — Milestone v1.2 roadmap created (single phase, 9 requirements)
+Status: Defining requirements
+Last activity: 2026-08-20 — Milestone v1.3 started
+
+**Note:** v1.2's Phase 10 (Live Verification Closeout, 9 requirements) is not abandoned - it's
+real, valid, deferred work reprioritized behind v1.3 per explicit user instruction. It stays in
+ROADMAP.md as "Not started" and should be picked up once v1.3's higher-priority phases land.
 
 ## Performance Metrics
 

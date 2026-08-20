@@ -73,26 +73,46 @@ weakening its safety guarantees to become a general attack tool.
   N+1 audit (none found) plus real pagination on every unbounded list, and closed empty/submitting/
   duplicate-scan/timeout UX states
 
-## Current Milestone: v1.2 Live Verification Closeout
+## Current Milestone: v1.3 Glassbox Rebrand & Production Security Readiness
 
-**Goal:** Actually run the `checkpoint:human-verify` gates deferred at v1.1 close (phases 5, 6, 7,
-9 — responsive four-width sweep, keyboard/AT operability, WCAG AA contrast, live scan-progress
-feed re-check, and end-to-end UX flow confirmation) against the real Fly deployment, and fix any
-real defect found. No new feature scope — this closes debt v1.1 explicitly carried forward rather
-than compounding it further.
+**Goal:** Rebrand the product from WebVulnScanner to Glassbox (in-app branding + a live Fly app
+migration to `glassbox.fly.dev`, no purchased custom domain yet), then extend the scan engine's
+existing architecture — reusing all current checks, the OWASP-mapped compliance layer, ownership
+verification, and scan pipelines rather than duplicating any of it — into a full "Production
+Security Readiness" assessment: an extended `Finding` schema (confidence/CWE/verification-state),
+domain-grouped scoring with a READY/READY WITH WARNINGS/NOT READY verdict, a handful of net-new
+checks (file upload, security.txt, privacy/PII, caching, GraphQL), and a "Request Expert
+Assessment" lead-gen CTA. Every new check and UI change must preserve the frozen safety surface
+(`authorized*`, `entitlements.py`, `is_ssrf_safe_hostname()`) and non-destructive testing
+constraints exactly as CLAUDE.md already documents them — this milestone extends the assessment
+depth and product framing, it does not change what the scanner is allowed to do to a target.
+
+**Sequencing:** Phase 11 (rebrand) goes first, mechanical and lower-risk, so every later phase's
+new templates/docs/copy are written under the new name from the start rather than needing a
+second pass. Phases 12-15 are the architecture work, roughly in dependency order (schema before
+scoring before net-new checks before the CTA, though 14/15 are largely independent of each other).
 
 ### Active
 
-- [ ] Four-width responsive sweep (320px/375px/768px/1280px) of every page against
-      `https://webvulnscanner.fly.dev`, per 07-07-PLAN.md's original checklist
-- [ ] Keyboard-only operability walkthrough (every interactive element reachable/operable, visible
-      focus state)
-- [ ] WCAG AA contrast confirmation with a real contrast-checking tool (not just the token math)
-- [ ] Live scan-progress feed (SSE) re-confirmation at all four widths against a real running scan
-- [ ] End-to-end confirmation that Phase 5's New Scan wizard and Phase 9's UX states (empty/
-      submitting/duplicate-scan/timeout) actually behave correctly in a live browser
-- [ ] Fix any real defect found during the above (scoped to what the sweep surfaces — not a
-      redesign)
+- [ ] **Phase 11 — Rebrand**: in-app branding swap (templates/meta/emails/docs) to "Glassbox";
+      new `glassbox` Fly app with all 12 secrets migrated and verified healthy before
+      `webvulnscanner` is decommissioned
+- [ ] **Phase 12 — Finding schema**: `confidence`/`cwe`/`verification_state` fields added to
+      `Finding`, backfilled honestly at all ~50 existing construction sites, regression-tested
+- [ ] **Phase 13 — Domain grouping & scoring v2**: `SECURITY_DOMAIN_MAP` (13 product-facing
+      domains) alongside the existing `CHECK_COMPLIANCE`, scoring extended to weight
+      confidence/coverage not just severity count, READY/READY WITH WARNINGS/NOT READY verdict,
+      report UI reorganized into domain groups instead of a flat list
+- [ ] **Phase 14 — Net-new checks**: file upload security, security.txt/disclosure, privacy/PII
+      exposure, caching of sensitive data, GraphQL introspection — additive, each following the
+      existing `(data, findings)` check convention and non-destructive constraints
+- [ ] **Phase 15 — Request Expert Assessment**: new `AssessmentRequest` model + form (company/
+      domain/contact/email/phone/assessment type/scope/auth requirements/# domains/timeline/
+      notes), CSRF-protected and rate-limited like every other form, visible to platform admins
+
+**Deferred, not dropped:** v1.2's Phase 10 (Live Verification Closeout — the four-width
+responsive sweep, keyboard/contrast/live-feed re-confirmation deferred at v1.1 close) remains
+roadmapped and should be picked up once v1.3's phases land.
 
 ### Out of Scope
 
@@ -206,4 +226,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-20 — milestone v1.2 (Live Verification Closeout) started*
+*Last updated: 2026-08-20 — milestone v1.3 (Glassbox Rebrand & Production Security Readiness) started*
