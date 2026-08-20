@@ -29,6 +29,8 @@ from tests.conftest import login, make_org, make_scan, make_user
 FREE_TIER_JOBS = {
     "tls", "https_redirect", "sensitive_paths", "robots_sitemap",
     "mixed_content", "dns_email", "vulnerable_js", "secrets", "sri", "jwt",
+    # v1.3 Phase 14 net-new checks - all FREE tier (passive/read-only)
+    "file_upload", "privacy_exposure", "caching_sensitive",
 }
 
 
@@ -100,6 +102,7 @@ def _stub_all_checks(monkeypatch):
         "check_open_redirect", "check_directory_listing", "check_mixed_content",
         "check_dns_email_security", "check_vulnerable_js", "check_xss_sqli",
         "check_exposed_secrets", "check_sri", "check_jwt_weakness",
+        "check_file_upload", "check_privacy_exposure", "check_caching_sensitive_data",
     ]
     for name in plain_stub_names:
         monkeypatch.setattr(scan_engine, name, lambda *a, **k: ({}, []))

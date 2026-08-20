@@ -503,12 +503,14 @@ A05 = "A05:2021-Security Misconfiguration"
 A06 = "A06:2021-Vulnerable and Outdated Components"
 A07 = "A07:2021-Identification and Authentication Failures"
 
-# All 8 base-scan check names CHECK_COMPLIANCE maps to A05 - locking every
+# All 9 base-scan check names CHECK_COMPLIANCE maps to A05 - locking every
 # one of them is how these tests simulate "no other executed check maps to
 # that category" for a single-category not_checked/locked assertion.
+# caching_sensitive (v1.3 Phase 14) also maps to A05.
 A05_BASE_CHECK_NAMES = [
     "headers", "cookies", "sensitive_paths", "open_ports",
     "cors", "http_methods", "directory_listing", "dns_email",
+    "caching_sensitive",
 ]
 
 

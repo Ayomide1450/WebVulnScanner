@@ -69,6 +69,8 @@ CHECK_LABELS = {
     "mixed_content": "Mixed content", "dns_email": "DNS email security (SPF / DMARC / CAA)",
     "vulnerable_js": "Outdated JS libraries", "xss_sqli": "Same-origin crawl & parameter/XSS/SQLi testing",
     "robots_sitemap": "robots.txt / sitemap.xml", "jwt": "Client-visible JWT weaknesses",
+    "file_upload": "File upload input detection", "privacy_exposure": "Public email/phone exposure",
+    "caching_sensitive": "Cache-Control on account/auth paths",
 }
 
 # Icon-sprite key (see the <symbol id="icon-*"> sprite in templates/base.html)
@@ -86,6 +88,7 @@ CHECK_CATEGORY = {
     "sensitive_paths": "folder", "secrets": "folder", "sri": "folder", "robots_sitemap": "folder",
     "dns_email": "mail",
     "vulnerable_js": "bug", "xss_sqli": "bug", "jwt": "shield",
+    "file_upload": "folder", "privacy_exposure": "mail", "caching_sensitive": "lock",
 }
 
 # Check names each orchestrator can dispatch, grouped by scan_type - the
@@ -153,6 +156,10 @@ CHECK_COMPLIANCE = {
     "schema":            {"owasp": "A05:2021-Security Misconfiguration", "asvs": "V13"},
     "wordlist":          {"owasp": "A01:2021-Broken Access Control",     "asvs": "V13"},
     "js_discovery":      {"owasp": "A01:2021-Broken Access Control",     "asvs": "V13"},
+    # v1.3 Phase 14 net-new base-scan checks
+    "file_upload":       {"owasp": "A04:2021-Insecure Design",           "asvs": "V12.4"},
+    "privacy_exposure":  {"owasp": "A01:2021-Broken Access Control",     "asvs": None},
+    "caching_sensitive": {"owasp": "A05:2021-Security Misconfiguration", "asvs": "V8.1"},
 }
 
 # v1.3 SCORE-01: groups every check_name into one of the 11 product-facing
@@ -202,6 +209,10 @@ SECURITY_DOMAIN_MAP = {
     "schema":            "API Security",
     "wordlist":          "API Security",
     "js_discovery":      "API Security",
+    # v1.3 Phase 14 net-new base-scan checks
+    "file_upload":       "Configuration",
+    "privacy_exposure":  "Privacy",
+    "caching_sensitive": "Configuration",
 }
 
 # The 11 real finding-groups a check_name can map to, plus the two
@@ -1523,6 +1534,139 @@ def check_sri(base_url, home_html):
                                      "Add an integrity (SHA-384) hash, or self-host the stylesheet.", confidence="Confirmed"))
 
     return rows, findings
+
+
+# v1.3 Phase 14 net-new checks. CHECK-02 (security.txt) and CHECK-05
+# (GraphQL introspection) were NOT duplicated here - both already exist
+# (check_sensitive_paths' security.txt probe, check_api_schema_exposure's
+# GraphQL introspection query) - see 14-SUMMARY.md. Only the three
+# genuinely missing pre-production checks were added: file upload,
+# privacy/PII exposure, and caching of sensitive data.
+
+FILE_UPLOAD_DANGEROUS_EXTENSIONS = {
+    ".php", ".php3", ".php4", ".php5", ".phtml", ".asp", ".aspx", ".jsp",
+    ".jspx", ".exe", ".sh", ".bat", ".cmd", ".ps1", ".cgi", ".pl", ".py",
+}
+
+
+def check_file_upload(base_url, home_html):
+    """CHECK-01. Read-only: never uploads a file to the target (explicit
+    safety rule) - identifies upload functionality by looking for
+    `<input type="file">` in the homepage's own already-fetched HTML (no
+    new request), and reports what a security engineer should verify
+    manually before trusting it, rather than attempting to prove/disprove
+    those properties by actually uploading something."""
+    if not home_html:
+        return {"upload_forms_found": 0}, []
+    soup = BeautifulSoup(home_html, "html.parser")
+    file_inputs = soup.find_all("input", {"type": "file"})
+    if not file_inputs:
+        return {"upload_forms_found": 0}, []
+
+    rows = []
+    for inp in file_inputs:
+        form = inp.find_parent("form")
+        rows.append({
+            "name": inp.get("name") or "(unnamed)",
+            "accept": inp.get("accept") or "(none)",
+            "form_action": (form.get("action") if form else None) or base_url,
+            "form_method": (form.get("method") if form else "get").upper(),
+        })
+
+    findings = [Finding(
+        "File Upload", f"File upload input detected ({len(rows)} field(s))", "info",
+        "A file-upload form field was found on the homepage. This scanner never uploads a file "
+        "(non-destructive by design), so extension/MIME/size validation and storage isolation "
+        "cannot be verified externally - only that upload functionality exists.",
+        "Manually verify: server-side (not just client-side accept=) extension and MIME-type "
+        "validation, a file-size limit, uploaded files stored outside the webroot or served from "
+        "a separate origin/CDN with no execute permission, and randomized/non-guessable filenames.",
+        confidence="Confirmed", verification_state="Discovered",
+    )]
+    return {"upload_forms_found": len(rows), "rows": rows}, findings
+
+
+# Deliberately conservative - a generic \b\S+@\S+\.\S+\b pattern would false-
+# positive on version strings, CSS, and JS boilerplate constantly. Requires
+# a plausible local-part and TLD shape, same restraint SECRET_PATTERNS above
+# already applies to keep noise manageable.
+_EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]{2,64}@[A-Za-z0-9.-]{2,255}\.[A-Za-z]{2,24}\b")
+# US/international-ish phone shapes: (555) 123-4567, 555-123-4567,
+# +1 555 123 4567 - intentionally narrow (7-15 digits after normalization)
+# to avoid matching arbitrary numeric strings (order IDs, hashes, etc.).
+_PHONE_RE = re.compile(r"(?<!\w)(?:\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}(?!\w)")
+MAX_PRIVACY_HITS_PER_TYPE = 8
+
+
+def check_privacy_exposure(base_url, home_html):
+    """CHECK-03. Scans the already-fetched homepage HTML (no new requests)
+    for publicly exposed email addresses and phone numbers - a common
+    accidental privacy leak (support inboxes, personal emails left in
+    comments/JS, staff phone numbers) that has nothing to do with an
+    intentional public "Contact us" page, which this check does not try to
+    distinguish from a leak; that judgment is left to the reader via the
+    finding's `detail`, same restraint check_exposed_secrets already
+    applies to its own regex hits."""
+    if not home_html:
+        return {"emails": [], "phones": []}, []
+
+    text_only = BeautifulSoup(home_html, "html.parser").get_text(" ", strip=True)
+    emails = sorted(set(_EMAIL_RE.findall(text_only)))[:MAX_PRIVACY_HITS_PER_TYPE]
+    phones = sorted(set(_PHONE_RE.findall(text_only)))[:MAX_PRIVACY_HITS_PER_TYPE]
+
+    findings = []
+    if emails:
+        findings.append(Finding(
+            "Privacy", f"{len(emails)} email address(es) found in page content", "info",
+            "Email addresses appear directly in the homepage's visible text/markup. This may be "
+            "intentional (a support/contact address) or an accidental leak of a personal/internal "
+            "address.",
+            "Confirm every listed address is meant to be public; move any that aren't behind a "
+            "contact form instead.", confidence="Strong Evidence",
+        ))
+    if phones:
+        findings.append(Finding(
+            "Privacy", f"{len(phones)} phone number(s) found in page content", "info",
+            "Phone numbers appear directly in the homepage's visible text/markup.",
+            "Confirm every listed number is meant to be public.",
+            confidence="Potential",  # the phone regex has a real false-positive surface (order/ref numbers)
+        ))
+    return {"emails": emails, "phones": phones}, findings
+
+
+CACHEABLE_SENSITIVE_PATHS = ["login", "signin", "account", "dashboard", "profile", "admin", "settings"]
+
+
+def check_caching_sensitive_data(base_url, session):
+    """CHECK-04. Probes a small set of common auth/account-shaped paths
+    (unauthenticated GET only - never logs in, never sends credentials) and
+    flags any that respond 200 with a Cache-Control that would let a shared
+    cache store the response (missing entirely, or missing both
+    `no-store` and `private`). This is a same-origin, read-only GET against
+    paths the site itself defines - not a new attack surface, no different
+    from check_sensitive_paths' existing pattern."""
+    rows, findings = [], []
+    for path in CACHEABLE_SENSITIVE_PATHS:
+        try:
+            r = session.get(f"{base_url}/{path}", timeout=REQUEST_TIMEOUT, allow_redirects=False)
+        except requests.RequestException:
+            continue
+        if r.status_code != 200:
+            continue
+        cache_control = (r.headers.get("Cache-Control") or "").lower()
+        is_safe = "no-store" in cache_control or "private" in cache_control
+        rows.append({"path": "/" + path, "cache_control": r.headers.get("Cache-Control") or "(none)",
+                     "status": "pass" if is_safe else "warn"})
+        if not is_safe:
+            findings.append(Finding(
+                "Caching", f"/{path} lacks a private/no-store Cache-Control", "medium",
+                f"HTTP 200 with Cache-Control: {r.headers.get('Cache-Control') or '(not set)'} - a "
+                "shared/proxy cache could store this response, which is risky if it ever carries "
+                "session-specific or otherwise sensitive content once a real user is signed in.",
+                "Set 'Cache-Control: no-store' (or at least 'private') on any authenticated or "
+                "account-related response.", confidence="Strong Evidence",
+            ))
+    return {"rows": rows}, findings
 
 
 def check_api_schema_exposure(base_url, session):

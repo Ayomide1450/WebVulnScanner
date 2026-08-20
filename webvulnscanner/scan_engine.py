@@ -52,6 +52,9 @@ from webvulnscanner.checks import (
     check_exposed_secrets,
     check_jwt_weakness,
     check_sri,
+    check_file_upload,
+    check_privacy_exposure,
+    check_caching_sensitive_data,
     owasp_category_for,
     check_open_ports,
     check_media,
@@ -439,6 +442,9 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         "secrets": lambda: check_exposed_secrets(session, base_url, home_html),
         "jwt": lambda: check_jwt_weakness(session, base_url, home_html),
         "sri": lambda: check_sri(base_url, home_html),
+        "file_upload": lambda: check_file_upload(base_url, home_html),
+        "privacy_exposure": lambda: check_privacy_exposure(base_url, home_html),
+        "caching_sensitive": lambda: check_caching_sensitive_data(base_url, session),
     }
 
     # Captured before `jobs` is filtered down to `allowed` below - the base
@@ -576,6 +582,9 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         "secrets": results.get("secrets", {"locked": True}),
         "jwt": results.get("jwt", {"locked": True}),
         "sri": results.get("sri", {"locked": True}),
+        "file_upload": results.get("file_upload", {"locked": True}),
+        "privacy_exposure": results.get("privacy_exposure", {"locked": True}),
+        "caching_sensitive": results.get("caching_sensitive", {"locked": True}),
         "crawl": {"discovered_urls": param_urls, "forms": forms},
         "locked_checks": locked,
     }
