@@ -25,10 +25,10 @@ non-destructive scans against their own infrastructure and get findings they can
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 10 (Live Verification Closeout) — roadmapped, ready to plan
 Plan: —
-Status: Defining requirements
-Last activity: 2026-08-20 — Milestone v1.2 started
+Status: Roadmap approved, awaiting /gsd-plan-phase 10
+Last activity: 2026-08-20 — Milestone v1.2 roadmap created (single phase, 9 requirements)
 
 ## Performance Metrics
 
