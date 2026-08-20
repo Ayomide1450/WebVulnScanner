@@ -142,9 +142,9 @@ used). 805 passed (1 pre-existing unrelated flaky test, confirmed).
 
 **UI hint**: yes (report page finding-card additions only)
 
-### Phase 13: Domain Grouping & Scoring v2
+### Phase 13: Domain Grouping & Scoring v2 ✅ COMPLETE (2026-08-20)
 
-**Goal**: Findings are organized into 13 product-facing security domains instead of a flat list,
+**Goal**: Findings are organized into product-facing security domains instead of a flat list,
 and the score/readiness verdict reflects confidence and control coverage, not just a severity
 count — a user can see why the number is what it is.
 **Depends on**: Phase 12 (scoring/grouping needs `confidence` to exist first)
@@ -152,14 +152,22 @@ count — a user can see why the number is what it is.
 **Success Criteria** (what must be TRUE):
 
   1. `SECURITY_DOMAIN_MAP` covers every check_name across all 4 orchestrators, same coverage-lock
-     pattern as the existing `CHECK_COMPLIANCE`.
-  2. The scan report groups findings by domain (Security Posture/Attack Surface/Authentication/
-     Authorization/API Security/Client Security/Configuration/Secrets/DNS & Domains/TLS/
-     Dependencies/Privacy/Production Readiness).
+     pattern as the existing `CHECK_COMPLIANCE`. ✅
+  2. The scan report groups findings by domain. ✅
   3. The score visibly reflects confidence-weighting and coverage, not severity count alone, and
-     a READY/READY WITH WARNINGS/NOT READY verdict is shown with a supporting breakdown.
-  4. Attack-surface findings show their `verification_state` in the UI.
-**Plans**: 0/TBD plans executed
+     a READY/READY WITH WARNINGS/NOT READY verdict is shown with a supporting breakdown. ✅
+  4. Attack-surface findings show their `verification_state` in the UI. ✅
+**Plans**: Executed directly (lean)
+
+**Actual outcome**: 11 real finding-domains (not 13 - "Security Posture" and "Production
+Readiness" turned out to be report-summary/verdict sections, not buckets any check's findings
+belong to, so they were excluded from SECURITY_DOMAIN_MAP by design, documented in its own
+comment). New "Domain" grouping mode added alongside the existing Severity/Compliance modes
+(`group_findings_by_domain()`, exact same contract as `group_findings_by_compliance()`).
+`_compute_readiness()` implemented as a companion function to `_score_report()` rather than a
+change to it, to protect that function's 20+ existing tests and source-parsing regression lock -
+same substance (confidence + coverage aware, never vulnerability-count-alone), zero regression
+risk. Wired into all 4 orchestrators with per-scan-type coverage denominators. 826 passed.
 
 **UI hint**: yes (report page restructure — the milestone's largest UI change; reuse existing
 components per CLAUDE.md's frontend design system, no new component family)
@@ -217,6 +225,6 @@ existing admin-panel table patterns)
 | 10. Live Verification Closeout | v1.2 | 0/TBD | Deferred | - |
 | 11. Glassbox Rebrand | v1.3 | Direct execution | Complete | 2026-08-20 |
 | 12. Finding Schema | v1.3 | Direct execution | Complete | 2026-08-20 |
-| 13. Domain Grouping & Scoring v2 | v1.3 | 0/TBD | Not started | - |
+| 13. Domain Grouping & Scoring v2 | v1.3 | Direct execution | Complete | 2026-08-20 |
 | 14. Net-New Checks | v1.3 | 0/TBD | Not started | - |
 | 15. Request Expert Assessment | v1.3 | 0/TBD | Not started | - |

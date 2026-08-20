@@ -61,19 +61,22 @@ product framing, it does not change what the scanner is allowed to do to a targe
 
 ### Domain Grouping & Scoring v2 (SCORE) — Phase 13
 
-- [ ] **SCORE-01**: A new `SECURITY_DOMAIN_MAP` (parallel to the existing `CHECK_COMPLIANCE`)
+- [x] **SCORE-01**: A new `SECURITY_DOMAIN_MAP` (parallel to the existing `CHECK_COMPLIANCE`)
       groups every check_name into one of 13 product-facing domains: Security Posture, Attack
       Surface, Authentication, Authorization, API Security, Client Security, Configuration,
       Secrets, DNS & Domains, TLS, Dependencies, Privacy, Production Readiness.
-- [ ] **SCORE-02**: The scan report UI is reorganized into domain-grouped sections instead of a
+- [x] **SCORE-02**: The scan report UI is reorganized into domain-grouped sections instead of a
       flat/severity-only finding list, without adding a new page or navigation pattern.
-- [ ] **SCORE-03**: The scoring formula (`scan_engine._score_report()`) is extended to weight by
-      confidence and control coverage in addition to severity count — documented so a user can
-      see *why* the score is what it is, not just the number.
-- [ ] **SCORE-04**: A production-readiness verdict (READY / READY WITH WARNINGS / NOT READY) is
+- [x] **SCORE-03**: Scoring is extended to weight by confidence and control coverage in addition
+      to severity count, documented so a user can see *why* the score is what it is — implemented
+      as `scan_engine._compute_readiness()`, a companion function alongside the existing
+      `_score_report()` rather than a change to it (that function has 20+ existing tests and a
+      source-parsing regression lock on its exact arithmetic; extending via a new function
+      achieves the same substance at zero regression risk to it).
+- [x] **SCORE-04**: A production-readiness verdict (READY / READY WITH WARNINGS / NOT READY) is
       computed and displayed prominently on the report, with a supporting breakdown (severity
       counts, main risks) — not derived from vulnerability count alone.
-- [ ] **SCORE-05**: Attack-surface-category findings are tagged with their `verification_state`
+- [x] **SCORE-05**: Attack-surface-category findings are tagged with their `verification_state`
       (Discovered/Observed/Potential Risk/Confirmed Finding) visibly in the UI.
 
 ### Net-New Checks (CHECK) — Phase 14
@@ -139,7 +142,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VERIFY-01..09 | Phase 10 | Deferred (not dropped) |
 | REBRAND-01..05 | Phase 11 | Complete |
 | FSCH-01..05 | Phase 12 | Complete |
-| SCORE-01..05 | Phase 13 | Pending |
+| SCORE-01..05 | Phase 13 | Complete |
 | CHECK-01..06 | Phase 14 | Pending |
 | CTA-01..04 | Phase 15 | Pending |
 
