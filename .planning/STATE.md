@@ -25,11 +25,12 @@ non-destructive scans against their own infrastructure and get findings they can
 
 ## Current Position
 
-Phase: 14 (Net-New Checks) — up next
+Phase: 15 (Request Expert Assessment) — up next, last phase of v1.3
 Plan: —
-Status: Phase 13 (Domain Grouping & Scoring v2) complete; ready to start Phase 14
-Last activity: 2026-08-20 — Phase 13 executed directly (SECURITY_DOMAIN_MAP, domain grouping
-mode, _compute_readiness() verdict, verification_state on attack-surface findings), 826 passed
+Status: Phase 14 (Net-New Checks) complete; ready to start Phase 15
+Last activity: 2026-08-20 — Phase 14 executed directly (check_file_upload/privacy_exposure/
+caching_sensitive_data added; security.txt + GraphQL confirmed already existing, not duplicated),
+839 passed
 
 **Note:** v1.2's Phase 10 (Live Verification Closeout, 9 requirements) is not abandoned - it's
 real, valid, deferred work reprioritized behind v1.3 per explicit user instruction. It stays in

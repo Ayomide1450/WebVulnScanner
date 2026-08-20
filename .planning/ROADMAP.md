@@ -172,11 +172,18 @@ risk. Wired into all 4 orchestrators with per-scan-type coverage denominators. 8
 **UI hint**: yes (report page restructure — the milestone's largest UI change; reuse existing
 components per CLAUDE.md's frontend design system, no new component family)
 
-### Phase 14: Net-New Checks
+### Phase 14: Net-New Checks ✅ COMPLETE (2026-08-20)
 
 **Goal**: The check set is extended with the handful of genuinely missing pre-production checks
 (file upload, security.txt, privacy/PII, caching, GraphQL) — additive, non-destructive, following
 the existing check convention exactly.
+
+**Actual outcome**: security.txt and GraphQL introspection already existed before this phase
+(confirmed by inspection first) - not duplicated. Only 3 genuinely new checks built:
+`check_file_upload`, `check_privacy_exposure`, `check_caching_sensitive_data`, all FREE-tier,
+all registered across FEATURE_REQUIREMENTS/CHECK_COMPLIANCE/SECURITY_DOMAIN_MAP/CHECK_LABELS/
+CHECK_CATEGORY/run_scan()'s jobs dict. 4 pre-existing tests with hardcoded FREE-tier job counts
+needed updating (not bugs - registries that predated the 3 new checks). 839 passed.
 **Depends on**: Phase 13 (new checks should land under the domain-grouping/scoring model, not be
 retrofitted into it afterward)
 **Requirements**: CHECK-01, CHECK-02, CHECK-03, CHECK-04, CHECK-05, CHECK-06
@@ -226,5 +233,5 @@ existing admin-panel table patterns)
 | 11. Glassbox Rebrand | v1.3 | Direct execution | Complete | 2026-08-20 |
 | 12. Finding Schema | v1.3 | Direct execution | Complete | 2026-08-20 |
 | 13. Domain Grouping & Scoring v2 | v1.3 | Direct execution | Complete | 2026-08-20 |
-| 14. Net-New Checks | v1.3 | 0/TBD | Not started | - |
+| 14. Net-New Checks | v1.3 | Direct execution | Complete | 2026-08-20 |
 | 15. Request Expert Assessment | v1.3 | 0/TBD | Not started | - |

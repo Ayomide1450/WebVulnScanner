@@ -81,18 +81,20 @@ product framing, it does not change what the scanner is allowed to do to a targe
 
 ### Net-New Checks (CHECK) — Phase 14
 
-- [ ] **CHECK-01**: A file-upload security check (where upload functionality is identified on the
+- [x] **CHECK-01**: A file-upload security check (where upload functionality is identified on the
       target) — dangerous extensions, absence of size limits, public accessibility of uploaded
       files — read-only/non-destructive, no payloads uploaded to the target.
-- [ ] **CHECK-02**: A `/.well-known/security.txt` check — presence, valid contact field,
-      expiration, policy reference.
-- [ ] **CHECK-03**: A privacy/PII exposure check — emails, phone numbers, and other sensitive
+- [x] **CHECK-02**: A `/.well-known/security.txt` check — presence, valid contact field,
+      expiration, policy reference. Already existed before this phase (`check_sensitive_paths`'s
+      security.txt probe) — confirmed by inspection, not duplicated.
+- [x] **CHECK-03**: A privacy/PII exposure check — emails, phone numbers, and other sensitive
       identifiers found in publicly reachable responses.
-- [ ] **CHECK-04**: A caching/sensitive-data check — `Cache-Control` on responses that appear to
+- [x] **CHECK-04**: A caching/sensitive-data check — `Cache-Control` on responses that appear to
       carry sensitive/authenticated content, sensitive data appearing in URLs.
-- [ ] **CHECK-05**: A GraphQL introspection check, extending the existing API schema-exposure
-      check family rather than duplicating it.
-- [ ] **CHECK-06**: Every new check follows the existing `(data, findings)` convention, never
+- [x] **CHECK-05**: A GraphQL introspection check, extending the existing API schema-exposure
+      check family rather than duplicating it. Already existed before this phase
+      (`check_api_schema_exposure`'s GraphQL introspection query) — confirmed, not duplicated.
+- [x] **CHECK-06**: Every new check follows the existing `(data, findings)` convention, never
       raises past its own function, and is added to `FEATURE_REQUIREMENTS`/`CHECK_COMPLIANCE`/
       `SECURITY_DOMAIN_MAP` in the same pattern as existing checks (regression-tested for
       coverage, per the existing `tests/test_compliance.py`-style lock).
@@ -143,7 +145,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REBRAND-01..05 | Phase 11 | Complete |
 | FSCH-01..05 | Phase 12 | Complete |
 | SCORE-01..05 | Phase 13 | Complete |
-| CHECK-01..06 | Phase 14 | Pending |
+| CHECK-01..06 | Phase 14 | Complete |
 | CTA-01..04 | Phase 15 | Pending |
 
 **Coverage:** 32/32 requirements mapped (9 deferred from v1.2, 23 new for v1.3 across 5 phases).
