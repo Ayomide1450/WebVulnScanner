@@ -113,12 +113,41 @@ product framing, it does not change what the scanner is allowed to do to a targe
 - [x] **CTA-04**: The submission form is CSRF-protected and rate-limited like every other
       state-changing form in the app (`extensions.limiter` pattern).
 
+### Platform Admin User/Org Management — Phase 16
+
+- [ ] **ADMIN-01**: A platform admin can open a user detail view (org, role, plan, scan history)
+      from `/platform-admin`.
+- [ ] **ADMIN-02**: A platform admin can suspend/unsuspend a user (blocks login, distinct from
+      deletion), gated behind a confirmation step.
+- [ ] **ADMIN-03**: A platform admin can suspend/remove an org, cascading to its members.
+- [ ] **ADMIN-04**: Every suspend/remove/restore action writes an audit-trail row (who/what/when),
+      same convention as the existing domain-deletion approve/reject flow.
+
+### Expanded Check Coverage — Phase 17
+
+- [ ] **DEPTH-01**: An explicit, signed-off decision on same-origin depth-1 crawl vs. a deeper/
+      multi-page crawl — this changes the app's safety posture and must not be flipped quietly.
+- [ ] **DEPTH-02**: Injection-class checks (XSS/SQLi) gain additional payload/variant coverage
+      without violating existing safety constraints (no destructive payloads, same caps).
+- [ ] **DEPTH-03**: All coverage additions are registered in `FEATURE_REQUIREMENTS`/
+      `CHECK_LABELS`/`CHECK_CATEGORY` with regression-lock tests, per the existing convention.
+
+### CLI Client — Phase 18
+
+- [ ] **CLI-01**: A standalone `glassbox` CLI authenticates using the existing API-token system —
+      no new auth mechanism.
+- [ ] **CLI-02**: The CLI can launch a scan, poll status, and fetch a finished report (JSON/CSV)
+      via the existing API routes — no new server endpoints required for the MVP.
+- [ ] **CLI-03**: Ships as a separate installable package/script, not embedded in the web app —
+      an in-browser terminal was explicitly considered and ruled out (larger, harder-to-secure
+      attack surface) during this phase's scoping conversation (08-20).
+
 ## Future Requirements
 
 <!-- Deferred from this milestone, candidates for the next one. -->
 
 - v1.2's Phase 10 (Live Verification Closeout, VERIFY-01..09 below) — reprioritized behind v1.3,
-  not dropped. Real, valid, deferred work.
+  not dropped. Real, valid, deferred work; resumed 2026-08-20 alongside v1.4 planning.
 - Plugin/third-party check-extensibility system — deferred three times now (v1.0, v1.1, v1.2);
   still no concrete requirement or user request to build it.
 - Self-hostable/open-core deployment model — still locked/undecided.
@@ -141,11 +170,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VERIFY-01..09 | Phase 10 | Deferred (not dropped) |
+| VERIFY-01..09 | Phase 10 | In progress (resumed 2026-08-20) |
 | REBRAND-01..05 | Phase 11 | Complete |
 | FSCH-01..05 | Phase 12 | Complete |
 | SCORE-01..05 | Phase 13 | Complete |
 | CHECK-01..06 | Phase 14 | Complete |
 | CTA-01..04 | Phase 15 | Complete |
+| ADMIN-01..04 | Phase 16 | Not started |
+| DEPTH-01..03 | Phase 17 | Not started |
+| CLI-01..03 | Phase 18 | Not started |
 
-**Coverage:** 32/32 requirements mapped (9 deferred from v1.2, 23 new for v1.3 across 5 phases).
+**Coverage:** 42/42 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for v1.3
+across 5 phases, 10 new for v1.4 across 3 phases).

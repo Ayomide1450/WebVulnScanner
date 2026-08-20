@@ -5,7 +5,8 @@
 - ✅ **v1.0 Asset Inventory, API/CLI, Compliance & Hardening** - Phases 1-4 (shipped 2026-08-13)
 - ✅ **v1.1 Production Audit, Hardening & Redesign** - Phases 5-9 (shipped 2026-08-20)
 - ⏸️ **v1.2 Live Verification Closeout** - Phase 10 (deferred, not dropped - reprioritized behind v1.3)
-- 🚧 **v1.3 Glassbox Rebrand & Production Security Readiness** - Phases 11-15 (in progress)
+- ✅ **v1.3 Glassbox Rebrand & Production Security Readiness** - Phases 11-15 (shipped 2026-08-20)
+- 🚧 **v1.4 Admin Controls, Check Depth & CLI Client** - Phases 16-18 (planned)
 
 ## Phases
 
@@ -217,6 +218,68 @@ approach). Complete.
 **UI hint**: yes (one new form page + one new admin list view, reusing `_admin_form_styles.html`/
 existing admin-panel table patterns)
 
+### Phase 16: Platform Admin User/Org Management
+
+**Goal**: Platform admins can inspect a user's or org's detail (scans, plan, verified domains)
+and suspend/remove a user or org from `/platform-admin`, with every action audit-logged - not
+just the pending-domain-deletion/assessment-request queues that exist today.
+**Depends on**: Phase 11 (admin_routes.py/platform_admin.html as they exist post-rebrand)
+**Requirements**: ADMIN-01, ADMIN-02, ADMIN-03, ADMIN-04
+**Success Criteria** (what must be TRUE):
+
+  1. A platform admin can open a user detail view showing their org, role, plan, and scan history.
+  2. A platform admin can suspend a user (blocks login; distinct from deletion) and reverse it,
+     each requiring a confirmation step (this is an irreversible-adjacent action per the app's
+     own safety conventions).
+  3. A platform admin can suspend/remove an org, cascading the same block to its members.
+  4. Every suspend/remove/restore action writes an `OrgAuditEvent`-style row so there's a
+     who/what/when trail, same convention as domain-deletion approve/reject already uses.
+**Plans**: 0/TBD plans executed
+
+**UI hint**: yes (new user/org detail pages + destructive-action confirmation flows on
+`/platform-admin`)
+
+### Phase 17: Expanded Check Coverage
+
+**Goal**: Each existing check category (injection, headers, auth, exposure) gets meaningfully
+more payload/variant coverage within the existing non-destructive/same-origin/depth-1 safety
+constraints; the deeper-crawl question is answered explicitly (loosen or keep) rather than left
+implicit.
+**Depends on**: Phase 14 (Net-New Checks, same `(data, findings)`/registry conventions)
+**Requirements**: DEPTH-01, DEPTH-02, DEPTH-03
+**Success Criteria** (what must be TRUE):
+
+  1. A written decision exists on same-origin depth-1 crawl vs. a deeper/multi-page crawl,
+     signed off explicitly (this changes the app's safety posture, not a default to flip quietly).
+  2. At least the injection-class checks (XSS/SQLi) gain additional payload variants without
+     violating existing safety constraints (no destructive payloads, same caps).
+  3. Coverage additions are registered in `FEATURE_REQUIREMENTS`/`CHECK_LABELS`/`CHECK_CATEGORY`
+     per the existing convention, with regression-lock tests proving the registries stay in sync.
+**Plans**: 0/TBD plans executed
+
+**UI hint**: no (findings render through the existing report UI)
+
+### Phase 18: CLI Client
+
+**Goal**: A standalone `glassbox` command-line client authenticates via the existing API-token
+system and lets a security practitioner launch scans, poll status, and pull reports from a
+terminal, without adding any new server-side execution surface.
+**Depends on**: Phase 2 (v1.0's API & CLI Access - the API-token auth this CLI authenticates
+against already exists)
+**Requirements**: CLI-01, CLI-02, CLI-03
+**Success Criteria** (what must be TRUE):
+
+  1. The CLI authenticates with an existing API token (no new auth mechanism, no credentials
+     entered anywhere but the token itself).
+  2. It can launch a scan, poll status, and fetch a finished report's JSON/CSV via the existing
+     API routes - no new server endpoints required for the MVP.
+  3. It ships as a separate installable package/script, not embedded in the web app - explicitly
+     ruled out an in-browser terminal (a much larger, harder-to-secure attack surface) per this
+     phase's scoping conversation.
+**Plans**: 0/TBD plans executed
+
+**UI hint**: no (separate CLI package, no web UI)
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -230,9 +293,12 @@ existing admin-panel table patterns)
 | 7. Responsive & Accessibility Compliance | v1.1 | 7/7 | Complete | 2026-08-20 |
 | 8. Security Re-Audit & Hardening | v1.1 | 7/7 | Complete | 2026-08-19 |
 | 9. SEO, Performance & UX States | v1.1 | 4/4 | Complete | 2026-08-20 |
-| 10. Live Verification Closeout | v1.2 | 0/TBD | Deferred | - |
+| 10. Live Verification Closeout | v1.2 | 0/TBD | In progress | - |
 | 11. Glassbox Rebrand | v1.3 | Direct execution | Complete | 2026-08-20 |
 | 12. Finding Schema | v1.3 | Direct execution | Complete | 2026-08-20 |
 | 13. Domain Grouping & Scoring v2 | v1.3 | Direct execution | Complete | 2026-08-20 |
 | 14. Net-New Checks | v1.3 | Direct execution | Complete | 2026-08-20 |
-| 15. Request Expert Assessment | v1.3 | 0/TBD | Not started | - |
+| 15. Request Expert Assessment | v1.3 | Direct execution | Complete | 2026-08-20 |
+| 16. Platform Admin User/Org Management | v1.4 | 0/TBD | Not started | - |
+| 17. Expanded Check Coverage | v1.4 | 0/TBD | Not started | - |
+| 18. CLI Client | v1.4 | 0/TBD | Not started | - |
