@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Production Audit, Hardening & Redesign
-current_phase: 08
-current_phase_name: Security Re-Audit & Hardening
-status: executing
-stopped_at: Phase 9 context gathered
-last_updated: "2026-08-19T15:00:20.918Z"
+status: Awaiting next milestone
+stopped_at: Phase 9 planned — 4 PLAN.md files written directly (no researcher/planner/checker
+last_updated: "2026-08-20T07:57:56.451Z"
+last_activity: 2026-08-20
+last_activity_desc: Milestone v1.1 completed and archived
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 21
-  completed_plans: 21
-  percent: 80
-last_activity: 2026-08-19
-last_activity_desc: "Phase 8 (Security Re-Audit & Hardening) independently verified: 08-VERIFICATION.md written after re-running the full test suite from a clean shell (757 passed, 0 failed), diffing webvulnscanner/ against the phase-start commit line-by-line, and spot-checking 8 of 10 evidence-gate rows against actual test/route source. Both live findings (SEC-03 _mk_session SSRF-redirect fix, SEC-07 _safe_next backslash/CRLF fix) confirmed real, confirmed the only production changes, confirmed each backed by a regression test. Frozen surfaces (entitlements.py, is_ssrf_safe_hostname() body, billing.py, authorized* checkboxes) confirmed untouched. ROADMAP.md/REQUIREMENTS.md flipped to reflect Phase 8 complete."
+  completed_phases: 5
+  total_plans: 25
+  completed_plans: 25
+  percent: 100
+current_phase: 08
+current_phase_name: Security Re-Audit & Hardening
 ---
 
 # Project State
@@ -29,54 +29,10 @@ non-destructive scans against their own infrastructure and get findings they can
 
 ## Current Position
 
-Phase: 08 (Security Re-Audit & Hardening) — VERIFIED COMPLETE (2026-08-19)
-Plan: 7 of 7 (08-01..08-07 all merged to master)
-Status: All ten SEC-01..SEC-10 requirements independently re-verified against the actual
-codebase — see `.planning/phases/08-security-re-audit-hardening/08-VERIFICATION.md`. The
-verification independently re-ran the full test suite from a clean shell (757 passed, 0 failed),
-diffed `webvulnscanner/` against the phase-start commit (`27bf56f`) line-by-line, and
-spot-checked 8 of the 10 evidence-gate rows against the actual test/route source they cite,
-rather than trusting 08-07-SUMMARY.md's table at face value.
-
-Waves sequenced by blast radius per D-04: Wave 1 SEC-01+SEC-02 (08-01/08-02), Wave 2 SEC-09
-(08-03), Wave 3 SEC-03+SEC-04/05/06 (08-04/08-05), Wave 4 SEC-07/08/10 (08-06), Wave 5 the
-phase-gate + D-01/D-02 live dev-server probe pass (08-07, all 10 live-probe cases passed against
-a real `python app.py` instance). All five waves complete and merged.
-
-Confirmed by this verification: the phase's two live findings (SEC-03's `_mk_session()`
-SSRF-redirect-hop fix in `checks.py`, SEC-07's `_safe_next()` backslash/CRLF fix in
-`auth_routes.py`) are real, are the only production-code changes anywhere in the phase's diff
-(alongside a non-vulnerability defence-in-depth refactor for SEC-06's `read_report_file()`), and
-each is backed by a regression test that was read and confirmed to assert the claimed behavior.
-The frozen surfaces (`entitlements.py`, `is_ssrf_safe_hostname()`'s body, `billing.py`,
-`authorized*` checkbox handling) are confirmed byte-for-byte untouched across the whole phase.
-
-Next step: `.planning/REQUIREMENTS.md` and `.planning/ROADMAP.md` have been updated to reflect
-Phase 8 complete. Phase 9 (SEO, Performance & UX States) is the next phase in numeric order, but
-Phases 5, 6 and 7 remain incomplete/unconfirmed (see below) — whoever picks up next should decide
-whether to close those out before starting Phase 9, since Phase 8 was deliberately pulled forward
-out of its stated ROADMAP dependency order (Phase 5/6/7) per the 2026-08-18 user instruction
-recorded below, not because those phases were finished.
-
-Phase 7 (Responsive & Accessibility Compliance) is CODE-COMPLETE but requirements unconfirmed —
-all 7 plans done, full suite green (646 passed as of Phase 7's own close), but every
-checkpoint:human-verify gate across the entire phase (07-01..07-07) remains unanswered by a
-human. RESP-01/02/03/04 and A11Y-01/02/03/04 stay Pending in REQUIREMENTS.md. See
-07-07-SUMMARY.md for the full accounting. Per explicit user instruction (2026-08-18), work
-proceeded to Phase 8 without blocking on that walkthrough — the walkthrough remains a standing,
-undischarged human action. Not addressed by this verification pass (out of scope — this pass
-verified Phase 8 only).
-
-Phase 6 (Design System Consistency) remains at the same status as last recorded: all four plans'
-coded tasks committed, full suite green, each plan's checkpoint:human-verify still open pending
-confirmation. Not addressed by this verification pass.
-
-Phase 5 (New Scan Flow Redesign) remains at 1/3 plans executed per ROADMAP.md. Not addressed by
-this verification pass.
-
-Progress: Phase 8 is verified complete (10/10 requirements, 5/5 ROADMAP success criteria). Phases
-5, 6, 7 code/requirement sign-off remain outstanding, unrelated to and not resolved by this
-Phase-8 verification pass.
+Phase: Milestone v1.1 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-08-20 — Milestone v1.1 completed and archived
 
 ## Performance Metrics
 
@@ -211,3 +167,7 @@ that its Task 1/2 negative-control failure text had to be re-captured live since
 never saved it, per its own commit message), merged both branches to master with zero conflicts,
 ran the full suite on the merged tree (720 passed), and removed both stray worktrees/branches. No
 work was lost or redone from scratch.
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

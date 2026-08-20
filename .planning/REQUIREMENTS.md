@@ -114,54 +114,54 @@ one roadmap phase.
 - [x] **SCANUX-04**: A tier-locked scan type shows an "Upgrade to Unlock" call-to-action instead of
       a disabled/absent control.
 
-- [ ] **SCANUX-05**: After a scan completes, the flow offers a clear "View Report" action from the
+- [x] **SCANUX-05**: After a scan completes, the flow offers a clear "View Report" action from the
       same page context the user launched it from.
 
 ### Design System Consistency (DESIGN)
 
-- [ ] **DESIGN-01**: A single documented typography scale (Display/H1–H4/Body/Small/Caption/
+- [x] **DESIGN-01**: A single documented typography scale (Display/H1–H4/Body/Small/Caption/
       Label/Button/Nav) is defined in `base.html` and every template's headings/body text conform
       to it — no one-off `font-size`/`font-weight` overrides.
 
-- [ ] **DESIGN-02**: A single documented spacing scale is used for margin/padding across templates
+- [x] **DESIGN-02**: A single documented spacing scale is used for margin/padding across templates
       — arbitrary pixel values that don't map to the scale are removed where found.
 
-- [ ] **DESIGN-03**: Buttons, inputs/selects/textareas, cards, tables, badges/pills, and alert/
+- [x] **DESIGN-03**: Buttons, inputs/selects/textareas, cards, tables, badges/pills, and alert/
       warn/error/info boxes each have exactly one canonical style in `base.html` (or a shared
       partial) — divergent local overrides found during audit are consolidated into it.
 
-- [ ] **DESIGN-04**: Page container/content max-widths are consistent across dashboard, forms, and
+- [x] **DESIGN-04**: Page container/content max-widths are consistent across dashboard, forms, and
       report pages — no page reads as unintentionally cramped or overly stretched relative to its
       siblings.
 
 ### Responsive & Mobile (RESP)
 
-- [ ] **RESP-01**: Every page renders without horizontal scroll, clipped text, or overlapping
+- [x] **RESP-01**: Every page renders without horizontal scroll, clipped text, or overlapping
       elements at 320px, 375px, 768px, and 1280px viewport widths, verified live.
 
-- [ ] **RESP-02**: Auth pages (login/signup/forgot-password/reset-password/verify-email) and org
+- [x] **RESP-02**: Auth pages (login/signup/forgot-password/reset-password/verify-email) and org
       setup pages (create org, add domain, verify domain) have a polished, non-cramped mobile
       layout with the product name correctly positioned relative to the form.
 
-- [ ] **RESP-03**: The dashboard, org-admin, billing, and scan-report pages degrade gracefully on
+- [x] **RESP-03**: The dashboard, org-admin, billing, and scan-report pages degrade gracefully on
       mobile — tables use a deliberate mobile strategy (scroll container, stacked cards, or
       collapsed columns), not silent overflow clipping.
 
-- [ ] **RESP-04**: The live scan-progress feed (SOC view) remains legible and usable at mobile
+- [x] **RESP-04**: The live scan-progress feed (SOC view) remains legible and usable at mobile
       widths (already partially verified in a prior session — re-confirm, don't assume).
 
 ### Accessibility (A11Y)
 
-- [ ] **A11Y-01**: Every form input has a properly associated `<label>` (for/id or wrapping), and
+- [x] **A11Y-01**: Every form input has a properly associated `<label>` (for/id or wrapping), and
       every icon-only control has an accessible name (`aria-label` or visually-hidden text).
 
-- [ ] **A11Y-02**: Heading hierarchy (`h1`→`h2`→`h3`) is sequential and non-skipping on every major
+- [x] **A11Y-02**: Heading hierarchy (`h1`→`h2`→`h3`) is sequential and non-skipping on every major
       page template.
 
-- [ ] **A11Y-03**: All interactive elements (including any clickable `<div>`s found during audit)
+- [x] **A11Y-03**: All interactive elements (including any clickable `<div>`s found during audit)
       are reachable and operable via keyboard alone, with a visible focus state.
 
-- [ ] **A11Y-04**: Text and UI-element color contrast meets WCAG AA against the dark theme's
+- [x] **A11Y-04**: Text and UI-element color contrast meets WCAG AA against the dark theme's
       background colors, including severity-colored finding text/badges.
 
 ### Security Re-Audit (SEC)
@@ -206,37 +206,37 @@ one roadmap phase.
 
 ### SEO & Metadata (SEO)
 
-- [ ] **SEO-01**: Public pages (marketing home, terms, privacy) each have a correct `<title>`, meta
+- [x] **SEO-01**: Public pages (marketing home, terms, privacy) each have a correct `<title>`, meta
       description, canonical URL, and Open Graph tags; authenticated/private pages do not.
 
-- [ ] **SEO-02**: A `robots.txt` allows crawling of public marketing pages and disallows
+- [x] **SEO-02**: A `robots.txt` allows crawling of public marketing pages and disallows
       authenticated app routes (dashboard/scan/org/billing/admin/account).
 
-- [ ] **SEO-03**: A `sitemap.xml` lists only public URLs — no dashboard/scan/report/org/billing/
+- [x] **SEO-03**: A `sitemap.xml` lists only public URLs — no dashboard/scan/report/org/billing/
       admin/account URL ever appears in it.
 
-- [ ] **SEO-04**: A complete favicon set (favicon.ico, PNG sizes, apple-touch-icon) resolves
+- [x] **SEO-04**: A complete favicon set (favicon.ico, PNG sizes, apple-touch-icon) resolves
       correctly in production, referenced from `base.html`.
 
 ### Performance (PERF)
 
-- [ ] **PERF-01**: Dashboard and org-admin queries that list scans/domains/members are audited for
+- [x] **PERF-01**: Dashboard and org-admin queries that list scans/domains/members are audited for
       N+1 patterns and fixed (eager loading or a single query) where found.
 
-- [ ] **PERF-02**: Any unbounded list (scan history, asset list, org members, findings) that could
+- [x] **PERF-02**: Any unbounded list (scan history, asset list, org members, findings) that could
       grow large is paginated or otherwise capped, not loaded in full on every page view.
 
 ### Loading, Empty & Error States (STATE)
 
-- [ ] **STATE-01**: Every major page with a first-run/no-data condition (no assets, no scans, no
+- [x] **STATE-01**: Every major page with a first-run/no-data condition (no assets, no scans, no
       domains, no invoices, no findings) shows a real empty-state message with a clear next action,
       not a blank area or raw empty table.
 
-- [ ] **STATE-02**: Every form shows a distinct in-flight submitting state (disabled + loading
+- [x] **STATE-02**: Every form shows a distinct in-flight submitting state (disabled + loading
       indicator) to prevent duplicate submission, consistent with the pattern already used on the
       auth forms.
 
-- [ ] **STATE-03**: A failed/errored scan, timed-out scan, and duplicate concurrent scan attempt
+- [x] **STATE-03**: A failed/errored scan, timed-out scan, and duplicate concurrent scan attempt
       each surface a clear, specific message to the user rather than a generic failure or silent
       stall.
 
@@ -302,19 +302,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCANUX-02 | Phase 5 | Complete |
 | SCANUX-03 | Phase 5 | Complete |
 | SCANUX-04 | Phase 5 | Complete |
-| SCANUX-05 | Phase 5 | Pending |
-| DESIGN-01 | Phase 6 | Pending |
-| DESIGN-02 | Phase 6 | Pending |
-| DESIGN-03 | Phase 6 | Pending |
-| DESIGN-04 | Phase 6 | Pending |
-| RESP-01 | Phase 7 | Pending |
-| RESP-02 | Phase 7 | Pending |
-| RESP-03 | Phase 7 | Pending |
-| RESP-04 | Phase 7 | Pending |
-| A11Y-01 | Phase 7 | Pending |
-| A11Y-02 | Phase 7 | Pending |
-| A11Y-03 | Phase 7 | Pending |
-| A11Y-04 | Phase 7 | Pending |
+| SCANUX-05 | Phase 5 | Complete |
+| DESIGN-01 | Phase 6 | Complete |
+| DESIGN-02 | Phase 6 | Complete |
+| DESIGN-03 | Phase 6 | Complete |
+| DESIGN-04 | Phase 6 | Complete |
+| RESP-01 | Phase 7 | Complete |
+| RESP-02 | Phase 7 | Complete |
+| RESP-03 | Phase 7 | Complete |
+| RESP-04 | Phase 7 | Complete |
+| A11Y-01 | Phase 7 | Complete |
+| A11Y-02 | Phase 7 | Complete |
+| A11Y-03 | Phase 7 | Complete |
+| A11Y-04 | Phase 7 | Complete |
 | SEC-01 | Phase 8 | Complete |
 | SEC-02 | Phase 8 | Complete |
 | SEC-03 | Phase 8 | Complete |
@@ -325,15 +325,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SEC-08 | Phase 8 | Complete |
 | SEC-09 | Phase 8 | Complete |
 | SEC-10 | Phase 8 | Complete |
-| SEO-01 | Phase 9 | Pending |
-| SEO-02 | Phase 9 | Pending |
-| SEO-03 | Phase 9 | Pending |
-| SEO-04 | Phase 9 | Pending |
-| PERF-01 | Phase 9 | Pending |
-| PERF-02 | Phase 9 | Pending |
-| STATE-01 | Phase 9 | Pending |
-| STATE-02 | Phase 9 | Pending |
-| STATE-03 | Phase 9 | Pending |
+| SEO-01 | Phase 9 | Complete |
+| SEO-02 | Phase 9 | Complete |
+| SEO-03 | Phase 9 | Complete |
+| SEO-04 | Phase 9 | Complete |
+| PERF-01 | Phase 9 | Complete |
+| PERF-02 | Phase 9 | Complete |
+| STATE-01 | Phase 9 | Complete |
+| STATE-02 | Phase 9 | Complete |
+| STATE-03 | Phase 9 | Complete |
 
 **Coverage:**
 

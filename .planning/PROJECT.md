@@ -6,7 +6,8 @@ A multi-tenant Flask SaaS ("Autonomous Security Validation Platform") for securi
 security-minded teams: sign up, create an organization, run rule-based vulnerability scans
 (passive → active → intrusive) against domains you own, and track results across a dashboard with
 report history and diffing. Detection is 100% rule-based; an AI layer (Groq) only explains and
-prioritizes findings, never generates them.
+prioritizes findings, never generates them. As of v1.1, the app also meets a "production ready"
+bar across UI/UX, accessibility, responsiveness, security, and SEO — not just feature-complete.
 
 ## Core Value
 
@@ -45,7 +46,7 @@ weakening its safety guarantees to become a general attack tool.
   keep-alive heartbeat — shipped 2026-08-07
 - ✓ Alembic/Flask-Migrate schema migrations, replacing the old `db.create_all()`-only approach
 
-### Validated (v1.0, shipped)
+### Validated (v1.0, shipped 2026-08-13)
 
 - ✓ Persistent asset inventory + continuous/scheduled scanning (`Asset` model, in-process scheduler)
 - ✓ API/CLI-first programmatic workflow (`ApiToken`, `/api/v1/*`, `cli/wvs.py`)
@@ -56,31 +57,26 @@ weakening its safety guarantees to become a general attack tool.
   separation-of-duties), DB-backed report storage (`Report.data`), cross-org domain-scan block,
   Cloudflare Turnstile on signup, billing monthly/annual cycles
 
-## Current Milestone: v1.1 Production Audit, Hardening & Redesign
+### Validated (v1.1, shipped 2026-08-20)
 
-**Goal:** Bring every page and every request path up to production-grade UI/UX, accessibility,
-responsiveness, security, and SEO standards — a systematic audit-then-fix pass across the whole
-app, not incremental feature work.
+- ✓ New Scan flow redesigned as a guided Select Domain → Select Type → Confirm Authorization →
+  Start Scan wizard, including an "Advanced" Smart Setup deviation (D-02a) beyond the original spec
+- ✓ One canonical design-system token layer (typography/spacing/component/container) in `base.html`,
+  fanned out across every template — no local drift left unconsolidated
+- ✓ Full responsive + accessibility audit and fixes (320px–1280px, keyboard/AT operability, heading
+  hierarchy, WCAG AA contrast) with standing regression locks (`tests/test_accessibility.py`)
+- ✓ Full security re-audit across the v1.0-added API/scheduler/admin surfaces: cross-org IDOR
+  enumeration lock, CSRF enforcement proof, `_SSRFSafeSession` redirect-hop guard (SEC-03, the
+  phase's one real vulnerability fix), injection/traversal sweep, open-redirect/error-leakage/
+  secrets-sweep coverage — closed with a real-process HTTP probe, not just the test client
+- ✓ SEO (dynamic robots.txt/sitemap.xml, meta/OG/Twitter tags, favicons), a data-size-independent
+  N+1 audit (none found) plus real pagination on every unbounded list, and closed empty/submitting/
+  duplicate-scan/timeout UX states
 
-### Active
+## Current Milestone: Planning next
 
-<!-- Current scope. Building toward these. -->
-
-- [ ] New Scan page redesign (Select Domain → Select Type → Confirm Authorization → Start Scan,
-      verified-domain dropdown, tier-lock labeling) — already fully specified from a prior session
-- [ ] Design-system consistency audit + fixes (typography/spacing/components) across every template
-- [ ] Full responsive audit + fixes (320px–1440px+), especially auth pages and mobile dashboard/scan
-- [ ] Accessibility audit (semantic HTML, keyboard nav, contrast, focus states)
-- [ ] Full security re-audit: IDOR/BOLA on every ID-accepting route, CSRF coverage, SSRF/redirect
-      re-verification, XSS/SQLi/path-traversal/command-injection sweep, open-redirect audit,
-      secrets scan, billing double-spend/replay checks, error-page info leakage
-- [ ] SEO/metadata pass (titles, descriptions, OG tags, canonical, favicon, sitemap.xml, robots.txt)
-      for public pages only — never on authenticated/private pages
-- [ ] Performance pass (N+1 queries, pagination, asset weight)
-- [ ] Loading/empty/error/success states across major pages
-- [ ] Test coverage for every fix above
-
-See REQUIREMENTS.md for the full itemized v1.1 list.
+v1.1 shipped 2026-08-20. No v1.2 milestone has been scoped yet — run `/gsd-new-milestone` to
+define the next one (questioning → research → requirements → roadmap).
 
 ### Out of Scope
 
@@ -167,10 +163,14 @@ See REQUIREMENTS.md for the full itemized v1.1 list.
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Billing/SaaS/org-tier shape stays as-is (crypto invoicing, Free/Paid/Org-verified tiers) | User confirmed this is locked for this milestone; self-hostable/open-core remains an explicitly deprioritized, undecided question | ✓ Locked for this milestone |
-| Phase 1 = persistent asset inventory + continuous/scheduled scanning | Ranked gap analysis identifies this as the single biggest competitive gap and the dependency that makes API/CLI (Phase 2) and compliance-mapping (Phase 3) meaningfully easier to justify and build | — Pending (validate after Phase 1 ships) |
-| Plugin/check-extensibility system (ranked gap #2) deferred out of v1 | No concrete requirement or user request for it this milestone; recommendation prioritized continuous scanning + API/CLI + compliance-mapping ahead of it | — Pending (revisit next milestone) |
-| Production Hardening (Phase 4) scoped to include multi-worker rate-limiting, orchestrator/org-route test coverage, and remaining visual-polish debt from `.planning/codebase/CONCERNS.md` | Milestone goal is explicitly "production ready" — these are the concrete, evidence-backed gaps between current state and that bar, not speculative work | — Pending (validate after Phase 4 ships) |
+| Billing/SaaS/org-tier shape stays as-is (crypto invoicing, Free/Paid/Org-verified tiers) | User confirmed this is locked for this milestone; self-hostable/open-core remains an explicitly deprioritized, undecided question | ✓ Locked, held through v1.1 |
+| Phase 1 = persistent asset inventory + continuous/scheduled scanning | Ranked gap analysis identifies this as the single biggest competitive gap and the dependency that makes API/CLI (Phase 2) and compliance-mapping (Phase 3) meaningfully easier to justify and build | ✓ Good — v1.0 shipped |
+| Plugin/check-extensibility system (ranked gap #2) deferred out of v1 | No concrete requirement or user request for it this milestone; recommendation prioritized continuous scanning + API/CLI + compliance-mapping ahead of it | — Pending (still deferred, revisit for v1.2) |
+| Production Hardening (Phase 4) scoped to include multi-worker rate-limiting, orchestrator/org-route test coverage, and remaining visual-polish debt from `.planning/codebase/CONCERNS.md` | Milestone goal is explicitly "production ready" — these are the concrete, evidence-backed gaps between current state and that bar, not speculative work | ✓ Good — v1.0 shipped |
+| v1.1 phase order: New Scan redesign (5) → Design System (6) → Responsive/A11y (7) → Security (8) → SEO/Perf/UX States (9) | Each phase builds on a stable surface rather than auditing work about to change underneath it (design-system before responsive audit, redesign before both) | ✓ Good — zero rework needed across phase boundaries |
+| SEC-03's redirect guard implemented via `_mk_session()` overriding `get_redirect_target()`, not `resolve_redirects()` | An earlier attempt at `resolve_redirects()` was tested against a real local-server harness and found not to work — that loop sends a hop before yielding it for inspection, too late to block | ✓ Good — proven against a real HTTP server, not just the test client |
+| Phase 9 executed leanly (4 PLAN.md written directly, no researcher/planner/checker subagent cascade) | User flagged the standard multi-agent flow as too token-heavy for a phase this scoped; explicit request for a straight-through continuation | ✓ Good — zero merge conflicts across all 4 plans, 802 tests passing |
+| Phases 5/6/7/9's live-verification human-checkpoints closed via override, not answered | Explicit user instruction not to block milestone progress on unanswered human checkpoints; all underlying implementation is done and test-covered | ⚠️ Revisit — schedule an actual live-browser pass early in v1.2 to close this out for real |
 
 ## Evolution
 
@@ -190,4 +190,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-15 — milestone v1.1 (Production Audit, Hardening & Redesign) started*
+*Last updated: 2026-08-20 — milestone v1.1 (Production Audit, Hardening & Redesign) shipped*
