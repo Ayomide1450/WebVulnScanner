@@ -327,16 +327,17 @@
      it apart without a hard visual break like a second nav bar. */
   .topnav .nav-links a.nav-logout { padding-left: 18px; border-left: 1px solid var(--border); }
 
-  /* Anonymous Login/Sign up (Phase 10 live-verification feedback, 08-20):
-     these read as too small/subtle as plain 13px text links, and on mobile
-     the whole nav collapsed to a column that put them under the brand on
-     the left instead of staying right-aligned like desktop. Both are real
-     .btn instances now (proper tap target, matches every other primary/
-     secondary action in the app) and .topnav-anon is exempted from the
-     column-stacking media query below - the anonymous nav is only ever
-     these two items, which always fit in a row even at 320px, unlike the
-     7+-item authenticated nav the stacking rule exists for. */
-  .topnav .nav-links a.nav-auth-btn { padding: 9px 16px; font-size: 13px; }
+  /* Anonymous Login/Sign up (Phase 10 live-verification feedback, 08-20/21):
+     these read as too small at plain 13px, and on mobile the whole nav
+     collapsed to a column that put them under the brand on the left
+     instead of staying right-aligned like desktop. First tried as full
+     .btn instances (a boxed button) - reverted per explicit follow-up
+     feedback (08-21): still plain text links, just larger, not boxed.
+     .topnav-anon is still exempted from the column-stacking media query
+     below - the anonymous nav is only ever these two items, which always
+     fit in a row even at 320px, unlike the 7+-item authenticated nav the
+     stacking rule exists for. */
+  .topnav .nav-links a.nav-auth-link { font-size: 16px; }
 
   /* Below ~640px the (authenticated) nav-links row wraps under the brand
      with only the flex `gap`, which reads as the site name crowding
@@ -404,8 +405,8 @@
         {% endif %}
         <a href="{{ url_for('auth.logout') }}" class="nav-logout">Logout</a>
       {% else %}
-        <a href="{{ url_for('auth.login') }}" class="btn ghost nav-auth-btn">Login</a>
-        <a href="{{ url_for('auth.signup') }}" class="btn primary nav-auth-btn">Sign up</a>
+        <a href="{{ url_for('auth.login') }}" class="nav-auth-link">Login</a>
+        <a href="{{ url_for('auth.signup') }}" class="nav-auth-link cta-link">Sign up</a>
       {% endif %}
     </div>
   </div>
