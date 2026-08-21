@@ -17,14 +17,20 @@ of `RATELIMIT_ENABLED = True`, against its own on-disk SQLite file so it
 never shares state with the standard `app`/`client`/`db` fixtures.
 
 Everything below proves *enforcement*, not markup presence: a token-less
-POST to a state-changing, cookie-authenticated route must return 400 and
+POST to a state-changing, cookie-authenticated route must be rejected and
 produce no database side effect; the same POST with a valid token must
 still succeed; a wrong-but-well-formed token must be rejected too (proving
-the value is validated, not merely required to be non-empty). One
-token-less-POST-returns-400 proof is repeated per cookie-authenticated
-blueprint (auth/org/billing/asset/api_tokens/scan), since `CSRFProtect` is
-wired app-wide and a single proof per blueprint is what confirms nothing
-silently exempted a whole surface. Finally, the module locks
+the value is validated, not merely required to be non-empty). "Rejected"
+is a redirect-with-flash (302) for ordinary form POSTs and a JSON 400 for
+the one `X-Requested-With: XMLHttpRequest` fetch() endpoint (Smart Setup's
+auto-detect) - both go through `@app.errorhandler(CSRFError)` in
+`__init__.py` (Phase 10, 08-20: this used to be an unhandled, raw-Werkzeug
+400 leaking "The CSRF token has expired." straight to the user after an
+ordinary idle-timeout logout). One token-less-POST proof is repeated per
+cookie-authenticated blueprint (auth/org/billing/asset/api_tokens/scan),
+since `CSRFProtect` is wired app-wide and a single proof per blueprint is
+what confirms nothing silently exempted a whole surface. Finally, the
+module locks
 `csrf.exempt()`'s scope to exactly the Bearer-token `/api/v1` blueprint
 (the one deliberate, documented exemption - token auth is not
 cookie-based, so CSRF doesn't apply to it), proves that exemption doesn't
@@ -162,7 +168,7 @@ def csrf_db(csrf_app):
 # --------------------------------------------------------------------------
 
 
-def test_invite_without_csrf_token_returns_400_and_creates_no_row(csrf_client, csrf_db):
+def test_invite_without_csrf_token_redirects_and_creates_no_row(csrf_client, csrf_db):
     org = make_org(name="Org")
     make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
     csrf_db.session.commit()
@@ -175,11 +181,11 @@ def test_invite_without_csrf_token_returns_400_and_creates_no_row(csrf_client, c
         follow_redirects=False,
     )
 
-    assert resp.status_code == 400, f"expected 400 for a token-less invite POST, got {resp.status_code}"
+    assert resp.status_code == 302, f"expected a redirect for a token-less invite POST, got {resp.status_code}"
     assert Invitation.query.count() == 0
 
 
-def test_invite_with_wrong_csrf_token_returns_400_and_creates_no_row(csrf_client, csrf_db):
+def test_invite_with_wrong_csrf_token_redirects_and_creates_no_row(csrf_client, csrf_db):
     org = make_org(name="Org")
     make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
     csrf_db.session.commit()
@@ -196,7 +202,7 @@ def test_invite_with_wrong_csrf_token_returns_400_and_creates_no_row(csrf_client
         follow_redirects=False,
     )
 
-    assert resp.status_code == 400, f"expected 400 for a wrong-token invite POST, got {resp.status_code}"
+    assert resp.status_code == 302, f"expected a redirect for a wrong-token invite POST, got {resp.status_code}"
     assert Invitation.query.count() == 0
 
 
@@ -221,18 +227,20 @@ def test_invite_with_valid_csrf_token_returns_302_and_creates_one_row(csrf_clien
 
 
 # --------------------------------------------------------------------------
-# Task 2: one token-less-POST-returns-400 proof per cookie-authenticated
+# Task 2: one token-less-POST-rejected proof per cookie-authenticated
 # blueprint, each with a paired no-side-effect assertion. Org is already
 # covered above via /org/admin/invite. Each case runs as a user who WOULD
 # be authorized for that route (an ORG_ADMIN for billing, the asset's own
 # org member for asset delete), so the only thing that can make the
 # request fail is the missing/invalid CSRF token - not a 403 from a role
 # decorator or a 429 from a rate limit (TestConfig keeps the limiter
-# disabled) masquerading as a CSRF rejection.
+# disabled) masquerading as a CSRF rejection. "Rejected" is a 302 redirect
+# (@app.errorhandler(CSRFError) in __init__.py) for these ordinary form
+# POSTs - see the module docstring for why 400 stopped being the answer.
 # --------------------------------------------------------------------------
 
 
-def test_auth_forgot_password_without_csrf_token_returns_400_no_reset_row(csrf_client, csrf_db):
+def test_auth_forgot_password_without_csrf_token_redirects_no_reset_row(csrf_client, csrf_db):
     make_user("user@example.com")
     csrf_db.session.commit()
 
@@ -242,11 +250,11 @@ def test_auth_forgot_password_without_csrf_token_returns_400_no_reset_row(csrf_c
         follow_redirects=False,
     )
 
-    assert resp.status_code == 400
+    assert resp.status_code == 302
     assert PasswordReset.query.count() == 0
 
 
-def test_billing_create_invoice_without_csrf_token_returns_400_no_invoice_row(csrf_client, csrf_db):
+def test_billing_create_invoice_without_csrf_token_redirects_no_invoice_row(csrf_client, csrf_db):
     org = make_org(plan=Plan.FREE, name="Org")
     make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
     csrf_db.session.commit()
@@ -259,11 +267,11 @@ def test_billing_create_invoice_without_csrf_token_returns_400_no_invoice_row(cs
         follow_redirects=False,
     )
 
-    assert resp.status_code == 400
+    assert resp.status_code == 302
     assert CryptoInvoice.query.count() == 0
 
 
-def test_asset_delete_without_csrf_token_returns_400_not_deleted(csrf_client, csrf_db):
+def test_asset_delete_without_csrf_token_redirects_not_deleted(csrf_client, csrf_db):
     org = make_org(name="Org")
     user = make_user("member@example.com", org=org, role=Role.MEMBER)
     csrf_db.session.commit()
@@ -275,12 +283,12 @@ def test_asset_delete_without_csrf_token_returns_400_not_deleted(csrf_client, cs
 
     resp = csrf_client.post(f"/assets/{asset_id}/delete", follow_redirects=False)
 
-    assert resp.status_code == 400
+    assert resp.status_code == 302
     refreshed = Asset.query.get(asset_id)
     assert refreshed.deleted_at is None
 
 
-def test_api_tokens_create_without_csrf_token_returns_400_no_token_row(csrf_client, csrf_db):
+def test_api_tokens_create_without_csrf_token_redirects_no_token_row(csrf_client, csrf_db):
     org = make_org(name="Org")
     make_user("member@example.com", org=org, role=Role.MEMBER)
     csrf_db.session.commit()
@@ -293,11 +301,11 @@ def test_api_tokens_create_without_csrf_token_returns_400_no_token_row(csrf_clie
         follow_redirects=False,
     )
 
-    assert resp.status_code == 400
+    assert resp.status_code == 302
     assert ApiToken.query.count() == 0
 
 
-def test_scan_new_base_without_csrf_token_returns_400_no_scan_row(csrf_client, csrf_db):
+def test_scan_new_base_without_csrf_token_redirects_no_scan_row(csrf_client, csrf_db):
     org = make_org(name="Org")
     make_user("member@example.com", org=org, role=Role.MEMBER)
     csrf_db.session.commit()
@@ -307,17 +315,17 @@ def test_scan_new_base_without_csrf_token_returns_400_no_scan_row(csrf_client, c
     # A private literal IP - tests/test_ssrf_guard.py's own pattern for a
     # target that _unsafe_target_error would reject anyway. CSRFProtect's
     # before_request hook runs before new_scan_base's own body (including
-    # its SSRF check), so a missing token alone must already 400 here - the
-    # private-IP target is a defense-in-depth belt so this test is still
-    # safe (no Scan row, no background thread) even if that ordering
-    # assumption were ever wrong.
+    # its SSRF check), so a missing token alone must already be rejected
+    # here - the private-IP target is a defense-in-depth belt so this test
+    # is still safe (no Scan row, no background thread) even if that
+    # ordering assumption were ever wrong.
     resp = csrf_client.post(
         "/scan/new/base",
         data={"authorized": "on", "target": "10.0.0.5"},
         follow_redirects=False,
     )
 
-    assert resp.status_code == 400
+    assert resp.status_code == 302
     assert Scan.query.count() == 0
 
 
@@ -351,16 +359,25 @@ def test_advanced_form_renders_a_csrf_token_input(csrf_client, csrf_db):
 
 
 def test_advanced_detect_without_csrf_token_returns_400(csrf_client, csrf_db):
+    """This endpoint is the one X-Requested-With: XMLHttpRequest sender in
+    the app (scan_new_advanced.html's Smart Setup fetch() call) - unlike
+    every other case in this module, its CSRFError path stays a JSON 400
+    (not a redirect) precisely because a fetch() caller needs a body it can
+    parse and show inline, not an HTML page it would silently follow and
+    then fail to JSON.parse. See @app.errorhandler(CSRFError) in
+    __init__.py."""
     _seed_org_verified_member(csrf_db)
     _login(csrf_client, "member@example.com")
 
     resp = csrf_client.post(
         "/scan/new/advanced/detect",
         data={"authorized_adv": "on", "target": "10.0.0.5"},
+        headers={"X-Requested-With": "XMLHttpRequest"},
         follow_redirects=False,
     )
 
     assert resp.status_code == 400
+    assert resp.content_type.startswith("application/json")
 
 
 # --------------------------------------------------------------------------

@@ -443,7 +443,7 @@ CASES = [
         "token_condition": "missing",
         "data": {"email": "probe-csrf-missing@example.com", "role": "member"},
         "expected_status": 400,
-        "covering_test": "tests/test_csrf_enforcement.py::test_invite_without_csrf_token_returns_400_and_creates_no_row",
+        "covering_test": "tests/test_csrf_enforcement.py::test_invite_without_csrf_token_redirects_and_creates_no_row",
     },
     {
         "name": "csrf_wrong_token_invite",
@@ -454,7 +454,7 @@ CASES = [
         "csrf_source_path": "/org/admin",
         "data": {"email": "probe-csrf-wrong@example.com", "role": "member"},
         "expected_status": 400,
-        "covering_test": "tests/test_csrf_enforcement.py::test_invite_with_wrong_csrf_token_returns_400_and_creates_no_row",
+        "covering_test": "tests/test_csrf_enforcement.py::test_invite_with_wrong_csrf_token_redirects_and_creates_no_row",
     },
     {
         "name": "csrf_valid_token_invite",

@@ -8,9 +8,11 @@ registered here.
 """
 import logging
 import os
+from urllib.parse import urlsplit, urlunsplit
 
 import click
-from flask import Flask, render_template
+from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
+from flask_wtf.csrf import CSRFError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from webvulnscanner.config import Config
@@ -70,6 +72,34 @@ def _init_sentry(app):
         )
         return
     sentry_sdk.init(dsn=dsn, integrations=[FlaskIntegration()], traces_sample_rate=0.1)
+
+
+def _safe_referrer():
+    # Same-origin-only redirect target for the CSRFError handler below,
+    # built from request.referrer - an attacker-controllable request
+    # header, not trusted input, so it must never reach a redirect call
+    # unvalidated, the same class of bug auth_routes.py's `next` param
+    # guards against (SEC-07). Kept as its own named function (mirroring
+    # _safe_next()'s pattern) rather than inlined, so
+    # tests/test_auth_flows.py::test_only_safe_next_redirects_take_a_
+    # request_derived_argument - which source-scans webvulnscanner/ for
+    # every redirect call site and fails closed on anything that isn't
+    # url_for(...) or a named, reviewed safe-redirect helper - has a
+    # second, equally auditable pattern to recognize instead of a raw
+    # inline referrer value reaching a redirect call unaudited.
+    #
+    # Falls back to the homepage when there's no referrer, or it isn't
+    # same-origin (scheme+host match request.host) - a CSRF-token expiry
+    # is common (idle timeout, a stale second tab) and deliberately never
+    # reaches this codepath from a genuinely cross-site request in the
+    # first place (that's what CSRFProtect just rejected), but the
+    # referrer header itself is still not proof of that on its own.
+    referrer = request.referrer
+    if referrer:
+        parsed = urlsplit(referrer)
+        if (not parsed.scheme or parsed.scheme in ("http", "https")) and parsed.netloc == request.host:
+            return urlunsplit(("", "", parsed.path or "/", parsed.query, ""))
+    return url_for("public.index")
 
 
 def create_app(config_class=Config):
@@ -235,6 +265,31 @@ def create_app(config_class=Config):
     @app.errorhandler(429)
     def _rate_limited(_e):
         return render_template("429.html"), 429
+
+    # A CSRF token expires with the session that issued it (SESSION_COOKIE
+    # ... / PERMANENT_SESSION_LIFETIME) - hitting an idle-timeout logout,
+    # then submitting a form still open in another tab, is a completely
+    # ordinary way to trip this, not an attack. Flask-WTF's CSRFProtect
+    # raises this as a raw 400 with no handler registered, which used to
+    # surface Flask's unstyled default error page (and its literal
+    # "The CSRF token has expired." message) straight to the user - a
+    # backend implementation detail leaking through, and confusing since
+    # every other error in this app stays inside the themed error pages
+    # above. Bounce back to the page that was submitted (its GET render
+    # mints a fresh token via csrf_token()/hidden_tag()) with a plain-
+    # English flash instead.
+    @app.errorhandler(CSRFError)
+    def _csrf_error(_e):
+        # scan_new_advanced.html's Smart Setup fetch() call (the only
+        # X-Requested-With: XMLHttpRequest sender in the app) expects a
+        # JSON error body it can show inline, not an HTML redirect a fetch()
+        # would just follow and then fail to JSON.parse - give it the same
+        # shape its view already uses for its own validation errors.
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify(error="Your session expired - please refresh and try again."), 400
+
+        flash("Your session expired - please try again.", "error")
+        return redirect(_safe_referrer())
 
     @app.cli.command("grant-platform-admin")
     @click.argument("email")

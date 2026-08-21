@@ -418,12 +418,15 @@ def test_logout_ignores_a_next_param_supplied_on_the_logout_request(client, db):
 
 
 # --------------------------------------------------------------------------
-# SEC-07 sole-surface source lock: _safe_next() must be the only
-# user-influenced redirect target anywhere in webvulnscanner/, and the only
-# next-parameter-style helper defined. Same comment-filtered, full-line-only
-# source-scanning idiom as tests/test_csrf_enforcement.py's
-# _find_csrf_exempt_call_sites and tests/test_injection_and_traversal.py's
-# autoescape/Markup/execute-call-site locks (08-02/08-05).
+# SEC-07 sole-surface source lock: every user-influenced redirect target
+# anywhere in webvulnscanner/ must go through one of exactly two named,
+# reviewed helpers - _safe_next() (the `next` query-param case) or
+# _safe_referrer() (the CSRFError handler's `request.referrer` case, added
+# Phase 10, 08-20/21) - never a bare, unaudited expression. Same
+# comment-filtered, full-line-only source-scanning idiom as
+# tests/test_csrf_enforcement.py's _find_csrf_exempt_call_sites and
+# tests/test_injection_and_traversal.py's autoescape/Markup/execute-call-site
+# locks (08-02/08-05).
 # --------------------------------------------------------------------------
 
 _REDIRECT_CALL_RE = re.compile(r"(?<![\w.])redirect\(")
@@ -436,6 +439,12 @@ _EXPECTED_SAFE_NEXT_CALL_SITES = {
     ("auth_routes.py", 161),
     ("auth_routes.py", 273),
     ("auth_routes.py", 287),
+}
+
+# Same closed-set treatment for _safe_referrer() (webvulnscanner/__init__.py's
+# CSRFError handler) - currently exactly one call site.
+_EXPECTED_SAFE_REFERRER_CALL_SITES = {
+    ("__init__.py", 292),
 }
 
 
@@ -463,24 +472,33 @@ def test_only_safe_next_redirects_take_a_request_derived_argument():
     assert hits, "no redirect() call sites found at all - the scan itself is broken"
 
     safe_next_sites = set()
+    safe_referrer_sites = set()
     violations = []
     for rel_path, name, lineno, argument, line in hits:
         if argument.startswith("_safe_next("):
             safe_next_sites.add((name, lineno))
+            continue
+        if argument.startswith("_safe_referrer("):
+            safe_referrer_sites.add((name, lineno))
             continue
         if argument.startswith("url_for("):
             continue
         violations.append(f"{rel_path}:{lineno} -> redirect({argument!r}) (full line: {line!r})")
 
     assert not violations, (
-        "redirect() call site(s) with an argument that is neither url_for(...) "
-        "nor _safe_next() (SEC-07 regression) - a request-derived redirect "
-        f"target outside _safe_next() may have been introduced: {violations}"
+        "redirect() call site(s) with an argument that is neither url_for(...), "
+        "_safe_next(), nor _safe_referrer() (SEC-07 regression) - a "
+        f"request-derived redirect target outside those helpers may have been introduced: {violations}"
     )
     assert safe_next_sites == _EXPECTED_SAFE_NEXT_CALL_SITES, (
         f"the set of _safe_next()-based redirect() call sites changed - "
         f"expected exactly {sorted(_EXPECTED_SAFE_NEXT_CALL_SITES)}, "
         f"found {sorted(safe_next_sites)}"
+    )
+    assert safe_referrer_sites == _EXPECTED_SAFE_REFERRER_CALL_SITES, (
+        f"the set of _safe_referrer()-based redirect() call sites changed - "
+        f"expected exactly {sorted(_EXPECTED_SAFE_REFERRER_CALL_SITES)}, "
+        f"found {sorted(safe_referrer_sites)}"
     )
 
 

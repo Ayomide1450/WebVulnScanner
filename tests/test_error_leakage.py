@@ -200,23 +200,51 @@ def test_401_returns_a_minimal_json_body_and_leaks_nothing(prod_client, prod_db)
 
 
 # --------------------------------------------------------------------------
-# 400 - realistic path: a genuinely malformed request. With CSRF actually
-# enforced (unlike every other test in this suite), a token-less POST to a
-# state-changing route is a real 400 from Flask-WTF's CSRFError - the same
-# mechanism tests/test_csrf_enforcement.py already proves under
-# TESTING=True; here it's proven under TESTING=False for the first time.
-# Unhandled (no @app.errorhandler(400) anywhere), so no repo branding.
+# 400 (CSRFError) - realistic path: a token-less POST to a state-changing
+# route, same mechanism tests/test_csrf_enforcement.py already proves under
+# TESTING=True. Phase 10 live-verification (08-20) found this used to fall
+# straight through to Werkzeug's raw default 400 page, literally showing a
+# real user "The CSRF token has expired." after an ordinary idle-timeout
+# logout + stale-tab resubmit - a backend implementation detail leaking
+# through, not an attack. @app.errorhandler(CSRFError) in __init__.py now
+# redirects back to the referring page with a plain-English flash instead
+# of ever rendering a raw error page for this case.
 # --------------------------------------------------------------------------
 
 
-def test_400_renders_generic_page_and_leaks_nothing(prod_client, prod_db):
+def test_csrf_error_redirects_with_flash_instead_of_raw_400(prod_client, prod_db):
     resp = prod_client.post(
         "/forgot-password", data={"email": "someone@example.com"}, follow_redirects=False,
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 302, "a CSRFError should redirect, not render a raw error page"
     body = resp.get_data(as_text=True)
-    assert "Glassbox" not in body, "400 unexpectedly rendered the app's own themed page"
-    _assert_no_leak(resp, "400")
+    assert "Glassbox" not in body, "the redirect response body unexpectedly carried the app's own theme"
+    _assert_no_leak(resp, "CSRFError redirect")
+
+    followed = prod_client.post(
+        "/forgot-password", data={"email": "someone@example.com"}, follow_redirects=True,
+    )
+    assert followed.status_code == 200
+    followed_body = followed.get_data(as_text=True)
+    assert "session expired" in followed_body.lower(), (
+        "expected the plain-English CSRF-expiry flash message on the page the redirect landed on"
+    )
+    _assert_no_leak(followed, "CSRFError redirect target")
+
+
+def test_csrf_error_redirect_ignores_cross_origin_referrer(prod_client, prod_db):
+    """request.referrer is an attacker-controllable header, not trusted
+    input - the handler must not blindly redirect to it (same open-redirect
+    class auth_routes.py's _safe_next() already guards for `next`)."""
+    resp = prod_client.post(
+        "/forgot-password",
+        data={"email": "someone@example.com"},
+        headers={"Referer": "https://evil.example.com/phish"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"].startswith("/"), "must not redirect to a cross-origin referrer"
+    assert "evil.example.com" not in resp.headers["Location"]
 
 
 # --------------------------------------------------------------------------
