@@ -6,7 +6,7 @@ decision for the whole org), while viewing the billing page just requires
 being logged in - any member can see their org's current plan/subscription
 status and pending invoices.
 """
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from webvulnscanner import billing
@@ -40,6 +40,17 @@ def view():
         plan_annual_prices=billing.PLAN_ANNUAL_USD_PRICE,
         token_symbols=TOKEN_SYMBOLS,
         upgradable_plans=(Plan.PAID, Plan.ORG_VERIFIED),
+        # Surfaced on each pending-invoice card (Phase 10 live-verification
+        # feedback, 08-20) so a payer can double-check the token contract
+        # before sending - the address alone doesn't tell them which token/
+        # chain they're paying with, and self-custody crypto sent to the
+        # wrong contract is unrecoverable. Read-only display value, not
+        # used for verification (verify_invoice() already resolves this
+        # itself from the invoice's own token_symbol).
+        token_contracts={
+            "USDT": current_app.config.get("USDT_CONTRACT_ADDRESS", ""),
+            "USDC": current_app.config.get("USDC_CONTRACT_ADDRESS", ""),
+        },
     )
 
 
