@@ -2423,11 +2423,18 @@ def check_sqli_login(session, login_url, user_field, pass_field, fail_text):
     bypass_rows = [{"payload": "(baseline invalid login)",
                      "result": "fail_text present" if baseline_failed else "fail_text absent - unreliable baseline"}]
     if not baseline_failed:
-        findings.append(Finding("Auth", "SQLi login-bypass test has an unreliable baseline", "info",
-                                 "The fail_text you supplied wasn't found on a known-bad login, so the "
-                                 "content-comparison technique can't be trusted here (the time-based technique "
-                                 "below still applies).",
-                                 "Double-check the exact text shown on a failed login and re-run.", confidence="Informational"))
+        findings.append(Finding(
+            "Auth", "SQLi login-bypass test has an unreliable baseline", "info",
+            "This is about your scan setup, not a vulnerability in your site. To detect a SQL-injection "
+            "login bypass, Glassbox first submits a login it knows will fail, then checks the response "
+            "for the exact 'fail text' you entered in the Advanced Scan form (e.g. 'Invalid credentials'). "
+            "That text wasn't found on this known-bad login, so Glassbox can't reliably tell a real bypass "
+            "apart from an ordinary failed attempt using this technique - any result from it here would be "
+            "guesswork. The separate time-based technique below doesn't depend on this text and still ran "
+            "normally.",
+            "Open your login page, submit any wrong password, and copy the exact error text shown - then "
+            "re-run this scan with that text in the 'fail text' field.", confidence="Informational",
+        ))
 
     for payload in AUTH_BYPASS_PAYLOADS:
         try:
@@ -2646,9 +2653,17 @@ def check_bruteforce(session, url, user_field, pass_field, username, passwords, 
         rows.append({"result": "SUCCEEDED" if succeeded else ("rate-limited (429)" if r.status_code == 429 else "failed")})
         if succeeded:
             finding = Finding("Auth", f"Login succeeded for '{username}' with a common password", "critical",
-                               f"One of the {len(passwords)} tested common passwords logged in successfully "
-                               "(value withheld from this report).",
-                               "Rotate that password immediately and enforce a stronger password policy / rate limiting.", confidence="Confirmed")
+                               f"One of the {len(passwords)} common passwords Glassbox tried for '{username}' "
+                               "logged in successfully - meaning anyone could guess it too. The password itself "
+                               "is deliberately not shown or stored anywhere in this report: Glassbox never "
+                               "keeps a working credential in memory past this check, the same way it redacts "
+                               "any secret it finds elsewhere, so a leaked report can never become a second way "
+                               "to get into the account. To find out which password it was, change "
+                               f"'{username}'’s password now and re-run this scan with your own candidate list "
+                               "to confirm the fix.",
+                               "Change this password immediately, then enforce a stronger password policy "
+                               "(minimum length/complexity, blocklist common passwords) and rate-limit the "
+                               "login endpoint so guessing takes far more than a few tries.", confidence="Confirmed")
             return {"attempts": rows, "cap": MAX_BRUTEFORCE_ATTEMPTS, "rate_limited": saw_429}, [finding]
         time.sleep(1.0)
 
