@@ -14,14 +14,15 @@ session already could.
 """
 from functools import wraps
 
-from flask import Blueprint, abort, jsonify
+from flask import Blueprint, abort, jsonify, request
 from flask_login import current_user
 
 from webvulnscanner.asset_routes import _check_asset_access, _scoped_asset_query
+from webvulnscanner.entitlements import effective_tier
 from webvulnscanner.extensions import csrf, limiter
 from webvulnscanner.models import Asset, Scan
 from webvulnscanner.scan_engine import read_report_file
-from webvulnscanner.scan_routes import _check_ownership
+from webvulnscanner.scan_routes import _check_ownership, _launch_base_scan, _load_report_json, diff_reports
 from webvulnscanner.scheduler import _fire
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
@@ -203,3 +204,87 @@ def fetch_report(scan_id):
             return jsonify(error="report file is unavailable"), 500
 
     return jsonify(report), 200
+
+
+@api.route("/scans", methods=["GET", "POST"])
+@api_login_required
+@limiter.limit("30 per minute", key_func=_api_rate_limit_key)
+def scans_collection():
+    """Phase 18 (glassbox CLI): a URL-first way into the same engine
+    Assets already use, for a caller (CI pipeline, ad-hoc `glassbox
+    assess <url>`) that doesn't want to create a persistent Asset first.
+
+    POST launches a standard/base scan against `target_url` - the exact
+    same `_launch_base_scan()` the web UI's bulk-scan form calls (see its
+    own docstring), so this is provably subject to the identical SSRF/
+    ownership/tier gate, not a parallel reimplementation that could drift.
+    Only the base scan type is exposed here (Advanced/Media/API each need
+    additional form fields - credentials, media-download flags - that
+    don't have an ad-hoc-URL shape yet; use the existing Asset+
+    `POST /assets/<id>/scans` path for those, or the web UI).
+
+    `authorized: true` is REQUIRED in the JSON body, not inferred - the
+    same explicit per-submission confirmation every other scan-launching
+    surface in this app requires (the web forms' checkbox, the API-03
+    Asset-trigger path's Asset.authorized_at set once at Asset-creation
+    time). A CLI/CI caller with no browser and no checkbox to tick must
+    still make this affirmative, can't-miss-it.
+
+    GET lists the caller's own scans (optionally `?target_url=` filtered),
+    newest first - lets a caller resolve "the most recent scan for this
+    URL" (glassbox readiness/verify's default) without an Asset to key
+    off, mirroring list_assets' own scoping (session or solo, never
+    another user's/org's scans)."""
+    if request.method == "GET":
+        query = Scan.query.filter_by(user_id=current_user.id)
+        target_url = request.args.get("target_url")
+        if target_url:
+            query = query.filter_by(target_url=target_url)
+        limit = min(int(request.args.get("limit", 20) or 20), 100)
+        scans = query.order_by(Scan.created_at.desc()).limit(limit).all()
+        return jsonify(scans=[_serialize_scan_summary(s) | {"target_url": s.target_url, "scan_type": s.scan_type}
+                               for s in scans])
+
+    body = request.get_json(silent=True) or {}
+    target_url = (body.get("target_url") or "").strip()
+    if not target_url:
+        return jsonify(error="target_url is required"), 400
+    if not body.get("authorized"):
+        return jsonify(error="authorized must be true - confirm you own or have explicit "
+                              "permission to test this domain"), 400
+
+    tier = effective_tier(current_user)
+    s, err, is_duplicate = _launch_base_scan(current_user, tier, target_url)
+    if s is None:
+        return jsonify(error=err), 400
+
+    return jsonify(scan_id=s.id, status=s.status.value, duplicate=is_duplicate), 202
+
+
+@api.route("/scans/<int:scan_id>/compare/<int:other_id>")
+@api_login_required
+@limiter.limit("60 per minute", key_func=_api_rate_limit_key)
+def scans_compare(scan_id, other_id):
+    """Phase 18: `glassbox verify`/`glassbox compare`'s backing endpoint -
+    100% reuse of scan_routes.diff_reports(), the exact same Added/Removed/
+    Changed/Unchanged diff the web UI's /scan/<id>/compare/<id> page
+    already renders, just as JSON instead of HTML. Ownership-checked
+    against both scans independently (same as the web route) so a caller
+    can't use one scan they own to pivot into reading a report on a scan
+    they don't."""
+    a = Scan.query.get_or_404(scan_id)
+    b = Scan.query.get_or_404(other_id)
+    _check_ownership(a)
+    _check_ownership(b)
+    if a.report is None or b.report is None:
+        return jsonify(error="one or both scans have no report yet"), 404
+
+    report_a = _load_report_json(a)
+    report_b = _load_report_json(b)
+    if report_a is None or report_b is None:
+        return jsonify(error="one or both reports are unavailable"), 500
+
+    diff = diff_reports(report_a, report_b)
+    return jsonify(
+        scan_a=_serialize_scan_summary(a), scan_b=_serialize_scan_summary(b), diff=diff,
+    )

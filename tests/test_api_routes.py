@@ -615,3 +615,155 @@ def test_rate_limit_trips_429_on_list_assets(tmp_path):
         assert 429 in statuses, f"expected a 429 within 61 requests against a 60/minute limit, got {statuses}"
     finally:
         _limiter.reset()
+
+
+# --------------------------------------------------------------------------
+# Phase 18 (glassbox CLI): POST/GET /api/v1/scans - the ad-hoc-URL launch
+# path (glassbox assess/gate/readiness/verify), and GET /api/v1/scans/<id>/
+# compare/<id> (glassbox compare/verify's diff). Same _spawn_scan_thread
+# monkeypatch idiom as tests/test_scan_wizard.py/test_scan_lifecycle_guards.py
+# - _launch_base_scan lives in scan_routes.py, not scheduler.py, so it's a
+# different target than the `spawned` fixture above patches.
+# --------------------------------------------------------------------------
+
+@pytest.fixture()
+def spawned_base(monkeypatch):
+    calls = []
+
+    def _fake_spawn(scan_id, scan_type, **kwargs):
+        calls.append({"scan_id": scan_id, "scan_type": scan_type, "kwargs": kwargs})
+
+    monkeypatch.setattr("webvulnscanner.scan_routes._spawn_scan_thread", _fake_spawn)
+    return calls
+
+
+def test_post_scans_requires_authorized_true(client, db, spawned_base):
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+
+    resp = client.post(
+        "/api/v1/scans", headers=_auth_headers(raw_token),
+        json={"target_url": "https://example.com"},
+    )
+
+    assert resp.status_code == 400
+    assert "authorized" in resp.get_json()["error"].lower()
+    assert Scan.query.count() == 0
+    assert len(spawned_base) == 0
+
+
+def test_post_scans_requires_target_url(client, db, spawned_base):
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+
+    resp = client.post(
+        "/api/v1/scans", headers=_auth_headers(raw_token), json={"authorized": True},
+    )
+
+    assert resp.status_code == 400
+    assert Scan.query.count() == 0
+
+
+def test_post_scans_launches_exactly_one_base_scan(client, db, spawned_base):
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+
+    resp = client.post(
+        "/api/v1/scans", headers=_auth_headers(raw_token),
+        json={"target_url": "https://example.com", "authorized": True},
+    )
+
+    assert resp.status_code == 202
+    body = resp.get_json()
+    assert body["status"] == "queued"
+    assert body["duplicate"] is False
+    scans = Scan.query.filter_by(user_id=user.id).all()
+    assert len(scans) == 1
+    assert scans[0].id == body["scan_id"]
+    assert scans[0].scan_type == "base"
+    assert len(spawned_base) == 1
+
+
+def test_post_scans_ssrf_unsafe_target_rejected_no_scan_created(client, db, spawned_base):
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+
+    resp = client.post(
+        "/api/v1/scans", headers=_auth_headers(raw_token),
+        json={"target_url": "http://127.0.0.1:8080", "authorized": True},
+    )
+
+    assert resp.status_code == 400
+    assert Scan.query.count() == 0
+    assert len(spawned_base) == 0
+
+
+def test_get_scans_filters_by_target_url_and_scopes_to_caller(client, db):
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    other_user = make_user("other@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+    make_scan(user, org=org, target_url="https://a.example.com")
+    make_scan(user, org=org, target_url="https://b.example.com")
+    make_scan(other_user, org=org, target_url="https://a.example.com")
+    db.session.commit()
+
+    resp = client.get(
+        "/api/v1/scans?target_url=https://a.example.com", headers=_auth_headers(raw_token),
+    )
+
+    assert resp.status_code == 200
+    body = resp.get_json()["scans"]
+    assert len(body) == 1
+    assert body[0]["target_url"] == "https://a.example.com"
+
+
+def test_scans_compare_returns_added_removed_changed(client, db):
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+    scan_a = make_scan(user, org=org, status=ScanStatus.COMPLETED)
+    scan_b = make_scan(user, org=org, status=ScanStatus.COMPLETED)
+    db.session.commit()
+    _make_report(db, scan_a, {"score": 80, "findings": [
+        {"category": "Headers", "title": "Missing CSP", "severity": "medium", "detail": "x"},
+    ]})
+    _make_report(db, scan_b, {"score": 90, "findings": [
+        {"category": "Cookies", "title": "Missing Secure flag", "severity": "low", "detail": "y"},
+    ]})
+
+    resp = client.get(f"/api/v1/scans/{scan_a.id}/compare/{scan_b.id}", headers=_auth_headers(raw_token))
+
+    assert resp.status_code == 200
+    diff = resp.get_json()["diff"]
+    assert len(diff["removed"]) == 1  # "Missing CSP" - present in a, gone in b
+    assert len(diff["added"]) == 1  # "Missing Secure flag" - new in b
+    assert diff["score_delta"] == 10
+
+
+def test_scans_compare_cross_org_is_404(client, db):
+    org_a = make_org(plan=Plan.PAID, name="Org A")
+    org_b = make_org(plan=Plan.PAID, name="Org B")
+    user_a = make_user("a@example.com", org=org_a)
+    user_b = make_user("b@example.com", org=org_b)
+    db.session.commit()
+    _, raw_token_b = make_api_token(user_b, name="b-tok")
+    scan_a1 = make_scan(user_a, org=org_a, status=ScanStatus.COMPLETED)
+    scan_a2 = make_scan(user_a, org=org_a, status=ScanStatus.COMPLETED)
+    db.session.commit()
+    _make_report(db, scan_a1)
+    _make_report(db, scan_a2)
+
+    resp = client.get(f"/api/v1/scans/{scan_a1.id}/compare/{scan_a2.id}", headers=_auth_headers(raw_token_b))
+
+    assert resp.status_code == 404

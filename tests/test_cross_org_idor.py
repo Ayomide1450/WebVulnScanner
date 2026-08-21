@@ -94,6 +94,7 @@ class RoleGated:
 REGISTRY = {
     "billing.verify_invoice_route": "tests/test_billing_routes.py::test_cross_org_verify_is_refused_and_makes_no_changes",
     "api.trigger_scan": "tests/test_api_routes.py::test_trigger_scan_different_org_gets_404_no_scan_created",
+    "api.scans_compare": "tests/test_api_routes.py::test_scans_compare_cross_org_is_404",
     "api.scan_status": "tests/test_api_routes.py::test_scan_status_different_org_gets_404",
     "api.fetch_report": "tests/test_api_routes.py::test_fetch_report_different_org_gets_404",
     "api_tokens.revoke_token": "tests/test_api_tokens_routes.py::test_user_cannot_revoke_another_users_token",
