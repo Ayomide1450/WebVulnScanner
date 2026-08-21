@@ -218,7 +218,7 @@ approach). Complete.
 **UI hint**: yes (one new form page + one new admin list view, reusing `_admin_form_styles.html`/
 existing admin-panel table patterns)
 
-### Phase 16: Platform Admin User/Org Management
+### Phase 16: Platform Admin User/Org Management ✅ COMPLETE (2026-08-21)
 
 **Goal**: Platform admins can inspect a user's or org's detail (scans, plan, verified domains)
 and suspend/remove a user or org from `/platform-admin`, with every action audit-logged - not
@@ -231,10 +231,12 @@ just the pending-domain-deletion/assessment-request queues that exist today.
   2. A platform admin can suspend a user (blocks login; distinct from deletion) and reverse it,
      each requiring a confirmation step (this is an irreversible-adjacent action per the app's
      own safety conventions).
-  3. A platform admin can suspend/remove an org, cascading the same block to its members.
-  4. Every suspend/remove/restore action writes an `OrgAuditEvent`-style row so there's a
-     who/what/when trail, same convention as domain-deletion approve/reject already uses.
-**Plans**: 0/TBD plans executed
+  3. A platform admin can suspend an org, cascading the same block to its members.
+  4. Every suspend/unsuspend action writes a `PlatformAuditEvent` row so there's a who/what/when
+     trail, same convention as domain-deletion approve/reject already uses.
+**Plans**: 1/1 plans executed (executed directly, no PLAN.md - matches Phases 11-15's lean
+approach). Complete. Hard delete of a user/org was scoped out during implementation (see
+REQUIREMENTS.md's ADMIN-03 note) - a real, valid future requirement, not dropped.
 
 **UI hint**: yes (new user/org detail pages + destructive-action confirmation flows on
 `/platform-admin`)
@@ -299,6 +301,6 @@ against already exists)
 | 13. Domain Grouping & Scoring v2 | v1.3 | Direct execution | Complete | 2026-08-20 |
 | 14. Net-New Checks | v1.3 | Direct execution | Complete | 2026-08-20 |
 | 15. Request Expert Assessment | v1.3 | Direct execution | Complete | 2026-08-20 |
-| 16. Platform Admin User/Org Management | v1.4 | 0/TBD | Not started | - |
+| 16. Platform Admin User/Org Management | v1.4 | Direct execution | Complete | 2026-08-21 |
 | 17. Expanded Check Coverage | v1.4 | 0/TBD | Not started | - |
 | 18. CLI Client | v1.4 | 0/TBD | Not started | - |

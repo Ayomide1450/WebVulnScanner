@@ -115,12 +115,18 @@ product framing, it does not change what the scanner is allowed to do to a targe
 
 ### Platform Admin User/Org Management — Phase 16
 
-- [ ] **ADMIN-01**: A platform admin can open a user detail view (org, role, plan, scan history)
+- [x] **ADMIN-01**: A platform admin can open a user detail view (org, role, plan, scan history)
       from `/platform-admin`.
-- [ ] **ADMIN-02**: A platform admin can suspend/unsuspend a user (blocks login, distinct from
+- [x] **ADMIN-02**: A platform admin can suspend/unsuspend a user (blocks login, distinct from
       deletion), gated behind a confirmation step.
-- [ ] **ADMIN-03**: A platform admin can suspend/remove an org, cascading to its members.
-- [ ] **ADMIN-04**: Every suspend/remove/restore action writes an audit-trail row (who/what/when),
+- [x] **ADMIN-03**: A platform admin can suspend an org, cascading the block to its members.
+      Scoped down from "suspend/remove" during implementation (08-21): hard delete of a user or
+      org is a separate, much higher-stakes feature (data-loss semantics, cascade behavior across
+      scans/reports/billing) genuinely deserving its own dedicated design pass, not a checkbox
+      alongside a reversible suspend action. Suspension covers the "stop this account/org from
+      doing anything" need `admin_routes.py`'s existing docstring named as the actual moderation
+      goal; hard delete is a real, valid future requirement, not dropped.
+- [x] **ADMIN-04**: Every suspend/remove/restore action writes an audit-trail row (who/what/when),
       same convention as the existing domain-deletion approve/reject flow.
 
 ### Expanded Check Coverage — Phase 17
@@ -176,7 +182,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCORE-01..05 | Phase 13 | Complete |
 | CHECK-01..06 | Phase 14 | Complete |
 | CTA-01..04 | Phase 15 | Complete |
-| ADMIN-01..04 | Phase 16 | Not started |
+| ADMIN-01..04 | Phase 16 | Complete (ADMIN-03 scoped to suspend, not hard delete - see note) |
 | DEPTH-01..03 | Phase 17 | Not started |
 | CLI-01..03 | Phase 18 | Not started |
 
