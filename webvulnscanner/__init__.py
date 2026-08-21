@@ -216,6 +216,17 @@ def create_app(config_class=Config):
         if getattr(flask.g, "login_via_request", False):
             return
 
+        # A user (or their org) suspended by a platform admin mid-session
+        # (Phase 16, ADMIN-02/03) must lose access on their very next
+        # request, not merely be blocked from a future login - the session
+        # cookie alone would otherwise keep working until it naturally
+        # expires. Same forced-logout shape as the idle-timeout branch
+        # below, checked first since it doesn't depend on _last_seen.
+        if not current_user.is_active:
+            logout_user()
+            session.clear()
+            return
+
         now = datetime.now(timezone.utc)
         timeout = timedelta(minutes=app.config.get("IDLE_TIMEOUT_MINUTES", 5))
         last_seen_raw = session.get("_last_seen")

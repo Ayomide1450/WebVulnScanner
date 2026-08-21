@@ -438,13 +438,13 @@ _REDIRECT_CALL_RE = re.compile(r"(?<![\w.])redirect\(")
 _EXPECTED_SAFE_NEXT_CALL_SITES = {
     ("auth_routes.py", 161),
     ("auth_routes.py", 273),
-    ("auth_routes.py", 287),
+    ("auth_routes.py", 300),
 }
 
 # Same closed-set treatment for _safe_referrer() (webvulnscanner/__init__.py's
 # CSRFError handler) - currently exactly one call site.
 _EXPECTED_SAFE_REFERRER_CALL_SITES = {
-    ("__init__.py", 292),
+    ("__init__.py", 303),
 }
 
 

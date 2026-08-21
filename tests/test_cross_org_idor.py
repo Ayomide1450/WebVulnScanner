@@ -102,6 +102,31 @@ REGISTRY = {
     "asset.pause_asset": "tests/test_asset_routes.py::test_pause_resume_delete_all_three_404_for_non_owning_org",
     "asset.resume_asset": "tests/test_asset_routes.py::test_pause_resume_delete_all_three_404_for_non_owning_org",
     "asset.update_schedule": "tests/test_asset_routes.py::test_schedule_cross_org_is_404_and_does_not_mutate_cadence_or_scan_type",
+    "admin.user_detail": RoleGated(
+        "tests/test_admin_routes.py::test_all_six_user_org_detail_and_suspend_routes_require_platform_admin",
+        "Cross-org BY DESIGN (Phase 16): platform_admin_required is a role gate - a platform "
+        "admin reviews every org's users, not just their own - not an org_id comparison.",
+    ),
+    "admin.org_detail": RoleGated(
+        "tests/test_admin_routes.py::test_all_six_user_org_detail_and_suspend_routes_require_platform_admin",
+        "Same platform_admin_required role gate as admin.user_detail above.",
+    ),
+    "admin.suspend_user": RoleGated(
+        "tests/test_admin_routes.py::test_all_six_user_org_detail_and_suspend_routes_require_platform_admin",
+        "Same platform_admin_required role gate as admin.user_detail above.",
+    ),
+    "admin.unsuspend_user": RoleGated(
+        "tests/test_admin_routes.py::test_all_six_user_org_detail_and_suspend_routes_require_platform_admin",
+        "Same platform_admin_required role gate as admin.user_detail above.",
+    ),
+    "admin.suspend_org": RoleGated(
+        "tests/test_admin_routes.py::test_all_six_user_org_detail_and_suspend_routes_require_platform_admin",
+        "Same platform_admin_required role gate as admin.user_detail above.",
+    ),
+    "admin.unsuspend_org": RoleGated(
+        "tests/test_admin_routes.py::test_all_six_user_org_detail_and_suspend_routes_require_platform_admin",
+        "Same platform_admin_required role gate as admin.user_detail above.",
+    ),
     "org.approve_domain_deletion": RoleGated(
         "tests/test_org_routes.py::test_org_admin_cannot_approve_their_own_deletion_request",
         "Cross-org BY DESIGN: platform_admin_required is a role gate (a platform admin reviews "

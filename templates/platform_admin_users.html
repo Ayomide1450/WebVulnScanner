@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Users - Platform Admin - Glassbox{% endblock %}
+{% block head %}
+{% include "_admin_form_styles.html" %}
+<style>
+  .search-row { display:flex; gap:10px; margin-bottom: var(--space-4); max-width: 420px; }
+  .search-row input { margin-top:0; }
+  .search-row button { margin-top:0; width:auto; padding: 11px 20px; }
+  td.suspended-tag { color: var(--critical); font-size: 12px; font-weight:600; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <h1>Users</h1>
+  <p style="color: var(--muted); font-size: 13px;">
+    <a class="back" href="{{ url_for('admin.platform_dashboard') }}">&larr; Platform Admin</a>
+  </p>
+
+  <form class="search-row" method="GET" action="{{ url_for('admin.list_users') }}">
+    <label for="q" style="position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap;">Search users by email</label>
+    <input type="text" id="q" name="q" value="{{ q }}" placeholder="Search by email...">
+    <button type="submit">Search</button>
+  </form>
+
+  <div class="card">
+    {% if users %}
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Email</th><th>Organization</th><th>Role</th><th>Status</th><th>Created</th></tr></thead>
+      <tbody>
+      {% for u in users %}
+      <tr>
+        <td><a class="row-link" href="{{ url_for('admin.user_detail', user_id=u.id) }}">{{ u.email }}</a></td>
+        <td>{{ u.organization.name if u.organization else '—' }}</td>
+        <td>{{ u.role.value }}</td>
+        <td>{% if u.suspended_at %}<span class="suspended-tag">SUSPENDED</span>{% else %}<span class="pill pass">ACTIVE</span>{% endif %}</td>
+        <td>{{ u.created_at.strftime('%b %d, %Y') }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p style="color: var(--muted); font-size: 13px;">No users found{% if q %} matching "{{ q }}"{% endif %}.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

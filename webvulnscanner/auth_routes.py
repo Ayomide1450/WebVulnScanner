@@ -283,7 +283,20 @@ def login():
             flash("Invalid email or password.", "error")
             return render_template("login.html", form=form)
 
-        login_user(user, remember=form.remember.data)
+        # A suspended user (or a member of a suspended org - User.is_active
+        # checks both) has correctly-verified credentials at this point, so
+        # telling them specifically why login is refused isn't a user-
+        # enumeration leak the way it would be before password
+        # verification - they already know the account exists and the
+        # password is right. login_user() itself refuses (returns False)
+        # without touching the session when is_active is False; check the
+        # return value rather than assuming success, which used to redirect
+        # to _safe_next() while current_user stayed unauthenticated - a
+        # silent failure with no explanation (Phase 16, ADMIN-02).
+        if not login_user(user, remember=form.remember.data):
+            flash("This account has been suspended. Contact support if you believe this is a mistake.", "error")
+            return render_template("login.html", form=form)
+
         return redirect(_safe_next())
 
     return render_template("login.html", form=form)

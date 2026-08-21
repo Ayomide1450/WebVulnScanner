@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}{{ user.email }} - Platform Admin - Glassbox{% endblock %}
+{% block head %}
+{% include "_admin_form_styles.html" %}
+<style>
+  .detail-grid { display:flex; gap: var(--space-5); flex-wrap: wrap; margin-bottom: var(--space-4); }
+  .detail-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+  .detail-value { font-size: 14px; font-weight: 600; }
+  .actions-row { display:flex; gap:8px; flex-wrap:wrap; margin: var(--space-4) 0; }
+  .actions-row form { margin:0; }
+  .verify-btn.danger { background: rgba(248,113,113,.14); color: var(--critical); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <p style="color: var(--muted); font-size: 13px;">
+    <a class="back" href="{{ url_for('admin.list_users') }}">&larr; Users</a>
+  </p>
+  <h1><code>{{ user.email }}</code></h1>
+
+  <div class="card">
+    <div class="detail-grid">
+      <div><div class="detail-label">Organization</div><div class="detail-value">{% if user.organization %}<a class="row-link" href="{{ url_for('admin.org_detail', org_id=user.organization.id) }}">{{ user.organization.name }}</a>{% else %}&mdash; (solo account){% endif %}</div></div>
+      <div><div class="detail-label">Role</div><div class="detail-value">{{ user.role.value }}</div></div>
+      <div><div class="detail-label">Plan</div><div class="detail-value">{{ user.organization.plan.value|replace('_', ' ')|title if user.organization else 'Free' }}</div></div>
+      <div><div class="detail-label">Status</div><div class="detail-value">{% if user.suspended_at %}<span class="pill critical">SUSPENDED</span> since {{ user.suspended_at.strftime('%b %d, %Y') }}{% else %}<span class="pill pass">ACTIVE</span>{% endif %}</div></div>
+      <div><div class="detail-label">Platform admin</div><div class="detail-value">{{ 'Yes' if user.is_platform_admin else 'No' }}</div></div>
+      <div><div class="detail-label">Joined</div><div class="detail-value">{{ user.created_at.strftime('%b %d, %Y') }}</div></div>
+    </div>
+
+    {% if not user.is_platform_admin and user.id != current_user.id %}
+    <div class="actions-row">
+      {% if user.suspended_at %}
+      <form method="POST" action="{{ url_for('admin.unsuspend_user', user_id=user.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="verify-btn" type="submit">Unsuspend</button>
+      </form>
+      {% else %}
+      <a class="btn destructive" href="{{ url_for('admin.suspend_user', user_id=user.id) }}">Suspend user</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <h2 class="section">Recent scans</h2>
+  <div class="card">
+    {% if scans %}
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Target</th><th>Type</th><th>Status</th><th>Score</th><th>Date</th></tr></thead>
+      <tbody>
+      {% for s in scans %}
+      <tr>
+        <td><code>{{ s.target_url }}</code></td>
+        <td>{{ s.scan_type|title }}</td>
+        <td><span class="status-pill {{ s.status.value }}">{{ s.status.value }}</span></td>
+        <td>{{ s.risk_score if s.risk_score is not none else '&mdash;' }}</td>
+        <td>{{ s.created_at.strftime('%b %d, %Y') }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p style="color: var(--muted); font-size: 13px;">No scans yet.</p>
+    {% endif %}
+  </div>
+
+  <h2 class="section">Audit trail</h2>
+  <div class="card">
+    {% if audit_events %}
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Event</th><th>Detail</th><th>By</th><th>When</th></tr></thead>
+      <tbody>
+      {% for e in audit_events %}
+      <tr>
+        <td>{{ e.event_type|replace('_', ' ')|title }}</td>
+        <td>{{ e.detail or '&mdash;' }}</td>
+        <td>{{ e.actor.email if e.actor else 'unknown' }}</td>
+        <td>{{ e.created_at.strftime('%b %d, %Y %H:%M UTC') }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p style="color: var(--muted); font-size: 13px;">No admin actions recorded for this user.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

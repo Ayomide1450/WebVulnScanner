@@ -37,8 +37,8 @@
   </p>
 
   <div class="stat-grid">
-    <div class="card stat-card"><div class="label">Organizations</div><div class="value">{{ counts.organizations }}</div></div>
-    <div class="card stat-card"><div class="label">Users</div><div class="value">{{ counts.users }}</div></div>
+    <a class="card stat-card" href="{{ url_for('admin.list_orgs') }}" style="text-decoration:none; color:inherit;"><div class="label">Organizations</div><div class="value">{{ counts.organizations }}</div></a>
+    <a class="card stat-card" href="{{ url_for('admin.list_users') }}" style="text-decoration:none; color:inherit;"><div class="label">Users</div><div class="value">{{ counts.users }}</div></a>
     <div class="card stat-card"><div class="label">Scans</div><div class="value">{{ counts.scans }}</div></div>
     <div class="card stat-card"><div class="label">Pending deletions</div><div class="value">{{ counts.pending_deletions }}</div></div>
     <div class="card stat-card"><div class="label">Assessment requests</div><div class="value">{{ counts.assessment_requests }}</div></div>

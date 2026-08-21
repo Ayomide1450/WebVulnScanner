@@ -433,6 +433,21 @@ CASES = [
         "expected_status": 404,
         "covering_test": "tests/test_scan_ownership.py::test_admin_of_a_different_org_cannot_view_scan",
     },
+    {
+        # Phase 16: /platform-admin/* is cross-org BY DESIGN (a platform
+        # admin reviews every org, not just their own) - so unlike the
+        # cases above, this isn't a 404 org-scoping probe. It proves the
+        # opposite direction instead: an ordinary ORG_ADMIN (org_a's own
+        # admin, not a platform admin) hitting a platform-admin route gets
+        # 403, same RoleGated shape tests/test_cross_org_idor.py's REGISTRY
+        # already uses for org.approve_domain_deletion/reject_domain_deletion.
+        "name": "platform_admin_user_detail_requires_platform_admin",
+        "family": "admin",
+        "kind": "get",
+        "path": "/platform-admin/users/{org_b[member_id]}",
+        "expected_status": 403,
+        "covering_test": "tests/test_admin_routes.py::test_all_six_user_org_detail_and_suspend_routes_require_platform_admin",
+    },
     # --- CSRF token conditions (SEC-02), mirroring
     # tests/test_csrf_enforcement.py's Task 1 shape ---
     {
