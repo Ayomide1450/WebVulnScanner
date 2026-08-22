@@ -4,7 +4,7 @@ Assessment" CTA (Phase 15, CTA-01..04).
 
 A human-fulfilled lead-capture form, not another automated check: a user
 who wants a manual/authenticated engagement beyond what the self-serve
-scanner offers submits company/domain/contact details here, and the
+platform offers submits company/domain/contact details here, and the
 request lands in the platform-admin queue (`admin_routes.py`) for a human
 to follow up on. Deliberately login-required (unlike a public marketing
 contact form) so every request is attributable to a real account/org, the

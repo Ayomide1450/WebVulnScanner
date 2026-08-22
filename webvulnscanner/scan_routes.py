@@ -504,9 +504,9 @@ def _unsafe_target_error(url, org_id=None):
     (solo users with no org) is never treated as "no restriction", it's
     just never a match for any real verified org_id either. Unclaimed
     domains stay scannable via the existing checkbox self-attestation,
-    since restricting recon/OSINT-style scanning of *any* public domain
-    outright would defeat this tool's purpose as a scanner, not just this
-    one site's protection.
+    since restricting recon/OSINT-style assessment of *any* public domain
+    outright would defeat this tool's purpose as an autonomous security
+    validation platform, not just this one site's protection.
 
     See is_ssrf_safe_hostname's docstring in checks.py for what the
     SSRF check does and doesn't protect against."""

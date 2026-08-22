@@ -875,7 +875,7 @@ def check_sensitive_paths(base_url, session):
     - A 403 is reported as NEEDS_REVIEW ("blocked"), never as evidence the
       file exists - it proves access is denied, not that the resource is
       actually there.
-    - A 429 is reported as NEEDS_REVIEW ("rate limited") - the scanner
+    - A 429 is reported as NEEDS_REVIEW ("rate limited") - the check
       cannot reliably tell whether the resource exists when the target is
       throttling it, and does not retry (no request in this function is
       ever repeated) so as to not add to the rate-limiting itself.
@@ -983,8 +983,8 @@ def check_sensitive_paths(base_url, session):
                 row["evidence"]["retry_after"] = retry_after
             row.update(classification="needs_review", severity="info", confidence="low",
                        title="Rate limited",
-                       detail="The target rate-limited the request (HTTP 429), so the scanner could not reliably "
-                              "determine whether the resource exists. The scanner does not retry a rate-limited "
+                       detail="The target rate-limited the request (HTTP 429), so this assessment could not reliably "
+                              "determine whether the resource exists. This assessment does not retry a rate-limited "
                               "path.",
                        recommendation="Re-run the scan later, outside of any rate-limit window, or investigate "
                                        "manually.")
@@ -995,7 +995,7 @@ def check_sensitive_paths(base_url, session):
             row.update(classification="needs_review", severity="info", confidence="low",
                        title="Server error",
                        detail=f"The server returned HTTP {r.status_code} while this path was being tested. This "
-                                "is inconclusive - the scanner could not reliably determine whether the "
+                                "is inconclusive - the assessment could not reliably determine whether the "
                                 "resource exists.",
                        recommendation="Re-run the scan later; investigate manually if the error persists.")
             rows.append(row)
@@ -1038,7 +1038,7 @@ def check_sensitive_paths(base_url, session):
         else:
             row.update(classification="needs_review", severity="medium", confidence="low",
                        title="Reachable, not confirmed",
-                       detail="The scanner detected an unusual response, but there was insufficient evidence to "
+                       detail="The assessment detected an unusual response, but there was insufficient evidence to "
                               "confirm that the requested sensitive resource exists.",
                        recommendation="Verify the resource manually or review the production server "
                                        "configuration.")
@@ -1575,7 +1575,7 @@ def check_file_upload(base_url, home_html):
 
     findings = [Finding(
         "File Upload", f"File upload input detected ({len(rows)} field(s))", "info",
-        "A file-upload form field was found on the homepage. This scanner never uploads a file "
+        "A file-upload form field was found on the homepage. Glassbox never uploads a file "
         "(non-destructive by design), so extension/MIME/size validation and storage isolation "
         "cannot be verified externally - only that upload functionality exists.",
         "Manually verify: server-side (not just client-side accept=) extension and MIME-type "

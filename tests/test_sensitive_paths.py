@@ -304,7 +304,7 @@ def test_genuine_404_is_passed_high_confidence(edge_case_server):
 class _SpaFallbackHandler(BaseHTTPRequestHandler):
     """Dedicated Next.js/SPA-fallback scenario: /.env returns HTTP 200 with
     the exact same application shell as a random nonexistent URL - the
-    scanner must recognize this as a soft/fallback response, not treat the
+    check must recognize this as a soft/fallback response, not treat the
     200 as evidence that .env exists."""
 
     def log_message(self, *a):

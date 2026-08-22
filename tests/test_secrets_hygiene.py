@@ -24,7 +24,7 @@ import secrets_sweep_phase8 as sweep  # noqa: E402
 
 def test_self_test_proves_the_patterns_fire():
     # The single most likely failure mode of a hand-written secrets
-    # scanner (T-08-39 in this plan's threat register): a broken regex
+    # check (T-08-39 in this plan's threat register): a broken regex
     # that silently produces a clean sweep. This must pass before any
     # "clean" result below means anything.
     assert sweep.self_test() is True
