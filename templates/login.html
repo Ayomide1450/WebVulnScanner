@@ -8,6 +8,9 @@
   .remember-row input { width:15px; height:15px; accent-color: var(--accent); }
   .remember-row label { margin:0; font-weight:500; }
   .forgot-link { font-size:13px; color: var(--accent); text-decoration:none; }
+  .resend-box { margin-top:14px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; color:var(--muted); }
+  .resend-box summary { cursor:pointer; color:var(--text); }
+  .resend-btn { margin-top:8px; background:none; border:none; color:var(--accent); font-size:13px; font-weight:600; cursor:pointer; padding:0; text-decoration:underline; }
 </style>
 {% if config.TURNSTILE_SITE_KEY %}
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
@@ -46,6 +49,16 @@
 
       <button type="submit" id="loginSubmit">Log in</button>
     </form>
+    {% if resend_email %}
+    <details class="resend-box">
+      <summary>Didn't get the verification email?</summary>
+      <form method="POST" action="{{ url_for('auth.resend_verification') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="email" value="{{ resend_email }}">
+        <button type="submit" class="resend-btn">Resend verification link</button>
+      </form>
+    </details>
+    {% endif %}
     <div class="swap">Don't have an account? <a href="{{ url_for('auth.signup') }}">Sign up</a></div>
   </div>
 </div>

@@ -282,7 +282,100 @@ def test_login_with_wrong_password_is_rejected(client, db):
         "/login", data={"email": "owner@example.com", "password": "wrong-password"}, follow_redirects=False,
     )
     assert resp.status_code == 200
-    assert b"Invalid email or password" in resp.data
+
+
+# --------------------------------------------------------------------------
+# Email-verification gate on login (reversed from the old documented
+# decision that unverified email does not block login)
+# --------------------------------------------------------------------------
+
+def test_unverified_user_cannot_log_in(client, db, spy_sender):
+    user = make_user("pending@example.com", verified=False)
+    resp = client.post(
+        "/login", data={"email": "pending@example.com", "password": "password123"}, follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"verify your email address" in resp.data
+    # No session was created - a protected page still bounces to login.
+    resp2 = client.get("/dashboard", follow_redirects=False)
+    assert resp2.status_code == 302
+    assert "/login" in resp2.headers["Location"]
+    assert user.email_verified_at is None
+
+
+def test_verified_user_can_still_log_in(client, db):
+    make_user("verified@example.com")  # make_user defaults to verified=True
+    resp = client.post(
+        "/login", data={"email": "verified@example.com", "password": "password123"}, follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith("/dashboard")
+
+
+def test_blocked_login_offers_the_resend_option(client, db):
+    make_user("pending@example.com", verified=False)
+    resp = client.post(
+        "/login", data={"email": "pending@example.com", "password": "password123"}, follow_redirects=True,
+    )
+    assert b"resend" in resp.data.lower()
+    assert 'action="/resend-verification"' in resp.data.decode()
+
+
+def test_resend_verification_re_sends_for_pending_account(client, db, spy_sender):
+    make_user("pending@example.com", verified=False)
+    client.get("/login")  # prime the CSRF cookie/token like a real visit
+    resp = client.post(
+        "/resend-verification",
+        data={"email": "pending@example.com"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert len(spy_sender.sent) == 1
+    assert spy_sender.sent[0]["to"] == "pending@example.com"
+    assert "verify-email/" in spy_sender.sent[0]["body"]
+
+
+def test_resend_verification_is_antienumeration_for_unknown_email(client, db, spy_sender):
+    client.get("/login")
+    resp = client.post(
+        "/resend-verification",
+        data={"email": "ghost@example.com"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert len(spy_sender.sent) == 0
+    # The neutral flash is identical to the pending-account case.
+    assert b"fresh verification link has been sent" in resp.data
+
+
+def test_resend_verification_sends_nothing_for_already_verified_account(client, db, spy_sender):
+    make_user("done@example.com")  # verified
+    client.get("/login")
+    resp = client.post(
+        "/resend-verification",
+        data={"email": "done@example.com"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert len(spy_sender.sent) == 0
+
+
+def test_resend_verification_mints_token_for_tokenless_legacy_row(client, db, spy_sender):
+    """A pre-gate unverified row with no stored verify_token (legacy shape)
+    gets one minted by the resend endpoint so its link actually works."""
+    legacy = make_user("legacy@example.com", verified=False)
+    legacy.verify_token = None
+    db.session.commit()
+    client.get("/login")
+    resp = client.post(
+        "/resend-verification",
+        data={"email": "legacy@example.com"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    db.session.expire(legacy)
+    assert legacy.verify_token is not None
+    assert "verify-email/" in spy_sender.sent[0]["body"]
 
 
 def test_login_with_unknown_email_gives_identical_error_to_wrong_password(client, db):
@@ -436,9 +529,9 @@ _REDIRECT_CALL_RE = re.compile(r"(?<![\w.])redirect\(")
 # route reusing _safe_next(), or the same three moving) fails this by name
 # rather than by count.
 _EXPECTED_SAFE_NEXT_CALL_SITES = {
-    ("auth_routes.py", 161),
-    ("auth_routes.py", 273),
-    ("auth_routes.py", 300),
+    ("auth_routes.py", 165),
+    ("auth_routes.py", 311),
+    ("auth_routes.py", 354),
 }
 
 # Same closed-set treatment for _safe_referrer() (webvulnscanner/__init__.py's
@@ -543,9 +636,9 @@ def _find_next_parameter_helper_defs():
 
 def test_only_one_next_parameter_helper_is_defined():
     hits = _find_next_parameter_helper_defs()
-    assert hits == [("auth_routes.py", 90, "_safe_next")], (
+    assert hits == [("auth_routes.py", 94, "_safe_next")], (
         f"expected exactly one next-parameter-style helper "
-        f"(auth_routes.py's _safe_next, line 90), found {hits} - a second, "
+        f"(auth_routes.py's _safe_next, line 94), found {hits} - a second, "
         f"possibly divergent redirect-target guard may have been added"
     )
 

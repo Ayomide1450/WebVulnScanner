@@ -70,9 +70,13 @@ class SignupForm(FlaskForm):
 
 
 class LoginForm(FlaskForm):
-    email = StringField("Email", validators=[DataRequired(), Email()])
+    email = StringField("Email", validators=[DataRequired(), Email(), Length(max=255)])
     password = PasswordField("Password", validators=[DataRequired()])
     remember = BooleanField("Remember me")
+
+
+class ResendVerificationForm(FlaskForm):
+    email = StringField("Email", validators=[DataRequired(), Email(), Length(max=255)])
 
 
 class ForgotPasswordForm(FlaskForm):
@@ -266,6 +270,40 @@ def verify_email(token):
     return render_template("verify_email.html", verified=True)
 
 
+@auth.route("/resend-verification", methods=["POST"])
+@limiter.limit("5 per hour")
+def resend_verification():
+    """Re-sends the verification email for a pending account. Deliberately
+    anti-enumeration: the flashed response is IDENTICAL whether or not the
+    address has an account, is already verified, or is unknown - an
+    attacker probing addresses learns nothing. Only a genuinely pending
+    (unverified) account gets a new email; a legacy unverified row without
+    a stored token gets a fresh one minted here."""
+    form = ResendVerificationForm()
+    neutral = (
+        "If that address belongs to an account awaiting verification, a "
+        "fresh verification link has been sent to it."
+    )
+    if form.validate_on_submit():
+        email = form.email.data.strip().lower()
+        user = User.query.filter_by(email=email).first()
+        if user is not None and user.email_verified_at is None:
+            if not user.verify_token:
+                # Legacy/edge row: pending but tokenless - mint a token so
+                # the link actually works.
+                user.verify_token = secrets.token_urlsafe(32)
+                db.session.commit()
+            verify_url = url_for("auth.verify_email", token=user.verify_token, _external=True)
+            sender = current_app.extensions["email_sender"]
+            sender.send(
+                to=email,
+                subject="Verify your Glassbox email",
+                body=f"Click the link below to verify your email address:\n\n{verify_url}",
+            )
+    flash(neutral, "info")
+    return redirect(url_for("auth.login"))
+
+
 @auth.route("/login", methods=["GET", "POST"])
 @limiter.limit("10 per minute")
 def login():
@@ -282,6 +320,22 @@ def login():
         if user is None or not check_password_hash(user.password_hash, form.password.data):
             flash("Invalid email or password.", "error")
             return render_template("login.html", form=form)
+
+        # Email verification is required before login (reversed from the
+        # old documented decision that it wasn't): an unverified account
+        # must not be able to create assets, launch scans, or accept org
+        # invites. Same anti-enumeration reasoning as the suspension branch
+        # below - the password has already been proven correct at this
+        # point, so naming the real reason leaks nothing an attacker
+        # doesn't already know.
+        if user.email_verified_at is None:
+            flash(
+                "Please verify your email address before logging in. "
+                "Check your inbox for the verification link, or use the "
+                "resend option below.",
+                "error",
+            )
+            return render_template("login.html", form=form, resend_email=email)
 
         # A suspended user (or a member of a suspended org - User.is_active
         # checks both) has correctly-verified credentials at this point, so
