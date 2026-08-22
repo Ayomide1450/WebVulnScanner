@@ -1,19 +1,40 @@
+# Branch-wired Fly deploys for Glassbox:
+#   push to develop -> staging app (fly.staging.toml, own database)
+#   push to master   -> production app (fly.toml) - master is a release
+#   branch: never push it except deliberate, staging-verified releases.
+#
 # See https://fly.io/docs/app-guides/continuous-deployment-with-github-actions/
 
 name: Fly Deploy
+
 on:
   push:
     branches:
       - main
       - master
+      - develop
+
 jobs:
-  deploy:
-    name: Deploy app
+  deploy-production:
+    name: Deploy production (glassboxsec)
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    concurrency: deploy-group    # optional: ensure only one action runs at a time
+    concurrency: deploy-production-group
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  deploy-staging:
+    name: Deploy staging (glassboxsec-staging)
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    concurrency: deploy-staging-group
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only --app glassboxsec-staging --config fly.staging.toml
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

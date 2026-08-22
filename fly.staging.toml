@@ -1,0 +1,42 @@
+# Staging configuration for Glassbox - companion to fly.toml (production).
+#
+# Deployed automatically by .github/workflows/fly-deploy.yml on every push to
+# `develop`, against the dedicated app `glassboxsec-staging` with its own
+# Postgres cluster (`glassboxsec-db-staging`, attached via DATABASE_URL) so
+# staging breakage can never touch production data or machines.
+#
+# Secrets live only on the staging app (set once via `fly secrets set`):
+#   DATABASE_URL   - auto-set by `fly postgres attach`
+#   SECRET_KEY     - fresh key, deliberately NOT production's
+#   EMAIL_MODE     - "console": staging never sends real email
+# Everything else in [env] mirrors production behavior.
+
+app = 'glassboxsec-staging'
+primary_region = 'iad'
+
+[build]
+[env]
+  FLASK_APP = 'app.py'
+  SESSION_COOKIE_SECURE = 'true'
+  TRUST_PROXY_HOPS = '1'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+  [[http_service.checks]]
+    interval = '15s'
+    timeout = '5s'
+    grace_period = '30s'
+    method = 'GET'
+    path = '/healthz'
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 512

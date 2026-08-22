@@ -109,9 +109,14 @@ class Config:
     # Overridable via env, mainly so a test can force a short deadline.
     SCAN_TIMEOUT_SECONDS = int(os.environ.get("SCAN_TIMEOUT_SECONDS", "600"))
 
+    # Precedence: explicit SQLALCHEMY_DATABASE_URI (what production sets as a
+    # Fly secret), then the 12-factor-standard DATABASE_URL (what
+    # `fly postgres attach` sets automatically on staging/ephemeral apps),
+    # then a local SQLite file for bare local dev.
     _db_uri = os.environ.get(
         "SQLALCHEMY_DATABASE_URI",
-        "sqlite:///" + os.path.join(APP_DIR, "webvulnscanner.db"),
+        os.environ.get("DATABASE_URL")
+        or "sqlite:///" + os.path.join(APP_DIR, "webvulnscanner.db"),
     )
     # Render/Heroku/most managed-Postgres providers (Neon included) hand out
     # connection strings starting "postgres://" - SQLAlchemy 1.4+ only
