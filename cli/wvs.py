@@ -488,22 +488,29 @@ def gate(url, fail_on, as_json, quiet, verbose, token, api_url):
     """CI/CD security gate: assess URL, then fail (exit 1) if any finding
     at or above --fail-on severity is present. Designed for a build
     pipeline: reliable exit codes, --json for machine consumption, --quiet
-    to suppress the human-readable narration."""
+    to suppress the human-readable narration.
+
+    The threshold evaluation itself happens SERVER-side - this command
+    polls the assessment to completion, then asks
+    GET /api/v1/scans/<id>/gate?fail_on=<severity> for the verdict rather
+    than filtering findings locally, so the blocking rule is the exact same
+    one a direct HTTP consumer gets (webvulnscanner/security_gate.py -
+    defined once, never drifting between client and server)."""
     token = _resolve_token(token)
     api_url = _resolve_api_url(api_url)
     status = _launch_and_wait(api_url, token, url, quiet=quiet or as_json)
-    report = _fetch_report(api_url, token, status["id"])
 
-    threshold_idx = SEVERITY_ORDER.index(fail_on)
-    blocking = [f for f in report.get("findings", [])
-                if f.get("severity") in SEVERITY_ORDER and SEVERITY_ORDER.index(f["severity"]) <= threshold_idx]
-    passed = not blocking
+    resp = _request(
+        "GET", api_url, f"/api/v1/scans/{status['id']}/gate?fail_on={fail_on}", token,
+    )
+    if resp.status_code != 200:
+        _raise_for_error_response(resp)
+    body = resp.json()
+    passed = body["passed"]
+    blocking = body["blocking_findings"]
 
     if as_json:
-        click.echo(json.dumps({
-            "passed": passed, "fail_on": fail_on, "blocking_findings": blocking,
-            "score": report.get("score"), "scan_id": status["id"],
-        }, indent=2))
+        click.echo(json.dumps(body, indent=2))
         sys.exit(0 if passed else 1)
 
     if not quiet:

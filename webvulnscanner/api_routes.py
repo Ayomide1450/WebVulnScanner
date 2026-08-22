@@ -24,6 +24,7 @@ from webvulnscanner.models import Asset, Scan
 from webvulnscanner.scan_engine import read_report_file
 from webvulnscanner.scan_routes import _check_ownership, _launch_base_scan, _load_report_json, diff_reports
 from webvulnscanner.scheduler import _fire
+from webvulnscanner.security_gate import DEFAULT_FAIL_ON, GATE_SEVERITIES, evaluate_gate
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
 
@@ -288,3 +289,56 @@ def scans_compare(scan_id, other_id):
     return jsonify(
         scan_a=_serialize_scan_summary(a), scan_b=_serialize_scan_summary(b), diff=diff,
     )
+
+
+@api.route("/scans/<int:scan_id>/gate")
+@api_login_required
+@limiter.limit("60 per minute", key_func=_api_rate_limit_key)
+def scans_gate(scan_id):
+    """Security Gate: evaluate a completed scan's findings against a
+    `?fail_on=` severity threshold and return a pass/fail verdict - the
+    single server-side implementation `glassbox gate` (cli/wvs.py) and any
+    direct HTTP CI consumer share, so the blocking rule is defined exactly
+    once (webvulnscanner/security_gate.py's evaluate_gate).
+
+    Read-only and derived on demand - nothing is persisted; the verdict is
+    recomputed from the stored Report JSON on every call.
+
+    Ownership branches exactly like fetch_report above (same Pitfall-1
+    Asset-linked-vs-manual split, same WR-01 soft-delete guard) since a
+    gate response embeds report-derived data (score/severity_counts), so it
+    must be no easier to read than the report itself. The same two error
+    branches apply too: no Report row yet -> 404 "report not available"
+    (a still-running or failed scan has nothing to gate); Report row whose
+    blob/file is unreadable -> 500 JSON (WR-02 - never the global HTML 500
+    page, cli/wvs.py's _raise_for_error_response expects JSON)."""
+    s = Scan.query.get_or_404(scan_id)
+    if s.asset_id is not None:
+        if s.asset.deleted_at is not None:
+            abort(404)
+        _check_asset_access(s.asset)
+    else:
+        _check_ownership(s)
+
+    if s.report is None:
+        return jsonify(error="report not available"), 404
+
+    fail_on = request.args.get("fail_on", DEFAULT_FAIL_ON)
+    if fail_on not in GATE_SEVERITIES:
+        return jsonify(
+            error=f"invalid fail_on {fail_on!r} - must be one of: {', '.join(GATE_SEVERITIES)}"
+        ), 400
+
+    report = _load_report_json(s)
+    if report is None:
+        return jsonify(error="report file is unavailable"), 500
+
+    gate = evaluate_gate(report.get("findings") or [], fail_on=fail_on)
+    return jsonify(gate | {
+        "scan_id": s.id,
+        "scan_status": s.status.value,
+        "target_url": s.target_url,
+        "score": report.get("score"),
+        "risk_grade": report.get("risk_grade"),
+        "severity_counts": report.get("severity_counts"),
+    }), 200

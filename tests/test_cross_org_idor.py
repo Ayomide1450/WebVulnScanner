@@ -97,6 +97,10 @@ REGISTRY = {
     "api.scans_compare": "tests/test_api_routes.py::test_scans_compare_cross_org_is_404",
     "api.scan_status": "tests/test_api_routes.py::test_scan_status_different_org_gets_404",
     "api.fetch_report": "tests/test_api_routes.py::test_fetch_report_different_org_gets_404",
+    # scans_gate shares fetch_report's two ownership branches; this entry names the
+    # asset-linked cross-org denial - the manual-scan branch is additionally covered by
+    # tests/test_security_gate.py::test_manual_scan_non_owner_member_gets_404.
+    "api.scans_gate": "tests/test_security_gate.py::test_cross_org_asset_linked_scan_gets_404",
     "api_tokens.revoke_token": "tests/test_api_tokens_routes.py::test_user_cannot_revoke_another_users_token",
     "asset.asset_detail": "tests/test_asset_routes.py::test_get_asset_detail_for_other_org_is_404",
     "asset.delete_asset": "tests/test_asset_routes.py::test_pause_resume_delete_all_three_404_for_non_owning_org",

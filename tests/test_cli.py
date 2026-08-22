@@ -248,3 +248,94 @@ def test_report_passes_request_timeout(runner, isolated_config):
         runner.invoke(wvs.cli, ["report", "42"])
 
     assert mock_get.call_args.kwargs["timeout"] == wvs.REQUEST_TIMEOUT_SECONDS
+
+
+# --- gate (server-side Security Gate: the command polls the assessment to
+# completion, then asks GET /api/v1/scans/<id>/gate?fail_on=<sev> for the
+# verdict instead of filtering findings locally - see cli/wvs.py's gate
+# docstring) ---
+
+
+def _gate_mocks(gate_body):
+    """Returns (post_mock_config, get_side_effect) for the two HTTP calls
+    `glassbox gate` makes after launch: the completion poll, then the gate
+    endpoint itself. POST returns scan 42 queued; GET first reports it
+    completed (so _launch_and_wait returns without sleeping), then yields
+    gate_body."""
+    post_resp = _FakeResponse(202, json_body={"scan_id": 42, "status": "queued", "duplicate": False})
+    poll_resp = _FakeResponse(200, json_body={"id": 42, "status": "completed"})
+    gate_resp = _FakeResponse(200, json_body=gate_body)
+    return [post_resp], [poll_resp, gate_resp]
+
+
+def test_gate_passed_exits_zero_and_hits_server_endpoint(runner, isolated_config):
+    body = {"passed": True, "fail_on": "high", "blocking_findings": [], "blocking_count": 0,
+            "scan_id": 42, "scan_status": "completed", "score": 95}
+    posts, gets = _gate_mocks(body)
+    with patch.object(
+        wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
+    ), patch.object(wvs.requests, "post", return_value=posts[0]), \
+       patch.object(wvs.requests, "get", side_effect=gets) as mock_get:
+        result = runner.invoke(wvs.cli, ["gate", "https://example.com"])
+
+    assert result.exit_code == 0
+    assert "Security Gate Passed" in result.output
+    # The verdict came from the server endpoint with the default threshold.
+    assert mock_get.call_args_list[-1][0][0] == "http://example.test/api/v1/scans/42/gate?fail_on=high"
+
+
+def test_gate_failed_exits_one_and_counts_blocking_severities(runner, isolated_config):
+    blocking = [
+        {"category": "SQL Injection", "title": "Login bypass", "severity": "critical", "detail": "x"},
+        {"category": "Headers", "title": "Missing CSP", "severity": "high", "detail": "y"},
+    ]
+    body = {"passed": False, "fail_on": "high", "blocking_findings": blocking, "blocking_count": 2,
+            "scan_id": 42, "score": 40}
+    posts, gets = _gate_mocks(body)
+    with patch.object(
+        wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
+    ), patch.object(wvs.requests, "post", return_value=posts[0]), \
+       patch.object(wvs.requests, "get", side_effect=gets):
+        result = runner.invoke(wvs.cli, ["gate", "https://example.com"])
+
+    assert result.exit_code == 1
+    assert "Security Gate Failed" in result.output
+    assert "1 critical" in result.output
+    assert "1 high" in result.output
+
+
+def test_gate_json_outputs_server_verdict_and_passes_fail_on_flag(runner, isolated_config):
+    # A high-only finding set passes a critical threshold - the server's
+    # own verdict body is echoed verbatim and its "passed" drives the exit
+    # code, not any client-side recomputation.
+    body = {"passed": True, "fail_on": "critical", "blocking_findings": [], "blocking_count": 0,
+            "scan_id": 42, "score": 80}
+    posts, gets = _gate_mocks(body)
+    with patch.object(
+        wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
+    ), patch.object(wvs.requests, "post", return_value=posts[0]), \
+       patch.object(wvs.requests, "get", side_effect=gets) as mock_get:
+        result = runner.invoke(
+            wvs.cli, ["gate", "https://example.com", "--json", "--fail-on", "critical"],
+        )
+
+    # A high-only finding set passes a critical threshold - exit 0 - and the
+    # machine output is the server's own verdict body verbatim.
+    assert result.exit_code == 0
+    assert json.loads(result.output) == body
+    assert mock_get.call_args_list[-1][0][0] == "http://example.test/api/v1/scans/42/gate?fail_on=critical"
+
+
+def test_gate_endpoint_error_surfaces_clean_message_no_traceback(runner, isolated_config):
+    post_resp = _FakeResponse(202, json_body={"scan_id": 42, "status": "queued", "duplicate": False})
+    poll_resp = _FakeResponse(200, json_body={"id": 42, "status": "completed"})
+    error_resp = _FakeResponse(500, json_body={"error": "report file is unavailable"})
+    with patch.object(
+        wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
+    ), patch.object(wvs.requests, "post", return_value=post_resp), \
+       patch.object(wvs.requests, "get", side_effect=[poll_resp, error_resp]):
+        result = runner.invoke(wvs.cli, ["gate", "https://example.com"])
+
+    assert result.exit_code != 0
+    assert "report file is unavailable" in result.output
+    assert "Traceback" not in result.output
