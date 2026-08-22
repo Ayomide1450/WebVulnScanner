@@ -1,9 +1,12 @@
-# fly.toml app configuration file generated for webvulnscanner on 2026-08-14T13:26:52+01:00
+# fly.toml app configuration file. Migrated from the 'webvulnscanner' app to
+# 'glassboxsec' as part of the v1.3 Glassbox rebrand (2026-08-20) - the
+# 'glassbox' slug itself was already taken by another Fly account. See
+# REBRAND-03/04 in .planning/REQUIREMENTS.md for the migration record.
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'webvulnscanner'
+app = 'glassboxsec'
 primary_region = 'iad'
 
 [build]

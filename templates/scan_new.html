@@ -1,59 +1,64 @@
 {% extends "base.html" %}
-{% block title %}New scan - WebVulnScanner{% endblock %}
+{% block title %}New scan - Glassbox{% endblock %}
 {% block head %}
 {% include "_scan_form_styles.html" %}
 {% endblock %}
 {% block content %}
 <div class="wrap">
-  <h1>New scan</h1>
-  <p class="sub">Choose a scan type. Every scan runs in the background - you'll be redirected to a live
-  progress page.</p>
+  {% set wizard_step = 1 %}
+  {% include "_scan_wizard_stepper.html" %}
+
+  <h1>Which website do you want to scan?</h1>
+  <p class="sub">Choose one of your verified domains, or type any website address. Next you'll pick
+  what kind of scan to run, then confirm and start it - three short steps.</p>
+
+  {% if error %}
+  <div class="error-box">{{ error }}</div>
+  {% endif %}
 
   <div class="warn-box" style="margin-top:0;">
     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path stroke-linecap="round" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
     <div><b>Authorized use only.</b> Only scan domains you own or have explicit permission to test.</div>
   </div>
 
-  <div class="scan-type-grid">
-    <div class="card">
-      <div class="section-title"><h2 style="font-size:16px;margin:0;">Base scan</h2><span class="pill pass">Free tier included</span></div>
-      <p class="hint" style="margin-top:10px;">Passive recon (headers, TLS, cookies, DNS/email hygiene,
-      exposed secrets, SRI) on every tier, plus active checks and intrusive canaries as you upgrade.</p>
-      <a class="btn primary" href="{{ url_for('scan.new_scan_base') }}">Run a base scan</a>
-    </div>
+  <div class="card">
+    <form method="GET" action="{{ url_for('scan.new_scan_type') }}" id="domainForm">
+      <label for="verified_domain">One of your verified domains</label>
+      <select id="verified_domain" name="verified_domain">
+        <option value="" disabled selected>{{ 'Choose a domain...' if verified_domains else 'No verified domains yet' }}</option>
+        {% for domain in verified_domains %}
+        <option value="{{ domain }}" {% if domain == selected_domain %}selected{% endif %}>{{ domain }}</option>
+        {% endfor %}
+      </select>
+      {% if not verified_domains %}
+      <div class="hint">Enter a target below, or verify a domain under
+        <a href="{{ url_for('org.verify_domain_view') }}">Organization &rarr; Verify domain</a>
+        to have it appear here next time.</div>
+      {% endif %}
 
-    <div class="card">
-      <div class="section-title"><h2 style="font-size:16px;margin:0;">Advanced / authenticated</h2>
-        <span class="pill {{ 'pass' if can_run_org_verified else 'medium' }}">
-          {{ 'Org-verified unlocked' if can_run_org_verified else 'Requires Org-verified' }}
-        </span>
-      </div>
-      <p class="hint" style="margin-top:10px;">Auth-bypass SQLi, brute-force, UNION/error/time-based SQLi,
-      stored XSS, cross-account IDOR - deeper, credential-driven probing.</p>
-      <a class="btn primary" href="{{ url_for('scan.new_scan_advanced') }}">Run advanced checks</a>
-    </div>
+      <div class="or-divider"><span>or</span></div>
 
-    <div class="card">
-      <div class="section-title"><h2 style="font-size:16px;margin:0;">Media discovery</h2>
-        <span class="pill {{ 'pass' if can_run_media else 'medium' }}">
-          {{ 'Paid unlocked' if can_run_media else 'Requires Paid' }}
-        </span>
-      </div>
-      <p class="hint" style="margin-top:10px;">Same-origin image/video crawl, EXIF/GPS leakage,
-      suspicious-path detection, optional download to disk.</p>
-      <a class="btn primary" href="{{ url_for('scan.new_scan_media') }}">Run media scan</a>
-    </div>
+      <label for="target">Enter a target</label>
+      <input type="text" id="target" name="target" placeholder="www.example.com" value="{{ prefill_target }}">
+      <div class="hint">e.g. <code>example.com</code> or <code>https://www.example.com</code></div>
 
-    <div class="card">
-      <div class="section-title"><h2 style="font-size:16px;margin:0;">API exposure scan</h2>
-        <span class="pill {{ 'pass' if can_run_api else 'medium' }}">
-          {{ 'Paid unlocked' if can_run_api else 'Requires Paid' }}
-        </span>
-      </div>
-      <p class="hint" style="margin-top:10px;">OpenAPI/Swagger &amp; GraphQL introspection exposure, an
-      unauthenticated-path wordlist, and endpoints discovered from the site's own JS.</p>
-      <a class="btn primary" href="{{ url_for('scan.new_scan_api') }}">Run API exposure scan</a>
-    </div>
+      <button type="submit" id="continueBtn">Continue</button>
+    </form>
   </div>
 </div>
+<script>
+  (function () {
+    var domainSelect = document.getElementById('verified_domain');
+    var targetInput = document.getElementById('target');
+    var continueBtn = document.getElementById('continueBtn');
+    function updateContinueState() {
+      var hasDomain = !!domainSelect.value && domainSelect.value.trim() !== '';
+      var hasTarget = targetInput.value.trim() !== '';
+      continueBtn.disabled = !(hasDomain || hasTarget);
+    }
+    targetInput.addEventListener('input', updateContinueState);
+    domainSelect.addEventListener('change', updateContinueState);
+    updateContinueState();
+  })();
+</script>
 {% endblock %}

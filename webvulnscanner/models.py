@@ -71,6 +71,11 @@ class Organization(db.Model):
     name = db.Column(db.String(255), nullable=False)
     plan = db.Column(db.Enum(Plan), nullable=False, default=Plan.FREE)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+    # Platform-admin suspension (Phase 16, ADMIN-03) - blocks login for
+    # every member (User.is_active checks this), cascading without having
+    # to touch each member row individually. Only ever set via
+    # admin_routes.suspend_org/unsuspend_org.
+    suspended_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     users = db.relationship("User", back_populates="organization")
     domain_verifications = db.relationship("DomainVerification", back_populates="organization")
@@ -104,12 +109,26 @@ class User(UserMixin, db.Model):
     def get_id(self):
         return str(self.id)
 
+    # Platform-admin suspension (Phase 16, ADMIN-02) - distinct from
+    # deletion: a suspended account still exists (its scans/reports/org
+    # membership are untouched) but cannot log in or use an existing
+    # session until unsuspended. Only ever set via
+    # admin_routes.suspend_user/unsuspend_user - no self-service path.
+    suspended_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
     @property
     def is_active(self):
         # Unverified email does not block login (decision documented in
         # auth_routes.py / the plan's Workstream 1 section) - every created
         # user is "active" for Flask-Login purposes regardless of
-        # email_verified_at.
+        # email_verified_at. A suspended user, or a member of a suspended
+        # org, is not - Flask-Login's login_user() refuses to authenticate
+        # an inactive user, and __init__.py's before_request hook forces
+        # out an already-open session the moment this flips false.
+        if self.suspended_at is not None:
+            return False
+        if self.organization is not None and self.organization.suspended_at is not None:
+            return False
         return True
 
 
@@ -437,4 +456,77 @@ class OrgAuditEvent(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
 
     organization = db.relationship("Organization")
+    actor = db.relationship("User")
+
+
+class AssessmentType(enum.Enum):
+    EXTERNAL = "External Security Assessment"
+    WEB_APP = "Web Application Assessment"
+    API = "API Security Assessment"
+    AUTHENTICATED = "Authenticated Assessment"
+    FULL = "Full Security Assessment"
+    CONTINUOUS = "Continuous Monitoring"
+
+
+class AssessmentRequestStatus(enum.Enum):
+    NEW = "new"
+    CONTACTED = "contacted"
+    CLOSED = "closed"
+
+
+class AssessmentRequest(db.Model):
+    """A "Request Expert Assessment" lead (Phase 15, CTA-01..04) - a human-
+    fulfilled service inquiry, not something a check or scan can satisfy
+    automatically. Submitted from a CTA on the dashboard/scan report, tied
+    to the submitting user/org when the submitter is logged in (every
+    current call site requires login), and surfaced to platform admins on
+    `/platform-admin` for manual follow-up - mirrors the pending-domain-
+    deletion queue's read/act pattern on that same page, but this queue is
+    informational only (no approve/reject action; `status` is set by an
+    operator via a separate maintenance path, not a route in this phase)."""
+    __tablename__ = "assessment_requests"
+
+    id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=True)
+    requested_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    company_name = db.Column(db.String(255), nullable=False)
+    domain = db.Column(db.String(255), nullable=False)
+    contact_name = db.Column(db.String(255), nullable=False)
+    contact_email = db.Column(db.String(255), nullable=False)
+    contact_phone = db.Column(db.String(64), nullable=True)
+    assessment_type = db.Column(db.Enum(AssessmentType), nullable=False)
+    scope = db.Column(db.Text, nullable=True)
+    auth_requirements = db.Column(db.Text, nullable=True)
+    domain_count = db.Column(db.Integer, nullable=True)
+    timeline = db.Column(db.String(255), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    status = db.Column(db.Enum(AssessmentRequestStatus), nullable=False, default=AssessmentRequestStatus.NEW)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+
+    organization = db.relationship("Organization")
+    requested_by = db.relationship("User")
+
+
+class PlatformAuditEvent(db.Model):
+    """Append-only who/what/when trail for platform-admin actions on a
+    user or org (Phase 16, ADMIN-04) - a separate table from
+    `OrgAuditEvent` rather than reusing it, because `OrgAuditEvent.org_id`
+    is non-nullable (every existing event is inherently org-scoped) while
+    a platform admin can act on a solo user who has no org at all
+    (`User.org_id` is nullable - solo signup is a supported path per
+    auth_routes.SignupForm's optional org_name). `target_type`/
+    `target_id` instead of a nullable FK to each possible target table,
+    matching `OrgAuditEvent.detail`'s "log the fact, not a live
+    relationship" convention - deliberately outlives the row it
+    describes."""
+    __tablename__ = "platform_audit_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    target_type = db.Column(db.String(32), nullable=False)  # "user" | "organization"
+    target_id = db.Column(db.Integer, nullable=False)
+    event_type = db.Column(db.String(64), nullable=False)
+    detail = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+
     actor = db.relationship("User")

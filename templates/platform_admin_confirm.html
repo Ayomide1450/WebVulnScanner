@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Confirm - Platform Admin - Glassbox{% endblock %}
+{% block head %}
+{% include "_admin_form_styles.html" %}
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <div class="card" style="max-width: 520px;">
+    <h1>Confirm suspension</h1>
+    <div class="warn-box">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-warning"/></svg>
+      <div>
+        {% if target_type == 'user' %}
+        This will immediately block <b>{{ target.email }}</b> from logging in. Their scans, reports,
+        and org membership are untouched, and this can be reversed at any time.
+        {% else %}
+        This will immediately block every member of <b>{{ target.name }}</b> from logging in. No data
+        is deleted, and this can be reversed at any time.
+        {% endif %}
+      </div>
+    </div>
+    <form method="POST" action="{{ request.path }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn destructive block" type="submit" style="margin-top: var(--space-4);">
+        {% if target_type == 'user' %}Suspend {{ target.email }}{% else %}Suspend {{ target.name }}{% endif %}
+      </button>
+    </form>
+    <a class="btn secondary block" style="margin-top: 10px;" href="{{ url_for('admin.user_detail', user_id=target.id) if target_type == 'user' else url_for('admin.org_detail', org_id=target.id) }}">Cancel</a>
+  </div>
+</div>
+{% endblock %}

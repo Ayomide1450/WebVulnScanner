@@ -1,56 +1,12 @@
 # Roadmap: WebVulnScanner
 
-## Overview
+## Milestones
 
-WebVulnScanner ships today as a solid one-shot, human-triggered vulnerability scanner with
-genuinely rigorous authorization and SSRF safety engineering — but a security engineer evaluating
-it against tools like Nuclei/Trivy/Semgrep will immediately notice it has no persistent asset
-inventory, no continuous/scheduled scanning, no programmatic API/CLI, and no compliance-framework
-mapping. This milestone closes that gap in dependency order: first give scans a persistent home
-(**Asset Inventory & Continuous Scanning**, Phase 1) so a target can be registered once and
-monitored over time instead of resubmitted by hand; then expose that asset/scan model
-programmatically (**API & CLI Access**, Phase 2) so security teams can wire it into CI/CD and
-internal tooling; then make findings audit-usable (**Compliance & Framework Reporting**, Phase 3)
-by mapping them to OWASP Top 10/ASVS categories; and finally harden the whole surface — including
-the new API and scheduler paths just built — to actually earn the "production ready" bar this
-milestone targets (**Production Hardening & Reliability**, Phase 4). Plugin/check-extensibility
-and self-hostable/open-core stay explicitly out of scope this milestone (see PROJECT.md and
-REQUIREMENTS.md).
-
-### Sequencing Rationale
-
-Phase 1 is continuous/scheduled scanning + the asset-inventory data model, exactly as directed by
-the prior session's ranked gap analysis — no deviation there. Two smaller deviations from that
-ranked list's raw order are worth calling out explicitly:
-
-- **Rank #2 (plugin/check architecture) is deferred to v2, not built this milestone.** The prior
-  recommendation itself didn't push it as urgent relative to continuous scanning/API/compliance,
-  and there's no concrete requirement or user request for it now — see PROJECT.md's Out of Scope
-  section.
-
-- **Rank #5 (self-hostable/open-core) stays deprioritized** per the user's explicit confirmation
-  that billing/SaaS shape is locked — it was never a candidate for this milestone's phases.
-
-So Phase 2 and Phase 3 here correspond to ranked gaps #3 (API/CLI) and #4 (compliance mapping)
-respectively, skipping over #2 deliberately rather than by omission. This matches the prior
-recommendation's own logic: build the asset/continuous-scanning foundation first, then API/CLI and
-compliance-mapping become easier to justify once it exists.
-
-One piece of codebase evidence changes the difficulty of Phase 1 versus what the original gap
-analysis assumed: the repo has already moved from an implicit `db.create_all()`-only schema
-approach to real Alembic/Flask-Migrate migrations (`migrations/`, confirmed in `CLAUDE.md` and
-`webvulnscanner/__init__.py`). A new `Asset` table — and any schema evolution it needs later — is
-a normal `flask db migrate` operation now, not the "add a new table because we can't ALTER"
-workaround the original gap analysis's framing implied. This makes Phase 1 more tractable than it
-would have looked a few sessions ago, but does not change which phase should go first.
-
-Phase 4 (Production Hardening & Reliability) is placed last, not first, because most of what it
-hardens (multi-worker rate limiting on new API-token endpoints, test coverage for
-scheduler-triggered orchestrators) only fully makes sense once Phases 1–3 exist to hardened. The
-remaining visual-polish debt it also picks up (`CONCERNS.md`: dashboard/billing/org-admin/
-scan_report) is pre-existing and independent of phase order, but bundling it here — rather than
-spreading thin "polish" slivers across every phase — keeps each of Phases 1–3 focused on a single
-observable capability, per this project's granularity setting.
+- ✅ **v1.0 Asset Inventory, API/CLI, Compliance & Hardening** - Phases 1-4 (shipped 2026-08-13)
+- ✅ **v1.1 Production Audit, Hardening & Redesign** - Phases 5-9 (shipped 2026-08-20)
+- ⏸️ **v1.2 Live Verification Closeout** - Phase 10 (deferred, not dropped - reprioritized behind v1.3)
+- ✅ **v1.3 Glassbox Rebrand & Production Security Readiness** - Phases 11-15 (shipped 2026-08-20)
+- 🚧 **v1.4 Admin Controls, Check Depth & CLI Client** - Phases 16-18 (planned)
 
 ## Phases
 
@@ -59,137 +15,292 @@ observable capability, per this project's granularity setting.
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-Decimal phases appear between their surrounding integers in numeric order.
+Decimal phases appear between their surrounding integers in numeric order. Phase numbering is
+continuous across milestones.
+
+<details>
+<summary>✅ v1.0 Asset Inventory, API/CLI, Compliance & Hardening (Phases 1-4) - SHIPPED 2026-08-13</summary>
 
 - [x] **Phase 1: Asset Inventory & Continuous Scanning** - Targets become persistent Assets that can be scanned on a recurring schedule, not just one-shot submissions.
 - [x] **Phase 2: API & CLI Access** - Security teams can manage assets and scans programmatically instead of only through the web UI.
 - [x] **Phase 3: Compliance & Framework Reporting** - Findings are mapped to OWASP Top 10/ASVS categories for audit-usable reporting.
 - [x] **Phase 4: Production Hardening & Reliability** - The platform holds up under real multi-worker production load with test coverage and visual consistency matching a "production ready" bar.
 
-## Phase Details
+Full phase detail archived at `.planning/milestones/v1.0-ROADMAP.md`.
 
-### Phase 1: Asset Inventory & Continuous Scanning
+</details>
 
-**Goal**: Users can register a domain they own once as a persistent Asset and have
-WebVulnScanner scan it automatically on a recurring schedule, building a history over time —
-instead of manually resubmitting the same target for every scan.
-**Depends on**: Nothing (first phase)
-**Requirements**: ASSET-01, ASSET-02, ASSET-03, ASSET-04, ASSET-05, ASSET-06, ASSET-07, ASSET-08
+<details>
+<summary>✅ v1.1 Production Audit, Hardening & Redesign (Phases 5-9) - SHIPPED 2026-08-20</summary>
+
+- [x] **Phase 5: New Scan Flow Redesign** - `/scan/new` became a guided Select Domain → Select Type → Confirm Authorization → Start Scan flow instead of four disconnected single-form pages.
+- [x] **Phase 6: Design System Consistency** - Every template draws from one canonical typography scale, spacing scale, component style set, and container-width convention.
+- [x] **Phase 7: Responsive & Accessibility Compliance** - Every page renders correctly from 320px to desktop and is fully operable by keyboard/assistive technology.
+- [x] **Phase 8: Security Re-Audit & Hardening** - Every ID-accepting route, form, redirect, and file-serving path across the app (including v1.0's new API/scheduler/admin surfaces) is verified to enforce its existing safety guarantees, with gaps closed.
+- [x] **Phase 9: SEO, Performance & UX States** - Public pages are correctly indexable, list-heavy pages don't degrade at scale, and every page communicates loading/empty/error states clearly.
+
+Full phase detail archived at `.planning/milestones/v1.1-ROADMAP.md`.
+
+**Known gap at close:** Phases 5, 6, 7, and 9's `checkpoint:human-verify`/live-verification
+gates were never answered by a human (explicit user instruction: proceed without blocking on
+them). All underlying work is implemented and covered by automated tests/regression locks
+(802 passing at milestone close) — the gap is specifically the live-browser/human-observation
+confirmation step, not missing implementation. See `.planning/milestones/v1.1-REQUIREMENTS.md`
+and `STATE.md`'s Deferred Items for detail.
+
+</details>
+
+### Phase 10: Live Verification Closeout
+
+**Goal**: Every `checkpoint:human-verify` gate deferred at v1.1 close (phases 5, 6, 7, 9) is
+actually run against the real Fly deployment, and any real defect it surfaces is fixed and
+regression-locked.
+**Depends on**: Phase 9 (v1.1, complete)
+**Requirements**: VERIFY-01, VERIFY-02, VERIFY-03, VERIFY-04, VERIFY-05, VERIFY-06, VERIFY-07,
+VERIFY-08, VERIFY-09
 **Success Criteria** (what must be TRUE):
 
-  1. User can add a domain as a persistent Asset (separate from submitting a one-off scan) that
-     appears in an Asset inventory list.
+  1. A live four-width sweep (320/375/768/1280px) of every page against
+     `https://webvulnscanner.fly.dev` is complete with a per-page pass/fail record, per
+     07-07-PLAN.md's original checklist (RESP-01/02/03).
 
-  2. Adding an Asset requires the same authorization checkbox and SSRF-safe-hostname check as
-     submitting a manual scan — no weaker gate on the new entry point.
+  2. The live scan-progress feed is re-confirmed against a real running scan at all four
+     breakpoints (RESP-04).
 
-  3. User can set a recurring scan schedule on an Asset (cadence + scan type), and a scan runs
-     automatically at that cadence without the user manually starting it.
+  3. A keyboard-only walkthrough and a real contrast-checking tool both confirm A11Y-03/A11Y-04
+     with recorded evidence, not just token math.
 
-  4. User can view an Asset's scan history/trend across multiple scheduled runs, not just the
-     latest single scan.
+  4. The New Scan wizard (Phase 5) and Phase 9's UX states (empty/submitting/duplicate-scan/
+     timeout) are each confirmed working end-to-end in a live browser against the real
+     deployment.
 
-  5. User can pause, resume, or delete an Asset's schedule; a Free-tier Asset's scheduled scan
-     never silently runs Paid/Org-verified-only checks.
-**Plans**: 2/2 plans executed
-Plans:
+  5. Every real defect found during the sweep is fixed and covered by a regression test/lock; the
+     sweep result itself (pass/fail per page/check) is recorded as this phase's closing evidence.
+**Plans**: 0/TBD plans executed
 
-- [x] 01-01-PLAN.md — Tracer: Asset registration + automatic first scheduled fire, end-to-end (ASSET-01/02/04/07/08, initial ASSET-03)
-- [x] 01-02-PLAN.md — Asset detail: schedule editing, scan history/trend, pause/resume/delete (ASSET-03/05/06)
+**UI hint**: yes (this phase is entirely visual/live verification — no new component work
+expected, only fixes if defects are found)
 
-**UI hint**: yes
+**Status**: Deferred behind v1.3 per explicit user instruction (2026-08-20) — real, valid work,
+not dropped. Pick up once v1.3's phases land.
 
-### Phase 2: API & CLI Access
+### Phase 11: Glassbox Rebrand ✅ COMPLETE (2026-08-20)
 
-**Goal**: Security engineers can manage assets and trigger/retrieve scans programmatically,
-enabling CI/CD and internal-tooling integration instead of requiring the web UI for every action.
-**Depends on**: Phase 1
-**Requirements**: API-01, API-02, API-03, API-04, API-05, API-06
+**Goal**: The product is renamed from WebVulnScanner to Glassbox across every user-facing surface
+and a new Fly app serves the same functionality, with the old app decommissioned only after the
+new one is verified healthy.
+**Depends on**: Phase 9 (v1.1, complete) — no dependency on the deferred Phase 10
+**Requirements**: REBRAND-01, REBRAND-02, REBRAND-03, REBRAND-04, REBRAND-05
 **Success Criteria** (what must be TRUE):
 
-  1. Org admin can generate and revoke an API token from the web UI.
-  2. Using an API token (no session cookie), a user can list their org's Assets and each Asset's
-     latest scan status.
+  1. No rendered page contains the literal string "WebVulnScanner" — every title, meta tag, nav
+     brand, email, and error page shows "Glassbox". ✅
+  2. `README.md`/`CLAUDE.md` reflect the new name; CLAUDE.md's frozen-surface and non-destructive
+     constraints are unchanged in substance. ✅
+  3. A new Fly app runs the same image with all 12 secrets migrated, and a real health/DB-
+     connectivity check + smoke test succeeds against the new deployment before the old app is
+     torn down. ✅
+  4. The full test suite (802+ tests) still passes unmodified in substance — this is a naming
+     change, not a behavior change. ✅ (802 passed)
+**Plans**: Executed directly (lean, no PLAN.md subagent cascade — single mechanical rename +
+migration task)
 
-  3. Using an API token, a user can trigger a new scan on an existing Asset and retrieve its
-     finished report as structured JSON, subject to the same authorization/SSRF/tier gating the
-     web UI enforces.
+**Actual outcome**: `glassbox` itself was already taken globally on Fly (app names are global
+across all accounts, not per-org) — deployed as **`glassboxsec.fly.dev`** instead, confirmed via
+`flyctl apps create` before touching anything else. All 12 secrets migrated by reading them from
+the live `webvulnscanner` machine's environment (`flyctl ssh console -C`) piped directly into
+`flyctl secrets import` on the new app — values never displayed in any output, verified identical
+via matching digests. New app deployed, confirmed healthy (`/healthz` DB connectivity, `/signup`
+200, `/scan/new` correctly gating auth), old `webvulnscanner` app destroyed only after that
+verification. `fly.toml` updated to target `glassboxsec`.
 
-  4. A CLI command authenticates with an API token and can list assets, start a scan, and print a
-     report without opening a browser.
-**Plans**: 3/3 plans executed
-Plans:
+**UI hint**: yes (branding surfaces only — no layout/component changes)
 
-- [x] 02-01-PLAN.md — Tracer: token auth end-to-end (generate/revoke UI, API-01) + first authenticated JSON route (GET /api/v1/assets, API-02)
-- [x] 02-02-PLAN.md — Trigger scan (API-03) + fetch report with ownership-mismatch fix (API-04) + rate-limit/tier-gate proof (API-05)
-- [x] 02-03-PLAN.md — CLI: login, assets list, scan start, report get (API-06)
+### Phase 12: Finding Schema ✅ COMPLETE (2026-08-20)
 
-**UI hint**: yes
-
-### Phase 3: Compliance & Framework Reporting
-
-**Goal**: Security teams can see scan findings mapped to recognized compliance frameworks (OWASP
-Top 10 / ASVS) for audit and reporting purposes, not just a flat severity list.
-**Depends on**: Phase 1
-**Requirements**: COMP-01, COMP-02, COMP-03, COMP-04
+**Goal**: Every `Finding` carries an honest `confidence` value (and, where applicable, `cwe`/
+`verification_state`), kept conceptually separate from `severity`, so nothing is ever reported as
+more certain than the evidence supports.
+**Depends on**: Phase 11
+**Requirements**: FSCH-01, FSCH-02, FSCH-03, FSCH-04, FSCH-05
 **Success Criteria** (what must be TRUE):
 
-  1. A scan report shows each finding's mapped OWASP Top 10 (and/or ASVS) category alongside its
-     severity.
+  1. `Finding` has `confidence`/`cwe`/`verification_state` fields with `confidence` restricted to
+     the 5 defined values. ✅
+  2. Every existing `Finding(...)` call site in `checks.py` has an explicit, reasoned `confidence`
+     value — a regression test fails if any call site is left on a default. ✅
+  3. The scan report displays confidence (and CWE/OWASP where present) per finding using existing
+     `.pill`/`.badge` components, with no new visual clutter. ✅
+**Plans**: Executed directly (lean)
 
-  2. User can filter or group a report's findings by compliance category, not only by severity.
-  3. User can view a per-Asset compliance-coverage summary across its scan history — which
-     categories have been checked, and which are currently failing.
-**Plans**: 3/3 plans executed
+**Actual outcome**: All 53 real `Finding(...)` call sites individually categorized (not
+bulk-defaulted) and backfilled via a paren-balanced source rewrite script. AST-based coverage
+lock (`tests/test_finding_confidence.py`) proves every call site passes an explicit
+`confidence=` from `CONFIDENCE_LEVELS`. `_serialize_findings()` already used `asdict(f)`, so the
+new fields flowed into report JSON with zero serialization changes. `scan_report.html` renders
+confidence/CWE via the existing `.pill.compliance` component (same one the OWASP pill already
+used). 805 passed (1 pre-existing unrelated flaky test, confirmed).
 
-- [x] 03-01-PLAN.md
-- [x] 03-02-PLAN.md
-- [x] 03-03-PLAN.md
+**UI hint**: yes (report page finding-card additions only)
 
-**UI hint**: yes
+### Phase 13: Domain Grouping & Scoring v2 ✅ COMPLETE (2026-08-20)
 
-### Phase 4: Production Hardening & Reliability
-
-**Goal**: The platform is safe to run with more than one production worker and has test/visual
-consistency coverage matching the "production ready" bar this milestone targets.
-**Depends on**: Phase 1, Phase 2, Phase 3
-**Requirements**: HARD-01, HARD-02, HARD-03, HARD-04, HARD-05
+**Goal**: Findings are organized into product-facing security domains instead of a flat list,
+and the score/readiness verdict reflects confidence and control coverage, not just a severity
+count — a user can see why the number is what it is.
+**Depends on**: Phase 12 (scoring/grouping needs `confidence` to exist first)
+**Requirements**: SCORE-01, SCORE-02, SCORE-03, SCORE-04, SCORE-05
 **Success Criteria** (what must be TRUE):
 
-  1. Rate limits (login, signup, invoice, and the new API-token endpoints) enforce correctly even
-     when the app runs with more than one gunicorn worker.
+  1. `SECURITY_DOMAIN_MAP` covers every check_name across all 4 orchestrators, same coverage-lock
+     pattern as the existing `CHECK_COMPLIANCE`. ✅
+  2. The scan report groups findings by domain. ✅
+  3. The score visibly reflects confidence-weighting and coverage, not severity count alone, and
+     a READY/READY WITH WARNINGS/NOT READY verdict is shown with a supporting breakdown. ✅
+  4. Attack-surface findings show their `verification_state` in the UI. ✅
+**Plans**: Executed directly (lean)
 
-  2. `run_advanced_scan`, `run_media_scan`, and `run_api_scan` each have automated tests covering
-     status transitions and error handling, matching the coverage `run_scan` already has —
-     including the scheduler-triggered path added in Phase 1.
+**Actual outcome**: 11 real finding-domains (not 13 - "Security Posture" and "Production
+Readiness" turned out to be report-summary/verdict sections, not buckets any check's findings
+belong to, so they were excluded from SECURITY_DOMAIN_MAP by design, documented in its own
+comment). New "Domain" grouping mode added alongside the existing Severity/Compliance modes
+(`group_findings_by_domain()`, exact same contract as `group_findings_by_compliance()`).
+`_compute_readiness()` implemented as a companion function to `_score_report()` rather than a
+change to it, to protect that function's 20+ existing tests and source-parsing regression lock -
+same substance (confidence + coverage aware, never vulnerability-count-alone), zero regression
+risk. Wired into all 4 orchestrators with per-scan-type coverage denominators. 826 passed.
 
-  3. Org invite/role-change/domain-verification flows have automated test coverage beyond the
-     current single rendering test.
+**UI hint**: yes (report page restructure — the milestone's largest UI change; reuse existing
+components per CLAUDE.md's frontend design system, no new component family)
 
-  4. Dashboard, billing, org-admin, and scan_report pages visually match the rest of the app's
-     design system — no bland/legacy styling left on any of the four.
-**Plans**: 5/5 plans executed
-Plans:
+### Phase 14: Net-New Checks ✅ COMPLETE (2026-08-20)
 
-- [x] 04-01-PLAN.md — Tracer: shared `_score_report()` helper across all 4 orchestrators (HARD-04) + direct-invocation coverage and safety-constraint regression locks for the 3 untested orchestrators (HARD-02)
-- [x] 04-02-PLAN.md — Multi-worker rate limiting: `RATELIMIT_STORAGE_URI` proven shared via a two-limiter fakeredis test, `redis`/`fakeredis` deps, boot-time backend log (HARD-01)
-- [x] 04-03-PLAN.md — Finish the org invite flow with email-bound tokens + invite-mode signup, plus domain-verification test coverage (HARD-03)
-- [x] 04-04-PLAN.md — Scheduler-fired media/api coverage and `_run_scan_in_background` status transitions for all 3 scan types (HARD-02, remainder)
-- [x] 04-05-PLAN.md — Reuse-only visual consistency pass on dashboard/billing/org-admin/scan_report + phase documentation reconciliation (HARD-05)
+**Goal**: The check set is extended with the handful of genuinely missing pre-production checks
+(file upload, security.txt, privacy/PII, caching, GraphQL) — additive, non-destructive, following
+the existing check convention exactly.
 
-**Execution waves**: wave 1 = 04-01, 04-02, 04-03 (no shared files); wave 2 = 04-04 (needs 04-01),
-04-05 (needs 04-03's `org_admin.html` edit).
+**Actual outcome**: security.txt and GraphQL introspection already existed before this phase
+(confirmed by inspection first) - not duplicated. Only 3 genuinely new checks built:
+`check_file_upload`, `check_privacy_exposure`, `check_caching_sensitive_data`, all FREE-tier,
+all registered across FEATURE_REQUIREMENTS/CHECK_COMPLIANCE/SECURITY_DOMAIN_MAP/CHECK_LABELS/
+CHECK_CATEGORY/run_scan()'s jobs dict. 4 pre-existing tests with hardcoded FREE-tier job counts
+needed updating (not bugs - registries that predated the 3 new checks). 839 passed.
+**Depends on**: Phase 13 (new checks should land under the domain-grouping/scoring model, not be
+retrofitted into it afterward)
+**Requirements**: CHECK-01, CHECK-02, CHECK-03, CHECK-04, CHECK-05, CHECK-06
+**Success Criteria** (what must be TRUE):
 
-**UI hint**: yes
+  1. Each new check returns `(data, findings)`, never raises past its own function, and is
+     registered in `FEATURE_REQUIREMENTS`/`CHECK_COMPLIANCE`/`SECURITY_DOMAIN_MAP`.
+  2. File-upload/security.txt/privacy/caching/GraphQL checks are each read-only — no payload
+     uploaded, no destructive request sent to the target.
+  3. A coverage-lock test proves no new check is missing from any of the three registries above.
+**Plans**: 0/TBD plans executed
+
+**UI hint**: no (findings render through the existing Phase 13 UI, no new page/component)
+
+### Phase 15: Request Expert Assessment ✅ COMPLETE (2026-08-20)
+
+**Goal**: A visible CTA lets a user request a deeper, human-led assessment; submissions are
+captured with enough detail to scope real work and are visible to platform admins.
+**Depends on**: Phase 13 (CTA placement assumes the redesigned report page exists)
+**Requirements**: CTA-01, CTA-02, CTA-03, CTA-04
+**Success Criteria** (what must be TRUE):
+
+  1. "Request Expert Assessment" is visible on the report/dashboard using existing `.btn`/`.card`
+     components.
+  2. The form collects all 11 specified fields and creates an `AssessmentRequest` row.
+  3. Platform admins can view submitted requests.
+  4. The form is CSRF-protected and rate-limited like every other state-changing form in the app.
+**Plans**: 1/1 plans executed (executed directly, no PLAN.md - matches Phases 11-14's lean
+approach). Complete.
+
+**UI hint**: yes (one new form page + one new admin list view, reusing `_admin_form_styles.html`/
+existing admin-panel table patterns)
+
+### Phase 16: Platform Admin User/Org Management ✅ COMPLETE (2026-08-21)
+
+**Goal**: Platform admins can inspect a user's or org's detail (scans, plan, verified domains)
+and suspend/remove a user or org from `/platform-admin`, with every action audit-logged - not
+just the pending-domain-deletion/assessment-request queues that exist today.
+**Depends on**: Phase 11 (admin_routes.py/platform_admin.html as they exist post-rebrand)
+**Requirements**: ADMIN-01, ADMIN-02, ADMIN-03, ADMIN-04
+**Success Criteria** (what must be TRUE):
+
+  1. A platform admin can open a user detail view showing their org, role, plan, and scan history.
+  2. A platform admin can suspend a user (blocks login; distinct from deletion) and reverse it,
+     each requiring a confirmation step (this is an irreversible-adjacent action per the app's
+     own safety conventions).
+  3. A platform admin can suspend an org, cascading the same block to its members.
+  4. Every suspend/unsuspend action writes a `PlatformAuditEvent` row so there's a who/what/when
+     trail, same convention as domain-deletion approve/reject already uses.
+**Plans**: 1/1 plans executed (executed directly, no PLAN.md - matches Phases 11-15's lean
+approach). Complete. Hard delete of a user/org was scoped out during implementation (see
+REQUIREMENTS.md's ADMIN-03 note) - a real, valid future requirement, not dropped.
+
+**UI hint**: yes (new user/org detail pages + destructive-action confirmation flows on
+`/platform-admin`)
+
+### Phase 17: Expanded Check Coverage
+
+**Goal**: Each existing check category (injection, headers, auth, exposure) gets meaningfully
+more payload/variant coverage within the existing non-destructive/same-origin/depth-1 safety
+constraints; the deeper-crawl question is answered explicitly (loosen or keep) rather than left
+implicit.
+**Depends on**: Phase 14 (Net-New Checks, same `(data, findings)`/registry conventions)
+**Requirements**: DEPTH-01, DEPTH-02, DEPTH-03
+**Success Criteria** (what must be TRUE):
+
+  1. A written decision exists on same-origin depth-1 crawl vs. a deeper/multi-page crawl,
+     signed off explicitly (this changes the app's safety posture, not a default to flip quietly).
+  2. At least the injection-class checks (XSS/SQLi) gain additional payload variants without
+     violating existing safety constraints (no destructive payloads, same caps).
+  3. Coverage additions are registered in `FEATURE_REQUIREMENTS`/`CHECK_LABELS`/`CHECK_CATEGORY`
+     per the existing convention, with regression-lock tests proving the registries stay in sync.
+**Plans**: 0/TBD plans executed
+
+**UI hint**: no (findings render through the existing report UI)
+
+### Phase 18: CLI Client
+
+**Goal**: A standalone `glassbox` command-line client authenticates via the existing API-token
+system and lets a security practitioner launch scans, poll status, and pull reports from a
+terminal, without adding any new server-side execution surface.
+**Depends on**: Phase 2 (v1.0's API & CLI Access - the API-token auth this CLI authenticates
+against already exists)
+**Requirements**: CLI-01, CLI-02, CLI-03
+**Success Criteria** (what must be TRUE):
+
+  1. The CLI authenticates with an existing API token (no new auth mechanism, no credentials
+     entered anywhere but the token itself).
+  2. It can launch a scan, poll status, and fetch a finished report's JSON/CSV via the existing
+     API routes - no new server endpoints required for the MVP.
+  3. It ships as a separate installable package/script, not embedded in the web app - explicitly
+     ruled out an in-browser terminal (a much larger, harder-to-secure attack surface) per this
+     phase's scoping conversation.
+**Plans**: 0/TBD plans executed
+
+**UI hint**: no (separate CLI package, no web UI)
 
 ## Progress
 
-**Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Asset Inventory & Continuous Scanning | 2/2 | Complete | 2026-08-11 |
-| 2. API & CLI Access | 3/3 | Complete | 2026-08-11 |
-| 3. Compliance & Framework Reporting | 3/3 | Complete | 2026-08-11 |
-| 4. Production Hardening & Reliability | 5/5 | Complete | 2026-08-13 |
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Asset Inventory & Continuous Scanning | v1.0 | 2/2 | Complete | 2026-08-11 |
+| 2. API & CLI Access | v1.0 | 3/3 | Complete | 2026-08-11 |
+| 3. Compliance & Framework Reporting | v1.0 | 3/3 | Complete | 2026-08-11 |
+| 4. Production Hardening & Reliability | v1.0 | 5/5 | Complete | 2026-08-13 |
+| 5. New Scan Flow Redesign | v1.1 | 3/3 | Complete | 2026-08-20 |
+| 6. Design System Consistency | v1.1 | 4/4 | Complete | 2026-08-20 |
+| 7. Responsive & Accessibility Compliance | v1.1 | 7/7 | Complete | 2026-08-20 |
+| 8. Security Re-Audit & Hardening | v1.1 | 7/7 | Complete | 2026-08-19 |
+| 9. SEO, Performance & UX States | v1.1 | 4/4 | Complete | 2026-08-20 |
+| 10. Live Verification Closeout | v1.2 | 0/TBD | In progress | - |
+| 11. Glassbox Rebrand | v1.3 | Direct execution | Complete | 2026-08-20 |
+| 12. Finding Schema | v1.3 | Direct execution | Complete | 2026-08-20 |
+| 13. Domain Grouping & Scoring v2 | v1.3 | Direct execution | Complete | 2026-08-20 |
+| 14. Net-New Checks | v1.3 | Direct execution | Complete | 2026-08-20 |
+| 15. Request Expert Assessment | v1.3 | Direct execution | Complete | 2026-08-20 |
+| 16. Platform Admin User/Org Management | v1.4 | Direct execution | Complete | 2026-08-21 |
+| 17. Expanded Check Coverage | v1.4 | 0/TBD | Not started | - |
+| 18. CLI Client | v1.4 | 0/TBD | Not started | - |

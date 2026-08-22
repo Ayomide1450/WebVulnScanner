@@ -1,5 +1,5 @@
 """
-Scan orchestrators for WebVulnScanner.
+Scan orchestrators for Glassbox.
 
 `run_scan`, `run_advanced_scan`, `run_media_scan` relocated verbatim from
 `app.py` (Workstream 2 of the auth/entitlement plan). Workstream 3 adds
@@ -32,6 +32,7 @@ from webvulnscanner.checks import (
     DOWNLOADS_DIR,  # noqa: F401
     SEVERITY_WEIGHT,
     SEVERITY_ORDER,
+    READINESS_GATING_CONFIDENCE,
     _mk_session,
     check_headers,
     check_cookies,
@@ -51,6 +52,9 @@ from webvulnscanner.checks import (
     check_exposed_secrets,
     check_jwt_weakness,
     check_sri,
+    check_file_upload,
+    check_privacy_exposure,
+    check_caching_sensitive_data,
     owasp_category_for,
     check_open_ports,
     check_media,
@@ -96,6 +100,71 @@ def _score_report(findings):
     return score, risk_grade, severity_counts, findings_sorted
 
 
+def _compute_readiness(findings, locked_count=0, total_check_count=None):
+    """v1.3 SCORE-03/04: a companion signal to `_score_report()` above, not a
+    replacement - deliberately kept as its own function so `_score_report`'s
+    battle-tested arithmetic and 4-tuple return (20+ existing tests, a
+    source-parsing regression lock) stay completely untouched. This is the
+    "extend the scoring formula to weight by confidence and coverage" work
+    from SCORE-03, expressed as a verdict + supporting reasons rather than a
+    second numeric score, so a user sees *why* readiness landed where it
+    did (SCORE-04) instead of just another number next to the risk score.
+
+    Never based on vulnerability count alone (explicit requirement): a
+    single low-confidence finding doesn't block readiness, one credible
+    critical does, and incomplete check coverage (locked/tier-gated checks)
+    always caps the verdict at READY WITH WARNINGS even with zero findings -
+    "nothing found" is not the same claim as "nothing to find" when whole
+    check categories never ran.
+
+    Returns (verdict, reasons, coverage_pct). `coverage_pct` is None when
+    `total_check_count` isn't supplied (media/api scans have no locked-check
+    concept - every check that can run, runs, so coverage is definitionally
+    irrelevant there, not just unknown).
+    """
+    credible_critical = [f for f in findings if f.severity == "critical" and f.confidence in READINESS_GATING_CONFIDENCE]
+    credible_high = [f for f in findings if f.severity == "high" and f.confidence in READINESS_GATING_CONFIDENCE]
+    uncertain_serious = [
+        f for f in findings
+        if f.severity in ("critical", "high") and f.confidence not in READINESS_GATING_CONFIDENCE
+    ]
+
+    coverage_pct = None
+    if total_check_count:
+        coverage_pct = round(100 * (total_check_count - locked_count) / total_check_count)
+
+    reasons = []
+    if credible_critical:
+        verdict = "NOT READY"
+        reasons.append(
+            f"{len(credible_critical)} critical finding(s) with credible evidence "
+            f"({', '.join(sorted({f.title for f in credible_critical}))[:200]})"
+        )
+    elif credible_high:
+        verdict = "READY WITH WARNINGS"
+        reasons.append(f"{len(credible_high)} high-severity finding(s) with credible evidence")
+    else:
+        verdict = "READY"
+
+    if uncertain_serious and verdict == "READY":
+        verdict = "READY WITH WARNINGS"
+    if uncertain_serious:
+        reasons.append(
+            f"{len(uncertain_serious)} critical/high finding(s) flagged but not yet confidently "
+            "confirmed - worth a manual look before treating this as clean"
+        )
+
+    if coverage_pct is not None and coverage_pct < 100 and verdict == "READY":
+        verdict = "READY WITH WARNINGS"
+    if coverage_pct is not None and coverage_pct < 100:
+        reasons.append(f"Only {coverage_pct}% of applicable checks ran ({locked_count} locked by tier/verification)")
+
+    if not reasons:
+        reasons.append("No credible critical/high findings, and every applicable check ran")
+
+    return verdict, reasons, coverage_pct
+
+
 def run_media_scan(base_url, download, max_files):
     session = _mk_session()
     data, findings = check_media(session, base_url, download, max_files)
@@ -103,6 +172,9 @@ def run_media_scan(base_url, download, max_files):
         f.check_name = "media"
 
     score, risk_grade, severity_counts, findings_sorted = _score_report(findings)
+    # No locked-check concept for media scans (route-level gating means every
+    # check that can run, runs) - coverage_pct stays None, not a fabricated 100.
+    readiness_verdict, readiness_reasons, coverage_pct = _compute_readiness(findings)
 
     return {
         "target": base_url,
@@ -113,6 +185,9 @@ def run_media_scan(base_url, download, max_files):
         "severity_counts": severity_counts,
         "findings": _serialize_findings(findings_sorted),
         "media": data,
+        "readiness_verdict": readiness_verdict,
+        "readiness_reasons": readiness_reasons,
+        "check_coverage_pct": coverage_pct,
     }
 
 
@@ -150,6 +225,7 @@ def run_api_scan(base_url):
     all_findings.extend(findings)
 
     score, risk_grade, severity_counts, findings_sorted = _score_report(all_findings)
+    readiness_verdict, readiness_reasons, coverage_pct = _compute_readiness(all_findings)
 
     return {
         "target": base_url,
@@ -160,6 +236,9 @@ def run_api_scan(base_url):
         "severity_counts": severity_counts,
         "findings": _serialize_findings(findings_sorted),
         "results": results,
+        "readiness_verdict": readiness_verdict,
+        "readiness_reasons": readiness_reasons,
+        "check_coverage_pct": coverage_pct,
     }
 
 
@@ -258,6 +337,13 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
 
     score, risk_grade, severity_counts, findings_sorted = _score_report(all_findings)
     hostname = urlparse(targets[0]).netloc if targets else "unspecified-target"
+    # Coverage is scoped to check groups the user actually attempted (filled
+    # in fields for) - a group nobody filled in was never "applicable" to
+    # begin with, so it shouldn't count against readiness the way a
+    # tier-locked-but-attempted one does.
+    readiness_verdict, readiness_reasons, coverage_pct = _compute_readiness(
+        all_findings, locked_count=len(locked), total_check_count=len(results) + len(locked),
+    )
 
     return {
         "hostname": hostname,
@@ -269,6 +355,9 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
         "results": results,
         "ran": list(results.keys()),
         "locked_checks": locked,
+        "readiness_verdict": readiness_verdict,
+        "readiness_reasons": readiness_reasons,
+        "check_coverage_pct": coverage_pct,
     }
 
 
@@ -353,8 +442,17 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         "secrets": lambda: check_exposed_secrets(session, base_url, home_html),
         "jwt": lambda: check_jwt_weakness(session, base_url, home_html),
         "sri": lambda: check_sri(base_url, home_html),
+        "file_upload": lambda: check_file_upload(base_url, home_html),
+        "privacy_exposure": lambda: check_privacy_exposure(base_url, home_html),
+        "caching_sensitive": lambda: check_caching_sensitive_data(base_url, session),
     }
 
+    # Captured before `jobs` is filtered down to `allowed` below - the base
+    # denominator for SCORE-01's coverage_pct is every check that could
+    # apply to a base scan (this dict's checks + headers/cookies/open_ports,
+    # which run outside the jobs dict - see total_check_count at report-
+    # build time), not just the ones this particular tier unlocked.
+    total_job_count = len(jobs)
     allowed, locked = allowed_checks(list(jobs.keys()), tier)
     if not org_verified_for_domain:
         # Tier alone is not enough for ORG_VERIFIED-tier checks - the domain
@@ -443,6 +541,11 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
                      top_severity=_top_severity(f_ports) if open_ports_phase else None)
 
     score, risk_grade, severity_counts, findings_sorted = _score_report(all_findings)
+    # +3: headers/cookies (always run, never locked) + open_ports (its own
+    # gate, separate from the jobs-dict allowed_checks() call above).
+    readiness_verdict, readiness_reasons, coverage_pct = _compute_readiness(
+        all_findings, locked_count=len(locked), total_check_count=total_job_count + 3,
+    )
 
     return {
         "target": base_url,
@@ -452,6 +555,9 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         "risk_grade": risk_grade,
         "severity_counts": severity_counts,
         "findings": _serialize_findings(findings_sorted),
+        "readiness_verdict": readiness_verdict,
+        "readiness_reasons": readiness_reasons,
+        "check_coverage_pct": coverage_pct,
         "headers": header_data,
         "cookies": cookie_rows,
         # A check whose name was filtered out of `jobs` above never wrote to
@@ -476,6 +582,9 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         "secrets": results.get("secrets", {"locked": True}),
         "jwt": results.get("jwt", {"locked": True}),
         "sri": results.get("sri", {"locked": True}),
+        "file_upload": results.get("file_upload", {"locked": True}),
+        "privacy_exposure": results.get("privacy_exposure", {"locked": True}),
+        "caching_sensitive": results.get("caching_sensitive", {"locked": True}),
         "crawl": {"discovered_urls": param_urls, "forms": forms},
         "locked_checks": locked,
     }
@@ -497,3 +606,48 @@ def save_report(report, prefix, hostname):
     with open(os.path.join(REPORTS_DIR, fname), "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2)
     return fname
+
+
+def read_report_file(filename):
+    """Reads and parses an on-disk report JSON file from REPORTS_DIR given
+    its stored filename - `save_report()`'s symmetric counterpart, and the
+    one shared reader for what used to be three independent inline
+    "open a REPORTS_DIR-joined path" blocks in `scan_routes.py`,
+    `api_routes.py` and `asset_routes.py`.
+
+    This exists because those three call sites each independently joined a
+    DB-stored filename (`Report.json_path`) onto `REPORTS_DIR` with no
+    containment check. Path traversal is NOT reachable today:
+    `save_report()` above is the only writer of `Report.json_path` in this
+    codebase, and it always builds the filename server-side from a hostname
+    and a timestamp - never from a request parameter - so no
+    request-controlled value reaches the join. This function is therefore
+    defence in depth against a fourth caller with different provenance,
+    not a fix for a live vulnerability; do not describe it as one.
+
+    Containment is checked by resolving BOTH sides to real paths before
+    comparing - REPORTS_DIR itself is derived from `__file__`
+    (`checks.APP_DIR`) and could sit behind a symlink on some hosts, so
+    resolving only the candidate side would reject every legitimate read
+    the moment that happened. Returns the parsed JSON object, or `None` on
+    any of: containment failure, a missing file, an unreadable file,
+    invalid JSON, or a filename value that makes path resolution itself
+    raise (e.g. an embedded null byte) - the same single failure signal
+    every caller here already treats identically to "file not found",
+    preserving each call site's own pre-existing not-available branch.
+    """
+    try:
+        reports_root = os.path.realpath(REPORTS_DIR)
+        candidate = os.path.realpath(os.path.join(REPORTS_DIR, filename))
+        contained = os.path.commonpath([reports_root, candidate]) == reports_root
+    except (OSError, ValueError, TypeError):
+        return None
+
+    if not contained:
+        return None
+
+    try:
+        with open(candidate, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None

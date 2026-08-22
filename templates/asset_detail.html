@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ asset.name }} - WebVulnScanner{% endblock %}
+{% block title %}{{ asset.name }} - Glassbox{% endblock %}
 {% block head %}
 <style>
   /* h1/h2.section/.card/table/th/td come from base.html - see its comments.
@@ -13,9 +13,9 @@
   a.row-link { color: var(--accent); text-decoration:none; }
   .header-row { display:flex; justify-content:space-between; align-items:flex-start; gap: var(--space-4); flex-wrap:wrap; margin-top:14px; }
   .actions-row { display:flex; gap: var(--space-2); align-items:center; }
-  .meta { color: var(--muted); font-size: 13.5px; margin: 6px 0 0; }
-  .latest-score { font-size:36px; font-weight:800; }
-  .sparkline-card .hint, .compliance-card .hint { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
+  .meta { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+  .latest-score { font-size:36px; font-weight:600; }
+  .sparkline-card .hint, .compliance-card .hint { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
 
   /* COMP-03's coverage-summary "not_checked" status badge reuses
      scan_report.html's .finding.locked-card treatment (opacity .65 + the
@@ -23,32 +23,31 @@
      language for "unavailable/not yet run" (03-UI-SPEC Color contract). */
   .pill.not-checked { opacity: .65; background: rgba(147,160,201,.15); color: var(--muted); }
   .compliance-card td { vertical-align: top; }
-  .compliance-card .upgrade-hint { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+  .compliance-card .upgrade-hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
 
-  .schedule-form label { display:block; margin-top: var(--space-4); font-weight:600; font-size:13.5px; color: var(--text); }
+  .schedule-form label { display:block; margin-top: var(--space-4); font-weight:600; font-size:13px; color: var(--text); }
   .schedule-form label:first-child { margin-top: 0; }
   .schedule-form select {
-    width: 100%; max-width: 320px; padding: 11px 14px; margin-top: 7px; border: 1px solid var(--border);
-    border-radius: 10px; font-size: 14.5px; background: rgba(255,255,255,.03); color: var(--text);
-    outline: none;
+    width: 100%; max-width: 320px; padding: var(--space-3) var(--space-4); margin-top: var(--space-2);
+    border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px;
+    background: rgba(255,255,255,.03); color: var(--text); outline: none;
   }
-  .schedule-form select:focus { border-color: var(--accent); background: rgba(34,197,94,.04); }
+  .schedule-form select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,197,94,.18); }
+  /* Chromium's native open-dropdown popup doesn't reliably dark-theme its
+     <option> rows from `color-scheme: dark` alone - see _admin_form_styles
+     .html's identical fix for why this is needed as its own rule. */
+  .schedule-form select option { background-color: var(--panel); color: var(--text); }
   .schedule-form .btn { margin-top: var(--space-5); }
 
   /* Icon-only row controls (pause/resume/delete): 44px minimum touch
      target per 01-UI-SPEC.md's Spacing Scale exception. Pause/resume reuse
      .btn.secondary (never accent - a schedule toggle isn't a conversion
      action); delete reuses .error-box's exact rgba treatment as its
-     destructive color, per 01-UI-SPEC.md's Color contract. */
-  .icon-btn { min-width: 44px; min-height: 44px; padding: 0; justify-content:center; }
-  .icon-btn .icon { width:18px; height:18px; }
-  .btn.destructive { background: rgba(248,113,113,.09); border: 1px solid rgba(248,113,113,.35); color: var(--critical); }
-
-  /* Reused verbatim from _scan_form_styles.html's button:disabled rule -
-     every form on this page is a server-rendered POST+redirect with no
-     client-side framework, so "disable while in flight" is this exact CSS
-     rule plus a submit-time JS toggle, not a new AJAX loading indicator. */
-  .btn:disabled { opacity: .5; cursor: not-allowed; }
+     destructive color, per 01-UI-SPEC.md's Color contract. .icon-btn
+     itself now comes from base.html (promoted in plan 07-01) - the local
+     copy that used to live here was removed in plan 07-03. */
+  /* The destructive-button and disabled-button treatments now come from
+     base.html's canonical rules - see its comments. */
 </style>
 {% endblock %}
 {% block content %}
@@ -99,8 +98,8 @@
         <div class="score-card" style="margin-top:0; padding:0; border:none; background:none;">
           {% include "_gauge.html" %}
           <div class="score-summary">
-            <div style="color: var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.05em;">Latest scan</div>
-            <div style="font-size:13.5px; margin-top:4px;">
+            <div style="color: var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.05em;">Latest scan</div>
+            <div style="font-size:13px; margin-top:4px;">
               {{ latest.scan_type }} scan &middot;
               <span class="status-pill {{ latest.status.value }}">{{ latest.status.value }}</span>
               {% if latest.status.value == 'completed' %}
@@ -110,7 +109,7 @@
           </div>
         </div>
       {% else %}
-      <div style="color: var(--muted); font-size:13.5px;">
+      <div style="color: var(--muted); font-size:13px;">
         {{ latest.scan_type }} scan &middot;
         <span class="status-pill {{ latest.status.value }}">{{ latest.status.value }}</span>
         {% if latest.status.value not in ('completed',) %}
@@ -166,9 +165,19 @@
         As of the most recent completed scan of each scan type this Asset has run
         ({{ coverage.scan_types|join(', ') }}) &mdash; not this Asset's all-time history.
       </p>
+      {# D-01 per-table triage (07-RESEARCH.md "Curated-vs-diagnostic table
+         triage"): this is a two-column diagnostic dump (OWASP category ->
+         status), not a record list with a primary action or a detail view
+         to link to - so it stays a table at every width and only gains
+         thead/tbody here. Do not "finish the job" by converting it to
+         .mobile-record-cards; there is no per-row action for a card to
+         hold. #}
       <div class="table-scroll">
       <table>
+        <thead>
         <tr><th>OWASP Top 10 category</th><th>Status</th></tr>
+        </thead>
+        <tbody>
         {% for row in coverage.rows %}
         <tr>
           <td>{{ row.owasp }}</td>
@@ -189,6 +198,7 @@
           </td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}
@@ -197,7 +207,7 @@
     </div>
   {% else %}
   <div class="card">
-    <p style="color: var(--muted); font-size: 13.5px; margin:0;">
+    <p style="color: var(--muted); font-size: 13px; margin:0;">
       This Asset hasn't been scanned yet. Your first scan will run automatically within a few
       minutes &mdash; refresh this page to check.
     </p>
@@ -240,9 +250,12 @@
   {% if scans %}
   <h2 class="section">Scan history</h2>
   <div class="card">
-    <div class="table-scroll">
+    <div class="table-scroll desktop-table">
     <table>
+      <thead>
       <tr><th>Type</th><th>Status</th><th>Risk score</th><th>Created</th><th></th></tr>
+      </thead>
+      <tbody>
       {% for s in scans %}
       <tr>
         <td>{{ s.scan_type }}</td>
@@ -252,8 +265,25 @@
         <td><a class="row-link" href="{{ url_for('scan.scan_detail', scan_id=s.id) }}">View &rarr;</a></td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
     </div>
+    <ul class="mobile-record-cards">
+      {% for s in scans %}
+      <li class="card record-card">
+        <div class="record-card-top">
+          <span class="record-card-id">{{ s.scan_type }}</span>
+          <span class="status-pill {{ s.status.value }}">{{ s.status.value }}</span>
+        </div>
+        <div class="record-card-meta">
+          {{ s.risk_score if s.risk_score is not none else '-' }} / 100 &middot; {{ s.created_at }}
+        </div>
+        <div class="record-card-action">
+          <a class="btn secondary block" href="{{ url_for('scan.scan_detail', scan_id=s.id) }}">View &rarr;</a>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
   </div>
   {% endif %}
 </div>

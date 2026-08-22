@@ -1,6 +1,7 @@
 {% extends "base.html" %}
-{% block title %}API Tokens - WebVulnScanner{% endblock %}
+{% block title %}API Tokens - Glassbox{% endblock %}
 {% block head %}
+{% include "_empty_state.html" %}
 <style>
   /* h1/.card/.warn-box/.pill/.btn/table/.table-scroll come from base.html -
      see its comments. This page mixes .btn.primary/.secondary/.destructive
@@ -13,42 +14,44 @@
      reused verbatim from _admin_form_styles.html's precedent, not
      re-invented (02-UI-SPEC.md Spacing Scale). */
   h1 { margin-top: 20px; }
-  .intro { color: var(--muted); font-size: 16px; line-height: 1.5; max-width: 640px; margin: 0 0 var(--space-5); }
+  .intro { color: var(--muted); font-size: 15px; line-height: 1.5; max-width: 640px; margin: 0 0 var(--space-5); }
 
   .create-token-form { margin-bottom: var(--space-5); }
-  .create-token-form label { display: block; margin-top: var(--space-4); font-weight: 600; font-size: 13.5px; color: var(--text); }
+  .create-token-form label { display: block; margin-top: var(--space-4); font-weight: 600; font-size: 13px; color: var(--text); }
   .create-token-form label:first-child { margin-top: 0; }
   .create-token-form input[type=text] {
-    width: 100%; max-width: 420px; padding: 10px 12px; margin-top: 7px; border: 1px solid var(--border);
-    border-radius: 10px; font-size: 14px; background: rgba(255,255,255,.03); color: var(--text);
+    width: 100%; max-width: 420px; padding: var(--space-3) var(--space-4); margin-top: var(--space-2);
+    border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px;
+    background: rgba(255,255,255,.03); color: var(--text);
   }
-  .create-token-form input[type=text]:focus { border-color: var(--accent); background: rgba(34,197,94,.04); outline: none; }
+  .create-token-form input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,197,94,.18); outline: none; }
   .create-token-form .btn { margin-top: var(--space-4); }
-  .field-error { color: var(--critical); font-size: 12.5px; margin-top: 5px; }
+  .field-error { color: var(--critical); font-size: 13px; margin-top: 5px; }
 
   .reveal-panel { margin-bottom: var(--space-5); }
   .reveal-panel .warn-box { flex-direction: column; margin-bottom: 0; }
-  .reveal-panel .warn-box-heading { display:flex; align-items:center; gap:10px; font-size:13.5px; font-weight:600; color: var(--text); }
+  .reveal-panel .warn-box-heading { display:flex; align-items:center; gap:10px; font-size:13px; font-weight:600; color: var(--text); }
   .reveal-panel .warn-box-body { margin: var(--space-2) 0 var(--space-4); }
   .token-value-row { display:flex; gap: var(--space-2); align-items:center; }
   .token-value-row input[readonly] {
-    flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
-    background: rgba(255,255,255,.03); color: var(--text); font-family: "Fira Code", monospace;
-    font-size: 13.5px; overflow-x: auto; white-space: nowrap;
+    flex: 1; min-width: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); background: rgba(255,255,255,.03); color: var(--text);
+    font-family: "Fira Code", monospace; font-size: 13px; overflow-x: auto; white-space: nowrap;
   }
   .token-value-row .btn { flex-shrink: 0; }
 
   /* Reuses _admin_form_styles.html's .verify-btn 6px 12px padding
      precedent (already used by org_admin.html's domain "Verify" button)
      for this page's compact in-table Revoke action - not a new value. */
-  .revoke-btn { padding: 6px 12px; font-size: 12.5px; }
+  .revoke-btn { padding: 6px 12px; font-size: 13px; }
   .btn:disabled { opacity: .5; cursor: not-allowed; }
 
   td.token-name { word-break: break-word; max-width: 260px; }
-  .muted-text { color: var(--muted); font-size: 12.5px; }
+  .muted-text { color: var(--muted); font-size: 13px; }
 </style>
 {% endblock %}
 {% block content %}
+{% from "_empty_state.html" import empty_state %}
 <div class="wrap">
   <h1>API Tokens</h1>
   <p class="intro">
@@ -63,7 +66,7 @@
       <div style="flex:1;">
         <div class="warn-box-heading">Copy your token now &mdash; it won't be shown again</div>
         <p class="warn-box-body">
-          This is the only time you'll see this token's value. WebVulnScanner stores only a
+          This is the only time you'll see this token's value. Glassbox stores only a
           one-way hash of it and can't show it to you again if you navigate away &mdash; if you
           lose it, revoke this token and generate a new one.
         </p>
@@ -92,9 +95,12 @@
 
   <div class="card">
     {% if tokens %}
-    <div class="table-scroll">
+    <div class="table-scroll desktop-table">
     <table>
+      <thead>
       <tr><th>Name</th><th>Created</th><th>Last used</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
       {% for t in tokens %}
       <tr>
         <td class="token-name">{{ t.name }}</td>
@@ -119,14 +125,38 @@
         </td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
     </div>
+    <ul class="mobile-record-cards">
+      {% for t in tokens %}
+      <li class="card record-card">
+        <div class="record-card-top">
+          <span class="record-card-id token-name">{{ t.name }}</span>
+          {% if t.revoked_at %}
+          <span class="pill info">Revoked</span>
+          {% else %}
+          <span class="pill pass">Active</span>
+          {% endif %}
+        </div>
+        <div class="record-card-meta">
+          Created {{ t.created_at }} &middot; last used {{ t.last_used_at if t.last_used_at else "Never" }}
+        </div>
+        {% if not t.revoked_at %}
+        <div class="record-card-action">
+          <form class="revoke-token-form" method="POST" action="{{ url_for('api_tokens.revoke_token', token_id=t.id) }}" data-token-name="{{ t.name }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn destructive block">Revoke</button>
+          </form>
+        </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
     {% else %}
-    <p style="color: var(--muted); font-size: 13.5px; margin:0;">
-      <b style="color: var(--text);">No API tokens yet</b><br>
-      Generate a token to authenticate CLI and API requests as yourself.
-      <a class="row-link" style="color: var(--accent); text-decoration:none;" href="#create-token-form">Generate your first token &rarr;</a>
-    </p>
+    {% call empty_state('No API tokens yet', 'Generate a token to authenticate CLI and API requests as yourself.', cta_label='Generate your first token →', cta_url='#create-token-form') %}
+    <use href="#icon-key"/>
+    {% endcall %}
     {% endif %}
   </div>
 </div>

@@ -1,5 +1,5 @@
 """
-Individual security checks for WebVulnScanner.
+Individual security checks for Glassbox.
 
 Relocated verbatim from the original single-file `app.py` (Workstream 2 of
 the auth/entitlement plan) — every function body below is byte-for-byte the
@@ -40,7 +40,7 @@ DOWNLOADS_DIR = os.path.join(APP_DIR, "downloads")
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
 REQUEST_TIMEOUT = 8
-UA = "Mozilla/5.0 (WebVulnScanner; personal-use; +local)"
+UA = "Mozilla/5.0 (Glassbox; personal-use; +local)"
 CANARY_HOST = "wvs-canary-check.invalid"
 XSS_MARKER = "xsscanary7f3a"
 MAX_BRUTEFORCE_ATTEMPTS = 5
@@ -69,6 +69,8 @@ CHECK_LABELS = {
     "mixed_content": "Mixed content", "dns_email": "DNS email security (SPF / DMARC / CAA)",
     "vulnerable_js": "Outdated JS libraries", "xss_sqli": "Same-origin crawl & parameter/XSS/SQLi testing",
     "robots_sitemap": "robots.txt / sitemap.xml", "jwt": "Client-visible JWT weaknesses",
+    "file_upload": "File upload input detection", "privacy_exposure": "Public email/phone exposure",
+    "caching_sensitive": "Cache-Control on account/auth paths",
 }
 
 # Icon-sprite key (see the <symbol id="icon-*"> sprite in templates/base.html)
@@ -86,6 +88,7 @@ CHECK_CATEGORY = {
     "sensitive_paths": "folder", "secrets": "folder", "sri": "folder", "robots_sitemap": "folder",
     "dns_email": "mail",
     "vulnerable_js": "bug", "xss_sqli": "bug", "jwt": "shield",
+    "file_upload": "folder", "privacy_exposure": "mail", "caching_sensitive": "lock",
 }
 
 # Check names each orchestrator can dispatch, grouped by scan_type - the
@@ -153,7 +156,80 @@ CHECK_COMPLIANCE = {
     "schema":            {"owasp": "A05:2021-Security Misconfiguration", "asvs": "V13"},
     "wordlist":          {"owasp": "A01:2021-Broken Access Control",     "asvs": "V13"},
     "js_discovery":      {"owasp": "A01:2021-Broken Access Control",     "asvs": "V13"},
+    # v1.3 Phase 14 net-new base-scan checks
+    "file_upload":       {"owasp": "A04:2021-Insecure Design",           "asvs": "V12.4"},
+    "privacy_exposure":  {"owasp": "A01:2021-Broken Access Control",     "asvs": None},
+    "caching_sensitive": {"owasp": "A05:2021-Security Misconfiguration", "asvs": "V8.1"},
 }
+
+# v1.3 SCORE-01: groups every check_name into one of the 11 product-facing
+# finding domains the scan report displays (parallel to CHECK_COMPLIANCE
+# above - same coverage-lock pattern, see tests/test_security_domains.py).
+# "Security Posture" and "Production Readiness" are deliberately NOT values
+# here - those are the report's aggregate summary/verdict sections, not
+# domains any single check's findings belong to.
+#
+# This is this project's own judgment mapping (same caveat CHECK_COMPLIANCE
+# already carries), not sourced from an authoritative taxonomy. A few checks
+# span domains and needed a call: xss_sqli/sqli_union/xss_stored/sri/
+# mixed_content are grouped under Client Security (the browser-facing half
+# of what they test) rather than splitting each into its own bucket;
+# cors/schema/wordlist/js_discovery all go to API Security since every one
+# of them probes the API/cross-origin surface specifically, distinct from
+# Configuration's general response/header hardening checks.
+SECURITY_DOMAIN_MAP = {
+    # base scan
+    "headers":           "Configuration",
+    "cookies":           "Configuration",
+    "tls":               "TLS",
+    "https_redirect":    "TLS",
+    "sensitive_paths":   "Attack Surface",
+    "robots_sitemap":    "Attack Surface",
+    "open_ports":        "Attack Surface",
+    "cors":              "API Security",
+    "http_methods":      "Configuration",
+    "open_redirect":     "Configuration",
+    "directory_listing": "Configuration",
+    "mixed_content":     "Client Security",
+    "dns_email":         "DNS & Domains",
+    "vulnerable_js":     "Dependencies",
+    "xss_sqli":          "Client Security",
+    "secrets":           "Secrets",
+    "sri":               "Client Security",
+    "jwt":               "Authentication",
+    # advanced scan
+    "sqli_login":        "Authentication",
+    "bruteforce":        "Authentication",
+    "sqli_union":        "Client Security",
+    "xss_stored":        "Client Security",
+    "idor":              "Authorization",
+    # media scan
+    "media":             "Privacy",
+    # api scan
+    "schema":            "API Security",
+    "wordlist":          "API Security",
+    "js_discovery":      "API Security",
+    # v1.3 Phase 14 net-new base-scan checks
+    "file_upload":       "Configuration",
+    "privacy_exposure":  "Privacy",
+    "caching_sensitive": "Configuration",
+}
+
+# The 11 real finding-groups a check_name can map to, plus the two
+# aggregate-only sections a report can show (never a check_name's target).
+SECURITY_DOMAINS = (
+    "Attack Surface", "Authentication", "Authorization", "API Security",
+    "Client Security", "Configuration", "Secrets", "DNS & Domains", "TLS",
+    "Dependencies", "Privacy",
+)
+SECURITY_POSTURE_SECTIONS = ("Security Posture", "Production Readiness")
+
+
+def security_domain_for(check_name):
+    """Mirrors owasp_category_for()'s degrade-gracefully convention - a
+    check_name missing from SECURITY_DOMAIN_MAP falls back to
+    "Uncategorized" at render time instead of raising."""
+    return SECURITY_DOMAIN_MAP.get(check_name, "Uncategorized")
 
 # (label, regex, severity). High-confidence formats (AWS/Stripe/GitHub/private
 # keys) are critical/high; ambiguous generic patterns are medium to keep the
@@ -245,6 +321,34 @@ def owasp_category_for(category):
     return OWASP_CATEGORY_MAP.get(category, "Uncategorized")
 
 
+# v1.3 FSCH-01: how certain the check's own author is that this specific
+# finding is real, kept strictly separate from `severity` (how bad it would
+# be if true). A pattern/heuristic match that could have edge-case false
+# positives is never "Confirmed" just because it would be severe if real -
+# see 12-CONTEXT.md / REQUIREMENTS.md's explicit rule: never call something
+# Confirmed without a direct, causal proof (a canary executed, a value
+# directly parsed/observed, a real successful auth, actual extracted data).
+CONFIDENCE_LEVELS = (
+    "Confirmed",                # direct, causal proof - no interpretation required
+    "Strong Evidence",          # a reliable heuristic/pattern match, small false-positive surface
+    "Potential",                # plausible but the check's own logic says "unconfirmed"/"possible"
+    "Informational",            # not a security claim at all (a policy note, a benign absence)
+    "Not Externally Verifiable",  # the check itself could not complete/observe enough to judge
+)
+
+# v1.3 SCORE-03/SCORE-04: how much a finding's confidence should count
+# toward the production-readiness verdict (scan_engine._compute_readiness) -
+# a separate signal from the numeric risk score (scan_engine._score_report),
+# which stays untouched/severity-only (see that function's own docstring and
+# its source-parsing regression lock in tests/test_scan_engine.py - 20+
+# existing tests depend on its exact arithmetic, so this milestone extends
+# scoring via a companion signal instead of risking that lock). Informational
+# findings never gate readiness; Confirmed/Strong Evidence findings always
+# do; Potential/Not Externally Verifiable findings are visible but don't
+# alone block a READY verdict.
+READINESS_GATING_CONFIDENCE = {"Confirmed", "Strong Evidence"}
+
+
 @dataclass
 class Finding:
     category: str
@@ -259,6 +363,20 @@ class Finding:
     # (data, findings) return value. See CHECK_COMPLIANCE below, which is
     # keyed on this same string.
     check_name: str = ""
+    # v1.3 FSCH-01/02/03. `confidence` is required in substance - every real
+    # Finding(...) call site in this file passes it explicitly (see
+    # tests/test_finding_confidence.py's coverage lock) - the class-level
+    # default below exists only so ad-hoc Finding(...) construction outside
+    # this file (tests, REPL) doesn't need to supply every field. `cwe` is
+    # optional and populated only where a check genuinely maps to one
+    # specific CWE, never filled in speculatively just to have a value.
+    # `verification_state` is optional, used primarily by attack-surface/
+    # exposure-type findings to distinguish Discovered/Observed/Potential
+    # Risk/Confirmed Finding (SCORE-05, Phase 13) - most findings leave it
+    # unset since severity+confidence already cover them.
+    confidence: str = "Not Externally Verifiable"
+    cwe: str | None = None
+    verification_state: str | None = None
 
 
 SENSITIVE_PATHS = [
@@ -358,8 +476,77 @@ VULN_JS_LIBS = {
 }
 
 
+class _SSRFSafeSession(requests.Session):
+    """A `requests.Session` that re-validates every redirect hop against
+    `is_ssrf_safe_hostname()`, not just the original submission-time
+    target.
+
+    Why here and not at the 33 individual `session.get()`/`session.post()`
+    call sites in this module: `_mk_session()` is the single place every
+    check function's session is constructed, so installing the guard here
+    covers all of them - including any check written the normal way in the
+    future - without a 33-call-site change and without a second place this
+    logic could drift out of sync.
+
+    IMPLEMENTATION NOTE - why this overrides `get_redirect_target()` and not
+    `resolve_redirects()`: 08-RESEARCH.md's Assumption A3 proposed overriding
+    `resolve_redirects()` (delegate to `super().resolve_redirects()`, inspect
+    each yielded response, `return` early on an unsafe one). That was built
+    and proven WRONG end to end against a real local HTTP server before this
+    version was written: `requests.Session.resolve_redirects()` is a
+    generator whose loop body calls `self.send(req, ...)` - which performs
+    the actual network connection - BEFORE it yields the resulting response.
+    Wrapping the generator and inspecting what it yields therefore inspects
+    each hop AFTER it has already been fetched; the private/loopback/
+    metadata target had already been connected to by the time the override
+    could see it and say no. A live-server proof (`tests/test_ssrf_guard.py`)
+    caught this: the "blocked" target's request log was NOT empty.
+
+    `get_redirect_target(resp)` is the method `resolve_redirects()` calls,
+    on every iteration, to decide what URL (if any) to follow next -
+    strictly BEFORE that URL is ever sent. Overriding it here means: resolve
+    the `Location` header to an absolute URL against the response it came
+    from (so a relative redirect like `/next` is checked against the host
+    that produced it, not treated as hostless), extract that URL's hostname,
+    and pass it to the existing, unmodified `is_ssrf_safe_hostname()` - the
+    exact same predicate `scan_routes._unsafe_target_error` uses at
+    submission time, so there is only ever one definition of "unsafe" in
+    this codebase, never a second one drifting independently in here. An
+    unresolvable/empty hostname is treated as unsafe too, matching
+    `is_ssrf_safe_hostname`'s own fail-closed convention. When unsafe, this
+    returns `None` - exactly what the parent method returns for "there is no
+    further redirect to follow" - which is why no other method needs
+    touching: `resolve_redirects()`'s own loop (cookie jar, auth-header
+    stripping, method-downgrade semantics across hops - all still handled by
+    `requests` itself, not reimplemented here) simply stops on its own,
+    never calling `self.send()` for that hop at all. Nothing is fetched,
+    nothing is yielded for it, and no exception is raised - the caller keeps
+    the last response it already has (often the redirect response itself),
+    matching the degrade-cleanly convention every `check_*` function in this
+    module follows.
+
+    This does NOT close DNS rebinding - a hostname that resolves safe here
+    and differently at TCP-connect time is still unguarded, exactly as
+    `is_ssrf_safe_hostname`'s own docstring already discloses. Closing that
+    would need a custom transport/adapter that connects to the exact IP
+    verified here; it is an accepted residual gap for this milestone (see
+    REQUIREMENTS.md's Out of Scope table), not something this class claims
+    to solve.
+    """
+
+    def get_redirect_target(self, resp):
+        location = super().get_redirect_target(resp)
+        if location is None:
+            return None
+        absolute_url = urljoin(resp.url, location)
+        hostname = urlparse(absolute_url).hostname
+        if not hostname or not is_ssrf_safe_hostname(hostname):
+            return None
+        return location
+
+
 def _mk_session():
-    s = requests.Session()
+    s = _SSRFSafeSession()
     s.headers.update({"User-Agent": UA})
     return s
 
@@ -430,13 +617,13 @@ def check_headers(resp):
                 note = "Contains 'unsafe-inline' in style-src - minor hardening opportunity."
                 findings.append(Finding("Headers", "CSP allows 'unsafe-inline' styles", "low",
                                          "style-src permits inline styles, weakening CSS-injection protection.",
-                                         "Use nonces or hashes for styles instead of 'unsafe-inline'."))
+                                         "Use nonces or hashes for styles instead of 'unsafe-inline'.", confidence="Confirmed"))
             rows.append({"header": label, "status": "pass", "value": val[:180], "why": why, "note": note})
         else:
             rows.append({"header": label, "status": "fail", "value": None, "why": why, "note": ""})
             findings.append(Finding("Headers", f"Missing {label}", sev,
                                      f"{label} header is not set. {why}",
-                                     f"Add the {label} header to your server/middleware response."))
+                                     f"Add the {label} header to your server/middleware response.", confidence="Confirmed"))
     pct = present / len(SECURITY_HEADERS)
     grade = "A" if pct >= 0.95 else "B" if pct >= 0.75 else "C" if pct >= 0.5 else "D" if pct >= 0.25 else "F"
     return {"rows": rows, "grade": grade}, findings
@@ -456,15 +643,15 @@ def check_cookies(resp):
         rows.append({"name": name, "secure": secure, "httponly": httponly, "samesite": samesite, "raw": c[:160]})
         if not secure:
             findings.append(Finding("Cookies", f"Cookie '{name}' missing Secure flag", "medium",
-                                     "Cookie can be sent over plain HTTP.", "Add the Secure attribute."))
+                                     "Cookie can be sent over plain HTTP.", "Add the Secure attribute.", confidence="Confirmed"))
         if not httponly:
             findings.append(Finding("Cookies", f"Cookie '{name}' missing HttpOnly flag", "medium",
                                      "Cookie is readable by JavaScript, raising XSS-theft impact.",
-                                     "Add the HttpOnly attribute unless client JS genuinely needs it."))
+                                     "Add the HttpOnly attribute unless client JS genuinely needs it.", confidence="Confirmed"))
         if not samesite:
             findings.append(Finding("Cookies", f"Cookie '{name}' missing SameSite", "low",
                                      "Cookie has no CSRF-mitigating SameSite attribute.",
-                                     "Add SameSite=Lax or Strict."))
+                                     "Add SameSite=Lax or Strict.", confidence="Confirmed"))
     return rows, findings
 
 
@@ -512,22 +699,22 @@ def check_tls_cert(hostname):
         if days_left <= 30:
             sev = "high" if days_left <= 0 else "medium"
             findings.append(Finding("TLS", "Certificate expiring soon" if days_left > 0 else "Certificate expired",
-                                     sev, f"{days_left} days remaining.", "Renew the TLS certificate."))
+                                     sev, f"{days_left} days remaining.", "Renew the TLS certificate.", confidence="Confirmed"))
         if tls_version in WEAK_TLS_VERSIONS:
             findings.append(Finding("TLS", f"Weak TLS protocol negotiated: {tls_version}", "high",
                                      f"The server's default negotiation offered {tls_version}, which has known "
                                      "protocol-level weaknesses.",
-                                     "Disable SSLv2/SSLv3/TLSv1.0/TLSv1.1 server-side; require TLS 1.2+."))
+                                     "Disable SSLv2/SSLv3/TLSv1.0/TLSv1.1 server-side; require TLS 1.2+.", confidence="Confirmed"))
         weak_hint = _classify_tls_cipher(cipher_name)
         if weak_hint:
             findings.append(Finding("TLS", f"Weak cipher suite negotiated: {cipher_name}", "medium",
                                      f"The negotiated cipher suite contains a known-weak component ({weak_hint}).",
                                      "Restrict the server's cipher list to modern AEAD suites "
-                                     "(e.g. ECDHE-*-GCM/CHACHA20)."))
+                                     "(e.g. ECDHE-*-GCM/CHACHA20).", confidence="Confirmed"))
         return data, findings
     except Exception as e:
         return {"status": "fail", "error": str(e)}, [
-            Finding("TLS", "Could not verify TLS certificate", "high", str(e), "Investigate TLS configuration.")]
+            Finding("TLS", "Could not verify TLS certificate", "high", str(e), "Investigate TLS configuration.", confidence="Not Externally Verifiable")]
 
 
 def check_https_redirect(base_url, session):
@@ -539,7 +726,7 @@ def check_https_redirect(base_url, session):
         data = {"status": "pass" if ok else "warn", "detail": f"HTTP {r.status_code} -> {location or '(no redirect)'}"}
         findings = [] if ok else [Finding("Transport", "Plain HTTP does not redirect to HTTPS", "high",
                                            "A visitor on http:// is not forced onto an encrypted connection.",
-                                           "Add a 301/308 redirect from http:// to https:// at the edge.")]
+                                           "Add a 301/308 redirect from http:// to https:// at the edge.", confidence="Confirmed")]
         return data, findings
     except requests.RequestException as e:
         return {"status": "info", "detail": f"Could not reach plain HTTP: {e}"}, []
@@ -785,7 +972,8 @@ def check_sensitive_paths(base_url, session):
                        recommendation="Verify that the sensitive file/path does not exist on the production "
                                        "server and that this blocking rule is intentional.")
             findings.append(Finding("Sensitive Path Exposure", f"Blocked path returned 403: /{path}", "low",
-                                     row["detail"], row["recommendation"]))
+                                     row["detail"], row["recommendation"], confidence="Potential",
+                                     verification_state="Potential Risk"))
             rows.append(row)
             continue
 
@@ -845,7 +1033,8 @@ def check_sensitive_paths(base_url, session):
             # the third-party LLM (see its docstring) - the matched fragment
             # must never be included there, only the signature label.
             findings.append(Finding("Sensitive Path Exposure", f"Confirmed exposure: /{path}", sev,
-                                     row["detail"] + " " + impact, remediation))
+                                     row["detail"] + " " + impact, remediation, confidence="Confirmed",
+                                     verification_state="Confirmed Finding"))
         else:
             row.update(classification="needs_review", severity="medium", confidence="low",
                        title="Reachable, not confirmed",
@@ -854,7 +1043,8 @@ def check_sensitive_paths(base_url, session):
                        recommendation="Verify the resource manually or review the production server "
                                        "configuration.")
             findings.append(Finding("Sensitive Path Exposure", f"Unconfirmed reachable path: /{path}", "medium",
-                                     row["detail"], row["recommendation"]))
+                                     row["detail"], row["recommendation"], confidence="Potential",
+                                     verification_state="Potential Risk"))
         rows.append(row)
 
     # security.txt stays its own informational-only probe (not a vulnerability
@@ -885,7 +1075,7 @@ def check_sensitive_paths(base_url, session):
                                       "content_type": "", "size": 0, "response_time_ms": 0}})
             findings.append(Finding("Sensitive Path Exposure", "No security.txt published", "info",
                                      "No standard contact for responsible vulnerability disclosure.",
-                                     "Publish /.well-known/security.txt with a contact email."))
+                                     "Publish /.well-known/security.txt with a contact email.", confidence="Informational"))
     except requests.RequestException:
         pass
 
@@ -975,14 +1165,16 @@ def check_open_ports(hostname):
                     "The response is branded as your CDN (Cloudflare/etc.), not an unbranded origin service - "
                     "likely an 'alternate ports' feature left enabled rather than a real exposed backend.",
                     "If you don't intentionally use this port, disable alternate ports in your CDN's "
-                    "network/firewall settings to shrink probe-able surface."))
+                    "network/firewall settings to shrink probe-able surface.", confidence="Strong Evidence",
+                    verification_state="Observed"))
             else:
                 rows.append({"port": port, "status": "warn",
                              "note": f"Responded with an unbranded service banner: {snippet}"})
                 findings.append(Finding(
                     "Network", f"Unbranded service responding on unexpected port {port}", "high",
                     "This does not look like your CDN/edge - it may be a real backend service exposed directly.",
-                    "Firewall this port or bind the service to localhost/a private network only."))
+                    "Firewall this port or bind the service to localhost/a private network only.", confidence="Strong Evidence",
+                    verification_state="Potential Risk"))
     rows.sort(key=lambda r: r["port"])
     return rows, ip, findings
 
@@ -1004,11 +1196,11 @@ def check_cors(base_url, session):
         if acao == evil_origin and acac == "true":
             findings.append(Finding("CORS", f"{path} reflects arbitrary Origin with credentials allowed", "critical",
                                      "Any website can make authenticated cross-origin requests on a victim's behalf.",
-                                     "Only allow specific trusted origins, never reflect the request Origin, when Allow-Credentials is true."))
+                                     "Only allow specific trusted origins, never reflect the request Origin, when Allow-Credentials is true.", confidence="Confirmed"))
         elif acao == evil_origin:
             findings.append(Finding("CORS", f"{path} reflects arbitrary Origin", "medium",
                                      "The endpoint echoes back any Origin sent, which is unnecessary and risky.",
-                                     "Restrict Access-Control-Allow-Origin to a known allowlist."))
+                                     "Restrict Access-Control-Allow-Origin to a known allowlist.", confidence="Confirmed"))
         elif acao == "*":
             data[path]["note"] = "Wildcard CORS - fine for public read-only endpoints only."
     if not data:
@@ -1031,7 +1223,7 @@ def check_http_methods(base_url, session):
                 sev = "high" if method == "TRACE" else "medium"
                 findings.append(Finding("HTTP methods", f"{method} method not rejected ({r.status_code})", sev,
                                          f"Server responded {r.status_code} instead of 405/501 for {method}.",
-                                         f"Disable the {method} method at the web server/edge for this route."))
+                                         f"Disable the {method} method at the web server/edge for this route.", confidence="Confirmed"))
         except requests.RequestException:
             pass
     return rows, findings
@@ -1054,7 +1246,7 @@ def check_open_redirect(base_url, session, extra_paths):
                 hits.append({"path": path, "param": param})
                 findings.append(Finding("Open redirect", f"{path} redirects off-domain via '{param}'", "high",
                                          "The app trusts a client-supplied URL for redirection - usable for phishing.",
-                                         "Validate redirect targets against an allowlist of internal paths."))
+                                         "Validate redirect targets against an allowlist of internal paths.", confidence="Confirmed"))
     return hits, findings
 
 
@@ -1069,7 +1261,7 @@ def check_directory_listing(base_url, session):
             rows.append({"path": "/" + d, "status": "warn"})
             findings.append(Finding("Exposure", f"Directory listing enabled at /{d}", "medium",
                                      "Server lists directory contents instead of returning 403/404.",
-                                     "Disable autoindex/directory browsing on the web server."))
+                                     "Disable autoindex/directory browsing on the web server.", confidence="Confirmed"))
     return rows, findings
 
 
@@ -1081,7 +1273,7 @@ def check_mixed_content(base_url, home_html):
     if hits:
         findings.append(Finding("Mixed content", f"{len(hits)} insecure (http://) resource reference(s) on homepage",
                                  "medium", "Loading http:// assets on an https:// page can be blocked or MITM'd.",
-                                 "Change all resource URLs to https:// or protocol-relative."))
+                                 "Change all resource URLs to https:// or protocol-relative.", confidence="Confirmed"))
     return hits[:10], findings
 
 
@@ -1096,7 +1288,7 @@ def check_dns_email_security(hostname):
         if not spf:
             findings.append(Finding("DNS/Email", "No SPF record", "medium",
                                      "Without SPF, it's easier to spoof emails 'from' your domain.",
-                                     "Publish a TXT record starting with v=spf1 for your domain."))
+                                     "Publish a TXT record starting with v=spf1 for your domain.", confidence="Confirmed"))
     except Exception:
         data["spf"] = None
     try:
@@ -1106,12 +1298,12 @@ def check_dns_email_security(hostname):
         if not dmarc:
             findings.append(Finding("DNS/Email", "No DMARC record", "medium",
                                      "Without DMARC, spoofed mail claiming to be from your domain isn't policed.",
-                                     "Publish a _dmarc TXT record, e.g. v=DMARC1; p=quarantine; rua=mailto:you@domain."))
+                                     "Publish a _dmarc TXT record, e.g. v=DMARC1; p=quarantine; rua=mailto:you@domain.", confidence="Confirmed"))
     except Exception:
         data["dmarc"] = None
         findings.append(Finding("DNS/Email", "No DMARC record", "medium",
                                  "Without DMARC, spoofed mail claiming to be from your domain isn't policed.",
-                                 "Publish a _dmarc TXT record, e.g. v=DMARC1; p=quarantine; rua=mailto:you@domain."))
+                                 "Publish a _dmarc TXT record, e.g. v=DMARC1; p=quarantine; rua=mailto:you@domain.", confidence="Confirmed"))
     try:
         caa = list(dns.resolver.resolve(domain, "CAA"))
         data["caa"] = [str(r) for r in caa] if caa else None
@@ -1138,7 +1330,7 @@ def check_vulnerable_js(base_url, home_html):
             if lib in name and is_vulnerable(version):
                 rows.append({"library": lib, "version": ".".join(map(str, version)), "src": src})
                 findings.append(Finding("Dependencies", f"Outdated {lib} v{'.'.join(map(str, version))} referenced",
-                                         "medium", why, f"Upgrade {lib} to a current patched version."))
+                                         "medium", why, f"Upgrade {lib} to a current patched version.", confidence="Strong Evidence"))
     return rows, findings
 
 
@@ -1207,7 +1399,7 @@ def check_exposed_secrets(session, base_url, home_html):
                     findings.append(Finding("Secrets", f"Possible exposed {label}", sev,
                                              f"Found in {source_name}: {redacted}",
                                              "Remove this credential from client-shipped code. If it's real, "
-                                             "rotate it immediately and load secrets server-side only."))
+                                             "rotate it immediately and load secrets server-side only.", confidence="Strong Evidence"))
     return {"rows": rows, "js_files_scanned": js_files_scanned}, findings
 
 
@@ -1278,7 +1470,7 @@ def check_jwt_weakness(session, base_url, home_html):
                         "If the server accepts such tokens, authentication/authorization can be bypassed "
                         "by editing the payload with no valid signature required.",
                         "Never accept 'alg: none' server-side; pin the expected algorithm(s) explicitly "
-                        "when verifying rather than trusting the token's own `alg` header."))
+                        "when verifying rather than trusting the token's own `alg` header.", confidence="Confirmed"))
                 counts["alg_none"] += 1
             elif alg in WEAK_ALGS:
                 if counts["weak_alg"] < MAX_JWT_FINDINGS_PER_CATEGORY:
@@ -1286,7 +1478,7 @@ def check_jwt_weakness(session, base_url, home_html):
                         "Auth", f"JWT using weak algorithm '{alg}' found in {source_name}", "medium",
                         f"A client-visible JWT declares alg '{alg}', which is considered weak/deprecated.",
                         "Re-issue tokens with a modern algorithm (RS256/ES256/EdDSA, or HS256 with a "
-                        "strong server-side-only secret)."))
+                        "strong server-side-only secret).", confidence="Confirmed"))
                 counts["weak_alg"] += 1
             elif not row["has_exp"] and isinstance(payload, dict):
                 if counts["no_exp"] < MAX_JWT_FINDINGS_PER_CATEGORY:
@@ -1294,7 +1486,7 @@ def check_jwt_weakness(session, base_url, home_html):
                         "Auth", f"JWT with no expiry ('exp' claim) found in {source_name}", "low",
                         "A client-visible JWT has a decodable payload but no 'exp' claim, so it never "
                         "expires once issued.",
-                        "Always set a short-lived 'exp' claim and use refresh tokens for longer sessions."))
+                        "Always set a short-lived 'exp' claim and use refresh tokens for longer sessions.", confidence="Confirmed"))
                 counts["no_exp"] += 1
 
     return {"rows": rows}, findings
@@ -1325,7 +1517,7 @@ def check_sri(base_url, home_html):
         if not has_sri:
             findings.append(Finding("Supply chain", f"Third-party script without SRI", "medium",
                                      f"{abs_url} is loaded from an external host with no integrity= hash.",
-                                     "Add an integrity (SHA-384) and crossorigin attribute, or self-host the script."))
+                                     "Add an integrity (SHA-384) and crossorigin attribute, or self-host the script.", confidence="Confirmed"))
 
     for tag in soup.find_all("link", href=True):
         rels = [r.lower() for r in (tag.get("rel") or [])]
@@ -1339,9 +1531,142 @@ def check_sri(base_url, home_html):
         if not has_sri:
             findings.append(Finding("Supply chain", "Third-party stylesheet without SRI", "low",
                                      f"{abs_url} is loaded from an external host with no integrity= hash.",
-                                     "Add an integrity (SHA-384) hash, or self-host the stylesheet."))
+                                     "Add an integrity (SHA-384) hash, or self-host the stylesheet.", confidence="Confirmed"))
 
     return rows, findings
+
+
+# v1.3 Phase 14 net-new checks. CHECK-02 (security.txt) and CHECK-05
+# (GraphQL introspection) were NOT duplicated here - both already exist
+# (check_sensitive_paths' security.txt probe, check_api_schema_exposure's
+# GraphQL introspection query) - see 14-SUMMARY.md. Only the three
+# genuinely missing pre-production checks were added: file upload,
+# privacy/PII exposure, and caching of sensitive data.
+
+FILE_UPLOAD_DANGEROUS_EXTENSIONS = {
+    ".php", ".php3", ".php4", ".php5", ".phtml", ".asp", ".aspx", ".jsp",
+    ".jspx", ".exe", ".sh", ".bat", ".cmd", ".ps1", ".cgi", ".pl", ".py",
+}
+
+
+def check_file_upload(base_url, home_html):
+    """CHECK-01. Read-only: never uploads a file to the target (explicit
+    safety rule) - identifies upload functionality by looking for
+    `<input type="file">` in the homepage's own already-fetched HTML (no
+    new request), and reports what a security engineer should verify
+    manually before trusting it, rather than attempting to prove/disprove
+    those properties by actually uploading something."""
+    if not home_html:
+        return {"upload_forms_found": 0}, []
+    soup = BeautifulSoup(home_html, "html.parser")
+    file_inputs = soup.find_all("input", {"type": "file"})
+    if not file_inputs:
+        return {"upload_forms_found": 0}, []
+
+    rows = []
+    for inp in file_inputs:
+        form = inp.find_parent("form")
+        rows.append({
+            "name": inp.get("name") or "(unnamed)",
+            "accept": inp.get("accept") or "(none)",
+            "form_action": (form.get("action") if form else None) or base_url,
+            "form_method": (form.get("method") if form else "get").upper(),
+        })
+
+    findings = [Finding(
+        "File Upload", f"File upload input detected ({len(rows)} field(s))", "info",
+        "A file-upload form field was found on the homepage. This scanner never uploads a file "
+        "(non-destructive by design), so extension/MIME/size validation and storage isolation "
+        "cannot be verified externally - only that upload functionality exists.",
+        "Manually verify: server-side (not just client-side accept=) extension and MIME-type "
+        "validation, a file-size limit, uploaded files stored outside the webroot or served from "
+        "a separate origin/CDN with no execute permission, and randomized/non-guessable filenames.",
+        confidence="Confirmed", verification_state="Discovered",
+    )]
+    return {"upload_forms_found": len(rows), "rows": rows}, findings
+
+
+# Deliberately conservative - a generic \b\S+@\S+\.\S+\b pattern would false-
+# positive on version strings, CSS, and JS boilerplate constantly. Requires
+# a plausible local-part and TLD shape, same restraint SECRET_PATTERNS above
+# already applies to keep noise manageable.
+_EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]{2,64}@[A-Za-z0-9.-]{2,255}\.[A-Za-z]{2,24}\b")
+# US/international-ish phone shapes: (555) 123-4567, 555-123-4567,
+# +1 555 123 4567 - intentionally narrow (7-15 digits after normalization)
+# to avoid matching arbitrary numeric strings (order IDs, hashes, etc.).
+_PHONE_RE = re.compile(r"(?<!\w)(?:\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}(?!\w)")
+MAX_PRIVACY_HITS_PER_TYPE = 8
+
+
+def check_privacy_exposure(base_url, home_html):
+    """CHECK-03. Scans the already-fetched homepage HTML (no new requests)
+    for publicly exposed email addresses and phone numbers - a common
+    accidental privacy leak (support inboxes, personal emails left in
+    comments/JS, staff phone numbers) that has nothing to do with an
+    intentional public "Contact us" page, which this check does not try to
+    distinguish from a leak; that judgment is left to the reader via the
+    finding's `detail`, same restraint check_exposed_secrets already
+    applies to its own regex hits."""
+    if not home_html:
+        return {"emails": [], "phones": []}, []
+
+    text_only = BeautifulSoup(home_html, "html.parser").get_text(" ", strip=True)
+    emails = sorted(set(_EMAIL_RE.findall(text_only)))[:MAX_PRIVACY_HITS_PER_TYPE]
+    phones = sorted(set(_PHONE_RE.findall(text_only)))[:MAX_PRIVACY_HITS_PER_TYPE]
+
+    findings = []
+    if emails:
+        findings.append(Finding(
+            "Privacy", f"{len(emails)} email address(es) found in page content", "info",
+            "Email addresses appear directly in the homepage's visible text/markup. This may be "
+            "intentional (a support/contact address) or an accidental leak of a personal/internal "
+            "address.",
+            "Confirm every listed address is meant to be public; move any that aren't behind a "
+            "contact form instead.", confidence="Strong Evidence",
+        ))
+    if phones:
+        findings.append(Finding(
+            "Privacy", f"{len(phones)} phone number(s) found in page content", "info",
+            "Phone numbers appear directly in the homepage's visible text/markup.",
+            "Confirm every listed number is meant to be public.",
+            confidence="Potential",  # the phone regex has a real false-positive surface (order/ref numbers)
+        ))
+    return {"emails": emails, "phones": phones}, findings
+
+
+CACHEABLE_SENSITIVE_PATHS = ["login", "signin", "account", "dashboard", "profile", "admin", "settings"]
+
+
+def check_caching_sensitive_data(base_url, session):
+    """CHECK-04. Probes a small set of common auth/account-shaped paths
+    (unauthenticated GET only - never logs in, never sends credentials) and
+    flags any that respond 200 with a Cache-Control that would let a shared
+    cache store the response (missing entirely, or missing both
+    `no-store` and `private`). This is a same-origin, read-only GET against
+    paths the site itself defines - not a new attack surface, no different
+    from check_sensitive_paths' existing pattern."""
+    rows, findings = [], []
+    for path in CACHEABLE_SENSITIVE_PATHS:
+        try:
+            r = session.get(f"{base_url}/{path}", timeout=REQUEST_TIMEOUT, allow_redirects=False)
+        except requests.RequestException:
+            continue
+        if r.status_code != 200:
+            continue
+        cache_control = (r.headers.get("Cache-Control") or "").lower()
+        is_safe = "no-store" in cache_control or "private" in cache_control
+        rows.append({"path": "/" + path, "cache_control": r.headers.get("Cache-Control") or "(none)",
+                     "status": "pass" if is_safe else "warn"})
+        if not is_safe:
+            findings.append(Finding(
+                "Caching", f"/{path} lacks a private/no-store Cache-Control", "medium",
+                f"HTTP 200 with Cache-Control: {r.headers.get('Cache-Control') or '(not set)'} - a "
+                "shared/proxy cache could store this response, which is risky if it ever carries "
+                "session-specific or otherwise sensitive content once a real user is signed in.",
+                "Set 'Cache-Control: no-store' (or at least 'private') on any authenticated or "
+                "account-related response.", confidence="Strong Evidence",
+            ))
+    return {"rows": rows}, findings
 
 
 def check_api_schema_exposure(base_url, session):
@@ -1370,7 +1695,7 @@ def check_api_schema_exposure(base_url, session):
                     "API Exposure", f"Publicly reachable API schema/docs: /{path}", "high",
                     "Returns what looks like an OpenAPI/Swagger schema or interactive docs UI - reveals the "
                     "full API surface, including routes never linked anywhere.",
-                    "Require authentication for schema/docs endpoints in production, or remove them."))
+                    "Require authentication for schema/docs endpoints in production, or remove them.", confidence="Strong Evidence"))
 
     for path in GRAPHQL_PATHS:
         try:
@@ -1383,7 +1708,7 @@ def check_api_schema_exposure(base_url, session):
                 "API Exposure", f"GraphQL introspection enabled at /{path}", "high",
                 "A read-only __schema introspection query succeeded, revealing the full GraphQL type/field "
                 "surface including anything not intentionally documented.",
-                "Disable introspection in production (most GraphQL servers have a flag for this)."))
+                "Disable introspection in production (most GraphQL servers have a flag for this).", confidence="Confirmed"))
 
     return rows, findings
 
@@ -1428,7 +1753,7 @@ def check_api_wordlist(base_url, session):
             findings.append(Finding(
                 "API Exposure", f"Unauthenticated API response at /{path}", sev,
                 "Returned HTTP 200 with an API-shaped body (JSON/XML) with no authentication.",
-                "Confirm this endpoint is meant to be public; otherwise require authentication."))
+                "Confirm this endpoint is meant to be public; otherwise require authentication.", confidence="Strong Evidence"))
     return rows, findings
 
 
@@ -1490,7 +1815,7 @@ def check_api_js_discovery(session, base_url, home_html):
                 "API Exposure", f"JS-referenced endpoint responds without auth: {url}", sev,
                 "This endpoint is called from the site's own frontend code and returned an API-shaped "
                 "response with no authentication.",
-                "Confirm this endpoint is meant to be public; otherwise require authentication."))
+                "Confirm this endpoint is meant to be public; otherwise require authentication.", confidence="Strong Evidence"))
     return {"rows": rows, "endpoints_discovered": len(endpoints)}, findings
 
 
@@ -1584,6 +1909,113 @@ def crawl_same_origin(base_url, home_html, limit=10, session=None):
     return list(dict.fromkeys(param_urls))[:limit], forms
 
 
+# Field-name substrings used to guess which text input in a detected login
+# form is the "username" one - checked in this order, first match wins.
+# Deliberately narrow (no bare "name", "text" etc.) to avoid grabbing an
+# unrelated field on a busy page.
+_USERNAME_FIELD_HINTS = ("email", "user", "login", "account")
+
+
+def _guess_login_fields(form):
+    """Given one form dict from crawl_same_origin's `forms` list (or an
+    equivalent {"action","method","inputs"} shape built inline), returns
+    (user_field, pass_field) guessed from input `name`s, or (None, None) if
+    it doesn't look like a login form. Never guesses a password field from
+    anything but an actual name/type match - false positives here would
+    silently point Advanced's login-bypass check at the wrong field."""
+    pass_field = None
+    for name in form.get("password_inputs", []):
+        pass_field = name
+        break
+    if not pass_field:
+        return None, None
+
+    user_field = None
+    remaining = [n for n in form.get("inputs", []) if n != pass_field]
+    for hint in _USERNAME_FIELD_HINTS:
+        for name in remaining:
+            if hint in name.lower():
+                user_field = name
+                break
+        if user_field:
+            break
+    if not user_field and remaining:
+        user_field = remaining[0]  # best-effort fallback: first other field on the form
+    return user_field, pass_field
+
+
+def detect_login_form(base_url, session=None, extra_paths=()):
+    """Smart-Setup helper for the Advanced scan wizard (UX aid only - see
+    module docstring convention: this function only ever *suggests* values
+    for the user to review, it never authorizes or gates a scan). Looks for
+    a login form on `base_url` itself, then on a short list of common
+    login-page paths plus same-origin links whose path matches
+    AUTH_LIKE_PATH_HINTS, and returns the first form containing a real
+    `<input type="password">` as:
+
+        {"login_url": <the form's POST action - what check_sqli_login/check_bruteforce POST to>,
+         "user_field": <guessed username input name or None>,
+         "pass_field": <password input name>}
+
+    or None if nothing password-shaped was found on any page checked
+    (network errors on individual candidate pages are swallowed, same
+    convention as every check_* function - one dead path must not fail the
+    whole detection attempt). Callers are responsible for calling this only
+    after the user has confirmed authorization - it makes real HTTP
+    requests to `base_url` and a handful of same-origin candidate pages,
+    same as any other check in this module, and must never run before that
+    confirmation (see scan_routes.new_scan_advanced_detect)."""
+    session = session or requests
+    candidates = [base_url]
+    for path in ("/login", "/signin", "/account/login", "/user/login", *extra_paths):
+        candidates.append(urljoin(base_url + "/", path.lstrip("/")))
+
+    checked = set()
+    for url in candidates:
+        if url in checked:
+            continue
+        checked.add(url)
+        try:
+            r = session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        except requests.RequestException:
+            continue
+        if r.status_code >= 400:
+            continue
+
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        # Same-origin links matching AUTH_LIKE_PATH_HINTS, checked once
+        # only from the very first page (base_url) so this stays bounded -
+        # a login link one hop away from the homepage is the common case.
+        if url == base_url:
+            origin = urlparse(base_url).netloc
+            for a in soup.find_all("a", href=True):
+                abs_url = urljoin(base_url + "/", a["href"])
+                p = urlparse(abs_url)
+                if p.netloc == origin and any(h in p.path.lower() for h in AUTH_LIKE_PATH_HINTS):
+                    if abs_url not in candidates:
+                        candidates.append(abs_url)
+
+        for f in soup.find_all("form"):
+            password_inputs = [
+                i.get("name") for i in f.find_all("input", {"type": "password"}) if i.get("name")
+            ]
+            if not password_inputs:
+                continue
+            inputs = [i.get("name") for i in f.find_all(["input", "textarea"]) if i.get("name")]
+            action = urljoin(url + "/", f.get("action") or "")
+            user_field, pass_field = _guess_login_fields(
+                {"inputs": inputs, "password_inputs": password_inputs}
+            )
+            if pass_field:
+                # login_url must be the form's POST *target* (its action),
+                # not the page it was found on - check_sqli_login/
+                # check_bruteforce both POST straight to this value.
+                return {"login_url": action, "user_field": user_field, "pass_field": pass_field}
+
+    return None
+
+
 def _inject_param(url, param, value):
     parsed = urlparse(url)
     qs = parse_qs(parsed.query)
@@ -1608,7 +2040,7 @@ def check_xss_sqli(urls, session):
                     row["xss"] = "fail"
                     findings.append(Finding("XSS", f"Reflected XSS in '{param}' on {url}", "critical",
                                              "Injected markup was reflected unescaped into the HTML response.",
-                                             "Escape/encode all user input before rendering; verify with a CSP."))
+                                             "Escape/encode all user input before rendering; verify with a CSP.", confidence="Confirmed"))
             except requests.RequestException:
                 row["xss"] = "info"
 
@@ -1618,7 +2050,7 @@ def check_xss_sqli(urls, session):
                     row["sqli"] = "fail"
                     findings.append(Finding("SQL Injection", f"DB error signature via '{param}' on {url}", "critical",
                                              "A single quote triggered a database error visible in the response.",
-                                             "Use parameterized queries/ORM bindings; never string-concat user input into SQL."))
+                                             "Use parameterized queries/ORM bindings; never string-concat user input into SQL.", confidence="Strong Evidence"))
                 else:
                     true_r = session.get(_inject_param(url, param, "1' AND '1'='1"), timeout=REQUEST_TIMEOUT)
                     false_r = session.get(_inject_param(url, param, "1' AND '1'='2"), timeout=REQUEST_TIMEOUT)
@@ -1628,7 +2060,7 @@ def check_xss_sqli(urls, session):
                         findings.append(Finding("SQL Injection",
                                                  f"Possible boolean-based blind SQLi in '{param}' on {url}", "high",
                                                  "True/false SQL conditions produced meaningfully different responses.",
-                                                 "Investigate manually with sqlmap --risk=1 --level=1 before assuming a false positive."))
+                                                 "Investigate manually with sqlmap --risk=1 --level=1 before assuming a false positive.", confidence="Potential"))
             except requests.RequestException:
                 row["sqli"] = "info"
 
@@ -1880,7 +2312,7 @@ def check_media(session, base_url, download, max_files):
             findings.append(Finding("Media exposure", f"Possibly unintended public media file: {url}", "medium",
                                      "The file path contains a hint (e.g. 'private', 'backup', 'internal') "
                                      "suggesting this wasn't meant to be publicly reachable, but it returns HTTP 200.",
-                                     "Move non-public assets behind authentication or remove them from the public web root."))
+                                     "Move non-public assets behind authentication or remove them from the public web root.", confidence="Potential"))
 
         want_exif = is_image and "jpeg" in ctype.lower() and exif_checked < MAX_EXIF_IMAGES
         want_download = download and item["kind"] in ("image", "video") and downloaded < max_files
@@ -1910,11 +2342,11 @@ def check_media(session, base_url, download, max_files):
                                                  f"EXIF metadata reveals GPS coordinates {exif['GPS']} - this can "
                                                  "disclose a physical location (home, office, event venue).",
                                                  "Strip EXIF metadata from images before publishing (most CMS/upload "
-                                                 "pipelines can do this automatically)."))
+                                                 "pipelines can do this automatically).", confidence="Confirmed"))
                     elif any(k in exif for k in ("Make", "Model", "Artist", "Software")):
                         findings.append(Finding("Media exposure", f"Device/author metadata embedded in public image: {url}", "low",
                                                  f"EXIF metadata exposes: {', '.join(exif.keys())}.",
-                                                 "Strip EXIF metadata from images before publishing if this isn't intentional."))
+                                                 "Strip EXIF metadata from images before publishing if this isn't intentional.", confidence="Confirmed"))
 
             if want_download and download_dir:
                 name = os.path.basename(urlparse(url).path) or f"file_{i}"
@@ -1991,11 +2423,18 @@ def check_sqli_login(session, login_url, user_field, pass_field, fail_text):
     bypass_rows = [{"payload": "(baseline invalid login)",
                      "result": "fail_text present" if baseline_failed else "fail_text absent - unreliable baseline"}]
     if not baseline_failed:
-        findings.append(Finding("Auth", "SQLi login-bypass test has an unreliable baseline", "info",
-                                 "The fail_text you supplied wasn't found on a known-bad login, so the "
-                                 "content-comparison technique can't be trusted here (the time-based technique "
-                                 "below still applies).",
-                                 "Double-check the exact text shown on a failed login and re-run."))
+        findings.append(Finding(
+            "Auth", "SQLi login-bypass test has an unreliable baseline", "info",
+            "This is about your scan setup, not a vulnerability in your site. To detect a SQL-injection "
+            "login bypass, Glassbox first submits a login it knows will fail, then checks the response "
+            "for the exact 'fail text' you entered in the Advanced Scan form (e.g. 'Invalid credentials'). "
+            "That text wasn't found on this known-bad login, so Glassbox can't reliably tell a real bypass "
+            "apart from an ordinary failed attempt using this technique - any result from it here would be "
+            "guesswork. The separate time-based technique below doesn't depend on this text and still ran "
+            "normally.",
+            "Open your login page, submit any wrong password, and copy the exact error text shown - then "
+            "re-run this scan with that text in the 'fail text' field.", confidence="Informational",
+        ))
 
     for payload in AUTH_BYPASS_PAYLOADS:
         try:
@@ -2009,7 +2448,7 @@ def check_sqli_login(session, login_url, user_field, pass_field, fail_text):
             findings.append(Finding("Auth", f"Possible SQLi auth bypass with payload {payload!r}", "critical",
                                      f"Submitting {payload!r} as the username did not show the configured fail_text "
                                      f"(HTTP {r.status_code}), suggesting the login query may be string-concatenated.",
-                                     "Use parameterized queries for the login lookup; never string-concat credentials into SQL."))
+                                     "Use parameterized queries for the login lookup; never string-concat credentials into SQL.", confidence="Strong Evidence"))
 
     timing_rows = []
     for payload in TIME_BLIND_PAYLOADS:
@@ -2026,7 +2465,7 @@ def check_sqli_login(session, login_url, user_field, pass_field, fail_text):
                                      f"Payload {payload!r} in the username field delayed the response by "
                                      f"{elapsed:.1f}s vs a {baseline_time:.1f}s baseline - the DB executed the "
                                      "injected sleep, independent of any visible output.",
-                                     "Use parameterized queries for the login lookup."))
+                                     "Use parameterized queries for the login lookup.", confidence="Strong Evidence"))
             break  # one confirmed timing hit is enough proof; stop probing further engines
 
     return {"bypass_rows": bypass_rows, "timing_rows": timing_rows, "baseline_time": round(baseline_time, 2)}, findings
@@ -2072,7 +2511,7 @@ def check_sqli_union(session, url, param, max_columns=10):
                 findings.append(Finding("SQL Injection", f"UNION-based SQLi confirmed in '{param}'", "critical",
                                          f"A harmless marker string was reflected via UNION SELECT (column {i+1} of "
                                          f"{col_count}, no real data requested) - proves the query is injectable.",
-                                         "Use parameterized queries/ORM bindings; never string-concat user input into SQL."))
+                                         "Use parameterized queries/ORM bindings; never string-concat user input into SQL.", confidence="Confirmed"))
                 return result, findings
         result = {"technique": "union_inconclusive", "columns": col_count}
 
@@ -2087,7 +2526,7 @@ def check_sqli_union(session, url, param, max_columns=10):
         findings.append(Finding("SQL Injection", f"Error-based SQLi confirmed in '{param}'", "critical",
                                  f"A single quote triggered a recognizable database error signature ({sig_match}) "
                                  "in the response.",
-                                 "Use parameterized queries/ORM bindings; suppress raw DB errors from responses."))
+                                 "Use parameterized queries/ORM bindings; suppress raw DB errors from responses.", confidence="Confirmed"))
         return result, findings
 
     # 3. Time-based blind fallback
@@ -2105,7 +2544,7 @@ def check_sqli_union(session, url, param, max_columns=10):
             findings.append(Finding("SQL Injection", f"Time-based blind SQLi confirmed in '{param}'", "critical",
                                      f"Payload {payload!r} delayed the response by {elapsed:.1f}s vs a "
                                      f"{baseline_time:.1f}s baseline, with no visible error or output difference.",
-                                     "Use parameterized queries/ORM bindings; never string-concat user input into SQL."))
+                                     "Use parameterized queries/ORM bindings; never string-concat user input into SQL.", confidence="Strong Evidence"))
             return result, findings
 
     result.setdefault("technique", "none")
@@ -2136,7 +2575,7 @@ def check_xss_stored(session, submit_url, field, view_url, cookie):
             finding = Finding("XSS", f"Stored XSS confirmed via '{field}' ({name} payload)", "critical",
                                f"Payload submitted to {submit_url} persisted and rendered unescaped at {view_url}. "
                                "Session-token theft would be trivially possible from here (not executed by this tool).",
-                               "Escape/encode all user input before rendering; verify with a CSP.")
+                               "Escape/encode all user input before rendering; verify with a CSP.", confidence="Confirmed")
             return {"rows": rows, "status": "confirmed"}, [finding]
         elif marker in r.text:
             rows.append({"variant": name, "result": "partially reflected (likely encoded)"})
@@ -2177,14 +2616,14 @@ def check_idor(session, url_template, ids, cookie_a, cookie_b):
             findings.append(Finding("IDOR", f"Resource id={rid} is readable with no authentication at all", "high",
                                      "An unauthenticated request returned HTTP 200 for a resource that presumably "
                                      "belongs to a specific account.",
-                                     "Require authentication for this route, or confirm the resource is meant to be public."))
+                                     "Require authentication for this route, or confirm the resource is meant to be public.", confidence="Confirmed"))
         elif r_b.status_code == 200:
             row["status"] = "EXPOSED"
             findings.append(Finding("IDOR", f"Account B accessed resource id={rid} owned by account A", "high",
                                      f"HTTP {r_b.status_code} returned when account B's session requested a "
                                      "resource created by account A.",
                                      "Enforce ownership/role checks server-side on every resource lookup, "
-                                     "not just in the UI."))
+                                     "not just in the UI.", confidence="Confirmed"))
         elif r_b.status_code in (401, 403, 404):
             row["status"] = "denied"
         else:
@@ -2214,9 +2653,17 @@ def check_bruteforce(session, url, user_field, pass_field, username, passwords, 
         rows.append({"result": "SUCCEEDED" if succeeded else ("rate-limited (429)" if r.status_code == 429 else "failed")})
         if succeeded:
             finding = Finding("Auth", f"Login succeeded for '{username}' with a common password", "critical",
-                               f"One of the {len(passwords)} tested common passwords logged in successfully "
-                               "(value withheld from this report).",
-                               "Rotate that password immediately and enforce a stronger password policy / rate limiting.")
+                               f"One of the {len(passwords)} common passwords Glassbox tried for '{username}' "
+                               "logged in successfully - meaning anyone could guess it too. The password itself "
+                               "is deliberately not shown or stored anywhere in this report: Glassbox never "
+                               "keeps a working credential in memory past this check, the same way it redacts "
+                               "any secret it finds elsewhere, so a leaked report can never become a second way "
+                               "to get into the account. To find out which password it was, change "
+                               f"'{username}'’s password now and re-run this scan with your own candidate list "
+                               "to confirm the fix.",
+                               "Change this password immediately, then enforce a stronger password policy "
+                               "(minimum length/complexity, blocklist common passwords) and rate-limit the "
+                               "login endpoint so guessing takes far more than a few tries.", confidence="Confirmed")
             return {"attempts": rows, "cap": MAX_BRUTEFORCE_ATTEMPTS, "rate_limited": saw_429}, [finding]
         time.sleep(1.0)
 
@@ -2226,5 +2673,5 @@ def check_bruteforce(session, url, user_field, pass_field, username, passwords, 
                                  f"{MAX_BRUTEFORCE_ATTEMPTS} consecutive failed logins for one username all returned "
                                  "normally with no HTTP 429 or lockout signal.",
                                  "Add rate-limiting or progressive delays/lockout on repeated failed logins per "
-                                 "account and per IP."))
+                                 "account and per IP.", confidence="Confirmed"))
     return {"attempts": rows, "cap": MAX_BRUTEFORCE_ATTEMPTS, "rate_limited": saw_429}, findings

@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
-from flask_login import login_required, login_user, logout_user
+from flask_login import current_user, login_required, login_user, logout_user
 from flask_wtf import FlaskForm
 from werkzeug.security import check_password_hash, generate_password_hash
 from wtforms import BooleanField, PasswordField, StringField
@@ -89,9 +89,50 @@ class ResetPasswordForm(FlaskForm):
 
 def _safe_next(default="/dashboard"):
     """Only follow a `next` param if it's a relative in-app path - avoids
-    turning the post-login redirect into an open redirect."""
+    turning the post-login redirect into an open redirect.
+
+    Beyond the original two conditions (starts with a single slash, does
+    not start with two), also rejects any value containing a backslash or
+    a CR/LF control character (SEC-07 adversarial-input hardening, added
+    08-06):
+
+    - A backslash right after the leading slash (e.g. "/\\evil.example.com")
+      is not rejected by "starts with / and not //" alone - it still passes
+      both conditions verbatim. Today this app is not actually exploitable
+      by it (Werkzeug's header-writing machinery percent-encodes the
+      backslash to %5C before it ever reaches a Location header, so a
+      browser never sees a literal "\\" to normalize into "//" per the
+      WHATWG URL Standard's special-scheme backslash handling) - but that
+      safety is Werkzeug's behavior, not this guard's, and relying on an
+      unrelated layer to neutralize an input this function was supposed to
+      already reject is exactly the kind of implicit safety net that can
+      silently disappear (a different WSGI middleware, a raw
+      string-concatenated Location header written some other way, etc.).
+      Reject it here explicitly so "only a plain in-app relative path
+      passes" is this function's own guarantee, not an accident of what
+      happens to sit downstream of it.
+    - A CR or LF character is not rejected either, and is a genuine live
+      bug independent of the open-redirect question: request.args already
+      URL-decodes a percent-encoded newline before this function ever sees
+      it, so a value like "next=/ok%0d%0aX" reaches here as a real "\\r\\n"
+      in the string; passing it straight into Flask's redirect helper then
+      raises an uncaught ValueError ("Header values must not contain
+      newline characters") from inside login()/signup()/reset_password()
+      with TESTING=True, and would fall through to the app's generic 500
+      page under TESTING=False (SEC-10) - not a redirect at all. Rejecting
+      it here means a malformed `next` value degrades to the ordinary
+      default redirect, the same as every other invalid shape this
+      function already handles, instead of crashing the request.
+    """
     next_url = request.args.get("next")
-    if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+    if (
+        next_url
+        and next_url.startswith("/")
+        and not next_url.startswith("//")
+        and "\\" not in next_url
+        and "\r" not in next_url
+        and "\n" not in next_url
+    ):
         return next_url
     return default
 
@@ -107,6 +148,17 @@ def signup():
     from webvulnscanner.org_routes import decode_invite_token
 
     invite_token = request.args.get("invite")
+    # An already-logged-in user hitting a bare /signup shouldn't see the
+    # signup form rendered under their own authenticated nav (Logout, org
+    # links, etc.) - confusing, and there's nothing useful to do there.
+    # GET-only: skip the redirect when an invite token is present so a
+    # logged-in user following a real invite link can still land on the
+    # form to join a different org, and don't touch POST at all - some
+    # tests deliberately submit /login or /signup while already
+    # authenticated as a different user to switch identity within one
+    # test, without an intervening GET/logout.
+    if request.method == "GET" and current_user.is_authenticated and not invite_token:
+        return redirect(_safe_next())
     # Decoded without an expected_email here - this pass only pre-fills the
     # address on GET; it never by itself authorizes an org assignment. The
     # POST path below re-decodes with the submitted address, which is the
@@ -191,7 +243,7 @@ def signup():
         sender = current_app.extensions["email_sender"]
         sender.send(
             to=email,
-            subject="Verify your WebVulnScanner email",
+            subject="Verify your Glassbox email",
             body=f"Click the link below to verify your email address:\n\n{verify_url}",
         )
 
@@ -217,15 +269,34 @@ def verify_email(token):
 @auth.route("/login", methods=["GET", "POST"])
 @limiter.limit("10 per minute")
 def login():
+    if request.method == "GET" and current_user.is_authenticated:
+        return redirect(_safe_next())
     form = LoginForm()
     if form.validate_on_submit():
+        if not _turnstile_passes(request.remote_addr):
+            flash("Bot check failed - please try again.", "error")
+            return render_template("login.html", form=form)
+
         email = form.email.data.strip().lower()
         user = User.query.filter_by(email=email).first()
         if user is None or not check_password_hash(user.password_hash, form.password.data):
             flash("Invalid email or password.", "error")
             return render_template("login.html", form=form)
 
-        login_user(user, remember=form.remember.data)
+        # A suspended user (or a member of a suspended org - User.is_active
+        # checks both) has correctly-verified credentials at this point, so
+        # telling them specifically why login is refused isn't a user-
+        # enumeration leak the way it would be before password
+        # verification - they already know the account exists and the
+        # password is right. login_user() itself refuses (returns False)
+        # without touching the session when is_active is False; check the
+        # return value rather than assuming success, which used to redirect
+        # to _safe_next() while current_user stayed unauthenticated - a
+        # silent failure with no explanation (Phase 16, ADMIN-02).
+        if not login_user(user, remember=form.remember.data):
+            flash("This account has been suspended. Contact support if you believe this is a mistake.", "error")
+            return render_template("login.html", form=form)
+
         return redirect(_safe_next())
 
     return render_template("login.html", form=form)
@@ -258,7 +329,7 @@ def forgot_password():
             sender = current_app.extensions["email_sender"]
             sender.send(
                 to=email,
-                subject="Reset your WebVulnScanner password",
+                subject="Reset your Glassbox password",
                 body=f"Click the link below to reset your password (expires in "
                      f"{RESET_TOKEN_EXPIRY_MINUTES} minutes):\n\n{reset_url}",
             )

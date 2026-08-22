@@ -1,6 +1,11 @@
-# WebVulnScanner
+# Glassbox
 
 [![GitHub repo](https://img.shields.io/badge/GitHub-WebVulnScanner-blue?logo=github)](https://github.com/Ayomide1450/WebVulnScanner)
+
+Product name: **Glassbox** (rebranded from WebVulnScanner, v1.3). The GitHub repo, Python
+package (`webvulnscanner/`), and local clone directory are unchanged for now — only the
+user-facing product name, deployed app, and docs changed. See `CLAUDE.md` if either name looks
+out of sync somewhere; that's the intended split, not a missed rename.
 
 A multi-tenant website security-checkup SaaS: sign up, create an organization,
 run scans against domains you own, and track results across a dashboard with

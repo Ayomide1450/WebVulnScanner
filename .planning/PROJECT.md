@@ -6,7 +6,8 @@ A multi-tenant Flask SaaS ("Autonomous Security Validation Platform") for securi
 security-minded teams: sign up, create an organization, run rule-based vulnerability scans
 (passive → active → intrusive) against domains you own, and track results across a dashboard with
 report history and diffing. Detection is 100% rule-based; an AI layer (Groq) only explains and
-prioritizes findings, never generates them.
+prioritizes findings, never generates them. As of v1.1, the app also meets a "production ready"
+bar across UI/UX, accessibility, responsiveness, security, and SEO — not just feature-complete.
 
 ## Core Value
 
@@ -45,17 +46,73 @@ weakening its safety guarantees to become a general attack tool.
   keep-alive heartbeat — shipped 2026-08-07
 - ✓ Alembic/Flask-Migrate schema migrations, replacing the old `db.create_all()`-only approach
 
+### Validated (v1.0, shipped 2026-08-13)
+
+- ✓ Persistent asset inventory + continuous/scheduled scanning (`Asset` model, in-process scheduler)
+- ✓ API/CLI-first programmatic workflow (`ApiToken`, `/api/v1/*`, `cli/wvs.py`)
+- ✓ Compliance-framework mapping (OWASP Top 10) on findings and reports
+- ✓ Production hardening (multi-worker-safe rate limiting via `RATELIMIT_STORAGE_URI`, orchestrator
+  test coverage for all 4 scan types, invite-flow completion)
+- ✓ Fly.io production deploy, platform-admin panel (cross-org visibility, domain-deletion
+  separation-of-duties), DB-backed report storage (`Report.data`), cross-org domain-scan block,
+  Cloudflare Turnstile on signup, billing monthly/annual cycles
+
+### Validated (v1.1, shipped 2026-08-20)
+
+- ✓ New Scan flow redesigned as a guided Select Domain → Select Type → Confirm Authorization →
+  Start Scan wizard, including an "Advanced" Smart Setup deviation (D-02a) beyond the original spec
+- ✓ One canonical design-system token layer (typography/spacing/component/container) in `base.html`,
+  fanned out across every template — no local drift left unconsolidated
+- ✓ Full responsive + accessibility audit and fixes (320px–1280px, keyboard/AT operability, heading
+  hierarchy, WCAG AA contrast) with standing regression locks (`tests/test_accessibility.py`)
+- ✓ Full security re-audit across the v1.0-added API/scheduler/admin surfaces: cross-org IDOR
+  enumeration lock, CSRF enforcement proof, `_SSRFSafeSession` redirect-hop guard (SEC-03, the
+  phase's one real vulnerability fix), injection/traversal sweep, open-redirect/error-leakage/
+  secrets-sweep coverage — closed with a real-process HTTP probe, not just the test client
+- ✓ SEO (dynamic robots.txt/sitemap.xml, meta/OG/Twitter tags, favicons), a data-size-independent
+  N+1 audit (none found) plus real pagination on every unbounded list, and closed empty/submitting/
+  duplicate-scan/timeout UX states
+
+## Current Milestone: v1.3 Glassbox Rebrand & Production Security Readiness
+
+**Goal:** Rebrand the product from WebVulnScanner to Glassbox (in-app branding + a live Fly app
+migration to `glassbox.fly.dev`, no purchased custom domain yet), then extend the scan engine's
+existing architecture — reusing all current checks, the OWASP-mapped compliance layer, ownership
+verification, and scan pipelines rather than duplicating any of it — into a full "Production
+Security Readiness" assessment: an extended `Finding` schema (confidence/CWE/verification-state),
+domain-grouped scoring with a READY/READY WITH WARNINGS/NOT READY verdict, a handful of net-new
+checks (file upload, security.txt, privacy/PII, caching, GraphQL), and a "Request Expert
+Assessment" lead-gen CTA. Every new check and UI change must preserve the frozen safety surface
+(`authorized*`, `entitlements.py`, `is_ssrf_safe_hostname()`) and non-destructive testing
+constraints exactly as CLAUDE.md already documents them — this milestone extends the assessment
+depth and product framing, it does not change what the scanner is allowed to do to a target.
+
+**Sequencing:** Phase 11 (rebrand) goes first, mechanical and lower-risk, so every later phase's
+new templates/docs/copy are written under the new name from the start rather than needing a
+second pass. Phases 12-15 are the architecture work, roughly in dependency order (schema before
+scoring before net-new checks before the CTA, though 14/15 are largely independent of each other).
+
 ### Active
 
-<!-- Current scope. Building toward these. -->
+- [ ] **Phase 11 — Rebrand**: in-app branding swap (templates/meta/emails/docs) to "Glassbox";
+      new `glassbox` Fly app with all 12 secrets migrated and verified healthy before
+      `webvulnscanner` is decommissioned
+- [ ] **Phase 12 — Finding schema**: `confidence`/`cwe`/`verification_state` fields added to
+      `Finding`, backfilled honestly at all ~50 existing construction sites, regression-tested
+- [ ] **Phase 13 — Domain grouping & scoring v2**: `SECURITY_DOMAIN_MAP` (13 product-facing
+      domains) alongside the existing `CHECK_COMPLIANCE`, scoring extended to weight
+      confidence/coverage not just severity count, READY/READY WITH WARNINGS/NOT READY verdict,
+      report UI reorganized into domain groups instead of a flat list
+- [ ] **Phase 14 — Net-new checks**: file upload security, security.txt/disclosure, privacy/PII
+      exposure, caching of sensitive data, GraphQL introspection — additive, each following the
+      existing `(data, findings)` check convention and non-destructive constraints
+- [ ] **Phase 15 — Request Expert Assessment**: new `AssessmentRequest` model + form (company/
+      domain/contact/email/phone/assessment type/scope/auth requirements/# domains/timeline/
+      notes), CSRF-protected and rate-limited like every other form, visible to platform admins
 
-- [ ] Persistent asset inventory + continuous/scheduled scanning (not just one-shot scans)
-- [ ] API/CLI-first programmatic workflow (tokens, endpoints, CLI wrapper)
-- [ ] Compliance-framework mapping (OWASP Top 10/ASVS) on findings and reports
-- [ ] Production hardening (multi-worker-safe rate limiting, orchestrator/org-route test coverage,
-      remaining visual-polish debt)
-
-See REQUIREMENTS.md for the full itemized v1 list.
+**Deferred, not dropped:** v1.2's Phase 10 (Live Verification Closeout — the four-width
+responsive sweep, keyboard/contrast/live-feed re-confirmation deferred at v1.1 close) remains
+roadmapped and should be picked up once v1.3's phases land.
 
 ### Out of Scope
 
@@ -73,10 +130,12 @@ See REQUIREMENTS.md for the full itemized v1 list.
 
 ## Context
 
-- **Stack**: Python 3.12 / Flask app-factory pattern, 5 blueprints (`auth`, `org`, `billing_bp`,
-  `scan`, `public`), SQLAlchemy models, Alembic-managed migrations, deployed to Render (primary,
-  gunicorn `--workers 1 --threads 4`) with a partial/limited Vercel alternate target that does not
-  support the scan-execution/SSE routes as-is.
+- **Stack**: Python 3.12 / Flask app-factory pattern, blueprints for `auth`/`org`/`billing_bp`/
+  `scan`/`public`/`asset`/`api_v1`/`admin` (grew during v1.0), SQLAlchemy models, Alembic-managed
+  migrations, deployed to **Fly.io** (a real always-on VM — chosen over Render specifically because
+  it matches this app's `threading.Thread`-per-scan + in-process scheduler model; `Dockerfile`/
+  `fly.toml` committed) with a partial/limited Vercel alternate target that does not support the
+  scan-execution/SSE routes as-is.
 - **Current scan model is one-shot**: a user submits a target URL per scan, a `Scan` row is
   created, a daemon background thread runs the orchestrator, and a `Report` row is saved. There is
   no persistent "Asset" entity that outlives a single scan — this is the specific gap this
@@ -140,10 +199,31 @@ See REQUIREMENTS.md for the full itemized v1 list.
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Billing/SaaS/org-tier shape stays as-is (crypto invoicing, Free/Paid/Org-verified tiers) | User confirmed this is locked for this milestone; self-hostable/open-core remains an explicitly deprioritized, undecided question | ✓ Locked for this milestone |
-| Phase 1 = persistent asset inventory + continuous/scheduled scanning | Ranked gap analysis identifies this as the single biggest competitive gap and the dependency that makes API/CLI (Phase 2) and compliance-mapping (Phase 3) meaningfully easier to justify and build | — Pending (validate after Phase 1 ships) |
-| Plugin/check-extensibility system (ranked gap #2) deferred out of v1 | No concrete requirement or user request for it this milestone; recommendation prioritized continuous scanning + API/CLI + compliance-mapping ahead of it | — Pending (revisit next milestone) |
-| Production Hardening (Phase 4) scoped to include multi-worker rate-limiting, orchestrator/org-route test coverage, and remaining visual-polish debt from `.planning/codebase/CONCERNS.md` | Milestone goal is explicitly "production ready" — these are the concrete, evidence-backed gaps between current state and that bar, not speculative work | — Pending (validate after Phase 4 ships) |
+| Billing/SaaS/org-tier shape stays as-is (crypto invoicing, Free/Paid/Org-verified tiers) | User confirmed this is locked for this milestone; self-hostable/open-core remains an explicitly deprioritized, undecided question | ✓ Locked, held through v1.1 |
+| Phase 1 = persistent asset inventory + continuous/scheduled scanning | Ranked gap analysis identifies this as the single biggest competitive gap and the dependency that makes API/CLI (Phase 2) and compliance-mapping (Phase 3) meaningfully easier to justify and build | ✓ Good — v1.0 shipped |
+| Plugin/check-extensibility system (ranked gap #2) deferred out of v1 | No concrete requirement or user request for it this milestone; recommendation prioritized continuous scanning + API/CLI + compliance-mapping ahead of it | — Pending (still deferred, revisit for v1.2) |
+| Production Hardening (Phase 4) scoped to include multi-worker rate-limiting, orchestrator/org-route test coverage, and remaining visual-polish debt from `.planning/codebase/CONCERNS.md` | Milestone goal is explicitly "production ready" — these are the concrete, evidence-backed gaps between current state and that bar, not speculative work | ✓ Good — v1.0 shipped |
+| v1.1 phase order: New Scan redesign (5) → Design System (6) → Responsive/A11y (7) → Security (8) → SEO/Perf/UX States (9) | Each phase builds on a stable surface rather than auditing work about to change underneath it (design-system before responsive audit, redesign before both) | ✓ Good — zero rework needed across phase boundaries |
+| SEC-03's redirect guard implemented via `_mk_session()` overriding `get_redirect_target()`, not `resolve_redirects()` | An earlier attempt at `resolve_redirects()` was tested against a real local-server harness and found not to work — that loop sends a hop before yielding it for inspection, too late to block | ✓ Good — proven against a real HTTP server, not just the test client |
+| Phase 9 executed leanly (4 PLAN.md written directly, no researcher/planner/checker subagent cascade) | User flagged the standard multi-agent flow as too token-heavy for a phase this scoped; explicit request for a straight-through continuation | ✓ Good — zero merge conflicts across all 4 plans, 802 tests passing |
+| Phases 5/6/7/9's live-verification human-checkpoints closed via override, not answered | Explicit user instruction not to block milestone progress on unanswered human checkpoints; all underlying implementation is done and test-covered | ⚠️ Revisit — schedule an actual live-browser pass early in v1.2 to close this out for real |
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
 
 ---
-*Last updated: 2026-08-10 after initial roadmap creation*
+*Last updated: 2026-08-20 — milestone v1.3 (Glassbox Rebrand & Production Security Readiness) started*

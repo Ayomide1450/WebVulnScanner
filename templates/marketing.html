@@ -1,5 +1,20 @@
 {% extends "base.html" %}
-{% block title %}WebVulnScanner - Find security vulnerabilities before attackers do{% endblock %}
+{% block title %}Glassbox - Web Application Vulnerability Scanner for AppSec Teams{% endblock %}
+{% block meta_description %}<meta name="description" content="Authorization-gated web application vulnerability scanner mapped to OWASP Top 10, with CVE-aware dependency checks and non-destructive, plain-English reports.">{% endblock %}
+{% block canonical %}<link rel="canonical" href="{{ url_for('public.index', _external=True) }}">{% endblock %}
+{% block og_tags %}
+<meta property="og:type" content="website">
+<meta property="og:title" content="Glassbox - Web Application Vulnerability Scanner for AppSec Teams">
+<meta property="og:description" content="Authorization-gated web application vulnerability scanner mapped to OWASP Top 10, with CVE-aware dependency checks and non-destructive, plain-English reports.">
+<meta property="og:url" content="{{ url_for('public.index', _external=True) }}">
+<meta property="og:image" content="{{ url_for('static', filename='apple-touch-icon.png', _external=True) }}">
+{% endblock %}
+{% block twitter_tags %}
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Glassbox - Web Application Vulnerability Scanner for AppSec Teams">
+<meta name="twitter:description" content="Authorization-gated web application vulnerability scanner mapped to OWASP Top 10, with CVE-aware dependency checks and non-destructive, plain-English reports.">
+<meta name="twitter:image" content="{{ url_for('static', filename='apple-touch-icon.png', _external=True) }}">
+{% endblock %}
 {% block head %}
 <style>
   /* ---------------------------------------------------------------------
@@ -8,12 +23,14 @@
      inventing a second design system - see CLAUDE.md "Frontend design
      system". Only new, page-scoped rules live here. */
 
-  .mkt-wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+  /* width:100% - same direct-flex-child-of-body fix as base.html's
+     .topnav/.wrap (see that comment for the full mechanism). */
+  .mkt-wrap { width: 100%; max-width: var(--container-marketing); margin: 0 auto; padding: 0 24px; }
 
   /* ---- Hero -------------------------------------------------------- */
   .hero { padding: 64px 24px 0; text-align: center; }
   .hero-inner { max-width: 880px; margin: 0 auto; }
-  .eyebrow { display:inline-flex; align-items:center; gap:7px; font-family:"Fira Code",monospace; font-size:12.5px; color: var(--accent); background: var(--accent-dim); border:1px solid rgba(34,197,94,.3); padding:6px 14px; border-radius:999px; margin-bottom:28px; }
+  .eyebrow { display:inline-flex; align-items:center; gap:7px; font-family:"Fira Code",monospace; font-size:11px; color: var(--accent); background: var(--accent-dim); border:1px solid rgba(34,197,94,.3); padding:6px 14px; border-radius:999px; margin-bottom:28px; }
   .eyebrow .dot { width:6px; height:6px; border-radius:50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 
   .terminal { max-width: 480px; margin: 0 auto 22px; text-align:left; background: var(--panel); border:1px solid var(--border); border-radius: 10px; padding: 16px 18px; height: 202px; overflow: hidden; transition: height 320ms ease, margin-bottom 320ms ease, padding 320ms ease, opacity 220ms ease; }
@@ -24,11 +41,11 @@
   @keyframes blink { 50% { opacity: 0; } }
 
   .hero h1 {
-    font-size: clamp(38px, 5.4vw, 68px);
-    line-height: 1.06;
-    letter-spacing: -0.025em;
+    font-size: clamp(40px, 5vw, 64px);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
     margin: 0 0 22px;
-    font-weight: 700;
+    font-weight: 600;
   }
   .hero h1 .accent-text { color: var(--accent); }
   .hero .sub {
@@ -48,7 +65,7 @@
   }
   .scan-form input[type="text"]::placeholder { color: var(--muted); }
   .scan-form .btn.primary { white-space: nowrap; padding: 13px 24px; font-size: 15px; }
-  .scan-reassure { margin: 16px 0 0; font-size: 13.5px; color: var(--muted); display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; }
+  .scan-reassure { margin: 16px 0 0; font-size: 13px; color: var(--muted); display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; }
   .scan-reassure .icon { width:14px; height:14px; color: var(--accent); }
   @media (max-width: 560px) {
     .scan-form { flex-direction: column; }
@@ -59,21 +76,26 @@
   .mkt-section { padding: 76px 24px; border-top: 1px solid var(--border); }
   .mkt-section.tight { padding-top: 56px; padding-bottom: 56px; }
   .section-head { max-width: 700px; margin: 0 auto 44px; text-align:center; }
-  .section-head .kicker { display:block; font-family:"Fira Code",monospace; font-size:12.5px; color: var(--accent); text-transform:uppercase; letter-spacing:.1em; margin-bottom:12px; }
-  .section-head h2 { font-size: clamp(28px, 3.2vw, 40px); letter-spacing:-0.02em; margin: 0 0 12px; }
-  .section-head p { color: var(--muted); font-size: 16.5px; line-height:1.6; margin:0; }
+  .section-head .kicker { display:block; font-family:"Fira Code",monospace; font-size:11px; color: var(--accent); text-transform:uppercase; letter-spacing:.1em; margin-bottom:12px; }
+  .section-head h2 { font-size: clamp(28px, 3vw, 36px); letter-spacing:-0.01em; margin: 0 0 12px; }
+  .section-head p { color: var(--muted); font-size: 15px; line-height:1.6; margin:0; }
 
   /* ---- Trust strip ------------------------------------------------- */
   .trust-strip { display:flex; flex-wrap:wrap; justify-content:center; gap: 14px 40px; max-width: 980px; margin: 0 auto; padding: 28px 24px; }
-  .trust-item { display:flex; align-items:center; gap:10px; color: var(--muted); font-size: 14.5px; }
+  .trust-item { display:flex; align-items:center; gap:10px; color: var(--muted); font-size: 15px; }
   .trust-item .icon { color: var(--accent); width:18px; height:18px; flex-shrink:0; }
   .trust-item b { color: var(--text); font-weight:600; }
 
   /* ---- What we check grid ------------------------------------------- */
-  .check-grid { max-width: 1180px; margin: 0 auto; display:grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .check-grid { max-width: var(--container-marketing); margin: 0 auto; display:grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
   .check-item { background: var(--panel); border:1px solid var(--border); border-radius: 12px; padding: 18px 20px; display:flex; gap: 12px; align-items:flex-start; }
   .check-item .icon { width:20px; height:20px; color: var(--accent); flex-shrink:0; margin-top:2px; }
-  .check-item h4 { margin:0 0 4px; font-size: 14.5px; font-weight:600; }
+  /* A11Y-02: these headings are <h3> (promoted from <h4>) so the section reads
+     h2 -> h3 with no level skipped - a document-structure fix only. The size
+     is deliberately pinned to what the h4 role rendered (14px), not to
+     base.html's h3 { font-size: 16px }, since Phase 7 introduces no new
+     typography. */
+  .check-item h3 { margin:0 0 4px; font-size: 14px; }
   .check-item p { margin:0; color: var(--muted); font-size: 13px; line-height:1.5; }
   @media (max-width: 1024px) { .check-grid { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 560px) { .check-grid { grid-template-columns: 1fr; } }
@@ -81,16 +103,16 @@
   /* ---- Report preview ------------------------------------------------ */
   .report-preview { max-width: 760px; margin: 0 auto; background: linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--border); border-radius: 18px; overflow:hidden; }
   .report-preview .rp-head { display:flex; align-items:center; justify-content:space-between; padding: 16px 24px; border-bottom:1px solid var(--border); gap:12px; flex-wrap:wrap; }
-  .report-preview .rp-head .rp-target { font-family:"Fira Code",monospace; font-size: 13.5px; color: var(--muted); }
+  .report-preview .rp-head .rp-target { font-family:"Fira Code",monospace; font-size: 13px; color: var(--muted); }
   .report-preview .rp-body { display:flex; gap: 32px; padding: 28px 24px; flex-wrap:wrap; }
   .rp-score { display:flex; align-items:center; gap:20px; flex-shrink:0; }
-  .rp-score .num { font-family:"Fira Code",monospace; font-size: 44px; font-weight:800; color: var(--accent); line-height:1; }
+  .rp-score .num { font-family:"Fira Code",monospace; font-size: 44px; font-weight:600; color: var(--accent); line-height:1; }
   .rp-score .num small { font-size: 18px; color: var(--muted); font-weight:600; }
-  .rp-score .label { font-size:12.5px; color: var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-top:4px; }
+  .rp-score .label { font-size:11px; color: var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-top:4px; }
   .rp-counts { display:flex; flex-direction:column; gap:6px; justify-content:center; }
-  .rp-counts .row { display:flex; align-items:center; gap:10px; font-size: 13.5px; }
+  .rp-counts .row { display:flex; align-items:center; gap:10px; font-size: 13px; }
   .rp-counts .row .sev-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-  .rp-counts .row .n { font-family:"Fira Code",monospace; font-weight:700; min-width:18px; text-align:right; }
+  .rp-counts .row .n { font-family:"Fira Code",monospace; font-weight:600; min-width:18px; text-align:right; }
   .rp-findings { border-top:1px solid var(--border); padding: 18px 24px 22px; display:flex; flex-direction:column; gap:10px; }
   .rp-findings .finding { margin-bottom:0; }
   .rp-tag { font-size: 11px; text-transform:uppercase; letter-spacing:.08em; color: var(--muted); padding: 12px 24px 0; }
@@ -98,32 +120,34 @@
   /* ---- How it works --------------------------------------------------- */
   .steps { max-width: 1000px; margin: 0 auto; display:grid; grid-template-columns: repeat(4, 1fr); gap: 20px; counter-reset: step; }
   .step { position:relative; padding-top: 8px; }
-  .step .step-num { font-family:"Fira Code",monospace; font-size: 13px; color: var(--accent); font-weight:700; margin-bottom:10px; }
-  .step h4 { margin: 0 0 6px; font-size:16px; }
-  .step p { margin:0; color: var(--muted); font-size:13.5px; line-height:1.55; }
+  .step .step-num { font-family:"Fira Code",monospace; font-size: 13px; color: var(--accent); font-weight:600; margin-bottom:10px; }
+  /* A11Y-02: promoted from <h4> to <h3> - same document-structure-only fix
+     as .check-item h3 above, size pinned to what the h4 role rendered. */
+  .step h3 { margin: 0 0 6px; font-size:16px; }
+  .step p { margin:0; color: var(--muted); font-size:13px; line-height:1.55; }
   @media (max-width: 900px) { .steps { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 560px) { .steps { grid-template-columns: 1fr; } }
 
   /* ---- Tier / feature cards ------------------------------------------- */
-  .tier-grid { max-width: 1180px; margin: 0 auto; display:grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: stretch; }
+  .tier-grid { max-width: var(--container-marketing); margin: 0 auto; display:grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: stretch; }
   .tier-card { display:flex; flex-direction:column; background: linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--border); border-radius:18px; padding: 30px 28px; transition: border-color 150ms ease, transform 150ms ease; }
   .tier-card:hover { border-color: rgba(34,197,94,.4); transform: translateY(-2px); }
   .tier-card .tier-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; background: var(--accent-dim); margin-bottom: 20px; }
   .tier-card .tier-icon .icon { width:22px; height:22px; color: var(--accent); }
-  .tier-card .tier-badge { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color: var(--accent); margin-bottom: 8px; }
-  .tier-card h3 { margin: 0 0 10px; font-size: 21px; }
-  .tier-card > p { margin: 0 0 18px; color: var(--muted); font-size: 14.5px; line-height:1.55; }
+  .tier-card .tier-badge { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color: var(--accent); margin-bottom: 8px; }
+  .tier-card h3 { margin: 0 0 10px; font-size: 20px; }
+  .tier-card > p { margin: 0 0 18px; color: var(--muted); font-size: 15px; line-height:1.55; }
   .tier-card ul { list-style:none; margin: 0; padding: 0; display:flex; flex-direction:column; gap: 9px; flex: 1; }
-  .tier-card li { display:flex; align-items:flex-start; gap:9px; font-size: 13.5px; color: var(--text); line-height: 1.4; }
+  .tier-card li { display:flex; align-items:flex-start; gap:9px; font-size: 13px; color: var(--text); line-height: 1.4; }
   .tier-card li .icon { width:15px; height:15px; color: var(--accent); flex-shrink:0; margin-top:2px; }
   @media (max-width: 1024px) { .tier-grid { grid-template-columns: 1fr; } }
 
   /* ---- Final CTA ------------------------------------------------------ */
   .final-cta { text-align:center; max-width: 640px; margin: 0 auto; }
-  .final-cta h2 { font-size: clamp(26px, 3.2vw, 36px); margin: 0 0 14px; letter-spacing:-0.02em; }
-  .final-cta p { color: var(--muted); font-size: 16px; margin: 0 0 30px; }
+  .final-cta h2 { font-size: clamp(28px, 3vw, 36px); margin: 0 0 14px; letter-spacing:-0.01em; }
+  .final-cta p { color: var(--muted); font-size: 15px; margin: 0 0 30px; }
   .cta-row { display:flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
-  .cta { text-decoration:none; padding: 15px 28px; border-radius: 10px; font-weight:700; font-size:15.5px; transition: filter 150ms ease, transform 150ms ease; }
+  .cta { text-decoration:none; padding: 15px 28px; border-radius: 10px; font-weight:600; font-size:15px; transition: filter 150ms ease, transform 150ms ease; }
   .cta:hover { filter: brightness(1.08); }
   .cta:active { transform: translateY(1px); }
   .cta.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#04150a; }
@@ -136,7 +160,7 @@
 <!-- ============ Hero ============ -->
 <div class="hero">
   <div class="hero-inner">
-    <div class="eyebrow"><span class="dot"></span> Autonomous Security Validation Platform</div>
+    <div class="eyebrow"><span class="dot"></span> Automated Web Application Security Scanner</div>
 
     <div class="terminal" id="bootTerminal" aria-hidden="true">
       <pre id="bootLines"></pre>
@@ -144,9 +168,9 @@
 
     <h1 id="heroHeadline">Find security vulnerabilities <span class="accent-text">before attackers do.</span></h1>
     <p class="sub" id="heroSub">
-      WebVulnScanner automatically scans your website for exposed secrets, security
-      misconfigurations, vulnerable JavaScript libraries, and other common weaknesses -
-      then hands you a prioritized, plain-English report.
+      Glassbox runs automated vulnerability assessments against your web app's attack
+      surface - exposed secrets, security misconfigurations, vulnerable JavaScript libraries, and
+      other weaknesses - then hands you a prioritized, plain-English report.
     </p>
 
     <div class="scan-box">
@@ -181,6 +205,10 @@
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-linecap="round"/><path stroke-linecap="round" d="M12 7v5l3 3"/></svg>
       <span><b>Live results</b> streamed to you as each check runs</span>
     </div>
+    <div class="trust-item">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>
+      <span><b>OWASP Top 10</b> mapped findings &middot; CVE-aware dependency checks</span>
+    </div>
   </div>
 </div>
 
@@ -188,58 +216,58 @@
 <div class="mkt-section tight">
   <div class="section-head">
     <span class="kicker">Coverage</span>
-    <h2>What WebVulnScanner checks</h2>
-    <p>Every scan pulls from the same rule-based check engine - no black box, no guessing what was actually tested.</p>
+    <h2>What Glassbox checks</h2>
+    <p>Every scan pulls from the same rule-based web application security check engine - no black box, no guessing what was actually tested.</p>
   </div>
   <div class="mkt-wrap">
     <div class="check-grid">
       <div class="check-item">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-        <div><h4>Exposed secrets</h4><p>API keys and tokens leaked in page source or JS bundles.</p></div>
+        <div><h3>Exposed secrets</h3><p>API keys and tokens leaked in page source or JS bundles.</p></div>
       </div>
       <div class="check-item">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z"/></svg>
-        <div><h4>Sensitive files</h4><p>Backups, config files, and directory listings left reachable.</p></div>
+        <div><h3>Sensitive files</h3><p>Backups, config files, and directory listings left reachable.</p></div>
       </div>
       <div class="check-item">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/></svg>
-        <div><h4>Security headers</h4><p>CSP, HSTS, X-Frame-Options and the rest of the response header set.</p></div>
+        <div><h3>Security headers</h3><p>CSP, HSTS, X-Frame-Options and the rest of the response header set.</p></div>
       </div>
       <div class="check-item">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-        <div><h4>TLS configuration</h4><p>Certificate validity, expiry, and chain of trust.</p></div>
+        <div><h3>TLS configuration</h3><p>Certificate validity, expiry, and chain of trust.</p></div>
       </div>
       <div class="check-item">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="4" y="14" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <div><h4>CORS misconfiguration</h4><p>Overly permissive cross-origin sharing rules.</p></div>
+        <div><h3>CORS misconfiguration</h3><p>Overly permissive cross-origin sharing rules - a common security misconfiguration.</p></div>
       </div>
       <div class="check-item">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 12h16m0 0-5-5m5 5-5 5"/></svg>
-        <div><h4>Open redirects</h4><p>Links that can be abused to redirect users off your domain.</p></div>
+        <div><h3>Open redirects</h3><p>Links that can be abused to redirect users off your domain.</p></div>
       </div>
       <div class="check-item">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="9" width="8" height="10" rx="4" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V7a3 3 0 0 1 6 0v2M6 12h12"/></svg>
-        <div><h4>Vulnerable JavaScript</h4><p>Outdated front-end libraries with known CVEs.</p></div>
+        <div><h3>Vulnerable JavaScript</h3><p>Outdated front-end libraries with known CVEs.</p></div>
       </div>
       <div class="check-item">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-linecap="round"/><circle cx="12" cy="12" r="5" stroke-linecap="round"/><path stroke-linecap="round" d="M12 12 17 7"/></svg>
-        <div><h4>Attack-surface discovery</h4><p>Same-origin crawl to map reachable pages and endpoints.</p></div>
+        <div><h3>Attack-surface discovery</h3><p>Same-origin crawl to map reachable pages and endpoints.</p></div>
       </div>
       <div class="check-item">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="m4 7 8 6 8-6"/></svg>
-        <div><h4>DNS & email security</h4><p>SPF, DMARC, and CAA records that stop domain spoofing.</p></div>
+        <div><h3>DNS & email security</h3><p>SPF, DMARC, and CAA records that stop domain spoofing.</p></div>
       </div>
       <div class="check-item">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z"/></svg>
-        <div><h4>Directory exposure</h4><p>Open port scanning and directory listing detection.</p></div>
+        <div><h3>Directory exposure</h3><p>Open port scanning and directory listing detection.</p></div>
       </div>
       <div class="check-item">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>
-        <div><h4>Subresource integrity</h4><p>Third-party scripts loaded without an SRI hash.</p></div>
+        <div><h3>Subresource integrity</h3><p>Third-party scripts loaded without an SRI hash.</p></div>
       </div>
       <div class="check-item">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="4" y="14" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <div><h4>HTTP method exposure</h4><p>Dangerous verbs (PUT/DELETE/TRACE) left enabled.</p></div>
+        <div><h3>HTTP method exposure</h3><p>Dangerous verbs (PUT/DELETE/TRACE) left enabled.</p></div>
       </div>
     </div>
   </div>
@@ -313,22 +341,22 @@
     <div class="steps">
       <div class="step">
         <div class="step-num">01</div>
-        <h4>Enter your domain</h4>
-        <p>Give WebVulnScanner a URL and confirm you own or are authorized to test it.</p>
+        <h3>Enter your domain</h3>
+        <p>Give Glassbox a URL and confirm you own or are authorized to test it.</p>
       </div>
       <div class="step">
         <div class="step-num">02</div>
-        <h4>We verify ownership</h4>
+        <h3>We verify ownership</h3>
         <p>Intrusive checks require a DNS TXT record or a /.well-known/ file tied to your org - not just a checkbox.</p>
       </div>
       <div class="step">
         <div class="step-num">03</div>
-        <h4>Checks run live</h4>
+        <h3>Checks run live</h3>
         <p>Watch each check start, complete, and surface findings in real time as the scan progresses.</p>
       </div>
       <div class="step">
         <div class="step-num">04</div>
-        <h4>Get a scored report</h4>
+        <h3>Get a scored report</h3>
         <p>A graded, prioritized report with plain-English remediation steps for every finding.</p>
       </div>
     </div>
@@ -390,8 +418,8 @@
 <!-- ============ Final CTA ============ -->
 <div class="mkt-section tight">
   <div class="final-cta">
-    <h2>Ready to see where you stand?</h2>
-    <p>Start with a free passive scan - no credit card, no obligation.</p>
+    <h2>Shipped fast? Find out what you missed.</h2>
+    <p>Start with a free, non-destructive passive scan - no credit card, no obligation.</p>
     <div class="cta-row">
       <a class="cta primary" href="{{ url_for('auth.signup') }}">Start free scan</a>
       <a class="cta secondary" href="{{ url_for('auth.login') }}">Log in</a>

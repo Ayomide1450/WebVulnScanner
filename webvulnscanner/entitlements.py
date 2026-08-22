@@ -1,5 +1,5 @@
 """
-Entitlement / tier gating for WebVulnScanner (Workstream 3).
+Entitlement / tier gating for Glassbox (Workstream 3).
 
 This module is the one place allowed to bridge DB-backed concepts
 (`webvulnscanner.models.Plan`, `DomainVerification`) and the tier-ordering
@@ -35,6 +35,9 @@ FEATURE_REQUIREMENTS = {
     "https_redirect": Tier.FREE, "sensitive_paths": Tier.FREE, "robots_sitemap": Tier.FREE,
     "dns_email": Tier.FREE, "mixed_content": Tier.FREE, "vulnerable_js": Tier.FREE,
     "secrets": Tier.FREE, "sri": Tier.FREE, "jwt": Tier.FREE,
+    # v1.3 Phase 14 net-new checks - all passive/read-only (no injection, no
+    # actual file upload), same tier as the rest of the FREE passive set.
+    "file_upload": Tier.FREE, "privacy_exposure": Tier.FREE, "caching_sensitive": Tier.FREE,
     # base scan - active (PAID)
     "crawl": Tier.PAID, "open_ports": Tier.PAID, "cors": Tier.PAID,
     "http_methods": Tier.PAID, "open_redirect": Tier.PAID, "directory_listing": Tier.PAID,

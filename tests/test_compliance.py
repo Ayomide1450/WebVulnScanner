@@ -329,8 +329,10 @@ _MAPPING = {
 }
 
 
-def test_grouping_modes_allowlist_is_severity_and_compliance():
-    assert GROUPING_MODES == ("severity", "compliance")
+def test_grouping_modes_allowlist_is_severity_compliance_and_domain():
+    # v1.3 SCORE-02 added "domain" as a third grouping mode alongside the
+    # original severity/compliance pair.
+    assert GROUPING_MODES == ("severity", "compliance", "domain")
 
 
 def test_group_findings_by_compliance_empty_input_returns_empty_list():

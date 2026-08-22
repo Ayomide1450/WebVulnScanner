@@ -1,12 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Scan report - WebVulnScanner{% endblock %}
+{% block title %}Scan report - Glassbox{% endblock %}
 {% block head %}
+{% include "_pagination.html" %}
 <style>
-  h1 { font-size: 24px; margin: 20px 0 6px; }
+  h1 { margin-top: 20px; }
   .meta { color: var(--muted); font-size:13px; margin-bottom: 20px; }
-  h2.section { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin: 30px 0 12px; }
-  .score-summary h2 { margin: 0 0 6px; font-size: 18px; }
+  .score-summary h2 { margin: 0 0 6px; }
   .sev-pills { display:flex; gap:8px; flex-wrap:wrap; }
+  /* v1.3 SCORE-04: the production-readiness verdict, shown above the
+     severity pills - reuses .pill's existing severity color classes
+     (pass/medium/critical) rather than a new color family. */
+  .readiness-verdict { margin: 8px 0 14px; }
+  .readiness-verdict .coverage-note { margin-left: 8px; color: var(--muted); font-size: 12px; }
+  .readiness-reasons { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+  .readiness-reasons li { margin-bottom: 2px; }
 
   details { background: var(--panel); border:1px solid var(--border); border-radius: 12px; margin-bottom: 8px; overflow:hidden; }
   summary { padding: 13px 16px; cursor: pointer; font-weight: 600; font-size: 14px; list-style: none; display:flex; justify-content: space-between; align-items:center; }
@@ -25,7 +32,7 @@
 
   th { color: var(--muted); font-weight:600; }
   pre { background: rgba(255,255,255,.04); padding: 10px; border-radius: 8px; font-size: 11.5px; overflow-x:auto; white-space: pre-wrap; }
-  .note { color: var(--muted); font-size: 12.5px; }
+  .note { color: var(--muted); font-size: 13px; }
   .empty { color: var(--muted); font-size: 14px; padding: 18px 0; }
 
   /* Locked-check card - dimmed/muted variant of .finding, same lock-emoji
@@ -37,21 +44,21 @@
      distinct from --low (already blue for low-severity findings) so this
      reads as "this specific section is AI-generated," not a severity cue. */
   .ai-summary-card { border-left: 3px solid #8b5cf6; }
-  .ai-pill { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:3px 9px; border-radius:999px; background: rgba(139,92,246,.14); color:#8b5cf6; margin-bottom:10px; }
-  .ai-summary-card .body { white-space: pre-wrap; font-size: 14px; line-height:1.6; }
+  .ai-pill { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; padding:3px 9px; border-radius:999px; background: rgba(139,92,246,.14); color:#8b5cf6; margin-bottom:10px; }
+  .ai-summary-card .body { white-space: pre-wrap; font-size: 15px; line-height:1.6; }
 
   /* Severity/Compliance grouping toggle (COMP-02) - a secondary,
      low-emphasis control that must not compete with the score gauge or
      severity pills; active/inactive states reuse .btn.secondary/.btn.ghost
      only, never accent (03-UI-SPEC Color). */
   .group-toggle { display:flex; align-items:center; gap: var(--space-2, 8px); margin: 30px 0 -4px; }
-  .group-toggle .label { color: var(--muted); font-size: 13.5px; font-weight: 600; }
-  .group-toggle a.btn { padding: 8px 12px; font-size: 13.5px; }
+  .group-toggle .label { color: var(--muted); font-size: 13px; font-weight: 600; }
+  .group-toggle a.btn { padding: 8px 12px; font-size: 13px; }
 
   /* Sensitive-path probe: summary strip + per-path evidence cards. */
   .sp-summary { background: rgba(255,255,255,.03); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:16px; }
   .sp-summary-head { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
-  .sp-overall-pill { font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; padding:4px 10px; border-radius:999px; }
+  .sp-overall-pill { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; padding:4px 10px; border-radius:999px; }
   .sp-overall-good .sp-overall-pill { background: rgba(34,197,94,.14); color: var(--accent); }
   .sp-overall-attention .sp-overall-pill { background: rgba(251,191,36,.14); color: var(--medium); }
   .sp-overall-critical .sp-overall-pill { background: rgba(248,113,113,.14); color: var(--critical); }
@@ -63,40 +70,41 @@
   .sp-confirmed { color: var(--critical); }
   .sp-info { color: var(--muted); }
 
-  .sp-group-title { font-size:12.5px; color: var(--muted); text-transform:uppercase; letter-spacing:.06em; margin: 18px 0 8px; }
+  .sp-group-title { font-size:11px; color: var(--muted); text-transform:uppercase; letter-spacing:.06em; margin: 18px 0 8px; }
   .sp-card { background: var(--panel); border:1px solid var(--border); border-left: 3px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
   .sp-card.sp-confirmed { border-left-color: var(--critical); }
   .sp-card.sp-needs_review { border-left-color: var(--medium); }
   .sp-card.sp-passed { border-left-color: var(--accent); }
   .sp-card.sp-informational { border-left-color: var(--info); }
   .sp-card-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
-  .sp-path { font-size:13.5px; }
-  .sp-badge { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:3px 9px; border-radius:6px; }
+  .sp-path { font-size:13px; }
+  .sp-badge { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; padding:3px 9px; border-radius:6px; }
   .sp-badge-passed { background: rgba(34,197,94,.14); color: var(--accent); }
   .sp-badge-confirmed { background: rgba(248,113,113,.14); color: var(--critical); }
   .sp-badge-needs_review { background: rgba(251,191,36,.14); color: var(--medium); }
   .sp-badge-informational { background: rgba(139,150,173,.14); color: var(--info); }
-  .sp-confidence { font-size:10.5px; color: var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-left:auto; }
+  .sp-confidence { font-size:11px; color: var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-left:auto; }
   .sp-evidence { font-family:"Fira Code",monospace; font-size:11.5px; color: var(--muted); margin-bottom:6px; word-break: break-word; }
-  .sp-detail { font-size:13.5px; margin-bottom:4px; }
+  .sp-detail { font-size:13px; margin-bottom:4px; }
   .sp-impact, .sp-rec { font-size:13px; color: var(--muted); margin-top:4px; }
   .sp-rec b { color: var(--accent); }
 
-  .sp-lifecycle { font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:2px 8px; border-radius:999px; }
+  .sp-lifecycle { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; padding:2px 8px; border-radius:999px; }
   .sp-lifecycle-new { background: rgba(56,189,248,.14); color: var(--telemetry); }
   .sp-lifecycle-active { background: rgba(248,113,113,.14); color: var(--critical); }
   .sp-lifecycle-reopened { background: rgba(251,146,60,.14); color: var(--high); }
-  .sp-lifecycle-meta { font-size:12px; color: var(--muted); margin-bottom:6px; }
+  .sp-lifecycle-meta { font-size:13px; color: var(--muted); margin-bottom:6px; }
 
   .sp-secret { margin-top:8px; padding-top:8px; border-top: 1px dashed var(--border); font-size:13px; }
-  .sp-secret-masked, .sp-secret-raw { font-size:12.5px; background: rgba(255,255,255,.05); padding:2px 6px; border-radius:5px; word-break: break-all; }
+  .sp-secret-masked, .sp-secret-raw { font-size:13px; background: rgba(255,255,255,.05); padding:2px 6px; border-radius:5px; word-break: break-all; }
   .sp-secret-raw { color: var(--critical); }
-  .sp-reveal-btn { margin-left:8px; font-size:11.5px; font-weight:700; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius:6px; padding:3px 9px; cursor:pointer; }
+  .sp-reveal-btn { margin-left:8px; font-size:11px; font-weight:600; color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius:6px; padding:3px 9px; cursor:pointer; }
   .sp-reveal-btn:hover { border-color: var(--accent); }
   .sp-secret-note { margin-top:4px; }
 </style>
 {% endblock %}
 {% block content %}
+{% from "_pagination.html" import pagination_nav %}
 {% set org_verified_checks = ['xss_sqli', 'sqli_login', 'bruteforce', 'sqli_union', 'xss_stored', 'idor'] %}
 {% macro locked_card(name) %}
 <div class="finding locked-card">
@@ -122,6 +130,9 @@
   {% set compliance_entry = CHECK_COMPLIANCE.get(f.get('check_name', ''), {}) %}
   <span class="pill compliance">{{ compliance_entry.get('owasp') or 'Uncategorized' }}</span>
   {% if compliance_entry.get('asvs') %}<span class="cat">ASVS {{ compliance_entry.get('asvs') }}</span>{% endif %}
+  {% if f.get('confidence') %}<span class="pill compliance" title="How certain this specific finding is - separate from severity">{{ f.confidence }}</span>{% endif %}
+  {% if f.get('cwe') %}<span class="pill compliance">{{ f.cwe }}</span>{% endif %}
+  {% if f.get('verification_state') %}<span class="pill compliance" title="Attack-surface verification stage">{{ f.verification_state }}</span>{% endif %}
   <div class="body">
     <b>{{ f.title }}</b>
     <div class="detail">{{ f.detail }}</div>
@@ -141,6 +152,7 @@
     &middot; <a class="back" href="{{ url_for('scan.scan_compare', scan_id=previous_scan.id, other_id=scan.id) }}">Compare with previous scan</a>
     {% endif %}
     &middot; <a class="back" href="{{ url_for('scan.scan_report_csv', scan_id=scan.id) }}">Export CSV</a>
+    &middot; <a class="back" href="{{ url_for('assessment.request_assessment') }}">Request Expert Assessment</a>
   </div>
 
   {% set score = r.score %}
@@ -150,6 +162,18 @@
     {% include "_gauge.html" %}
     <div class="score-summary">
       <h2>This scan's risk score</h2>
+      {% if r.get('readiness_verdict') %}
+      {% set verdict_pill_class = {'READY': 'pass', 'READY WITH WARNINGS': 'medium', 'NOT READY': 'critical'}.get(r.readiness_verdict, 'info') %}
+      <div class="readiness-verdict">
+        <span class="pill {{ verdict_pill_class }}" style="font-size:13px; padding:6px 14px;">{{ r.readiness_verdict }}</span>
+        {% if r.get('check_coverage_pct') is not none %}<span class="coverage-note">{{ r.check_coverage_pct }}% of applicable checks ran</span>{% endif %}
+        {% if r.get('readiness_reasons') %}
+        <ul class="readiness-reasons">
+          {% for reason in r.readiness_reasons %}<li>{{ reason }}</li>{% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      {% endif %}
       <div class="sev-pills">
         {% for sev in ['critical','high','medium','low','info'] %}
           {% if r.severity_counts.get(sev, 0) > 0 %}
@@ -183,13 +207,9 @@
   {% if r.findings|length > 0 %}
   <div class="group-toggle">
     <span class="label">Group by:</span>
-    {% if group == 'severity' %}
-    <a class="btn secondary" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='severity') }}" aria-current="true">Severity</a>
-    <a class="btn ghost" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='compliance') }}">Compliance</a>
-    {% else %}
-    <a class="btn ghost" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='severity') }}">Severity</a>
-    <a class="btn secondary" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='compliance') }}" aria-current="true">Compliance</a>
-    {% endif %}
+    <a class="btn {{ 'secondary' if group == 'severity' else 'ghost' }}" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='severity') }}" {% if group == 'severity' %}aria-current="true"{% endif %}>Severity</a>
+    <a class="btn {{ 'secondary' if group == 'compliance' else 'ghost' }}" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='compliance') }}" {% if group == 'compliance' %}aria-current="true"{% endif %}>Compliance</a>
+    <a class="btn {{ 'secondary' if group == 'domain' else 'ghost' }}" href="{{ url_for('scan.scan_report', scan_id=scan.id, group='domain') }}" {% if group == 'domain' %}aria-current="true"{% endif %}>Domain</a>
   </div>
   {% endif %}
   <h2 class="section">Findings ({{ r.findings|length }})</h2>
@@ -204,9 +224,20 @@
     {% else %}
       <p class="empty">No findings.</p>
     {% endfor %}
+  {% elif group == 'domain' %}
+    {% for category, group_findings in domain_groups %}
+      <details open>
+        <summary>{{ category }} <span class="arrow">&#9656;</span></summary>
+        <div class="details-body">
+          {% for f in group_findings %}{{ finding_card(f) }}{% endfor %}
+        </div>
+      </details>
+    {% else %}
+      <p class="empty">No findings.</p>
+    {% endfor %}
   {% else %}
     {% set ns = namespace(current_cat=None, first=true) %}
-    {% for f in r.findings|sort(attribute='category') %}
+    {% for f in findings_page %}
       {% if f.category != ns.current_cat %}
         {% if not ns.first %}</div></details>{% endif %}
         {% set ns.current_cat = f.category %}
@@ -220,8 +251,19 @@
     {% else %}
       <p class="empty">No findings.</p>
     {% endfor %}
+    {% if r.findings %}
+    {{ pagination_nav(findings_page_num, findings_total_pages) }}
+    {% endif %}
   {% endif %}
 
+  {# The tables below (Detailed check output, through the media/api sections
+     further down) are D-01's named exception: 1-7 column diagnostic
+     attribute dumps of raw check output, not record lists with a primary
+     action, so they deliberately stay tables wrapped in .table-scroll
+     rather than becoming .mobile-record-cards - see 07-RESEARCH.md Pattern
+     3 and 07-UI-SPEC.md's Mobile Stacked-Card Pattern section. The
+     per-table 320px fits/scrolls/breaks audit result lives in
+     07-05-SUMMARY.md, not here. #}
   {% if scan.scan_type == 'base' %}
   <h2 class="section">Detailed check output</h2>
 
@@ -230,7 +272,8 @@
     <div class="details-body">
       <div class="table-scroll">
       <table>
-        <tr><th>Header</th><th>Status</th><th>Value / note</th></tr>
+        <thead><tr><th>Header</th><th>Status</th><th>Value / note</th></tr></thead>
+        <tbody>
         {% for h in r.headers.rows %}
         <tr>
           <td>{{ h.header }}</td>
@@ -239,6 +282,7 @@
             {% if h.note %}<div class="note">{{ h.note }}</div>{% endif %}</td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
     </div>
@@ -250,7 +294,8 @@
       {% if r.cookies %}
       <div class="table-scroll">
       <table>
-        <tr><th>Name</th><th>Secure</th><th>HttpOnly</th><th>SameSite</th></tr>
+        <thead><tr><th>Name</th><th>Secure</th><th>HttpOnly</th><th>SameSite</th></tr></thead>
+        <tbody>
         {% for c in r.cookies %}
         <tr><td>{{ c.name }}</td>
           <td class="{{ 'pass' if c.secure else 'high' }}">{{ 'yes' if c.secure else 'no' }}</td>
@@ -258,6 +303,7 @@
           <td class="{{ 'pass' if c.samesite else 'medium' }}">{{ 'yes' if c.samesite else 'no' }}</td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No cookies set on the homepage response.</p>{% endif %}
@@ -271,12 +317,17 @@
       {% elif r.tls.error %}<p>Could not retrieve certificate: {{ r.tls.error }}</p>
       {% else %}
       <div class="table-scroll">
+      <!-- Row-header table (Subject/Issuer/Expires/etc. label the value beside
+           them, not a column below them) - deliberately no <thead>. Each <th>
+           carries scope="row" instead. Do not "fix" this into a <thead> table. -->
       <table>
-        <tr><th>Subject</th><td>{{ r.tls.subject }}</td></tr>
-        <tr><th>Issuer</th><td>{{ r.tls.issuer }}</td></tr>
-        <tr><th>Expires</th><td>{{ r.tls.not_after }} &mdash; {{ r.tls.days_left }} days left</td></tr>
-        {% if r.tls.tls_version %}<tr><th>Protocol</th><td>{{ r.tls.tls_version }}</td></tr>{% endif %}
-        {% if r.tls.cipher %}<tr><th>Cipher</th><td>{{ r.tls.cipher }}{% if r.tls.cipher_bits %} ({{ r.tls.cipher_bits }}-bit){% endif %}</td></tr>{% endif %}
+        <tbody>
+        <tr><th scope="row">Subject</th><td>{{ r.tls.subject }}</td></tr>
+        <tr><th scope="row">Issuer</th><td>{{ r.tls.issuer }}</td></tr>
+        <tr><th scope="row">Expires</th><td>{{ r.tls.not_after }} &mdash; {{ r.tls.days_left }} days left</td></tr>
+        {% if r.tls.tls_version %}<tr><th scope="row">Protocol</th><td>{{ r.tls.tls_version }}</td></tr>{% endif %}
+        {% if r.tls.cipher %}<tr><th scope="row">Cipher</th><td>{{ r.tls.cipher }}{% if r.tls.cipher_bits %} ({{ r.tls.cipher_bits }}-bit){% endif %}</td></tr>{% endif %}
+        </tbody>
       </table>
       </div>
       {% endif %}
@@ -389,11 +440,13 @@
       <p class="note">{{ r.secrets.js_files_scanned }} same-origin JS file(s) scanned, plus the homepage HTML.</p>
       {% if r.secrets.rows %}
       <div class="table-scroll">
-      <table><tr><th>Type</th><th>Source</th><th>Value (redacted)</th><th>Severity</th></tr>
+      <table><thead><tr><th>Type</th><th>Source</th><th>Value (redacted)</th><th>Severity</th></tr></thead>
+        <tbody>
         {% for row in r.secrets.rows %}
         <tr><td>{{ row.type }}</td><td><code>{{ row.source }}</code></td><td><code>{{ row.value }}</code></td>
           <td class="{{ 'critical' if row.severity in ('critical','high') else ('medium' if row.severity=='medium' else 'info') }}">{{ row.severity|upper }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No known API key / token / private-key patterns found.</p>{% endif %}
@@ -408,13 +461,15 @@
       {% else %}
       {% if r.jwt.rows %}
       <div class="table-scroll">
-      <table><tr><th>Source</th><th>Algorithm</th><th>Has expiry</th><th>Token preview</th></tr>
+      <table><thead><tr><th>Source</th><th>Algorithm</th><th>Has expiry</th><th>Token preview</th></tr></thead>
+        <tbody>
         {% for row in r.jwt.rows %}
         <tr><td><code>{{ row.source }}</code></td>
           <td class="{{ 'critical' if row.alg == 'NONE' else ('medium' if row.alg in ('HS1',) else 'pass') }}">{{ row.alg }}</td>
           <td class="{{ 'pass' if row.has_exp else 'low' }}">{{ 'yes' if row.has_exp else 'no' }}</td>
           <td><code>{{ row.token_preview }}</code></td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No JWT-shaped tokens found in the homepage HTML or same-origin JS. This is a passive inspection only - it never sends a modified token back to the server.</p>{% endif %}
@@ -429,11 +484,13 @@
       {% else %}
       {% if r.sri %}
       <div class="table-scroll">
-      <table><tr><th>Type</th><th>URL</th><th>Has SRI</th></tr>
+      <table><thead><tr><th>Type</th><th>URL</th><th>Has SRI</th></tr></thead>
+        <tbody>
         {% for row in r.sri %}
         <tr><td>{{ row.type }}</td><td><code>{{ row.url }}</code></td>
           <td class="{{ 'pass' if row.has_sri else 'medium' }}">{{ 'yes' if row.has_sri else 'no' }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No third-party scripts or stylesheets found on the homepage.</p>{% endif %}
@@ -450,13 +507,15 @@
       {% elif r.open_ports %}
       <div class="table-scroll">
       <table>
-        <tr><th>Port</th><th>Status</th><th>Note</th></tr>
+        <thead><tr><th>Port</th><th>Status</th><th>Note</th></tr></thead>
+        <tbody>
         {% for port in r.open_ports %}
         <tr><td>{{ port.port }}</td>
           <td class="{{ {'pass':'pass','warn':'high','medium':'medium','info':'info'}[port.status] }}">
             {{ {'pass':'expected','warn':'unbranded - review','medium':'CDN edge','info':'handshake only'}[port.status] }}</td>
           <td class="note">{{ port.note }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No unexpected ports open among the common set checked.</p>{% endif %}
@@ -487,10 +546,12 @@
       {% else %}
       <div class="table-scroll">
       <table>
-        <tr><th>Method</th><th>Response</th></tr>
+        <thead><tr><th>Method</th><th>Response</th></tr></thead>
+        <tbody>
         {% for m in r.http_methods %}
         <tr><td>{{ m.method }}</td><td>{{ m.code }}{% if m.allow %} (Allow: {{ m.allow }}){% endif %}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% endif %}
@@ -504,8 +565,10 @@
       {% else %}
       {% if r.open_redirect %}
       <div class="table-scroll">
-      <table><tr><th>Path</th><th>Parameter</th></tr>
+      <table><thead><tr><th>Path</th><th>Parameter</th></tr></thead>
+        <tbody>
         {% for hit in r.open_redirect %}<tr><td><code>{{ hit.path }}</code></td><td><code>{{ hit.param }}</code></td></tr>{% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No open-redirect behavior found on tested paths/parameters.</p>{% endif %}
@@ -520,7 +583,7 @@
       {% else %}
       {% if r.directory_listing %}
       <div class="table-scroll">
-      <table><tr><th>Path</th></tr>{% for d in r.directory_listing %}<tr><td><code>{{ d.path }}</code></td></tr>{% endfor %}</table>
+      <table><thead><tr><th>Path</th></tr></thead><tbody>{% for d in r.directory_listing %}<tr><td><code>{{ d.path }}</code></td></tr>{% endfor %}</tbody></table>
       </div>
       {% else %}<p class="note">No directory listings found on common paths.</p>{% endif %}
       {% endif %}
@@ -546,11 +609,16 @@
       {% if 'dns_email' in locked %}{{ locked_card('dns_email') }}
       {% else %}
       <div class="table-scroll">
+      <!-- Row-header table (Domain/SPF/DMARC/CAA label the value beside them,
+           not a column below them) - deliberately no <thead>. Each <th>
+           carries scope="row" instead. Do not "fix" this into a <thead> table. -->
       <table>
-        <tr><th>Domain</th><td>{{ r.dns_email.domain }}</td></tr>
-        <tr><th>SPF</th><td>{% if r.dns_email.spf %}<code>{{ r.dns_email.spf }}</code>{% else %}not found{% endif %}</td></tr>
-        <tr><th>DMARC</th><td>{% if r.dns_email.dmarc %}<code>{{ r.dns_email.dmarc }}</code>{% else %}not found{% endif %}</td></tr>
-        <tr><th>CAA</th><td>{% if r.dns_email.caa %}{{ r.dns_email.caa|join(', ') }}{% else %}not found{% endif %}</td></tr>
+        <tbody>
+        <tr><th scope="row">Domain</th><td>{{ r.dns_email.domain }}</td></tr>
+        <tr><th scope="row">SPF</th><td>{% if r.dns_email.spf %}<code>{{ r.dns_email.spf }}</code>{% else %}not found{% endif %}</td></tr>
+        <tr><th scope="row">DMARC</th><td>{% if r.dns_email.dmarc %}<code>{{ r.dns_email.dmarc }}</code>{% else %}not found{% endif %}</td></tr>
+        <tr><th scope="row">CAA</th><td>{% if r.dns_email.caa %}{{ r.dns_email.caa|join(', ') }}{% else %}not found{% endif %}</td></tr>
+        </tbody>
       </table>
       </div>
       {% endif %}
@@ -564,8 +632,10 @@
       {% else %}
       {% if r.vulnerable_js %}
       <div class="table-scroll">
-      <table><tr><th>Library</th><th>Version</th><th>Source</th></tr>
+      <table><thead><tr><th>Library</th><th>Version</th><th>Source</th></tr></thead>
+        <tbody>
         {% for v in r.vulnerable_js %}<tr><td>{{ v.library }}</td><td>{{ v.version }}</td><td><code>{{ v.src }}</code></td></tr>{% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No recognizably outdated third-party JS libraries detected.</p>{% endif %}
@@ -580,20 +650,24 @@
       {% if r.crawl.forms %} &middot; {{ r.crawl.forms|length }} form(s) found (listed only, never auto-submitted){% endif %}.</p>
       {% if r.crawl.forms %}
       <div class="table-scroll">
-      <table><tr><th>Form action</th><th>Method</th><th>Inputs</th></tr>
+      <table><thead><tr><th>Form action</th><th>Method</th><th>Inputs</th></tr></thead>
+        <tbody>
         {% for f in r.crawl.forms %}<tr><td><code>{{ f.action }}</code></td><td>{{ f.method }}</td><td>{{ f.inputs|join(', ') }}</td></tr>{% endfor %}
+        </tbody>
       </table>
       </div>
       {% endif %}
       {% if 'xss_sqli' in locked %}{{ locked_card('xss_sqli') }}
       {% elif r.xss_sqli %}
       <div class="table-scroll">
-      <table><tr><th>URL</th><th>Param</th><th>XSS</th><th>SQLi</th></tr>
+      <table><thead><tr><th>URL</th><th>Param</th><th>XSS</th><th>SQLi</th></tr></thead>
+        <tbody>
         {% for t in r.xss_sqli %}
         <tr><td><code>{{ t.url }}</code></td><td>{{ t.param }}</td>
           <td class="{{ 'pass' if t.xss=='pass' else 'critical' }}">{{ t.xss|upper }}</td>
           <td class="{{ 'pass' if t.sqli=='pass' else ('high' if t.sqli=='review' else 'critical') }}">{{ t.sqli|upper }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}<p class="note">No parameterized URLs found to test (nothing crawled and no seed URL supplied).</p>{% endif %}
@@ -626,19 +700,25 @@
       {% else %}
       <p class="note">Baseline response time: {{ r.results.sqli_login.baseline_time }}s</p>
       <div class="table-scroll">
-      <table><tr><th>Auth-bypass payload</th><th>Result</th></tr>
+      <table>
+        <thead><tr><th>Auth-bypass payload</th><th>Result</th></tr></thead>
+        <tbody>
         {% for row in r.results.sqli_login.bypass_rows %}
         <tr><td><code>{{ row.payload }}</code></td>
           <td class="{{ 'critical' if 'BYPASS' in row.result else 'pass' }}">{{ row.result }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       <div class="table-scroll">
-      <table style="margin-top:12px;"><tr><th>Time-based payload</th><th>Elapsed</th><th>Result</th></tr>
+      <table style="margin-top:12px;">
+        <thead><tr><th>Time-based payload</th><th>Elapsed</th><th>Result</th></tr></thead>
+        <tbody>
         {% for row in r.results.sqli_login.timing_rows %}
         <tr><td><code>{{ row.payload }}</code></td><td>{{ row.elapsed if row.elapsed is defined else '-' }}s</td>
           <td class="{{ 'critical' if row.result == 'DELAYED' else 'pass' }}">{{ row.result }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% endif %}
@@ -653,11 +733,14 @@
     <div class="details-body">
       <p class="note">Rate-limiting observed: {{ 'yes' if r.results.bruteforce.rate_limited else 'no' }}</p>
       <div class="table-scroll">
-      <table><tr><th>Attempt</th><th>Result</th></tr>
+      <table>
+        <thead><tr><th>Attempt</th><th>Result</th></tr></thead>
+        <tbody>
         {% for row in r.results.bruteforce.attempts %}
         <tr><td>#{{ loop.index }}</td>
           <td class="{{ 'critical' if 'SUCCEEDED' in row.result else 'pass' }}">{{ row.result }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
     </div>
@@ -684,11 +767,14 @@
     <summary>Stored XSS probe (3 payload variants) <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       <div class="table-scroll">
-      <table><tr><th>Variant</th><th>Result</th></tr>
+      <table>
+        <thead><tr><th>Variant</th><th>Result</th></tr></thead>
+        <tbody>
         {% for row in r.results.xss_stored.rows %}
         <tr><td>{{ row.variant }}</td>
           <td class="{{ 'critical' if row.result == 'CONFIRMED' else 'pass' }}">{{ row.result }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
     </div>
@@ -701,12 +787,15 @@
     <summary>IDOR check (cross-account + anonymous) <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       <div class="table-scroll">
-      <table><tr><th>Resource ID</th><th>Status</th><th>Cross-account code</th><th>Anonymous code</th></tr>
+      <table>
+        <thead><tr><th>Resource ID</th><th>Status</th><th>Cross-account code</th><th>Anonymous code</th></tr></thead>
+        <tbody>
         {% for row in r.results.idor.rows %}
         <tr><td><code>{{ row.id }}</code></td>
           <td class="{{ 'critical' if row.status in ('EXPOSED','PUBLIC') else ('pass' if row.status == 'denied' else 'info') }}">{{ row.status or row.detail }}</td>
           <td>{{ row.cross_account_code }}</td><td>{{ row.anonymous_code }}</td></tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
     </div>
@@ -725,7 +814,10 @@
     <div class="details-body">
       <div class="table-scroll">
       <table>
+        <thead>
         <tr><th>URL</th><th>Kind</th><th>Status</th><th>Size</th><th>Suspicious path</th><th>EXIF</th><th>Downloaded</th></tr>
+        </thead>
+        <tbody>
         {% for item in r.media.media_items %}
         <tr>
           <td><code>{{ item.url }}</code></td>
@@ -737,6 +829,7 @@
           <td>{{ item.downloaded_to or '-' }}</td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       <p class="note" style="margin-top:10px;">Embedded video players (YouTube/Vimeo/etc.) are listed for
@@ -756,7 +849,10 @@
     <div class="details-body">
       <div class="table-scroll">
       <table>
+        <thead>
         <tr><th>Path</th><th>Code</th><th>Status</th></tr>
+        </thead>
+        <tbody>
         {% for row in r.results.schema %}
         <tr>
           <td><code>{{ row.path }}</code></td>
@@ -764,6 +860,7 @@
           <td class="{{ 'high' if row.status == 'warn' else 'pass' }}">{{ row.status }}</td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
     </div>
@@ -774,13 +871,17 @@
     <div class="details-body">
       <div class="table-scroll">
       <table>
+        <thead>
         <tr><th>Path</th><th>Status</th></tr>
+        </thead>
+        <tbody>
         {% for row in r.results.wordlist %}
         <tr>
           <td><code>{{ row.path }}</code></td>
           <td class="{{ row.severity if row.status == 'warn' else 'pass' }}">{{ row.status }}</td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
     </div>
@@ -792,13 +893,17 @@
       {% if r.results.js_discovery.rows %}
       <div class="table-scroll">
       <table>
+        <thead>
         <tr><th>URL</th><th>Status</th></tr>
+        </thead>
+        <tbody>
         {% for row in r.results.js_discovery.rows %}
         <tr>
           <td><code>{{ row.url }}</code></td>
           <td class="{{ row.severity if row.status == 'warn' else 'pass' }}">{{ row.status }}</td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
       </div>
       {% else %}

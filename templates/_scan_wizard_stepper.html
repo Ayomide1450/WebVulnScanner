@@ -1,0 +1,28 @@
+<!-- Shared 4-node stepper for the guided New Scan wizard (Select Domain ->
+     Select Type -> Confirm Authorization -> Start Scan, SCANUX-01). Caller
+     sets `wizard_step` (1, 2 or 3) via a Jinja `set` immediately before
+     including this partial. `wizard_step` 3 marks BOTH the "Confirm
+     Authorization" and "Start Scan" nodes active - 05-UI-SPEC.md defines
+     them as two labeled stepper nodes rendered on a single screen, never
+     two separate pages, so there is no wizard_step value of 4 to set. -->
+{% set _wizard_labels = ["Select Domain", "Select Type", "Confirm Authorization", "Start Scan"] %}
+<ol class="wizard-steps" aria-label="New scan steps">
+  {% for _label in _wizard_labels %}
+  {% set _idx = loop.index %}
+  {% if _idx < wizard_step %}
+    {% set _state = "done" %}
+  {% elif _idx == wizard_step or (wizard_step == 3 and _idx == 4) %}
+    {% set _state = "active" %}
+  {% else %}
+    {% set _state = "upcoming" %}
+  {% endif %}
+  <li class="wizard-step {{ _state }}"{% if _idx == wizard_step %} aria-current="step"{% endif %}>
+    {% if _state == "done" %}
+    <svg class="icon" aria-hidden="true"><use href="#icon-check"></use></svg>
+    {% else %}
+    <span class="wizard-step-num">{{ _idx }}</span>
+    {% endif %}
+    <span class="wizard-step-label">{{ _label }}</span>
+  </li>
+  {% endfor %}
+</ol>

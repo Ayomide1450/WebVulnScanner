@@ -13,14 +13,24 @@
                   script's getElementById lookup, so two gauges on one page
                   (not currently needed anywhere, but kept safe) don't clash.
                   Defaults to "gaugeFg" if not set.
+
+  Stroke colour is token-based: the circle's class resolves to one of
+  pass/medium/high/critical (same >=90/>=60/>=40/below-40 thresholds as
+  before) and base.html's .gauge-fg.pass/.medium/.high/.critical rules
+  supply the actual stroke colour via var(--pass)/var(--medium)/var(--high)/
+  var(--critical). The four hex literals this replaced (an emerald, an
+  amber, an orange and a rose) were near-misses of those tokens rather than
+  deliberate distinct choices - Phase 6's token consolidation covered
+  typography/spacing/radius/containers but never audited raw colour
+  literals, and this partial was the gap.
 #}
 {% set _gauge_id = gauge_id|default('gaugeFg') %}
+{% set _gauge_severity = 'pass' if score >= 90 else ('medium' if score >= 60 else ('high' if score >= 40 else 'critical')) %}
 <div class="gauge-wrap">
   <svg width="110" height="110" viewBox="0 0 110 110">
     <circle class="gauge-bg" cx="55" cy="55" r="46"></circle>
-    <circle class="gauge-fg"
+    <circle class="gauge-fg {{ _gauge_severity }}"
              id="{{ _gauge_id }}" cx="55" cy="55" r="46"
-             stroke="{{ '#34d399' if score >= 90 else ('#fbbf24' if score >= 60 else ('#fb923c' if score >= 40 else '#fb7185')) }}"
              stroke-dasharray="289" stroke-dashoffset="289"></circle>
   </svg>
   <div class="gauge-num"><div class="n">{{ score }}</div><div class="g">grade {{ risk_grade }}</div></div>

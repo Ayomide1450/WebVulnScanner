@@ -89,6 +89,26 @@ class Config:
     REMEMBER_COOKIE_HTTPONLY = True
     REMEMBER_COOKIE_SAMESITE = "Lax"
 
+    # Idle-session timeout (security hardening): a logged-in user is signed
+    # out server-side after this many minutes with no request, regardless
+    # of "Remember me" - see webvulnscanner/__init__.py's
+    # _enforce_idle_timeout before_request hook, which is what actually
+    # reads this value. Overridable via env for e.g. a longer local-dev
+    # session; production keeps the 5-minute default.
+    IDLE_TIMEOUT_MINUTES = int(os.environ.get("IDLE_TIMEOUT_MINUTES", "5"))
+
+    # Scan-level wall-clock timeout (STATE-03/D-06): a scan whose orchestrator
+    # thread hasn't reached a terminal state within this many seconds of being
+    # spawned is force-marked FAILED by _timeout_watchdog() in scan_routes.py,
+    # instead of running (and tying up a background thread) forever. 600s (10
+    # minutes) gives comfortable headroom above a normal run - even the
+    # slowest scan type (the API wordlist scan) is a sequence of individually
+    # 8-second-capped requests (checks.REQUEST_TIMEOUT), so a legitimate run
+    # finishing in well under 10 minutes is the common case; a scan still
+    # running past that point is treated as stuck, not merely slow.
+    # Overridable via env, mainly so a test can force a short deadline.
+    SCAN_TIMEOUT_SECONDS = int(os.environ.get("SCAN_TIMEOUT_SECONDS", "600"))
+
     _db_uri = os.environ.get(
         "SQLALCHEMY_DATABASE_URI",
         "sqlite:///" + os.path.join(APP_DIR, "webvulnscanner.db"),

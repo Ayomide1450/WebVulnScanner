@@ -1,126 +1,174 @@
-# Requirements: WebVulnScanner
+# Requirements: WebVulnScanner → Glassbox — v1.3 Rebrand & Production Security Readiness
 
-**Defined:** 2026-08-10
-**Core Value:** Security engineers can trust WebVulnScanner to run safe, authorization-gated,
+**Defined:** 2026-08-20
+**Core Value:** Security engineers can trust the product to run safe, authorization-gated,
 non-destructive scans against their own infrastructure and get findings they can act on — without
-it ever weakening its safety guarantees to become a general attack tool.
+it ever weakening its safety guarantees to become a general attack tool. This holds regardless of
+product name.
+
+**Milestone Goal:** Rebrand from WebVulnScanner to Glassbox (in-app branding + a live Fly app
+migration to `glassboxsec.fly.dev`), then extend the existing scan engine — reusing all current
+checks, the OWASP-mapped compliance layer, ownership verification, and scan pipelines rather than
+duplicating any of it — into a full "Production Security Readiness" assessment: an extended
+`Finding` schema (confidence/CWE/verification-state), domain-grouped scoring with a
+READY/READY WITH WARNINGS/NOT READY verdict, a handful of net-new checks, and a "Request Expert
+Assessment" lead-gen CTA. Every new check and UI change must preserve the frozen safety surface
+(`authorized*`, `entitlements.py`, `is_ssrf_safe_hostname()`) and non-destructive testing
+constraints exactly as CLAUDE.md already documents — this milestone extends assessment depth and
+product framing, it does not change what the scanner is allowed to do to a target.
 
 ## v1 Requirements
 
-Requirements for this milestone ("production ready for security engineers and teams"). Each maps
-to exactly one roadmap phase.
+### Rebrand (REBRAND) — Phase 11
 
-### Asset Inventory & Continuous Scanning (ASSET)
+- [x] **REBRAND-01**: Product name changed from "WebVulnScanner" to "Glassbox" across all
+      user-facing surfaces — page titles, meta/OG/Twitter tags, nav brand, emails, error pages —
+      with no leftover "WebVulnScanner" string in rendered output.
+- [x] **REBRAND-02**: `README.md`, `CLAUDE.md`, and other project docs updated to reflect the new
+      name; `CLAUDE.md`'s safety-critical constraints (frozen surface, non-destructive rules)
+      carry over unchanged in substance.
+- [x] **REBRAND-03**: A new Fly app (`glassboxsec` — `glassbox` itself was already taken globally
+      on Fly) is stood up with all 12 existing secrets migrated
+      (`SECRET_KEY`, `SQLALCHEMY_DATABASE_URI`, `EMAIL_MODE`, `RESEND_API_KEY`,
+      `RESEND_FROM_EMAIL`, `GROQ_API_KEY`, `CRYPTO_RECEIVING_ADDRESS`, `POLYGONSCAN_API_KEY`,
+      `USDT_CONTRACT_ADDRESS`, `USDC_CONTRACT_ADDRESS`, `TURNSTILE_SITE_KEY`,
+      `TURNSTILE_SECRET_KEY`) and deployed from the same image/Dockerfile.
+- [x] **REBRAND-04**: `glassboxsec.fly.dev` is confirmed healthy (health check passing, a real login/
+      scan smoke test succeeds) before `webvulnscanner.fly.dev` is decommissioned — no
+      destructive cutover without a verified working replacement first.
+- [x] **REBRAND-05**: The rebrand does not touch `authorized*` checkboxes, `entitlements.py`, or
+      `checks.is_ssrf_safe_hostname()` — cosmetic/naming change only, verified by the existing
+      security test suite still passing unmodified in substance.
 
-- [x] **ASSET-01**: User can register a domain/target as a persistent "Asset" (name, target URL,
-      hostname) tied to their org — distinct from submitting a one-off manual scan.
+### Finding Schema (FSCH) — Phase 12
 
-- [x] **ASSET-02**: Asset registration enforces the same authorization-checkbox and
-      `is_ssrf_safe_hostname()` gating as manual scan submission — no weaker safety check for the
-      new entry point.
+- [x] **FSCH-01**: `Finding` dataclass gains a `confidence` field with exactly five allowed values
+      (Confirmed / Strong Evidence / Potential / Informational / Not Externally Verifiable),
+      kept conceptually separate from `severity` — nothing is ever labeled "Confirmed" without
+      an evidence basis for it.
+- [x] **FSCH-02**: `Finding` dataclass gains an optional `cwe` field, populated only where a check
+      genuinely maps to a specific CWE (not speculative/blanket-filled).
+- [x] **FSCH-03**: `Finding` dataclass gains a `verification_state` field distinguishing
+      Discovered / Observed / Potential Risk / Confirmed Finding, primarily for attack-surface
+      and exposure-type findings.
+- [x] **FSCH-04**: All existing `Finding(...)` construction sites across `checks.py` are backfilled
+      with an honest `confidence` value — a regression test proves no call site is left on a
+      silent/implicit default.
+- [x] **FSCH-05**: The scan report renders `confidence` and, where present, `cwe`/OWASP mapping
+      per finding without visually cluttering the existing report layout (reuses existing
+      `.pill`/`.badge` components per `CLAUDE.md`'s frontend design system — no new component
+      family introduced).
 
-- [x] **ASSET-03**: User can configure a recurring scan schedule for an Asset (cadence, e.g.
-      daily/weekly/monthly, plus which scan type to run).
+### Domain Grouping & Scoring v2 (SCORE) — Phase 13
 
-- [x] **ASSET-04**: A scheduled scan runs automatically at its configured cadence without the user
-      manually starting it, producing a new `Scan`/`Report` linked to that Asset.
+- [x] **SCORE-01**: A new `SECURITY_DOMAIN_MAP` (parallel to the existing `CHECK_COMPLIANCE`)
+      groups every check_name into one of 13 product-facing domains: Security Posture, Attack
+      Surface, Authentication, Authorization, API Security, Client Security, Configuration,
+      Secrets, DNS & Domains, TLS, Dependencies, Privacy, Production Readiness.
+- [x] **SCORE-02**: The scan report UI is reorganized into domain-grouped sections instead of a
+      flat/severity-only finding list, without adding a new page or navigation pattern.
+- [x] **SCORE-03**: Scoring is extended to weight by confidence and control coverage in addition
+      to severity count, documented so a user can see *why* the score is what it is — implemented
+      as `scan_engine._compute_readiness()`, a companion function alongside the existing
+      `_score_report()` rather than a change to it (that function has 20+ existing tests and a
+      source-parsing regression lock on its exact arithmetic; extending via a new function
+      achieves the same substance at zero regression risk to it).
+- [x] **SCORE-04**: A production-readiness verdict (READY / READY WITH WARNINGS / NOT READY) is
+      computed and displayed prominently on the report, with a supporting breakdown (severity
+      counts, main risks) — not derived from vulnerability count alone.
+- [x] **SCORE-05**: Attack-surface-category findings are tagged with their `verification_state`
+      (Discovered/Observed/Potential Risk/Confirmed Finding) visibly in the UI.
 
-- [x] **ASSET-05**: User can view an Asset's scan history/trend across multiple scheduled runs
-      (risk score/findings over time), not just the latest single scan.
+### Net-New Checks (CHECK) — Phase 14
 
-- [x] **ASSET-06**: User can pause, resume, or delete an Asset's schedule.
-- [x] **ASSET-07**: Scheduled scan execution respects the same tier-entitlement gating
-      (`entitlements.py`) as manually triggered scans — a Free-tier Asset cannot silently run
-      Paid/Org-verified checks on a schedule.
+- [x] **CHECK-01**: A file-upload security check (where upload functionality is identified on the
+      target) — dangerous extensions, absence of size limits, public accessibility of uploaded
+      files — read-only/non-destructive, no payloads uploaded to the target.
+- [x] **CHECK-02**: A `/.well-known/security.txt` check — presence, valid contact field,
+      expiration, policy reference. Already existed before this phase (`check_sensitive_paths`'s
+      security.txt probe) — confirmed by inspection, not duplicated.
+- [x] **CHECK-03**: A privacy/PII exposure check — emails, phone numbers, and other sensitive
+      identifiers found in publicly reachable responses.
+- [x] **CHECK-04**: A caching/sensitive-data check — `Cache-Control` on responses that appear to
+      carry sensitive/authenticated content, sensitive data appearing in URLs.
+- [x] **CHECK-05**: A GraphQL introspection check, extending the existing API schema-exposure
+      check family rather than duplicating it. Already existed before this phase
+      (`check_api_schema_exposure`'s GraphQL introspection query) — confirmed, not duplicated.
+- [x] **CHECK-06**: Every new check follows the existing `(data, findings)` convention, never
+      raises past its own function, and is added to `FEATURE_REQUIREMENTS`/`CHECK_COMPLIANCE`/
+      `SECURITY_DOMAIN_MAP` in the same pattern as existing checks (regression-tested for
+      coverage, per the existing `tests/test_compliance.py`-style lock).
 
-- [x] **ASSET-08**: A scheduling mechanism exists that periodically checks due schedules and
-      triggers scans automatically, compatible with the existing single-worker threaded-gunicorn
-      Render deployment (no required re-architecture to a different execution model).
+### Request Expert Assessment (CTA) — Phase 15
 
-### API & CLI Access (API)
+- [x] **CTA-01**: A "Request Expert Assessment" call-to-action is visible on the scan report and/
+      or dashboard pages, reusing the existing `.btn`/`.card` components.
+- [x] **CTA-02**: A new `AssessmentRequest` model + form collects: company, domain, contact name,
+      email, phone, assessment type (External Security Assessment / Web Application Assessment /
+      API Security Assessment / Authenticated Assessment / Full Security Assessment / Continuous
+      Monitoring), scope, authentication requirements, number of applications/domains, preferred
+      timeline, additional information.
+- [x] **CTA-03**: Submitted requests are stored and visible to platform admins (reusing the
+      existing platform-admin panel pattern), not just emailed and discarded.
+- [x] **CTA-04**: The submission form is CSRF-protected and rate-limited like every other
+      state-changing form in the app (`extensions.limiter` pattern).
 
-- [x] **API-01**: Org admin can generate and revoke API tokens scoped to their org, separate from
-      session-cookie auth.
+### Platform Admin User/Org Management — Phase 16
 
-- [x] **API-02**: Authenticated API requests can list an org's Assets and each Asset's latest scan
-      status/report summary.
+- [x] **ADMIN-01**: A platform admin can open a user detail view (org, role, plan, scan history)
+      from `/platform-admin`.
+- [x] **ADMIN-02**: A platform admin can suspend/unsuspend a user (blocks login, distinct from
+      deletion), gated behind a confirmation step.
+- [x] **ADMIN-03**: A platform admin can suspend an org, cascading the block to its members.
+      Scoped down from "suspend/remove" during implementation (08-21): hard delete of a user or
+      org is a separate, much higher-stakes feature (data-loss semantics, cascade behavior across
+      scans/reports/billing) genuinely deserving its own dedicated design pass, not a checkbox
+      alongside a reversible suspend action. Suspension covers the "stop this account/org from
+      doing anything" need `admin_routes.py`'s existing docstring named as the actual moderation
+      goal; hard delete is a real, valid future requirement, not dropped.
+- [x] **ADMIN-04**: Every suspend/remove/restore action writes an audit-trail row (who/what/when),
+      same convention as the existing domain-deletion approve/reject flow.
 
-- [x] **API-03**: Authenticated API requests can trigger a new scan against an existing Asset,
-      subject to the same authorization/SSRF/tier gating as the web UI.
+### Expanded Check Coverage — Phase 17
 
-- [x] **API-04**: Authenticated API requests can retrieve a completed scan's full report
-      (findings, score) as structured JSON.
+- [ ] **DEPTH-01**: An explicit, signed-off decision on same-origin depth-1 crawl vs. a deeper/
+      multi-page crawl — this changes the app's safety posture and must not be flipped quietly.
+- [ ] **DEPTH-02**: Injection-class checks (XSS/SQLi) gain additional payload/variant coverage
+      without violating existing safety constraints (no destructive payloads, same caps).
+- [ ] **DEPTH-03**: All coverage additions are registered in `FEATURE_REQUIREMENTS`/
+      `CHECK_LABELS`/`CHECK_CATEGORY` with regression-lock tests, per the existing convention.
 
-- [x] **API-05**: API endpoints are rate-limited and tier-gated consistent with existing
-      entitlement rules — no API path that bypasses tier restrictions enforced elsewhere.
+### CLI Client — Phase 18
 
-- [x] **API-06**: A CLI tool (thin wrapper over the API) lets a user authenticate, list assets,
-      trigger a scan, and fetch a report from the command line.
+- [ ] **CLI-01**: A standalone `glassbox` CLI authenticates using the existing API-token system —
+      no new auth mechanism.
+- [ ] **CLI-02**: The CLI can launch a scan, poll status, and fetch a finished report (JSON/CSV)
+      via the existing API routes — no new server endpoints required for the MVP.
+- [ ] **CLI-03**: Ships as a separate installable package/script, not embedded in the web app —
+      an in-browser terminal was explicitly considered and ruled out (larger, harder-to-secure
+      attack surface) during this phase's scoping conversation (08-20).
 
-### Compliance & Framework Reporting (COMP)
+## Future Requirements
 
-- [x] **COMP-01**: Each check/finding category is tagged with the OWASP Top 10 category (and/or
-      ASVS control) it maps to.
+<!-- Deferred from this milestone, candidates for the next one. -->
 
-- [x] **COMP-02**: A scan report includes a compliance-framework view — findings grouped/filterable
-      by framework category, not only by severity.
-
-- [x] **COMP-03**: User can view a per-Asset compliance-coverage summary across its scan history
-      (which framework categories have been checked, and which are currently failing).
-
-- [x] **COMP-04**: Compliance mapping data is maintained per check in a way that stays in sync as
-      new checks are added, following the same coverage-regression-test convention already used
-      for `CHECK_LABELS`/`CHECK_CATEGORY`.
-
-### Production Hardening & Reliability (HARD)
-
-- [x] **HARD-01**: Rate limits (login, signup, invoice, and new API-token endpoints) enforce
-      correctly even when the app runs with more than one gunicorn worker (shared rate-limit
-      backend, not in-memory-only).
-
-- [x] **HARD-02**: `run_advanced_scan`, `run_media_scan`, and `run_api_scan` each have automated
-      test coverage for status transitions and error handling, matching what `run_scan` already
-      has in `tests/test_scan_events.py`.
-
-- [x] **HARD-03**: Org invite / role-change / domain-verification flows have automated test
-      coverage beyond the current single rendering test in `tests/test_org_routes.py`.
-
-- [x] **HARD-04**: Scoring logic (risk score, letter grade, `severity_counts`) is deduplicated into
-      a single shared helper used by all scan orchestrators, including any new scheduled-scan path
-      from Phase 1.
-
-- [x] **HARD-05**: Dashboard, billing, org-admin, and scan_report pages visually match the rest of
-      the app's existing design system (no remaining bland/legacy styling), completing the visual
-      pass `CLAUDE.md` already flags as open.
-
-## v2 Requirements
-
-Deferred to future release. Tracked but not in current roadmap.
-
-### Extensibility
-
-- **PLUGIN-01**: Third-party/user-authored custom checks can be registered without editing
-  `checks.py` directly.
-
-- **PLUGIN-02**: A documented plugin contract exists (input/output shape, entitlement-tier
-  assignment, safety requirements) for community or internal check authors.
-
-### Platform Model
-
-- **HOST-01**: Users can self-host WebVulnScanner without the crypto-invoice billing/SaaS
-  requirement (open-core split).
+- v1.2's Phase 10 (Live Verification Closeout, VERIFY-01..09 below) — reprioritized behind v1.3,
+  not dropped. Real, valid, deferred work; resumed 2026-08-20 alongside v1.4 planning.
+- Plugin/third-party check-extensibility system — deferred three times now (v1.0, v1.1, v1.2);
+  still no concrete requirement or user request to build it.
+- Self-hostable/open-core deployment model — still locked/undecided.
+- A purchased custom domain for Glassbox (e.g. `glassbox.io`) — `glassboxsec.fly.dev` is this
+  milestone's scope; a real domain requires a registrar purchase only the user can make.
 
 ## Out of Scope
 
-Explicitly excluded. Documented to prevent scope creep.
-
 | Feature | Reason |
 |---------|--------|
-| Plugin/check-extensibility system | Ranked gap #2 in prior analysis, but no concrete requirement or user request this milestone; deferred to v2 (see PLUGIN-01/02) |
-| Self-hostable/open-core deployment model | Billing/SaaS shape is locked per project decision; not under reconsideration this milestone (see HOST-01 in v2) |
-| Replacing crypto-invoice billing with a different payment processor | Explicitly locked constraint, not a variable to redesign around |
-| DNS-rebinding-proof SSRF pinning (resolving-and-pinning the exact IP for the scan request) | Documented, accepted residual gap in existing code; not raised as a requirement for this milestone |
-| Vercel-compatible bounded-request redesign of the SSE progress feed | Render is the confirmed primary deployment target; Vercel is a partial/limited alternate with known, documented limitations that aren't blocking this milestone |
+| Changing `authorized*`, `entitlements.py`, or `checks.is_ssrf_safe_hostname()` | Frozen per CLAUDE.md — this milestone extends assessment depth/framing, not scan permissions |
+| Destructive testing of any kind (brute force beyond existing caps, damaging load tests, uncontrolled exploitation) | Explicit safety rule carried into every new check |
+| Replacing crypto-invoice billing or the tier model | Still locked, not under reconsideration |
+| A purchased custom domain | Requires the user's own registrar action; `glassboxsec.fly.dev` is the in-scope target |
+| Speculative checks added purely to raise the feature count | Every new check must map to a real, reasoned pre-production gap, not exist for taxonomy completeness |
 
 ## Traceability
 
@@ -128,36 +176,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ASSET-01 | Phase 1 | Complete |
-| ASSET-02 | Phase 1 | Complete |
-| ASSET-03 | Phase 1 | Complete |
-| ASSET-04 | Phase 1 | Complete |
-| ASSET-05 | Phase 1 | Complete |
-| ASSET-06 | Phase 1 | Complete |
-| ASSET-07 | Phase 1 | Complete |
-| ASSET-08 | Phase 1 | Complete |
-| API-01 | Phase 2 | Complete |
-| API-02 | Phase 2 | Complete |
-| API-03 | Phase 2 | Complete |
-| API-04 | Phase 2 | Complete |
-| API-05 | Phase 2 | Complete |
-| API-06 | Phase 2 | Complete |
-| COMP-01 | Phase 3 | Complete |
-| COMP-02 | Phase 3 | Complete |
-| COMP-03 | Phase 3 | Complete |
-| COMP-04 | Phase 3 | Complete |
-| HARD-01 | Phase 4 | Complete |
-| HARD-02 | Phase 4 | Complete |
-| HARD-03 | Phase 4 | Complete |
-| HARD-04 | Phase 4 | Complete |
-| HARD-05 | Phase 4 | Complete |
+| VERIFY-01..09 | Phase 10 | In progress (resumed 2026-08-20) |
+| REBRAND-01..05 | Phase 11 | Complete |
+| FSCH-01..05 | Phase 12 | Complete |
+| SCORE-01..05 | Phase 13 | Complete |
+| CHECK-01..06 | Phase 14 | Complete |
+| CTA-01..04 | Phase 15 | Complete |
+| ADMIN-01..04 | Phase 16 | Complete (ADMIN-03 scoped to suspend, not hard delete - see note) |
+| DEPTH-01..03 | Phase 17 | Not started |
+| CLI-01..03 | Phase 18 | Not started |
 
-**Coverage:**
-
-- v1 requirements: 23 total
-- Mapped to phases: 23
-- Unmapped: 0 ✓
-
----
-*Requirements defined: 2026-08-10*
-*Last updated: 2026-08-10 after initial roadmap creation*
+**Coverage:** 42/42 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for v1.3
+across 5 phases, 10 new for v1.4 across 3 phases).

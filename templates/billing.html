@@ -1,7 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Billing - WebVulnScanner{% endblock %}
+{% block title %}Billing - Glassbox{% endblock %}
 {% block head %}
 {% include "_admin_form_styles.html" %}
+{% include "_empty_state.html" %}
 <style>
   .invoice-card { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); margin-bottom: var(--space-3); background: rgba(255,255,255,.02); }
   .invoice-card:last-child { margin-bottom: 0; }
@@ -9,15 +10,35 @@
   .invoice-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
   .invoice-value { font-size: 14px; font-weight: 600; }
   .invoice-value.mono { font-family: "Fira Code", monospace; }
-  .invoice-address-row { display:flex; align-items:center; gap: 10px; background: rgba(255,255,255,.03); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; flex-wrap: wrap; }
-  .invoice-address { flex: 1; min-width: 200px; font-size: 12.5px; word-break: break-all; }
-  .copy-btn { margin-top: 0; padding: 6px 12px; font-size: 12px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
+  .invoice-address-row { display:flex; align-items:center; gap: 10px; background: rgba(255,255,255,.03); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .invoice-address { flex: 1; min-width: 200px; font-size: 13px; word-break: break-all; }
+  .copy-btn { margin-top: 0; padding: 6px 12px; font-size: 13px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
   .copy-btn.copied { background: var(--accent-dim); color: var(--accent); border-color: rgba(34,197,94,.4); }
+
+  /* Pay-in-steps block (Phase 10 live-verification feedback, 08-20): the
+     invoice card previously showed amount + address with no framing for
+     how to actually pay it, which read as far less trustworthy than a
+     real payment gateway's checkout flow. Numbered steps + an explicit
+     "exact amount" warning (billing.py's verify_invoice() matches by
+     amount with a ~1e-6 tolerance - a rounded/short payment genuinely
+     won't verify) + the token's on-chain contract address (self-custody
+     crypto sent to the wrong contract is unrecoverable, so a security-
+     conscious payer should be able to check it before sending). */
+  .invoice-steps { list-style: none; counter-reset: pay-step; margin: 0 0 14px; padding: 0; display: grid; gap: 8px; }
+  .invoice-steps li { counter-increment: pay-step; display: flex; gap: 10px; font-size: 13px; color: var(--text); }
+  .invoice-steps li::before {
+    content: counter(pay-step); flex: none; width: 20px; height: 20px; border-radius: 999px;
+    background: var(--accent-dim); color: var(--accent); font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; margin-top: 1px;
+  }
+  .invoice-steps .amount-warning { color: var(--medium); }
+  .invoice-contract { color: var(--muted); font-size: 12px; margin: 0 0 14px; }
+  .invoice-contract code { word-break: break-all; }
 
   /* Current-plan summary strip */
   .plan-summary { display:flex; gap:28px; flex-wrap:wrap; align-items:center; }
   .plan-summary .stat .invoice-label { margin-bottom: 2px; }
-  .plan-summary .stat .invoice-value { font-size: 16px; }
+  .plan-summary .stat .invoice-value { font-size: 14px; }
 
   /* Billing-cycle toggle - a real pill switch, driven by two radio inputs
      (name="billing_cycle") shared with the pricing-card form below, so
@@ -25,9 +46,9 @@
      created with - no separate JS state to keep in sync. */
   .cycle-toggle { display:inline-flex; background: var(--panel2); border:1px solid var(--border); border-radius:999px; padding:4px; gap:4px; margin: 4px 0 24px; }
   .cycle-toggle input { position:absolute; opacity:0; pointer-events:none; }
-  .cycle-toggle label { margin:0; padding:8px 18px; border-radius:999px; font-size:13.5px; font-weight:600; color: var(--muted); cursor:pointer; transition: background 150ms ease, color 150ms ease; display:flex; align-items:center; gap:6px; }
+  .cycle-toggle label { margin:0; padding:8px 18px; border-radius:999px; font-size:13px; font-weight:600; color: var(--muted); cursor:pointer; transition: background 150ms ease, color 150ms ease; display:flex; align-items:center; gap:6px; }
   .cycle-toggle input:checked + label { background: var(--accent); color: #041007; }
-  .cycle-toggle .save-badge { background: rgba(34,197,94,.16); color: var(--accent); font-size:10.5px; font-weight:800; padding:1px 7px; border-radius:999px; text-transform:uppercase; letter-spacing:.03em; }
+  .cycle-toggle .save-badge { background: rgba(34,197,94,.16); color: var(--accent); font-size:11px; font-weight:600; padding:1px 7px; border-radius:999px; text-transform:uppercase; letter-spacing:.03em; }
   .cycle-toggle input:checked + label .save-badge { background: rgba(4,16,7,.18); color:#041007; }
 
   /* Pricing grid - each card is a clickable target_plan radio (or the
@@ -39,21 +60,22 @@
   .plan-card { position:relative; border:1px solid var(--border); border-radius: var(--radius-lg); padding: 24px 22px; background: linear-gradient(180deg, var(--panel), var(--panel2)); }
   .plan-card input[type=radio] { position:absolute; top:20px; right:20px; width:18px; height:18px; accent-color: var(--accent); cursor:pointer; }
   .plan-card:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-  .plan-card .plan-name { display:block; margin:0; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color: var(--muted); cursor:pointer; }
+  .plan-card .plan-name { display:block; margin:0; font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color: var(--muted); cursor:pointer; }
   .plan-card.featured .plan-name { color: var(--accent); }
-  .plan-card .plan-price { font-size:34px; font-weight:800; font-family:"Fira Code",monospace; margin: 10px 0 2px; }
+  .plan-card .plan-price { font-size:34px; font-weight:600; font-family:"Fira Code",monospace; margin: 10px 0 2px; }
   .plan-card .plan-price small { font-size:14px; color: var(--muted); font-weight:600; }
   .plan-card .plan-price.cycle-annual { display:none; }
   .cycle-toggle:has(#cycle_annual:checked) ~ .pricing-grid .plan-price.cycle-monthly { display:none; }
   .cycle-toggle:has(#cycle_annual:checked) ~ .pricing-grid .plan-price.cycle-annual { display:block; }
-  .plan-card .plan-annual-note { font-size:11.5px; color: var(--muted); margin-bottom:16px; }
+  .plan-card .plan-annual-note { font-size:11px; color: var(--muted); margin-bottom:16px; }
   .plan-card ul { list-style:none; margin:16px 0 0; padding:0; display:flex; flex-direction:column; gap:9px; }
   .plan-card ul li { font-size:13px; display:flex; align-items:flex-start; gap:8px; color: var(--text); }
   .plan-card ul li .icon { width:15px; height:15px; color: var(--accent); flex-shrink:0; margin-top:1px; }
-  .plan-card.current-badge::before { content: "Current plan"; position:absolute; top:-10px; left:20px; background: var(--accent); color:#041007; font-size:10.5px; font-weight:800; padding:2px 10px; border-radius:999px; text-transform:uppercase; letter-spacing:.03em; }
+  .plan-card.current-badge::before { content: "Current plan"; position:absolute; top:-10px; left:20px; background: var(--accent); color:#041007; font-size:11px; font-weight:600; padding:2px 10px; border-radius:999px; text-transform:uppercase; letter-spacing:.03em; }
 </style>
 {% endblock %}
 {% block content %}
+{% from "_empty_state.html" import empty_state %}
 <div class="wrap">
   <h1>Billing</h1>
 
@@ -130,7 +152,7 @@
         {% endfor %}
       </select>
       <button type="submit" class="btn primary">Create Invoice &rarr;</button>
-      <p style="color: var(--muted); font-size: 12px; margin-top: 12px;">
+      <p style="color: var(--muted); font-size: 13px; margin-top: 12px;">
         Self-custody crypto billing - no card on file, no auto-renewal. Each invoice covers one
         billing period; come back and create a new one when the current period ends.
       </p>
@@ -160,11 +182,19 @@
           <div class="invoice-value"><span class="status-pill running"><span class="dot glow-pulse"></span>Awaiting payment</span></div>
         </div>
       </div>
+      <ol class="invoice-steps">
+        <li>Send <b class="amount-warning">exactly {{ inv.expected_amount }} {{ inv.token_symbol }}</b> (to the last decimal - payments are matched by amount, and a rounded or short payment won't verify) on the <b>Polygon</b> network to the address below.</li>
+        <li>Wait for the transaction to confirm on-chain (usually under a minute on Polygon).</li>
+        <li>Come back here and click <b>Verify payment</b> - Glassbox checks Polygonscan for a matching transfer and activates the plan automatically.</li>
+      </ol>
       <div class="invoice-address-row">
         <span class="invoice-label">Send to</span>
         <code class="invoice-address" id="addr-{{ inv.id }}">{{ inv.receiving_address }}</code>
         <button type="button" class="copy-btn" data-copy-target="addr-{{ inv.id }}" aria-live="polite">Copy</button>
       </div>
+      {% if token_contracts.get(inv.token_symbol) %}
+      <p class="invoice-contract">{{ inv.token_symbol }} contract on Polygon (verify before sending to guard against a spoofed token): <code>{{ token_contracts[inv.token_symbol] }}</code></p>
+      {% endif %}
       <form method="POST" action="{{ url_for('billing.verify_invoice_route', invoice_id=inv.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn primary verify-btn" type="submit">Verify payment</button>
@@ -172,7 +202,9 @@
     </div>
     {% endfor %}
     {% else %}
-    <p style="color: var(--muted); font-size: 13.5px;">No pending invoices.</p>
+    {% call empty_state('No pending invoices.', '') %}
+    <use href="#icon-folder"/>
+    {% endcall %}
     {% endif %}
   </div>
   {% else %}

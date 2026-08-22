@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Select scan type - Glassbox{% endblock %}
+{% block head %}
+{% include "_scan_form_styles.html" %}
+<style>
+  /* Long target URLs/domains have no natural break point (no spaces); without this the
+     intro line can force horizontal page scroll at 320-375px. Same treatment as
+     billing.html's .invoice-address and platform_admin.html's .deletion-value. */
+  .sub code { word-break: break-all; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  {% set wizard_step = 2 %}
+  {% include "_scan_wizard_stepper.html" %}
+
+  <a class="back" href="{{ url_for('scan.new_scan') }}">&larr; Change domain</a>
+  <h1>What kind of scan do you want to run?</h1>
+  <p class="sub">Scanning <code>{{ target }}</code> - each card below explains what it checks for and whether you can run it right now.</p>
+
+  <div class="scan-type-grid">
+    {% for card in scan_types %}
+    <div class="card">
+      <div class="section-title">
+        <h2 style="margin:0;">{{ card.title }}</h2>
+        <span class="pill {{ 'pass' if card.unlocked else 'medium' }}">{{ card.label }}</span>
+      </div>
+      <p class="hint" style="margin-top:10px;">{{ card.blurb }}</p>
+      {% if card.unlocked %}
+      <a class="btn primary" href="{{ url_for(card.endpoint, target=target) }}">{{ card.cta }}</a>
+      {% else %}
+      <a class="btn secondary" href="{{ card.upgrade_url }}">Upgrade to Unlock</a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

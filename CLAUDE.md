@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-WebVulnScanner is a multi-tenant Flask SaaS for checking a website's security posture:
+Glassbox (product name as of v1.3; formerly WebVulnScanner - the Python package `webvulnscanner/`,
+repo name, and DB are unchanged, see README.md) is a multi-tenant Flask SaaS for checking a
+website's security posture:
 accounts, organizations, crypto-invoice billing, and a tiered entitlement system (Free / Paid /
 Org-verified) that gates which checks a scan is allowed to run. The most intrusive checks
 (reflected/stored XSS, SQLi, IDOR, brute-force) additionally require server-verified domain

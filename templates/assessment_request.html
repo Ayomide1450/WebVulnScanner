@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Request Expert Assessment - Glassbox{% endblock %}
+{% block head %}
+{% include "_admin_form_styles.html" %}
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <h1>Request Expert Assessment</h1>
+  <p style="color: var(--muted); font-size: 13px; max-width: 640px;">
+    Need a human-led engagement beyond what the self-serve scanner covers -
+    an authenticated deep-dive, a continuous monitoring contract, or a
+    formal external assessment? Tell us about your target and our team
+    will follow up.
+  </p>
+
+  <div class="card" style="max-width: 640px;">
+    <form method="POST" action="{{ url_for('assessment.request_assessment') }}">
+      {{ form.hidden_tag() }}
+
+      <label for="company_name">Company name</label>
+      {{ form.company_name(id="company_name", type="text") }}
+      {% for err in form.company_name.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="domain">Primary domain</label>
+      {{ form.domain(id="domain", type="text", placeholder="www.example.com") }}
+      {% for err in form.domain.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="contact_name">Contact name</label>
+      {{ form.contact_name(id="contact_name", type="text") }}
+      {% for err in form.contact_name.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="contact_email">Contact email</label>
+      {{ form.contact_email(id="contact_email", type="email") }}
+      {% for err in form.contact_email.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="contact_phone">Contact phone (optional)</label>
+      {{ form.contact_phone(id="contact_phone", type="text") }}
+      {% for err in form.contact_phone.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="assessment_type">Assessment type</label>
+      {{ form.assessment_type(id="assessment_type") }}
+      {% for err in form.assessment_type.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="scope">Scope (optional)</label>
+      {{ form.scope(id="scope", rows="3") }}
+      {% for err in form.scope.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="auth_requirements">Authentication requirements (optional)</label>
+      {{ form.auth_requirements(id="auth_requirements", rows="3") }}
+      {% for err in form.auth_requirements.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="domain_count">Number of domains (optional)</label>
+      {{ form.domain_count(id="domain_count", type="text") }}
+      {% for err in form.domain_count.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="timeline">Desired timeline (optional)</label>
+      {{ form.timeline(id="timeline", type="text", placeholder="e.g. within 4 weeks") }}
+      {% for err in form.timeline.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="notes">Additional notes (optional)</label>
+      {{ form.notes(id="notes", rows="3") }}
+      {% for err in form.notes.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <button type="submit">Submit request</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

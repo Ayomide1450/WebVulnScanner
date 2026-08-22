@@ -15,8 +15,6 @@ org_id equality - two different solo users both have org_id = None, so a
 naive `a.org_id == current_user.org_id` comparison would match NULL == NULL
 and leak one solo user's Assets to another.
 """
-import json
-import os
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
@@ -26,7 +24,6 @@ from flask_login import current_user, login_required
 from webvulnscanner.checks import (
     CHECK_COMPLIANCE,
     CHECK_LABELS,
-    REPORTS_DIR,
     SCAN_TYPE_CHECK_NAMES,
     SEVERITY_ORDER,
     is_ssrf_safe_hostname,
@@ -35,6 +32,7 @@ from webvulnscanner.checks import (
 from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, effective_tier_for_org
 from webvulnscanner.extensions import db
 from webvulnscanner.models import Asset, Scan, ScanStatus
+from webvulnscanner.scan_engine import read_report_file
 from webvulnscanner.scheduler import CADENCE_INTERVALS
 
 asset = Blueprint("asset", __name__, url_prefix="/assets")
@@ -69,10 +67,20 @@ def _scoped_asset_query():
     )
 
 
+ASSETS_PER_PAGE = 20
+
+
 @asset.route("")
 @login_required
 def list_assets():
-    assets = _scoped_asset_query().order_by(Asset.created_at.desc()).all()
+    page = request.args.get("page", 1, type=int)
+    # PERF-02: real DB-level pagination (.paginate(), not a Python slice of
+    # an already-fully-fetched list) - no stat/trend on this page depends
+    # on the full asset list, unlike dashboard()'s scans query above.
+    assets = (
+        _scoped_asset_query().order_by(Asset.created_at.desc())
+        .paginate(page=page, per_page=ASSETS_PER_PAGE, error_out=False)
+    )
     return render_template("assets.html", assets=assets)
 
 
@@ -294,11 +302,9 @@ def compliance_coverage(asset):
         if s.report.data is not None:
             reports_by_scan_type[scan_type] = s.report.data
             continue
-        try:
-            with open(os.path.join(REPORTS_DIR, s.report.json_path), encoding="utf-8") as f:
-                reports_by_scan_type[scan_type] = json.load(f)
-        except (OSError, ValueError):
-            continue
+        report = read_report_file(s.report.json_path)
+        if report is not None:
+            reports_by_scan_type[scan_type] = report
 
     return {
         "rows": summarize_compliance(reports_by_scan_type),

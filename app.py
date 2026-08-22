@@ -1,5 +1,5 @@
 """
-WebVulnScanner - a local, single-user-per-account website security checkup
+Glassbox - a local, single-user-per-account website security checkup
 tool.
 
 Run only against domains you own or are explicitly authorized to test.

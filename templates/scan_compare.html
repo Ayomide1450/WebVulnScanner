@@ -1,11 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Compare scans - WebVulnScanner{% endblock %}
+{% block title %}Compare scans - Glassbox{% endblock %}
 {% block head %}
 <style>
-  h1 { font-size: 24px; margin: 20px 0 6px; }
+  h1 { margin-top: 20px; }
   .meta { color: var(--muted); font-size:13px; margin-bottom: 20px; }
-  h2.section { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin: 28px 0 12px; }
-  .delta { font-weight:700; }
+  .delta { font-weight:600; }
   .delta.pos { color: var(--pass); }
   .delta.neg { color: var(--critical); }
   .empty { color: var(--muted); font-size: 14px; }

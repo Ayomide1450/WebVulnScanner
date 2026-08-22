@@ -8,9 +8,11 @@ registered here.
 """
 import logging
 import os
+from urllib.parse import urlsplit, urlunsplit
 
 import click
-from flask import Flask, render_template
+from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
+from flask_wtf.csrf import CSRFError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from webvulnscanner.config import Config
@@ -70,6 +72,34 @@ def _init_sentry(app):
         )
         return
     sentry_sdk.init(dsn=dsn, integrations=[FlaskIntegration()], traces_sample_rate=0.1)
+
+
+def _safe_referrer():
+    # Same-origin-only redirect target for the CSRFError handler below,
+    # built from request.referrer - an attacker-controllable request
+    # header, not trusted input, so it must never reach a redirect call
+    # unvalidated, the same class of bug auth_routes.py's `next` param
+    # guards against (SEC-07). Kept as its own named function (mirroring
+    # _safe_next()'s pattern) rather than inlined, so
+    # tests/test_auth_flows.py::test_only_safe_next_redirects_take_a_
+    # request_derived_argument - which source-scans webvulnscanner/ for
+    # every redirect call site and fails closed on anything that isn't
+    # url_for(...) or a named, reviewed safe-redirect helper - has a
+    # second, equally auditable pattern to recognize instead of a raw
+    # inline referrer value reaching a redirect call unaudited.
+    #
+    # Falls back to the homepage when there's no referrer, or it isn't
+    # same-origin (scheme+host match request.host) - a CSRF-token expiry
+    # is common (idle timeout, a stale second tab) and deliberately never
+    # reaches this codepath from a genuinely cross-site request in the
+    # first place (that's what CSRFProtect just rejected), but the
+    # referrer header itself is still not proof of that on its own.
+    referrer = request.referrer
+    if referrer:
+        parsed = urlsplit(referrer)
+        if (not parsed.scheme or parsed.scheme in ("http", "https")) and parsed.netloc == request.host:
+            return urlunsplit(("", "", parsed.path or "/", parsed.query, ""))
+    return url_for("public.index")
 
 
 def create_app(config_class=Config):
@@ -160,6 +190,63 @@ def create_app(config_class=Config):
 
     app.register_blueprint(api_blueprint)
 
+    from webvulnscanner.assessment_routes import assessment as assessment_blueprint
+
+    app.register_blueprint(assessment_blueprint)
+
+    # Idle-session timeout: a session-cookie-authenticated user is signed
+    # out server-side after IDLE_TIMEOUT_MINUTES with no request, regardless
+    # of "Remember me" - logout_user() clears the remember cookie too, so a
+    # stale remember cookie can't silently re-authenticate the next request.
+    # Bearer-token (API) auth is explicitly exempt: those requests set
+    # flask.g.login_via_request in extensions.py's request_loader and never
+    # receive a session cookie back in the first place (see
+    # _ApiAwareSessionInterface) - tokens have their own separate
+    # revoke/expiry model in api_tokens_routes.py, not this one.
+    @app.before_request
+    def _enforce_idle_timeout():
+        import flask
+        from datetime import datetime, timedelta, timezone
+
+        from flask import request, session
+        from flask_login import current_user, logout_user
+
+        if not current_user.is_authenticated:
+            return
+        if getattr(flask.g, "login_via_request", False):
+            return
+
+        # A user (or their org) suspended by a platform admin mid-session
+        # (Phase 16, ADMIN-02/03) must lose access on their very next
+        # request, not merely be blocked from a future login - the session
+        # cookie alone would otherwise keep working until it naturally
+        # expires. Same forced-logout shape as the idle-timeout branch
+        # below, checked first since it doesn't depend on _last_seen.
+        if not current_user.is_active:
+            logout_user()
+            session.clear()
+            return
+
+        now = datetime.now(timezone.utc)
+        timeout = timedelta(minutes=app.config.get("IDLE_TIMEOUT_MINUTES", 5))
+        last_seen_raw = session.get("_last_seen")
+        if last_seen_raw:
+            try:
+                last_seen = datetime.fromisoformat(last_seen_raw)
+            except ValueError:
+                last_seen = None
+            if last_seen is not None and now - last_seen > timeout:
+                logout_user()
+                session.clear()
+                return
+        # scan_progress.html's background status poll (2s) / SSE feed both
+        # send the session cookie (credentials: same-origin) but are not
+        # user activity - bumping _last_seen on every tick would keep an
+        # AFK session alive indefinitely for the duration of any scan. Every
+        # other request still refreshes it normally.
+        if not (request.path.endswith("/status") or request.path.endswith("/events")):
+            session["_last_seen"] = now.isoformat()
+
     from webvulnscanner.models import Role
 
     @app.context_processor
@@ -168,7 +255,11 @@ def create_app(config_class=Config):
         # base.html's footer and terms.html/privacy.html use current_year.
         from datetime import datetime, timezone
 
-        return {"Role": Role, "current_year": datetime.now(timezone.utc).year}
+        return {
+            "Role": Role,
+            "current_year": datetime.now(timezone.utc).year,
+            "idle_timeout_minutes": app.config.get("IDLE_TIMEOUT_MINUTES", 5),
+        }
 
     # Custom error pages so 404/500 stay inside the app's own dark theme
     # (nav, back-to-dashboard link) instead of dropping a logged-in user
@@ -185,6 +276,31 @@ def create_app(config_class=Config):
     @app.errorhandler(429)
     def _rate_limited(_e):
         return render_template("429.html"), 429
+
+    # A CSRF token expires with the session that issued it (SESSION_COOKIE
+    # ... / PERMANENT_SESSION_LIFETIME) - hitting an idle-timeout logout,
+    # then submitting a form still open in another tab, is a completely
+    # ordinary way to trip this, not an attack. Flask-WTF's CSRFProtect
+    # raises this as a raw 400 with no handler registered, which used to
+    # surface Flask's unstyled default error page (and its literal
+    # "The CSRF token has expired." message) straight to the user - a
+    # backend implementation detail leaking through, and confusing since
+    # every other error in this app stays inside the themed error pages
+    # above. Bounce back to the page that was submitted (its GET render
+    # mints a fresh token via csrf_token()/hidden_tag()) with a plain-
+    # English flash instead.
+    @app.errorhandler(CSRFError)
+    def _csrf_error(_e):
+        # scan_new_advanced.html's Smart Setup fetch() call (the only
+        # X-Requested-With: XMLHttpRequest sender in the app) expects a
+        # JSON error body it can show inline, not an HTML redirect a fetch()
+        # would just follow and then fail to JSON.parse - give it the same
+        # shape its view already uses for its own validation errors.
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify(error="Your session expired - please refresh and try again."), 400
+
+        flash("Your session expired - please try again.", "error")
+        return redirect(_safe_referrer())
 
     @app.cli.command("grant-platform-admin")
     @click.argument("email")

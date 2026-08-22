@@ -31,9 +31,13 @@ def runner():
 @pytest.fixture
 def isolated_config(tmp_path, monkeypatch):
     """Redirects cli.wvs.CONFIG_PATH to a tmp_path location so tests never
-    touch the real ~/.wvs/config.json."""
-    config_path = tmp_path / ".wvs" / "config.json"
+    touch the real ~/.glassbox/config.json. Also points the legacy
+    fallback path (~/.wvs/config.json) at a tmp_path location that never
+    exists, so _load_config's legacy-path fallback can't pick up a real
+    local dev machine's old wvs login during a test run."""
+    config_path = tmp_path / ".glassbox" / "config.json"
     monkeypatch.setattr(wvs, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(wvs, "_LEGACY_CONFIG_PATH", tmp_path / "no-such-legacy-dir" / "config.json")
     return config_path
 
 
@@ -124,7 +128,7 @@ def test_assets_list_no_token_anywhere_exits_nonzero_no_request(runner, isolated
         result = runner.invoke(wvs.cli, ["assets", "list"])
 
     assert result.exit_code != 0
-    assert "wvs login" in result.output
+    assert "glassbox login" in result.output
     mock_get.assert_not_called()
 
 
@@ -174,28 +178,29 @@ def test_scan_start_error_exits_nonzero_no_traceback(runner, isolated_config):
     assert "Traceback" not in result.output
 
 
-# --- report get ---
+# --- report (Phase 18: `glassbox report <scan-id>`, replaces the old
+# `report get <scan-id>` subcommand shape) ---
 
 
-def test_report_get_success_pretty_prints_json(runner, isolated_config):
+def test_report_success_pretty_prints_json(runner, isolated_config):
     fake_report = {"score": 91, "grade": "A", "findings": []}
     with patch.object(
         wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
     ), patch.object(wvs.requests, "get") as mock_get:
         mock_get.return_value = _FakeResponse(200, json_body=fake_report)
-        result = runner.invoke(wvs.cli, ["report", "get", "42"])
+        result = runner.invoke(wvs.cli, ["report", "42"])
 
     assert result.exit_code == 0
     assert json.loads(result.output) == fake_report
     assert mock_get.call_args[0][0] == "http://example.test/api/v1/scans/42/report"
 
 
-def test_report_get_error_exits_nonzero_no_traceback(runner, isolated_config):
+def test_report_error_exits_nonzero_no_traceback(runner, isolated_config):
     with patch.object(
         wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
     ), patch.object(wvs.requests, "get") as mock_get:
         mock_get.return_value = _FakeResponse(404, json_body={"error": "report not available"})
-        result = runner.invoke(wvs.cli, ["report", "get", "42"])
+        result = runner.invoke(wvs.cli, ["report", "42"])
 
     assert result.exit_code != 0
     assert "report not available" in result.output
@@ -235,11 +240,11 @@ def test_scan_start_passes_request_timeout(runner, isolated_config):
     assert mock_post.call_args.kwargs["timeout"] == wvs.REQUEST_TIMEOUT_SECONDS
 
 
-def test_report_get_passes_request_timeout(runner, isolated_config):
+def test_report_passes_request_timeout(runner, isolated_config):
     with patch.object(
         wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
     ), patch.object(wvs.requests, "get") as mock_get:
         mock_get.return_value = _FakeResponse(200, json_body={"score": 1})
-        runner.invoke(wvs.cli, ["report", "get", "42"])
+        runner.invoke(wvs.cli, ["report", "42"])
 
     assert mock_get.call_args.kwargs["timeout"] == wvs.REQUEST_TIMEOUT_SECONDS

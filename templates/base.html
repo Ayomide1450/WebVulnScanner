@@ -3,8 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}WebVulnScanner{% endblock %}</title>
-<link rel="icon" href="data:,">
+<title>{% block title %}Glassbox{% endblock %}</title>
+{% block meta_description %}{% endblock %}
+{% block canonical %}{% endblock %}
+{% block og_tags %}{% endblock %}
+{% block twitter_tags %}{% endblock %}
+<link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+<link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png') }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
 <style>
   /* ---- Design system: OLED dark, Fira Code / Fira Sans -------------------
      Generated via ui-ux-pro-max (security/dev-tool dashboard preset).
@@ -24,7 +31,31 @@
        green on completion. */
     --telemetry: #38bdf8; --telemetry2: #0ea5e9; --telemetry-dim: rgba(56,189,248,.14);
     --radius: 12px; --radius-lg: 18px;
+    /* --radius-sm/--radius-md promote already-pervasive hardcoded 10px/16px
+       literals to real tokens (DESIGN-03) - --radius/--radius-lg above are
+       unchanged existing tokens. */
+    --radius-sm: 10px;
+    --radius-md: 16px;
     --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px; --space-7:48px;
+    --space-8: 64px;
+    /* Purpose-based container widths (DESIGN-04, 06-CONTEXT.md D-02) - every
+       page's outer content wrapper must consume one of these four, never a
+       page-local one-off max-width. */
+    --container-auth: 440px;
+    --container-form: 760px;
+    --container-app: 1200px;
+    --container-marketing: 1180px;
+    /* App-shell horizontal gutter (navbar/content/footer) - scales from
+       20px on narrow/mobile viewports up to 40px on wide desktop, rather
+       than a fixed 20px that reads as cramped once --container-app grew.
+       clamp() covers the whole range without a dedicated breakpoint. */
+    --gutter-app: clamp(20px, 4vw, 40px);
+    /* Documentation-only (Phase 7 / D-01) - CSS media queries cannot consume
+       a custom property, so the literal 430px in the @media rule below the
+       .mobile-record-cards block is the single authoritative copy. This
+       token exists only so the value is discoverable/greppable next to the
+       other layout tokens above. */
+    --bp-card: 430px;
   }
 
   * { box-sizing: border-box; }
@@ -32,7 +63,7 @@
   body {
     margin:0;
     font-family: "Fira Sans", -apple-system, "Segoe UI", Arial, sans-serif;
-    font-size: 16px; line-height: 1.5;
+    font-size: 15px; line-height: 1.6;
     background:
       radial-gradient(900px 480px at 85% -8%, rgba(34,197,94,.10), transparent 60%),
       radial-gradient(700px 420px at 0% 0%, rgba(59,130,246,.06), transparent 55%),
@@ -48,7 +79,7 @@
     display: flex;
     flex-direction: column;
   }
-  h1, h2, h3, h4 { font-family: "Fira Sans", sans-serif; letter-spacing: -0.015em; font-weight: 700; margin: 0 0 var(--space-2); }
+  h1, h2, h3, h4 { font-family: "Fira Sans", sans-serif; font-weight: 600; margin: 0 0 var(--space-2); }
   code, pre, .mono { font-family: "Fira Code", "SFMono-Regular", Consolas, Menlo, monospace; }
   a { color: var(--accent); }
   ::selection { background: var(--accent-dim); color: var(--text); }
@@ -56,16 +87,19 @@
 
   /* Buttons */
   .btn { display:inline-flex; align-items:center; gap:8px; cursor:pointer; text-decoration:none;
-    padding: 11px 20px; border-radius: 10px; font-weight:600; font-size:14.5px; border:1px solid transparent;
+    padding: 11px 20px; border-radius: 10px; font-weight:600; font-size:14px; border:1px solid transparent;
     transition: transform 150ms ease, filter 150ms ease, background 150ms ease; }
   .btn:hover { filter: brightness(1.08); }
   .btn:active { transform: translateY(1px); }
   .btn.primary { background: var(--accent); color: #041007; }
   .btn.secondary { border-color: var(--border); color: var(--text); background: var(--panel); }
   .btn.ghost { color: var(--muted); background: transparent; }
+  .btn.destructive { background: rgba(248,113,113,.09); border: 1px solid rgba(248,113,113,.35); color: var(--critical); }
+  .btn.block { width: 100%; justify-content: center; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
 
   /* Badges / pills / severity tokens */
-  .pill { display:inline-block; font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
+  .pill { display:inline-block; font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
   .pill.critical, .badge.critical, .dot.critical { background: rgba(248,113,113,.14); color: var(--critical); }
   .pill.high, .badge.high, .dot.high { background: rgba(251,146,60,.14); color: var(--high); }
   .pill.medium, .badge.medium, .dot.medium { background: rgba(251,191,36,.14); color: var(--medium); }
@@ -81,7 +115,7 @@
      dashboard.html's "Your scans" table and org_admin.html's "Org scan
      history" table so the same Scan.status field renders identically on
      both pages. */
-  .status-pill { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
+  .status-pill { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
   .status-pill.completed { background: rgba(34,197,94,.14); color: var(--accent); }
   .status-pill.running, .status-pill.queued { background: rgba(56,189,248,.14); color: var(--telemetry); }
   .status-pill.failed { background: rgba(248,113,113,.14); color: var(--critical); }
@@ -106,10 +140,17 @@
   .finding.medium { border-left-color: var(--medium); }
   .finding.low { border-left-color: var(--low); }
   .finding.info { border-left-color: var(--info); }
-  .finding .badge { flex-shrink:0; font-size:10.5px; font-weight:800; padding: 3px 9px; border-radius: 6px; text-transform: uppercase; letter-spacing:.04em; height: fit-content; }
-  .finding .body b { font-size: 14px; }
-  .finding .cat { color: var(--muted); font-size: 11px; text-transform:uppercase; letter-spacing:.06em; font-family:"Fira Code",monospace; }
-  .finding .detail { font-size: 13.5px; color: var(--muted); margin-top: 4px; }
+  .finding .badge { flex-shrink:0; font-size:11px; font-weight:600; padding: 3px 9px; border-radius: 6px; text-transform: uppercase; letter-spacing:.04em; height: fit-content; }
+  /* .finding is a flex row, so any direct-child span without its own
+     height override stretches to the row's full height (flex default
+     align-items:stretch) - .badge already accounted for this, but
+     .pill.compliance (the OWASP-mapping pill) didn't, and its
+     border-radius:999px on a stretched multi-line-tall box rendered as a
+     huge oval blob instead of a small pill. */
+  .finding .pill.compliance { flex-shrink:0; height: fit-content; }
+  .finding .body b { font-size: 14px; font-weight: 600; }
+  .finding .cat { flex-shrink:0; height: fit-content; color: var(--muted); font-size: 11px; text-transform:uppercase; letter-spacing:.06em; font-family:"Fira Code",monospace; }
+  .finding .detail { font-size: 13px; color: var(--muted); margin-top: 4px; }
   .finding .rec { font-size: 13px; margin-top: 6px; }
   .finding .rec b { color: var(--accent); font-weight: 700; }
 
@@ -119,16 +160,33 @@
   .gauge-wrap svg { transform: rotate(-90deg); }
   .gauge-bg { fill:none; stroke: rgba(255,255,255,.06); stroke-width: 10; }
   .gauge-fg { fill:none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 1s ease; filter: drop-shadow(0 0 6px currentColor); }
+  /* Token-based SVG stroke rules, additive to the base .gauge-fg rule above -
+     let _gauge.html emit a class instead of a raw hex stroke="" attribute.
+     Defined here (rather than in the plan that consumes them) so base.html,
+     the sole wave-1-owned file, already carries the full class surface
+     wave 2's plans need. */
+  .gauge-fg.pass { stroke: var(--pass); }
+  .gauge-fg.medium { stroke: var(--medium); }
+  .gauge-fg.high { stroke: var(--high); }
+  .gauge-fg.critical { stroke: var(--critical); }
   .gauge-num { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-  .gauge-num .n { font-size: 26px; font-weight: 800; font-family:"Fira Code",monospace; }
+  .gauge-num .n { font-size: 26px; font-weight: 600; font-family:"Fira Code",monospace; }
   .gauge-num .g { font-size: 11px; color: var(--muted); }
 
   .icon { width:18px; height:18px; flex-shrink:0; stroke: currentColor; fill:none; stroke-width:1.8; vertical-align:-3px; }
 
-  .warn-box { display:flex; gap:12px; align-items:flex-start; background: rgba(251,191,36,.07); border: 1px solid rgba(251,191,36,.3); padding: var(--space-4); border-radius: var(--radius); font-size: 13.5px; margin-bottom: var(--space-5); color: var(--text); }
+  /* Promoted from asset_detail.html's local-only copy (same reasoning as
+     .card's promotion in Phase 6) - the phase-wide 44px touch-target floor
+     for any icon-only control inside a mobile record card. asset_detail.html
+     keeps its identical local copy for now (inert duplicate); plan 07-03
+     removes it once that file is in scope. */
+  .icon-btn { min-width: 44px; min-height: 44px; padding: 0; justify-content: center; }
+  .icon-btn .icon { width: 18px; height: 18px; }
+
+  .warn-box { display:flex; gap:12px; align-items:flex-start; background: rgba(251,191,36,.07); border: 1px solid rgba(251,191,36,.3); padding: var(--space-4); border-radius: var(--radius); font-size: 15px; margin-bottom: var(--space-5); color: var(--text); }
   .warn-box .icon { color: var(--medium); margin-top:2px; }
-  .error-box { background: rgba(248,113,113,.09); border: 1px solid rgba(248,113,113,.35); padding: var(--space-3) var(--space-4); border-radius: var(--radius); margin-bottom: var(--space-4); color: var(--critical); font-size: 14px; }
-  .info-box { background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.3); padding: var(--space-3) var(--space-4); border-radius: var(--radius); margin-bottom: var(--space-4); color: var(--text); font-size: 14px; }
+  .error-box { background: rgba(248,113,113,.09); border: 1px solid rgba(248,113,113,.35); padding: var(--space-3) var(--space-4); border-radius: var(--radius); margin-bottom: var(--space-4); color: var(--critical); font-size: 15px; }
+  .info-box { background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.3); padding: var(--space-3) var(--space-4); border-radius: var(--radius); margin-bottom: var(--space-4); color: var(--text); font-size: 15px; }
 
   /* .card's canonical definition - every template that uses this class
      already locally overrode it to this exact gradient/16px-radius shape
@@ -139,15 +197,18 @@
      actually relying on the old flat/no-margin version, and those pages
      override padding/margin inline anyway (inline styles always win), so
      this change is visually inert there and a small consistency win. */
-  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 18px; }
+  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 22px; margin-bottom: 18px; }
 
   /* Shared page-title rules, promoted from four near-identical local
      overrides (dashboard/billing/org_admin/org_verify_domain) - same
      reasoning as .card above. dashboard.html keeps a 2-line local
      override for its extra top margin rather than this changing for
      everyone. */
-  h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.01em; }
-  h2.section { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin: 32px 0 12px; }
+  h1 { font-size: 28px; line-height: 1.2; letter-spacing: -0.01em; margin: 0 0 6px; }
+  h2 { font-size: 20px; line-height: 1.25; letter-spacing: -0.01em; }
+  h3 { font-size: 16px; line-height: 1.3; letter-spacing: -0.01em; }
+  h4 { font-size: 14px; line-height: 1.35; letter-spacing: normal; }
+  h2.section { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; line-height: 1.4; margin: 32px 0 12px; }
   table { width:100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align:left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
   table tbody tr:hover td { background: rgba(255,255,255,.025); }
@@ -158,6 +219,34 @@
      the cut-off columns - .table-scroll makes it a horizontal scroll
      instead. Wrap every <table> in the app with <div class="table-scroll">. */
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* D-01: dual-markup table/card swap. Every record-list table in the app
+     renders BOTH a semantic <table> (wrapped ".table-scroll desktop-table")
+     and a curated ".mobile-record-cards" <ul> from the same collection -
+     the @media rule below shows exactly one of the two at any width. See
+     07-UI-SPEC.md's "Mobile Stacked-Card Pattern (D-01)" and "Breakpoints"
+     sections for the full card anatomy and the 430px boundary rationale. */
+  .mobile-record-cards { display: none; list-style: none; margin: 0; padding: 0; }
+  /* Applied together with .card on the same <li> - only adjusts what .card
+     does not already supply (background/border/border-radius stay .card's).
+     margin-bottom:0 because the list's own `gap` owns inter-card spacing
+     instead of .card's 18px bottom margin. */
+  .record-card { padding: var(--space-4); margin-bottom: 0; }
+  .record-card-top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); min-width: 0; }
+  .record-card-id { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .record-card-meta { font-size: 13px; color: var(--muted); margin-top: var(--space-2); word-break: break-word; }
+  /* Progressive-disclosure hook for wave-2 pages that need to reveal more
+     per-record detail than the curated summary line - dashboard.html itself
+     does not use this, but it's defined here so base.html (the sole
+     wave-1-owned file) already carries every class wave 2 needs. */
+  .record-card-details { margin-top: var(--space-2); font-size: 13px; color: var(--muted); }
+  .record-card-details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--text); font-weight: 600; }
+  .record-card-action { margin-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+  .record-card-action form { margin: 0; }
+  @media (max-width: 430px) {
+    .desktop-table { display: none; }
+    .mobile-record-cards { display: flex; flex-direction: column; gap: var(--space-3); }
+  }
 
   /* Operator-console motion language. .glow-pulse generalizes the
      currentColor drop-shadow glow _gauge.html's .gauge-fg already proved;
@@ -192,15 +281,45 @@
   .telemetry-dot.done { background: var(--accent); box-shadow: 0 0 6px var(--accent); color: var(--accent); animation: none; }
   .telemetry-dot.failed { background: var(--critical); box-shadow: 0 0 6px var(--critical); color: var(--critical); animation: none; }
 
-  a.back { color: var(--accent); text-decoration:none; font-size: 13.5px; font-weight:600; }
+  a.back { color: var(--accent); text-decoration:none; font-size: 13px; font-weight:600; }
   a.back:hover { text-decoration:underline; }
 
   /* Top nav */
-  .topnav { max-width: 1040px; margin: 0 auto; padding: 20px 20px 0; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
-  .topnav .brand-link { color: var(--text); text-decoration:none; font-weight:700; font-size:16px; display:flex; align-items:center; gap:9px; }
+  /* justify-content:space-between is kept as the baseline so brand and
+     nav occupy opposite ends of the row (and so the row still behaves
+     sensibly if flex-wrap ever puts more than these two items in play);
+     the actual desktop brand-to-menu distance is guaranteed by
+     .nav-links' own margin-left:auto below - gap here only governs the
+     wrapped/narrow case (see the max-width:640px override below). */
+  /* width:100% is load-bearing, not decorative: .topnav/.wrap are direct
+     flex children of the page's body element (display:flex; flex-
+     direction:column, for the sticky footer). A flex item's cross-axis
+     auto margins (margin:0 auto
+     here) disable stretch alignment per spec, so without an explicit
+     width the item falls back to shrink-to-fit sizing - it settles at its
+     own content's width instead of filling up to max-width, then
+     centering. For short content (this header's brand + 2-6 nav links)
+     that content width is far below --container-app, so the header
+     rendered narrow and left-clustered no matter what --container-app or
+     the gutter were set to - the real bug the visible "no separation"
+     symptom traced back to, confirmed via computed-style inspection of
+     the live Fly deployment (getBoundingClientRect() width << max-width).
+     width:100% forces the flex item to fill the cross axis first, so
+     max-width caps it and margin:auto centers it as intended. */
+  .topnav { width: 100%; max-width: var(--container-app); margin: 0 auto; padding: 20px var(--gutter-app) 0; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+  .topnav .brand-link { color: var(--text); text-decoration:none; font-weight:600; font-size:16px; display:flex; align-items:center; gap:9px; }
   .topnav .brand-link .icon { color: var(--accent); width:22px; height:22px; }
-  .topnav .nav-links { display:flex; gap:22px; align-items:center; flex-wrap:wrap; }
-  .topnav .nav-links a { color: var(--muted); text-decoration:none; font-size: 13.5px; font-weight:600; transition: color 150ms ease; }
+  /* margin-left:auto claims all remaining row space for the gap in front
+     of .nav-links (stronger than a fixed floor) - justify-content:
+     space-between alone wasn't reliable: with many nav items the row
+     nears full width and "space between" can collapse toward the bare
+     16px flex `gap`, tighter than the 22px between individual links, so
+     the brand read as part of the menu rather than a separate element.
+     Also the fix for the same drift on the anonymous Login/Sign up pair,
+     which otherwise sat close enough to the brand to read as attached to
+     it instead of as a distinct authentication block. */
+  .topnav .nav-links { display:flex; gap:22px; align-items:center; flex-wrap:wrap; margin-left: auto; }
+  .topnav .nav-links a { color: var(--muted); text-decoration:none; font-size: 13px; font-weight:600; transition: color 150ms ease; }
   .topnav .nav-links a:hover { color: var(--text); }
   .topnav .nav-links a.cta-link { color: var(--accent); }
   /* Logout is functionally distinct from the primary nav (destructive/
@@ -208,10 +327,34 @@
      it apart without a hard visual break like a second nav bar. */
   .topnav .nav-links a.nav-logout { padding-left: 18px; border-left: 1px solid var(--border); }
 
-  .wrap { max-width: 1040px; margin: 0 auto; padding: var(--space-6) 20px 90px; }
+  /* Anonymous Login/Sign up (Phase 10 live-verification feedback, 08-20/21):
+     these read as too small at plain 13px, and on mobile the whole nav
+     collapsed to a column that put them under the brand on the left
+     instead of staying right-aligned like desktop. First tried as full
+     .btn instances (a boxed button) - reverted per explicit follow-up
+     feedback (08-21): still plain text links, just larger, not boxed.
+     .topnav-anon is still exempted from the column-stacking media query
+     below - the anonymous nav is only ever these two items, which always
+     fit in a row even at 320px, unlike the 7+-item authenticated nav the
+     stacking rule exists for. */
+  .topnav .nav-links a.nav-auth-link { font-size: 16px; }
+
+  /* Below ~640px the (authenticated) nav-links row wraps under the brand
+     with only the flex `gap`, which reads as the site name crowding
+     straight into the menu with no deliberate spacing. Stack them
+     explicitly with real margin instead of leaning on wrap+gap for the
+     narrow case. */
+  @media (max-width: 640px) {
+    .topnav:not(.topnav-anon) { flex-direction: column; align-items: flex-start; }
+    .topnav:not(.topnav-anon) .nav-links { margin-left: 0; margin-top: 6px; }
+  }
+
+  /* width:100% - same shrink-to-fit fix as .topnav above (direct flex
+     child of body with auto side-margins). */
+  .wrap { width: 100%; max-width: var(--container-app); margin: 0 auto; padding: var(--space-6) var(--gutter-app) calc(var(--space-7) * 2); }
 
   .site-footer { border-top: 1px solid var(--border); margin-top: auto; }
-  .footer-inner { max-width: 1040px; margin: 0 auto; padding: 20px; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; color: var(--muted); font-size: 12.5px; }
+  .footer-inner { max-width: var(--container-app); margin: 0 auto; padding: 20px var(--gutter-app); display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; color: var(--muted); font-size: 13px; }
   .footer-inner a { color: var(--muted); text-decoration:none; }
   .footer-inner a:hover { color: var(--text); }
 </style>
@@ -239,12 +382,13 @@
     <symbol id="icon-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M11 12 20 3m0 0h-4m4 0v4m-8.5 4.5L15 8"/></symbol>
     <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
     <symbol id="icon-warning" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3.5 21.5 20h-19L12 3.5Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v4"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 17h.01"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></symbol>
   </svg>
 
-  <div class="topnav">
+  <div class="topnav{{ ' topnav-anon' if not current_user.is_authenticated }}">
     <a class="brand-link" href="/">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>
-      WebVulnScanner
+      Glassbox
     </a>
     <div class="nav-links">
       {% if current_user.is_authenticated %}
@@ -261,8 +405,8 @@
         {% endif %}
         <a href="{{ url_for('auth.logout') }}" class="nav-logout">Logout</a>
       {% else %}
-        <a href="{{ url_for('auth.login') }}">Login</a>
-        <a href="{{ url_for('auth.signup') }}" class="cta-link">Sign up</a>
+        <a href="{{ url_for('auth.login') }}" class="nav-auth-link">Login</a>
+        <a href="{{ url_for('auth.signup') }}" class="nav-auth-link cta-link">Sign up</a>
       {% endif %}
     </div>
   </div>
@@ -281,7 +425,7 @@
 
   <footer class="site-footer">
     <div class="footer-inner">
-      <span>&copy; {{ current_year }} WebVulnScanner</span>
+      <span>&copy; {{ current_year }} Glassbox</span>
       <span><a href="{{ url_for('public.terms') }}">Terms</a> &middot; <a href="{{ url_for('public.privacy') }}">Privacy</a></span>
     </div>
   </footer>
@@ -301,5 +445,33 @@
     setInterval(ping, HEARTBEAT_INTERVAL_MS);
   })();
   </script>
+  {% if current_user.is_authenticated %}
+  <script>
+  (function () {
+    // Client-side complement to __init__.py's server-side
+    // _enforce_idle_timeout: that hook only fires on the *next* request
+    // after the idle window has passed, so a user who's been sitting idle
+    // on one page (no new requests at all) wouldn't see anything happen
+    // until they next click something. This timer instead proactively
+    // redirects to /logout after the same idle window, measured purely
+    // client-side (mouse/keyboard/touch/scroll activity resets it) - no
+    // fetch, no cookie read, so it can't itself keep a truly-idle session
+    // alive.
+    var IDLE_TIMEOUT_MS = {{ (idle_timeout_minutes or 5) * 60 * 1000 }};
+    var idleTimer = null;
+    function goIdle() {
+      window.location.href = {{ url_for('auth.logout')|tojson }};
+    }
+    function resetIdleTimer() {
+      if (idleTimer) { clearTimeout(idleTimer); }
+      idleTimer = setTimeout(goIdle, IDLE_TIMEOUT_MS);
+    }
+    ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'].forEach(function (evt) {
+      document.addEventListener(evt, resetIdleTimer, { passive: true });
+    });
+    resetIdleTimer();
+  })();
+  </script>
+  {% endif %}
 </body>
 </html>

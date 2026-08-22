@@ -22,14 +22,14 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with
 the finish review, the verdict, and DESIGN.md.
 -->
 {% extends "base.html" %}
-{% block title %}Scan in progress - WebVulnScanner{% endblock %}
+{% block title %}Scan in progress - Glassbox{% endblock %}
 {% block head %}
 <style>
-  .wrap { max-width: 1040px; }
+  .wrap { max-width: var(--container-app); }
 
   /* ---- Status bar ------------------------------------------------- */
   .soc-header { display:flex; justify-content:space-between; align-items:flex-end; gap:20px; flex-wrap:wrap; margin-top: 20px; }
-  .soc-header h1 { font-size: 24px; margin: 6px 0 0; letter-spacing: -0.01em; }
+  .soc-header h1 { margin: 6px 0 0; }
   /* .status-pill / .status-pill .dot now live in base.html (shared with
      dashboard.html and org_admin.html) - no local override here. */
   .soc-header-meta { color: var(--muted); font-size: 13px; font-family: "Fira Code", monospace; text-align:right; }
@@ -54,26 +54,26 @@ the finish review, the verdict, and DESIGN.md.
   }
   .bar-fill { background: linear-gradient(135deg, var(--accent), var(--accent2)); height:100%; width:0%; transition: width .3s ease; }
 
-  .console-feed { list-style:none; margin:0; padding:0; font-size: 13.5px; }
+  .console-feed { list-style:none; margin:0; padding:0; font-size: 13px; }
   .console-feed li { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding: 9px 0; border-bottom: 1px solid var(--border); }
   .console-feed li:last-child { border-bottom: none; }
   .console-feed .feed-icon { width:15px; height:15px; color: var(--muted); flex-shrink:0; }
   .console-feed .feed-label { color: var(--text); font-weight:600; flex-shrink:0; }
-  .console-feed .feed-detail { color: var(--muted); font-family: "Fira Code", monospace; font-size: 12.5px; flex: 1 1 auto; min-width: 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .console-feed .feed-detail { color: var(--muted); font-family: "Fira Code", monospace; font-size: 13px; flex: 1 1 auto; min-width: 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .console-feed .feed-badge { flex-shrink:0; }
-  .console-feed .feed-time { color: var(--muted); font-family: "Fira Code", monospace; font-size: 11.5px; flex-shrink:0; margin-left:auto; min-width: 32px; text-align:right; }
+  .console-feed .feed-time { color: var(--muted); font-family: "Fira Code", monospace; font-size: 11px; flex-shrink:0; margin-left:auto; min-width: 32px; text-align:right; }
   .console-feed li.feed-in { animation: feed-in .3s ease forwards; }
   @keyframes feed-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
-  .feed-empty .feed-label { color: var(--muted); font-weight:500; font-style:italic; }
+  .feed-empty .feed-label { color: var(--muted); font-weight:600; font-style:italic; }
 
   .status-line.stale { margin-top: 12px; color: var(--medium); font-size: 13px; }
 
   /* ---- Live intelligence sidebar ------------------------------------ */
   .intel-panel { padding: 22px; }
   .intel-panel h2.section { margin-top: 0; }
-  .intel-row { display:flex; justify-content:space-between; align-items:baseline; padding: 7px 0; font-size: 13.5px; }
+  .intel-row { display:flex; justify-content:space-between; align-items:baseline; padding: 7px 0; font-size: 13px; }
   .intel-row span { color: var(--muted); }
-  .intel-row strong { font-family: "Fira Code", monospace; font-weight:700; }
+  .intel-row strong { font-family: "Fira Code", monospace; font-weight:600; }
   .intel-severity { display:flex; align-items:center; gap:8px; margin-top: 4px; }
   .intel-divider { border:none; border-top: 1px solid var(--border); margin: 14px 0; }
   .intel-target-row { display:flex; align-items:center; gap:9px; font-size: 13px; color: var(--muted); padding: 4px 0; }
@@ -89,6 +89,7 @@ the finish review, the verdict, and DESIGN.md.
       <h1><code>{{ scan.target_url }}</code></h1>
     </div>
     <div class="soc-header-meta" id="headerMeta">{{ scan.scan_type }} scan · 0/0 checks · 00:00 elapsed</div>
+    <a class="btn primary" id="viewReportBtn" href="{{ url_for('scan.scan_report', scan_id=scan.id) }}" hidden>View Report</a>
   </div>
 
   {% if scan.status.value == 'failed' %}
@@ -103,8 +104,13 @@ the finish review, the verdict, and DESIGN.md.
       </div>
       <ul class="console-feed" id="consoleFeed" aria-live="polite">
         <li class="feed-empty" id="feedEmpty">
+          {% if scan.scan_type == 'base' %}
           <span class="telemetry-dot glow-pulse"></span>
           <span class="feed-label">Initializing investigation…</span>
+          {% else %}
+          <span class="telemetry-dot"></span>
+          <span class="feed-label">This scan type reports status only - no per-check feed.</span>
+          {% endif %}
         </li>
       </ul>
       <div class="status-line stale" id="staleLine" style="display:none;"></div>
@@ -126,6 +132,7 @@ the finish review, the verdict, and DESIGN.md.
   (function () {
     var scanId = {{ scan.id }};
     var status = "{{ scan.status.value }}";
+    var isBase = "{{ scan.scan_type }}" === 'base';
     if (status === 'completed') {
       window.location.href = '/scan/' + scanId + '/report';
       return;
@@ -136,16 +143,26 @@ the finish review, the verdict, and DESIGN.md.
 
     var startedAtMs = Date.now();  // best-effort t0 for the elapsed ticker and per-row "+Ns" timestamps
 
+    var viewReportBtn = document.getElementById('viewReportBtn');
+    function revealViewReport() {
+      if (viewReportBtn) { viewReportBtn.hidden = false; }
+    }
+
     var staleLine = document.getElementById('staleLine');
     var lastMessageAt = Date.now();
     var STALE_AFTER_MS = 15000;
-    var watchdog = setInterval(function () {
+    // Only base scans emit ScanEvent rows/SSE messages - the watchdog's
+    // "still waiting for an update" text would be guaranteed-wrong for the
+    // other three types, which never send a message through this path at
+    // all. staleLine itself stays in the DOM either way for the poll
+    // branch's own connection-lost reporting below.
+    var watchdog = isBase ? setInterval(function () {
       if (Date.now() - lastMessageAt > STALE_AFTER_MS && staleLine) {
         staleLine.style.display = 'block';
         staleLine.textContent = "Still waiting for an update - this can happen on a slow check. "
           + "If this doesn't change for a while, refresh the page.";
       }
-    }, 5000);
+    }, 5000) : null;
 
     function showReconnecting() {
       if (staleLine) {
@@ -283,47 +300,93 @@ the finish review, the verdict, and DESIGN.md.
       }
     }
 
-    var es = new EventSource('/scan/' + scanId + '/events');
-    var sweepBar = document.getElementById('sweepBar');
-    if (sweepBar) { sweepBar.classList.add('active'); }
+    {% if scan.scan_type == 'base' %}
+    if (isBase) {
+      var es = new EventSource('/scan/' + scanId + '/events');
+      var sweepBar = document.getElementById('sweepBar');
+      if (sweepBar) { sweepBar.classList.add('active'); }
 
-    es.onmessage = function (evt) {
-      lastMessageAt = Date.now();
-      if (staleLine) { staleLine.style.display = 'none'; }
-      var data = JSON.parse(evt.data);
+      es.onmessage = function (evt) {
+        lastMessageAt = Date.now();
+        if (staleLine) { staleLine.style.display = 'none'; }
+        var data = JSON.parse(evt.data);
 
-      lastCounts.done = data.progress_current;
-      lastCounts.total = data.progress_total;
-      renderHeaderMeta();
+        lastCounts.done = data.progress_current;
+        lastCounts.total = data.progress_total;
+        renderHeaderMeta();
 
-      var pct = data.progress_total > 0 ? Math.round(100 * data.progress_current / data.progress_total) : 0;
-      var fill = document.getElementById('barFill');
-      if (fill) { fill.style.width = pct + '%'; }
-      var statChecks = document.getElementById('statChecks');
-      if (statChecks) { statChecks.textContent = data.progress_current + ' / ' + data.progress_total; }
+        var pct = data.progress_total > 0 ? Math.round(100 * data.progress_current / data.progress_total) : 0;
+        var fill = document.getElementById('barFill');
+        if (fill) { fill.style.width = pct + '%'; }
+        var statChecks = document.getElementById('statChecks');
+        if (statChecks) { statChecks.textContent = data.progress_current + ' / ' + data.progress_total; }
 
-      if (data.events) {
-        data.events.forEach(renderEvent);
+        if (data.events) {
+          data.events.forEach(renderEvent);
+        }
+
+        if (data.status === 'completed') {
+          clearInterval(watchdog);
+          if (sweepBar) { sweepBar.classList.remove('active'); }
+          es.close();
+          revealViewReport();
+          window.location.href = '/scan/' + scanId + '/report';
+        } else if (data.status === 'failed') {
+          clearInterval(watchdog);
+          es.close();
+          window.location.reload();
+        }
+      };
+      es.onerror = function () {
+        showReconnecting();
+        if (es.readyState === EventSource.CLOSED && staleLine) {
+          clearInterval(watchdog);
+          staleLine.textContent = 'Connection lost. Refresh the page to check the scan\'s status.';
+        }
+      };
+    }
+    {% else %}
+    if (!isBase) {
+      // No ScanEvent rows are ever written for these orchestrators
+      // (advanced/media/api), so there's nothing to stream - poll the
+      // lightweight status endpoint instead (D-04, 05-CONTEXT.md). The plain
+      // status-line view stays as-is; this only decides when to reveal
+      // View Report and navigate. The server-side branch this whole block
+      // sits in (not just this JS guard) is what keeps the SSE-only code
+      // path out of the rendered source entirely for non-base scan types -
+      // a page that will never open that connection has no reason to ship
+      // the code that would.
+      var pollFailures = 0;
+      var pollTimer = setInterval(pollStatus, 2000);
+
+      function pollStatus() {
+        fetch('/scan/' + scanId + '/status', { credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            pollFailures = 0;
+            if (staleLine) { staleLine.style.display = 'none'; }
+            if (data.status === 'completed') {
+              clearInterval(pollTimer);
+              revealViewReport();
+              window.location.href = data.report_url || ('/scan/' + scanId + '/report');
+            } else if (data.status === 'failed') {
+              clearInterval(pollTimer);
+              window.location.reload();
+            }
+            // otherwise: still queued/running - the plain status-line view
+            // stays visible, no new loading affordance is introduced.
+          })
+          .catch(function () {
+            pollFailures += 1;
+            if (pollFailures >= 3 && staleLine) {
+              staleLine.style.display = 'block';
+              staleLine.textContent = "Connection lost - still trying. Refresh the page to check the scan's status.";
+            }
+          });
       }
-
-      if (data.status === 'completed') {
-        clearInterval(watchdog);
-        if (sweepBar) { sweepBar.classList.remove('active'); }
-        es.close();
-        window.location.href = '/scan/' + scanId + '/report';
-      } else if (data.status === 'failed') {
-        clearInterval(watchdog);
-        es.close();
-        window.location.reload();
-      }
-    };
-    es.onerror = function () {
-      showReconnecting();
-      if (es.readyState === EventSource.CLOSED && staleLine) {
-        clearInterval(watchdog);
-        staleLine.textContent = 'Connection lost. Refresh the page to check the scan\'s status.';
-      }
-    };
+      pollStatus();  // catch a scan that finished between render and the first tick
+    }
+    {% endif %}
   })();
 </script>
 {% endblock %}

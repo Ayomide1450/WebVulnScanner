@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Sign up - WebVulnScanner{% endblock %}
+{% block title %}Sign up - Glassbox{% endblock %}
 {% block head %}
 {% include "_auth_form_styles.html" %}
 <style>
-  .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 5px; }
 </style>
 {% if config.TURNSTILE_SITE_KEY %}
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>

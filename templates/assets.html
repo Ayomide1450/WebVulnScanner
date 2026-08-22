@@ -1,31 +1,36 @@
 {% extends "base.html" %}
-{% block title %}Assets - WebVulnScanner{% endblock %}
+{% block title %}Assets - Glassbox{% endblock %}
 {% block head %}
+{% include "_empty_state.html" %}
+{% include "_pagination.html" %}
 <style>
   h1 { margin-top: 20px; }
   a.row-link { color: var(--accent); text-decoration:none; }
-  .cta { display:inline-flex; align-items:center; gap:8px; margin: 4px 0 18px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff; text-decoration:none; padding: 10px 18px; border-radius: 10px; font-size:14px; font-weight:700; }
-  .cta .icon { width:16px; height:16px; }
 </style>
 {% endblock %}
 {% block content %}
+{% from "_empty_state.html" import empty_state %}
+{% from "_pagination.html" import pagination_nav %}
 <div class="wrap">
   <h1>Assets</h1>
-  <p style="color: var(--muted); font-size: 13.5px;">
+  <p style="color: var(--muted); font-size: 13px;">
     Persistent scan targets that run automatically on a schedule, instead of being resubmitted by hand.
   </p>
 
-  <a class="cta" href="{{ url_for('asset.new_asset') }}">
+  <a class="btn primary" href="{{ url_for('asset.new_asset') }}">
     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-radar"/></svg>
     Add Asset
   </a>
 
   <div class="card">
-    {% if assets %}
-    <div class="table-scroll">
+    {% if assets.total > 0 %}
+    <div class="table-scroll desktop-table">
     <table>
+      <thead>
       <tr><th>Name</th><th>Target</th><th>Cadence</th><th>Next run</th><th>Latest status</th><th>Actions</th></tr>
-      {% for a in assets %}
+      </thead>
+      <tbody>
+      {% for a in assets.items %}
       {% set latest = a.scans|sort(attribute='created_at')|last if a.scans else None %}
       <tr>
         <td><a class="row-link" href="{{ url_for('asset.asset_detail', asset_id=a.id) }}">{{ a.name }}</a></td>
@@ -42,14 +47,41 @@
         <td><a class="row-link" href="{{ url_for('asset.asset_detail', asset_id=a.id) }}">View &rarr;</a></td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
     </div>
+    <ul class="mobile-record-cards">
+      {% for a in assets.items %}
+      {% set latest = a.scans|sort(attribute='created_at')|last if a.scans else None %}
+      <li class="card record-card">
+        <div class="record-card-top">
+          <a class="record-card-id" href="{{ url_for('asset.asset_detail', asset_id=a.id) }}">{{ a.name }}</a>
+          {% if latest %}
+          <span class="status-pill {{ latest.status.value }}">{{ latest.status.value }}</span>
+          {% else %}
+          -
+          {% endif %}
+        </div>
+        <div class="record-card-meta">
+          <code>{{ a.target_url }}</code><br>
+          {{ a.cadence }} &middot; next run {{ a.next_run_at }}
+        </div>
+        <div class="record-card-action">
+          <a class="btn secondary block" href="{{ url_for('asset.asset_detail', asset_id=a.id) }}">View &rarr;</a>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {{ pagination_nav(assets.page, assets.pages) }}
     {% else %}
-    <p style="color: var(--muted); font-size: 13.5px;">
-      No assets yet. Register a domain as an Asset to scan it automatically on a schedule,
-      instead of resubmitting it by hand.
-      <a class="row-link" href="{{ url_for('asset.new_asset') }}">Add your first Asset &rarr;</a>
-    </p>
+    {% call empty_state(
+      'No assets yet.',
+      'Register a domain as an Asset to scan it automatically on a schedule, instead of resubmitting it by hand.',
+      cta_label='Add your first Asset →',
+      cta_url=url_for('asset.new_asset')
+    ) %}
+    <use href="#icon-radar"/>
+    {% endcall %}
     {% endif %}
   </div>
 </div>
