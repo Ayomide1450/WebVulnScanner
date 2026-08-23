@@ -2511,33 +2511,58 @@ def check_jwt_active(session, base_url, home_html):
     baseline_status = None
     forged_matches_baseline = False
     control_differs = False
-    for label, tok in variants:
-        row = {"variant": label}
-        try:
-            kwargs = {"timeout": REQUEST_TIMEOUT}
+
+    # Live-fire fix (staging lure verification): the shared scan session's
+    # cookie jar still holds the GENUINE token, and requests sends jar +
+    # per-request cookies together on the wire, so a server could satisfy
+    # every replay - including the garbage-signature CONTROL - from the jar
+    # copy, making control_differs impossible on real vulnerable sites.
+    # Evict the jar copy before EVERY variant (sites that rotate their JWT
+    # cookie would re-seed it between replays) and restore it afterwards.
+    def _evict_token_cookie():
+        for c in list(session.cookies):
+            if c.name == cookie_name:
+                session.cookies.clear(c.domain, c.path, c.name)
+
+    saved_jar = [(c.name, c.value, c.domain, c.path) for c in session.cookies]
+    if cookie_name:
+        _evict_token_cookie()
+
+    try:
+        for label, tok in variants:
             if cookie_name:
-                kwargs["cookies"] = {cookie_name: tok}
-            else:
-                kwargs["headers"] = {"Authorization": f"Bearer {tok}"}
-            r = session.get(base_url + "/", **kwargs)
-            row.update({"status": r.status_code, "length": len(r.text)})
-            if label.startswith("baseline"):
-                baseline_len, baseline_status = len(r.text), r.status_code
-            elif label.startswith("alg:none"):
-                # Forgery "accepted" only if it behaves like the genuine token.
-                forged_matches_baseline = (
-                    baseline_status is not None and
-                    r.status_code == baseline_status and
-                    abs(len(r.text) - (baseline_len or 0)) <= 64)
-            else:  # garbage-signature control must behave DIFFERENTLY, else
-                # the endpoint ignores auth state entirely and nothing is
-                # provable either way - report nothing rather than a guess.
-                control_differs = not (
-                    r.status_code == baseline_status and
-                    abs(len(r.text) - (baseline_len or 0)) <= 64)
-        except requests.RequestException:
-            row["error"] = "unreachable"
-        rows.append(row)
+                _evict_token_cookie()
+            row = {"variant": label}
+            try:
+                kwargs = {"timeout": REQUEST_TIMEOUT}
+                if cookie_name:
+                    kwargs["cookies"] = {cookie_name: tok}
+                else:
+                    kwargs["headers"] = {"Authorization": f"Bearer {tok}"}
+                r = session.get(base_url + "/", **kwargs)
+                row.update({"status": r.status_code, "length": len(r.text)})
+                if label.startswith("baseline"):
+                    baseline_len, baseline_status = len(r.text), r.status_code
+                elif label.startswith("alg:none"):
+                    # Forgery "accepted" only if it behaves like the genuine token.
+                    forged_matches_baseline = (
+                        baseline_status is not None and
+                        r.status_code == baseline_status and
+                        abs(len(r.text) - (baseline_len or 0)) <= 64)
+                else:  # garbage-signature control must behave DIFFERENTLY, else
+                    # the endpoint ignores auth state entirely and nothing is
+                    # provable either way - report nothing rather than a guess.
+                    control_differs = not (
+                        r.status_code == baseline_status and
+                        abs(len(r.text) - (baseline_len or 0)) <= 64)
+            except requests.RequestException:
+                row["error"] = "unreachable"
+            rows.append(row)
+    finally:
+        if cookie_name:
+            for c_name, c_value, c_domain, c_path in saved_jar:
+                if c_name == cookie_name:
+                    session.cookies.set(c_name, c_value, domain=c_domain, path=c_path)
 
     accepted = forged_matches_baseline and control_differs
 

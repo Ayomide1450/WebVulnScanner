@@ -20,6 +20,8 @@ import base64
 import json
 from types import SimpleNamespace
 
+import requests
+
 import pytest
 
 from webvulnscanner import checks
@@ -239,12 +241,22 @@ def test_rate_limit_stops_at_first_429_and_reports_nothing():
 # --------------------------------------------------------------------------
 
 class JwtSession(FakeSession):
+    """Jar-backed so check_jwt_active's evict/restore cycle runs against the
+    same RequestsCookieJar API a live scan session exposes."""
+
     def __init__(self, responses):
         super().__init__()
+        from requests.cookies import RequestsCookieJar
+
         self.responses = list(responses)
-        self.cookies = {"auth_token": _make_token()}
+        self.cookies = RequestsCookieJar()
+        self.cookies.set("auth_token", _make_token(), domain="t.test", path="/")
 
     def _get(self, url, kwargs):
+        # Simulate sites that rotate their JWT cookie on every response -
+        # the exact behavior that originally poisoned the scan session's
+        # jar between replay variants (live-fire finding).
+        self.cookies.set("auth_token", _make_token(), domain="t.test", path="/")
         return self.responses.pop(0)
 
 
@@ -254,6 +266,47 @@ def test_jwt_active_flags_none_alg_acceptance():
     data, findings = checks.check_jwt_active(session, "http://t.test", "")
     assert data["tested"] is True
     assert any(f.category == "JWT Forgery" for f in findings)
+    # Restore contract: the genuine token must be back in the jar afterwards.
+    assert any(c.name == "auth_token" for c in session.cookies)
+
+
+def test_jwt_active_sends_exactly_one_cookie_per_variant_over_the_wire():
+    """Live-fire regression: with the genuine token sitting in the session
+    jar AND a rotating site, replays must carry EXACTLY ONE auth_token
+    cookie - the forged/garbage variant - never a duplicate pair where the
+    jar's valid copy satisfies the server and silences the control."""
+    import http.server
+    import threading
+
+    seen = []
+
+    class Echo(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            seen.append(self.headers.get("Cookie", ""))
+            body = b"r" * 100
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Echo)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        port = server.server_address[1]
+        real = requests.Session()
+        real.cookies.set("auth_token", _make_token(), domain="127.0.0.1", path="/")
+        data, findings = checks.check_jwt_active(
+            real, f"http://127.0.0.1:{port}", "")
+    finally:
+        server.shutdown()
+
+    assert len(seen) == 3
+    for wire in seen:
+        assert wire.count("auth_token=") == 1, f"duplicate cookie sent: {wire!r}"
+    assert seen[2].endswith("AAAAgarbageAAAA")
 
 
 def test_jwt_active_requires_control_to_differ():
