@@ -71,6 +71,12 @@ CHECK_LABELS = {
     "robots_sitemap": "robots.txt / sitemap.xml", "jwt": "Client-visible JWT weaknesses",
     "file_upload": "File upload input detection", "privacy_exposure": "Public email/phone exposure",
     "caching_sensitive": "Cache-Control on account/auth paths",
+    # Phase 20 (INTR-01..10)
+    "ssti": "Server-side template injection (SSTI)", "host_header": "Host header injection",
+    "cache_deception": "Web cache deception surface", "crlf": "CRLF injection",
+    "csrf_posture": "CSRF token posture (forms)", "subdomain_takeover": "Subdomain takeover (DNS)",
+    "path_traversal": "Path traversal probe", "rate_limit": "Rate limiting posture",
+    "jwt_active": "JWT alg:none acceptance", "graphql_deep": "GraphQL deep probe",
 }
 
 # Icon-sprite key (see the <symbol id="icon-*"> sprite in templates/base.html)
@@ -89,6 +95,11 @@ CHECK_CATEGORY = {
     "dns_email": "mail",
     "vulnerable_js": "bug", "xss_sqli": "bug", "jwt": "shield",
     "file_upload": "folder", "privacy_exposure": "mail", "caching_sensitive": "lock",
+    # Phase 20 (INTR-01..10)
+    "ssti": "bug", "host_header": "network", "cache_deception": "network",
+    "crlf": "bug", "csrf_posture": "shield", "subdomain_takeover": "network",
+    "path_traversal": "folder", "rate_limit": "lock",
+    "jwt_active": "bug", "graphql_deep": "bug",
 }
 
 # Check names each orchestrator can dispatch, grouped by scan_type - the
@@ -160,6 +171,17 @@ CHECK_COMPLIANCE = {
     "file_upload":       {"owasp": "A04:2021-Insecure Design",           "asvs": "V12.4"},
     "privacy_exposure":  {"owasp": "A01:2021-Broken Access Control",     "asvs": None},
     "caching_sensitive": {"owasp": "A05:2021-Security Misconfiguration", "asvs": "V8.1"},
+    # v1.5 Phase 20 intrusive coverage (INTR-01..10)
+    "ssti":              {"owasp": "A03:2021-Injection",                 "asvs": "V5.3"},
+    "host_header":       {"owasp": "A05:2021-Security Misconfiguration", "asvs": None},
+    "cache_deception":   {"owasp": "A05:2021-Security Misconfiguration", "asvs": None},
+    "crlf":              {"owasp": "A03:2021-Injection",                 "asvs": "V5.3"},
+    "csrf_posture":      {"owasp": "A01:2021-Broken Access Control",     "asvs": "V3.7"},
+    "subdomain_takeover": {"owasp": "A05:2021-Security Misconfiguration", "asvs": None},
+    "path_traversal":    {"owasp": "A01:2021-Broken Access Control",     "asvs": "V12.6"},
+    "rate_limit":        {"owasp": "A07:2021-Identification and Authentication Failures", "asvs": "V2.5"},
+    "jwt_active":        {"owasp": "A07:2021-Identification and Authentication Failures", "asvs": "V3.5"},
+    "graphql_deep":      {"owasp": "A01:2021-Broken Access Control",     "asvs": "V13"},
 }
 
 # v1.3 SCORE-01: groups every check_name into one of the 11 product-facing
@@ -213,6 +235,17 @@ SECURITY_DOMAIN_MAP = {
     "file_upload":       "Configuration",
     "privacy_exposure":  "Privacy",
     "caching_sensitive": "Configuration",
+    # v1.5 Phase 20 intrusive coverage (INTR-01..10)
+    "ssti":              "Client Security",
+    "host_header":       "Configuration",
+    "cache_deception":   "Configuration",
+    "crlf":              "Client Security",
+    "csrf_posture":      "Authorization",
+    "subdomain_takeover": "DNS & Domains",
+    "path_traversal":    "Attack Surface",
+    "rate_limit":        "Authentication",
+    "jwt_active":        "Authentication",
+    "graphql_deep":      "API Security",
 }
 
 # The 11 real finding-groups a check_name can map to, plus the two
@@ -2170,6 +2203,537 @@ def check_xss_sqli(urls, session):
             tested.append(row)
             time.sleep(0.15)
     return tested, findings
+
+
+# --------------------------------------------------------------------------
+# Phase 20 - Intrusive Coverage Expansion (INTR-01..INTR-10). Ten new
+# families for security engineers, all non-destructive: marker/computed-
+# result proofs only, every loop bounded by a named MAX_* constant,
+# requests.RequestException never escapes a function. Tier gating lives in
+# entitlements.FEATURE_REQUIREMENTS (single-request reflection probes =
+# PAID; deliberate multi-request bursts / active forgeries = ORG_VERIFIED).
+# --------------------------------------------------------------------------
+
+# INTR-01: SSTI canaries. Confirmation requires the COMPUTED arithmetic
+# result (77*88 == 6776) reflected in the response - a bare "{{" bounce is
+# never reported, keeping the proof standard identical to XSS marker rules.
+SSTI_PAYLOADS = [
+    ("jinja2-twig", "{{77*88}}"),
+    ("php-smarty", "${77*88}"),
+    ("erb-erubi", "<%= 77*88 %>"),
+]
+SSTI_EXPECTED_RESULT = "6776"
+MAX_SSTI_PROBE_PARAMS = 8
+
+# INTR-02: host-header canary. A reserved .invalid domain that can never
+# resolve/serve - any appearance in the response came from our own echo.
+HOST_HEADER_CANARY = "glassbox-hh-canary.invalid"
+MAX_HOST_HEADER_VARIANTS = 3
+
+# INTR-04: traversal reads ONE known marker file (/etc/passwd) whose
+# signature strings are unambiguous; nothing is written, deleted, or listed.
+TRAVERSAL_PARAM_HINTS = ("file", "path", "doc", "template", "page", "include",
+                         "read", "src", "download", "img", "asset", "view", "show", "cat")
+TRAVERSAL_MARKERS = ("root:x:0:0", "daemon:x:1:1", "[boot loader]")
+MAX_TRAVERSAL_URLS = 6
+
+# INTR-05: measured GET-only burst against the auth page itself - NEVER a
+# credential POST (forms are never auto-submitted anywhere in this app).
+# Stops at the first throttle signal.
+RATE_LIMIT_BURST = 15
+RATE_LIMIT_CANDIDATE_PATHS = ("/login", "/signin", "/auth/login", "/sign-in")
+
+# INTR-06: active JWT acceptance probe - forges the operator's OWN visible
+# token with alg:none and replays it where that session legitimately goes.
+JWT_ACTIVE_COOKIE_HINTS = ("token", "jwt", "auth", "session")
+
+# INTR-07: CRLF canary. Injected once-encoded (raw \r\n would be rejected
+# client-side by requests); detection is OUR response header appearing.
+CRLF_CANARY_HEADER = "X-Glassbox-Crlf"
+MAX_CRLF_PROBE_PARAMS = 6
+
+# INTR-08: CSRF heuristics run purely over crawl_same_origin's enumerated
+# forms - still never submitted.
+CSRF_TOKEN_HINTS = ("csrf", "_token", "token", "nonce", "authenticity")
+
+# INTR-09: DNS-only dangling-CNAME detection. Fingerprints map a CNAME
+# target suffix to the service that would serve it.
+SUBDOMAIN_TAKEOVER_FINGERPRINTS = {
+    "github.io": "GitHub Pages", "herokuapp.com": "Heroku",
+    "s3.amazonaws.com": "AWS S3", "azurewebsites.net": "Azure Web Apps",
+    "cloudapp.net": "Azure CloudApp", "wordpress.com": "WordPress.com",
+    "zendesk.com": "Zendesk", "netlify.app": "Netlify", "web.app": "Firebase Hosting",
+    "ghost.io": "Ghost", "surge.sh": "Surge.sh", "bitbucket.io": "Bitbucket",
+}
+TAKEOVER_SUBDOMAIN_PREFIXES = ("www", "api", "app", "blog", "dev", "staging", "docs", "shop")
+MAX_TAKEOVER_SUBDOMAINS = 8
+
+# INTR-10: read-only GraphQL probing - introspection query plus a
+# deliberately-bogus-field suggestion probe. No mutations, ever.
+GRAPHQL_CANDIDATE_PATHS = ("/graphql", "/api/graphql", "/v1/graphql", "/graphiql")
+MAX_GRAPHQL_ENDPOINTS = 4
+GRAPHQL_INTROSPECTION_BODY = '{"query":"{ __schema { queryType { name } } }"}'
+GRAPHQL_SUGGESTION_BODY = '{"query":"{ __zzzNoSuchField { id } }"}'
+
+
+def check_ssti(urls, session):
+    """INTR-01: server-side template injection canary across discovered
+    query-string parameters. One GET per (param, engine family); stops at
+    the first confirmed computation reflection."""
+    tested, findings = [], []
+    probes = 0
+    confirmed = False
+    for url in urls[:MAX_SSTI_PROBE_PARAMS]:
+        if confirmed:
+            break
+        for param in parse_qs(urlparse(url).query):
+            row = {"url": url, "param": param, "result": "pass"}
+            for engine, payload in SSTI_PAYLOADS:
+                if confirmed or probes >= MAX_SSTI_PROBE_PARAMS * len(SSTI_PAYLOADS):
+                    break
+                try:
+                    r = session.get(_inject_param(url, param, payload), timeout=REQUEST_TIMEOUT)
+                    probes += 1
+                    if SSTI_EXPECTED_RESULT in r.text:
+                        row["result"] = f"fail ({engine})"
+                        confirmed = True
+                        findings.append(Finding(
+                            "SSTI", f"Server-side template injection in '{param}' on {url}",
+                            "critical",
+                            f"The {engine} arithmetic payload {{77*88}} was evaluated server-side "
+                            "(response contained 6776). User input reaches a template engine.",
+                            "Never render user input through template engines; use data variables, "
+                            "not string templates.", confidence="Confirmed"))
+                except requests.RequestException:
+                    row["result"] = "info"
+                    break  # dead target - stop burning this param's budget
+                row["engines_tried"] = row.get("engines_tried", 0) + 1
+            tested.append(row)
+            if confirmed:
+                break
+    return tested, findings
+
+
+def check_host_header(base_url, session):
+    """INTR-02: benign host-header canary. Sends a reserved .invalid hostname
+    via Host and X-Forwarded-Host and looks for it echoed in the body or in
+    redirect/set-cookie headers - the classic password-reset-poisoning tell."""
+    rows, findings = [], []
+    variants = [("Host",), ("X-Forwarded-Host",)]
+    for header, in variants[:MAX_HOST_HEADER_VARIANTS]:
+        row = {"header": header, "reflected": False}
+        try:
+            r = session.get(base_url + "/", timeout=REQUEST_TIMEOUT,
+                            headers={header: HOST_HEADER_CANARY})
+            echoed_body = HOST_HEADER_CANARY in r.text
+            echoed_header = any(HOST_HEADER_CANARY in str(v)
+                                for h, v in r.headers.items()
+                                if h.lower() in ("location", "set-cookie"))
+            if echoed_body or echoed_header:
+                row["reflected"] = True
+                findings.append(Finding(
+                    "Host Header Injection", f"{header} header is reflected by the application",
+                    "high",
+                    f"The {header}: {HOST_HEADER_CANARY} value appeared in the "
+                    f"{'body' if echoed_body else 'Location/Set-Cookie headers'} of the response. "
+                    "Attackers can poison password-reset links or cache keys.",
+                    "Derive URLs from server configuration, not client-supplied headers; "
+                    "allowlist expected Host values.", confidence="Confirmed"))
+        except requests.RequestException:
+            row["error"] = "unreachable"
+        rows.append(row)
+    return rows, findings
+
+
+def check_cache_deception(base_url, session):
+    """INTR-03: web-cache-deception SURFACE heuristic. Observes whether the
+    deployment runs a cache that keys on path extensions (Age / X-Cache /
+    CF-Cache-Status on a .css-suffixed variant of a crawled path). Never
+    stores attacker-chosen content, so this cannot poison anyone's cache."""
+    rows, findings = [], []
+    try:
+        r = session.get(base_url + "/", timeout=REQUEST_TIMEOUT)
+    except requests.RequestException:
+        return [{"result": "unreachable"}], []
+    probe_path = "/"  # homepage is one path every target serves
+    decoy_url = base_url + probe_path.rstrip("/") + ".css"
+    try:
+        d = session.get(decoy_url, timeout=REQUEST_TIMEOUT)
+    except requests.RequestException:
+        return [{"result": "unreachable"}], []
+
+    def _cache_headers(resp):
+        return {h.lower(): v for h, v in resp.headers.items()
+                if h.lower() in ("age", "x-cache", "cf-cache-status", "x-varnish",
+                                 "x-drupal-cache")}
+
+    ch = _cache_headers(d)
+    row = {"decoy": decoy_url, "status": d.status_code, "cache_headers": ch or "none"}
+    hit_markers = [v for v in ch.values() if "hit" in str(v).lower()]
+    if hit_markers and d.status_code == 200:
+        row["result"] = "extension-keyed cache responded"
+        findings.append(Finding(
+            "Cache Deception Surface", "Cache serves extension-suffixed variants of dynamic paths",
+            "low",
+            f"A request to {decoy_url} was answered with cache-HIT headers ({hit_markers}). "
+            "If authenticated pages are ever cached under attacker-chosen extensions, their "
+            "content can be exposed. Verify authenticated responses are never cacheable.",
+            "Set Cache-Control: no-store on all authenticated responses; key caches on "
+            "Content-Type, not path extensions.", confidence="Potential"))
+    else:
+        row["result"] = "no observable extension-keyed caching"
+    rows.append(row)
+    return rows, findings
+
+
+def check_path_traversal(urls, session):
+    """INTR-04: READ-ONLY traversal probe on file-ish query parameters -
+    confirms only by the unambiguous /etc/passwd signature lines. No writes,
+    no deletes, no listings; stops at the first confirmed read."""
+    tested, findings = [], []
+    probes = 0
+    confirmed = False
+    for url in urls[:MAX_TRAVERSAL_URLS]:
+        if confirmed:
+            break
+        qs = parse_qs(urlparse(url).query)
+        for param, values in qs.items():
+            if not any(h in param.lower() for h in TRAVERSAL_PARAM_HINTS):
+                continue
+            if confirmed:
+                break
+            payload = "../../../../../etc/passwd"
+            try:
+                r = session.get(_inject_param(url, param, payload), timeout=REQUEST_TIMEOUT)
+                probes += 1
+                hit = next((m for m in TRAVERSAL_MARKERS if m in r.text), None)
+                row = {"url": url, "param": param, "probed": True}
+                if hit:
+                    row["result"] = "fail"
+                    confirmed = True
+                    findings.append(Finding(
+                        "Path Traversal", f"Arbitrary file read via '{param}' on {url}",
+                        "critical",
+                        f"The traversal payload reached /etc/passwd (signature {hit!r} present "
+                        "in the response). The parameter is passed unsanitized to a file API.",
+                        "Reject path separators in user input; resolve files against an "
+                        "allowlist root and verify canonical paths stay inside it.",
+                        confidence="Confirmed"))
+                else:
+                    row["result"] = "pass"
+                tested.append(row)
+            except requests.RequestException:
+                tested.append({"url": url, "param": param, "result": "info"})
+    return tested, findings
+
+
+def check_rate_limit_posture(base_url, session):
+    """INTR-05: measured GET-only burst against the auth page. This never
+    submits credentials (no form POST anywhere in Glassbox) - it measures
+    whether ANY throttling answers repeated automated requests. Stops at the
+    first 429/503."""
+    target_path = next((p for p in RATE_LIMIT_CANDIDATE_PATHS), "/login")
+    # Prefer a path that actually exists: fall back to "/" if the first two
+    # candidates 404 immediately.
+    statuses = []
+    throttled = False
+    chosen = None
+    for candidate in RATE_LIMIT_CANDIDATE_PATHS:
+        try:
+            r = session.get(base_url + candidate, timeout=REQUEST_TIMEOUT)
+        except requests.RequestException:
+            continue
+        if r.status_code < 400:
+            chosen = candidate
+            break
+    if chosen is None:
+        chosen = "/"
+    for _ in range(RATE_LIMIT_BURST):
+        try:
+            r = session.get(base_url + chosen, timeout=REQUEST_TIMEOUT)
+        except requests.RequestException:
+            break
+        statuses.append(r.status_code)
+        if r.status_code in (429, 503):
+            throttled = True
+            break
+    findings = []
+    if statuses and not throttled and all(s < 400 for s in statuses):
+        findings.append(Finding(
+            "Rate Limiting", f"No throttling observed after {len(statuses)} rapid requests to {chosen}",
+            "medium",
+            f"{len(statuses)} consecutive automated GET requests all succeeded (statuses "
+            f"{statuses[0]}..{statuses[-1]}). Credential-stuffing and brute-force tooling "
+            "would face the same absence of resistance.",
+            "Apply progressive rate limits / lockouts on auth endpoints; return 429 with "
+            "Retry-After.", confidence="Potential"))
+    return {"target": chosen, "statuses": statuses, "throttled": throttled}, findings
+
+
+def _jwt_b64url_encode(raw_bytes):
+    return base64.urlsafe_b64encode(raw_bytes).rstrip(b"=").decode("ascii")
+
+
+def check_jwt_active(session, base_url, home_html):
+    """INTR-06: active acceptance probe for client-visible JWTs. Takes the
+    operator's OWN token, re-signs the identical payload with alg:none, and
+    replays all three variants where that session already legitimately goes
+    (the site root). Reports acceptance ONLY when the forged replay matches
+    the genuine baseline AND a garbage-token control clearly does not."""
+    rows, findings = [], []
+    token = None
+    cookie_name = None
+    for name, value in (getattr(session, "cookies", {}) or {}).items():
+        if value.count(".") == 2 and len(value) > 40:
+            token, cookie_name = value, name
+            break
+    if token is None:
+        m = re.search(r"(eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*)", home_html or "")
+        token = m.group(1) if m else None
+
+    if not token:
+        return {"tested": False, "reason": "no client-visible JWT found"}, []
+
+    def _reforge(alg_value):
+        header_b64, payload_b64, _sig = token.split(".")
+        header = _b64url_decode_json(header_b64) or {}
+        header["alg"] = alg_value
+        new_sig = "" if alg_value == "none" else _jwt_b64url_encode(b"garbage-signature-not-valid")
+        return ".".join([_jwt_b64url_encode(json.dumps(header).encode()),
+                         payload_b64, new_sig])
+
+    variants = [
+        ("baseline (original token)", token),
+        ("alg:none forgery", _reforge("none")),
+        ("control: garbage signature", ".".join(token.split(".")[:2]) + ".AAAAgarbageAAAA"),
+    ]
+    baseline_len = None
+    baseline_status = None
+    forged_matches_baseline = False
+    control_differs = False
+    for label, tok in variants:
+        row = {"variant": label}
+        try:
+            kwargs = {"timeout": REQUEST_TIMEOUT}
+            if cookie_name:
+                kwargs["cookies"] = {cookie_name: tok}
+            else:
+                kwargs["headers"] = {"Authorization": f"Bearer {tok}"}
+            r = session.get(base_url + "/", **kwargs)
+            row.update({"status": r.status_code, "length": len(r.text)})
+            if label.startswith("baseline"):
+                baseline_len, baseline_status = len(r.text), r.status_code
+            elif label.startswith("alg:none"):
+                # Forgery "accepted" only if it behaves like the genuine token.
+                forged_matches_baseline = (
+                    baseline_status is not None and
+                    r.status_code == baseline_status and
+                    abs(len(r.text) - (baseline_len or 0)) <= 64)
+            else:  # garbage-signature control must behave DIFFERENTLY, else
+                # the endpoint ignores auth state entirely and nothing is
+                # provable either way - report nothing rather than a guess.
+                control_differs = not (
+                    r.status_code == baseline_status and
+                    abs(len(r.text) - (baseline_len or 0)) <= 64)
+        except requests.RequestException:
+            row["error"] = "unreachable"
+        rows.append(row)
+
+    accepted = forged_matches_baseline and control_differs
+
+    if accepted:
+        findings.append(Finding(
+            "JWT Forgery", "Server accepted a JWT re-signed with alg:none",
+            "critical",
+            "The application honored a token whose header was changed to \"alg\": \"none\" "
+            "with the signature stripped - its payload claims are entirely attacker-controlled.",
+            "Pin allowed algorithms server-side (e.g. HS256/RS256 allowlist); reject "
+            "'none' unconditionally; verify signatures before reading claims.",
+            confidence="Confirmed"))
+    return {"tested": True, "cookie": cookie_name or "Authorization header", "variants": rows}, findings
+
+
+def check_crlf_injection(urls, session):
+    """INTR-07: CRLF injection canary in query parameters. The payload is
+    percent-encoded exactly once (via _inject_param_raw); detection is OUR
+    OWN response header appearing in the reply - proof the backend decoded
+    and emitted a second header. Stops at the first confirmation."""
+    rows, findings = [], []
+    probes = 0
+    confirmed = False
+    payload_raw = f"\r\n{CRLF_CANARY_HEADER}: 1"
+    for url in urls[:MAX_CRLF_PROBE_PARAMS]:
+        if confirmed:
+            break
+        for param in parse_qs(urlparse(url).query):
+            if confirmed or probes >= MAX_CRLF_PROBE_PARAMS:
+                break
+            try:
+                crlf_url = _inject_param_raw(url, param, payload_raw)
+                r = session.get(crlf_url, timeout=REQUEST_TIMEOUT)
+                probes += 1
+                reflected = any(h.lower() == CRLF_CANARY_HEADER.lower() for h in r.headers)
+                rows.append({"url": url, "param": param,
+                             "result": "fail" if reflected else "pass"})
+                if reflected:
+                    confirmed = True
+                    findings.append(Finding(
+                        "CRLF Injection", f"Response header splitting via '{param}' on {url}",
+                        "high",
+                        f"Our {CRLF_CANARY_HEADER} header came back as a REAL response "
+                        "header - user input terminates the header section unsanitized.",
+                        "Strip CR/LF from all user input before header emission; use the "
+                        "framework's header-setting APIs, never raw concatenation.",
+                        confidence="Confirmed"))
+            except requests.RequestException:
+                rows.append({"url": url, "param": param, "result": "info"})
+    return rows, findings
+
+
+def _inject_param_raw(url, param, value_raw):
+    """Like _inject_param but encodes values exactly ONCE (quote with no
+    safe chars) instead of running them through parse_qs->urlencode, which
+    would double-encode % sequences."""
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    parts = []
+    for k, vals in qs.items():
+        raw = value_raw if k == param else vals[0]
+        parts.append(f"{k}={quote(raw, safe='')}")
+    return urlunparse(parsed._replace(query="&".join(parts)))
+
+
+def check_csrf_posture(forms):
+    """INTR-08: pure-data heuristic over crawl_same_origin's enumerated form
+    list (forms are display-only everywhere in Glassbox - this check performs
+    ZERO network requests). Flags state-changing POST forms that carry no
+    input resembling an anti-CSRF token."""
+    rows, findings = [], []
+    post_forms = [f for f in forms if (f.get("method") or "").upper() == "POST"]
+    for form in post_forms:
+        names = [str(n or "") for n in form.get("inputs", [])]
+        has_token = any(any(h in n.lower() for h in CSRF_TOKEN_HINTS) for n in names)
+        rows.append({"action": form.get("action"), "inputs": names,
+                     "has_token_hint": has_token})
+    missing = [r for r in rows if not r["has_token_hint"]]
+    if missing:
+        examples = ", ".join(str(m["action"]) for m in missing[:3])
+        findings.append(Finding(
+            "CSRF", f"{len(missing)} state-changing form(s) show no anti-CSRF token",
+            "medium",
+            f"POST form(s) such as {examples} contain no input field resembling a CSRF "
+            "token (csrf/token/nonce/authenticity). Cross-site requests may be accepted "
+            "on behalf of logged-in users.",
+            "Require a per-session synchronizer token (or SameSite=Lax/Strict + Origin "
+            "checking) on every state-changing endpoint.", confidence="Potential"))
+    return rows, findings
+
+
+def check_subdomain_takeover(hostname):
+    """INTR-09: DNS-only dangling-CNAME detection for common subdomains of
+    the target's registrable domain. A subdomain is flagged ONLY when its
+    CNAME points at a takeover-fingerprinted service AND that target no
+    longer resolves (NXDOMAIN) - the classic takeover prerequisite. No HTTP
+    requests are made to any third-party host."""
+    rows, findings = [], []
+    checked = 0
+    for prefix in TAKEOVER_SUBDOMAIN_PREFIXES[:MAX_TAKEOVER_SUBDOMAINS]:
+        fqdn = f"{prefix}.{hostname}"
+        row = {"subdomain": fqdn}
+        try:
+            answers = dns.resolver.resolve(fqdn, "CNAME")
+            cname = str(answers[0].target).rstrip(".")
+            row["cname"] = cname
+            service = next((name for suffix, name in SUBDOMAIN_TAKEOVER_FINGERPRINTS.items()
+                            if cname == suffix or cname.endswith("." + suffix)), None)
+            if service:
+                row["service"] = service
+                try:
+                    dns.resolver.resolve(cname, "A")
+                    row["dangling"] = False
+                except dns.resolver.NXDOMAIN:
+                    row["dangling"] = True
+                    findings.append(Finding(
+                        "Subdomain Takeover", f"{fqdn} dangles at an unclaimed {service} target",
+                        "high",
+                        f"{fqdn} is a CNAME to {cname} ({service}), which no longer resolves. "
+                        "Whoever registers that resource identifier serves arbitrary content "
+                        "under YOUR subdomain.",
+                        f"Remove the DNS record, or reclaim the {service} resource named "
+                        f"{cname}.", confidence="Strong Evidence"))
+        except Exception:
+            # NXDOMAIN / no CNAME / resolver trouble are all just "nothing
+            # here" - best-effort by design, never fatal (house DNS style).
+            row["result"] = "no cname"
+        checked += 1
+    return {"checked": checked, "rows": rows}, findings
+
+
+def check_graphql_deep(base_url, session):
+    """INTR-10: read-only GraphQL probing. For each well-known endpoint
+    path: one introspection query (is the schema mapable by anyone?), and -
+    only where introspection is disabled - one bogus-field query to see if
+    error messages leak valid field suggestions. No mutation operations are
+    ever sent."""
+    rows, findings = [], []
+    for path in GRAPHQL_CANDIDATE_PATHS[:MAX_GRAPHQL_ENDPOINTS]:
+        url = base_url + path
+        row = {"endpoint": path}
+        try:
+            r = session.post(url, data=GRAPHQL_INTROSPECTION_BODY,
+                             headers={"Content-Type": "application/json"},
+                             timeout=REQUEST_TIMEOUT)
+        except requests.RequestException:
+            continue
+        if r.status_code != 200:
+            row["result"] = f"not graphql ({r.status_code})"
+            rows.append(row)
+            continue
+        if "__schema" in r.text:
+            row["result"] = "live - introspection enabled"
+            findings.append(Finding(
+                "GraphQL Exposure", f"GraphQL schema introspection is publicly enabled at {path}",
+                "medium",
+                "Anyone can walk your entire API schema (types, fields, relations) via a "
+                "standard __schema query - an attacker's reconnaissance work is done for them.",
+                "Disable introspection in production or gate it behind admin auth.",
+                confidence="Confirmed"))
+            try:
+                r2 = session.post(url, data=GRAPHQL_SUGGESTION_BODY,
+                                  headers={"Content-Type": "application/json"},
+                                  timeout=REQUEST_TIMEOUT)
+                if "Did you mean" in r2.text:
+                    row["field_suggestions"] = True
+                    findings.append(Finding(
+                        "GraphQL Exposure", f"Validation errors suggest field names at {path}",
+                        "low",
+                        "Error messages include 'Did you mean ...' hints, letting attackers "
+                        "enumerate the schema even with introspection off.",
+                        "Suppress suggestion text in production GraphQL error responses.",
+                        confidence="Confirmed"))
+            except requests.RequestException:
+                pass
+        else:
+            row["result"] = "live - introspection disabled"
+            # Suggestions leak is MOST interesting with introspection off -
+            # it's the attacker's only remaining schema oracle.
+            try:
+                r2 = session.post(url, data=GRAPHQL_SUGGESTION_BODY,
+                                  headers={"Content-Type": "application/json"},
+                                  timeout=REQUEST_TIMEOUT)
+                if "Did you mean" in r2.text:
+                    row["field_suggestions"] = True
+                    findings.append(Finding(
+                        "GraphQL Exposure", f"Validation errors suggest field names at {path}",
+                        "low",
+                        "Introspection is off, but error messages include 'Did you mean ...' "
+                        "hints - attackers can still enumerate the schema field by field.",
+                        "Suppress suggestion text in production GraphQL error responses.",
+                        confidence="Confirmed"))
+            except requests.RequestException:
+                pass
+        rows.append(row)
+    return rows, findings
 
 
 # --------------------------------------------------------------------------

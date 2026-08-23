@@ -200,6 +200,49 @@ product framing, it does not change what the scanner is allowed to do to a targe
 - A purchased custom domain for Glassbox (e.g. `glassbox.io`) — `glassboxsec.fly.dev` is this
   milestone's scope; a real domain requires a registrar purchase only the user can make.
 
+### Intrusive Coverage Expansion — Phase 20
+
+Ten new check families for security engineers. All follow the house convention
+(`(data, findings)`, `requests.RequestException` contained, named `MAX_*` caps,
+marker-only proofs, no destructive payloads). Tier mapping is deliberate:
+single-request reflection probes are PAID; anything sending deliberate
+multi-request bursts or active forgeries is ORG_VERIFIED (tier AND verified
+domain, per the existing gating).
+
+- [x] **INTR-01** `check_ssti`: server-side template injection canary — arithmetic
+      marker pairs (`{{7*7}}`/`${7*7}`/`<%= 7*7 %>`) injected into GET params,
+      confirmed only by computed-result reflection. PAID.
+- [x] **INTR-02** `check_host_header_injection`: benign Host/X-Forwarded-Host
+      canary reflected in the response body or location/set-cookie headers.
+      Single requests, no cache manipulation. PAID.
+- [x] **INTR-03** `check_cache_deception`: web-cache-deception heuristic — requests
+      to `<known-authed-path>.css`-style variants compared against the plain path
+      via status/body similarity, never poisoning shared caches with attacker
+      content. PAID.
+- [x] **INTR-04** `check_path_traversal`: read-only traversal on file-ish GET params
+      (`?file=`-style), confirmed by a known static marker file's content signature;
+      no writes, no deletion, capped param set. ORG_VERIFIED.
+- [x] **INTR-05** `check_rate_limit_posture`: measured burst (~15 max) against one
+      auth endpoint, stops at first 429/lockout signal; reports absence of any
+      throttling as the finding. ORG_VERIFIED.
+- [x] **INTR-06** Active JWT check: `alg:none` / weak-HMAC re-sign of the operator's
+      OWN token, submitted only where that session already legitimately reaches;
+      confirms acceptance or reports nothing. Extends `check_jwt_weakness`.
+      ORG_VERIFIED.
+- [x] **INTR-07** `check_crlf_injection`: `%0d%0a` canary in GET params and path,
+      confirmed by response-header reflection (`X-Glassbox-Canary` style split).
+      PAID.
+- [x] **INTR-08** `check_csrf_posture`: heuristic scan of crawled forms — flags
+      state-changing (POST) forms lacking any anti-CSRF token input. Forms are
+      still NEVER auto-submitted. PAID.
+- [x] **INTR-09** `check_subdomain_takeover`: DNS-only dangling-CNAME detection
+      against known takeover fingerprints (github.io, herokuapp.com, s3, azure,
+      etc.) for www/common subdomains of the target domain. No HTTP probing of
+      third-party hosts beyond the fingerprint match itself. PAID.
+- [x] **INTR-10** `check_graphql_deep`: GraphQL arg-level canary (read-only queries
+      only) + introspection-disabled field-suggestion probing on discovered
+      GraphQL endpoints. ORG_VERIFIED.
+
 ## Out of Scope
 
 | Feature | Reason |
@@ -226,6 +269,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEPTH-01..03 | Phase 17 | Complete |
 | CLI-01..03 | Phase 18 | Complete |
 | WEBH-01..07 | Phase 19 | Complete |
+| INTR-01..10 | Phase 20 | Complete |
 
-**Coverage:** 49/49 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for v1.3
-across 5 phases, 17 new for v1.4 across 4 phases).
+**Coverage:** 59/59 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for v1.3
+across 5 phases, 17 new for v1.4 across 4 phases, 10 new for v1.5 across 1 phase - all complete).
+

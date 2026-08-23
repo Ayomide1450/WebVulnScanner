@@ -684,6 +684,179 @@
       {% if data.excerpt %}<pre>{{ data.excerpt }}</pre>{% endif %}
       {% endfor %}
       {% endif %}
+     </div>
+  </details>
+
+  <details open>
+    <summary>Server-side template injection (SSTI) <span class="arrow">&#9656;</span></summary>
+    <div class="details-body">
+      {% if 'ssti' in locked %}{{ locked_card('ssti') }}
+      {% else %}
+      {% if r.ssti %}
+      <div class="table-scroll">
+      <table><thead><tr><th>URL</th><th>Param</th><th>Result</th></tr></thead><tbody>
+        {% for row in r.ssti %}<tr><td><code>{{ row.url }}</code></td><td>{{ row.param }}</td>
+          <td class="{{ 'critical' if row.result.startswith('fail') else ('pass' if row.result=='pass' else 'info') }}">{{ row.result }}</td></tr>{% endfor %}
+      </tbody></table>
+      </div>
+      {% else %}<p class="note">No parameters were available to probe (run an active crawl first).</p>{% endif %}
+      {% endif %}
+    </div>
+  </details>
+
+  <details open>
+    <summary>Host header injection <span class="arrow">&#9656;</span></summary>
+    <div class="details-body">
+      {% if 'host_header' in locked %}{{ locked_card('host_header') }}
+      {% else %}
+      <div class="table-scroll">
+      <table><thead><tr><th>Header tested</th><th>Reflected</th></tr></thead><tbody>
+        {% for row in r.host_header %}<tr><td>{{ row.header }}</td>
+          <td class="{{ 'high' if row.reflected else 'pass' }}">{{ 'yes' if row.reflected else 'no' }}{% if row.error %} ({{ row.error }}){% endif %}</td></tr>{% endfor %}
+      </tbody></table>
+      </div>
+      {% endif %}
+    </div>
+  </details>
+
+  <details open>
+    <summary>Web cache deception surface <span class="arrow">&#9656;</span></summary>
+    <div class="details-body">
+      {% if 'cache_deception' in locked %}{{ locked_card('cache_deception') }}
+      {% else %}
+      <div class="table-scroll">
+      <table><thead><tr><th>Decoy path</th><th>Status</th><th>Cache headers</th><th>Result</th></tr></thead><tbody>
+        {% for row in r.cache_deception %}<tr><td><code>{{ row.decoy }}</code></td>
+          <td>{{ row.status }}</td><td><code>{{ row.cache_headers }}</code></td>
+          <td class="{{ 'medium' if 'extension-keyed' in row.result else 'pass' }}">{{ row.result }}</td></tr>{% endfor %}
+      </tbody></table>
+      </div>
+      {% endif %}
+    </div>
+  </details>
+
+  <details open>
+    <summary>CRLF injection <span class="arrow">&#9656;</span></summary>
+    <div class="details-body">
+      {% if 'crlf' in locked %}{{ locked_card('crlf') }}
+      {% else %}
+      {% if r.crlf %}
+      <div class="table-scroll">
+      <table><thead><tr><th>URL</th><th>Param</th><th>Result</th></tr></thead><tbody>
+        {% for row in r.crlf %}<tr><td><code>{{ row.url }}</code></td><td>{{ row.param }}</td>
+          <td class="{{ 'high' if row.result=='fail' else ('pass' if row.result=='pass' else 'info') }}">{{ row.result }}</td></tr>{% endfor %}
+      </tbody></table>
+      </div>
+      {% else %}<p class="note">No parameters were available to probe.</p>{% endif %}
+      {% endif %}
+    </div>
+  </details>
+
+  <details open>
+    <summary>CSRF token posture (forms) <span class="arrow">&#9656;</span></summary>
+    <div class="details-body">
+      {% if 'csrf_posture' in locked %}{{ locked_card('csrf_posture') }}
+      {% else %}
+      {% if r.csrf_posture %}
+      <div class="table-scroll">
+      <table><thead><tr><th>Form action</th><th>Inputs</th><th>Token-like field present</th></tr></thead><tbody>
+        {% for row in r.csrf_posture %}<tr><td><code>{{ row.action }}</code></td>
+          <td>{{ row.inputs|join(', ') or '-' }}</td>
+          <td class="{{ 'pass' if row.has_token_hint else 'medium' }}">{{ 'yes' if row.has_token_hint else 'no' }}</td></tr>{% endfor %}
+      </tbody></table>
+      </div>
+      {% else %}<p class="note">No state-changing (POST) forms were discovered by the crawl.</p>{% endif %}
+      {% endif %}
+    </div>
+  </details>
+
+  <details open>
+    <summary>Subdomain takeover (DNS) <span class="arrow">&#9656;</span></summary>
+    <div class="details-body">
+      {% if 'subdomain_takeover' in locked %}{{ locked_card('subdomain_takeover') }}
+      {% else %}
+      <p class="note">{{ r.subdomain_takeover.checked }} common subdomains checked, DNS-only (no HTTP requests to third-party hosts).</p>
+      {% if r.subdomain_takeover.rows %}
+      <div class="table-scroll">
+      <table><thead><tr><th>Subdomain</th><th>CNAME target</th><th>Service</th><th>Dangling</th></tr></thead><tbody>
+        {% for row in r.subdomain_takeover.rows if row.cname %}<tr><td><code>{{ row.subdomain }}</code></td>
+          <td><code>{{ row.cname }}</code></td><td>{{ row.service or '-' }}</td>
+          <td class="{{ 'critical' if row.dangling else 'pass' }}">{{ 'YES' if row.dangling else 'no' }}</td></tr>{% endfor %}
+      </tbody></table>
+      </div>
+      {% endif %}
+      {% endif %}
+    </div>
+  </details>
+
+  <details open>
+    <summary>Path traversal probe <span class="arrow">&#9656;</span></summary>
+    <div class="details-body">
+      {% if 'path_traversal' in locked %}{{ locked_card('path_traversal') }}
+      {% else %}
+      {% if r.path_traversal %}
+      <div class="table-scroll">
+      <table><thead><tr><th>URL</th><th>Param</th><th>Result</th></tr></thead><tbody>
+        {% for row in r.path_traversal %}<tr><td><code>{{ row.url }}</code></td><td>{{ row.param }}</td>
+          <td class="{{ 'critical' if row.result=='fail' else ('info' if row.result=='info' else 'pass') }}">{{ row.get('result', 'probed') }}</td></tr>{% endfor %}
+      </tbody></table>
+      </div>
+      {% else %}<p class="note">No file-ish parameters were discovered to probe.</p>{% endif %}
+      {% endif %}
+    </div>
+  </details>
+
+  <details open>
+    <summary>Rate limiting posture <span class="arrow">&#9656;</span></summary>
+    <div class="details-body">
+      {% if 'rate_limit' in locked %}{{ locked_card('rate_limit') }}
+      {% else %}
+        {% set rl = r.rate_limit %}
+        {% if rl.statuses %}
+        <p>GET burst against <code>{{ rl.target }}</code>: statuses
+          {{ rl.statuses|join(', ') }} &mdash;
+          {% if rl.throttled %}<span class="pass">throttled (429/503 observed)</span>
+          {% else %}<span class="medium">no throttle signal in {{ rl.statuses|length }} requests</span>{% endif %}</p>
+        {% else %}<p class="note">Target unreachable during burst.</p>{% endif %}
+      {% endif %}
+    </div>
+  </details>
+
+  <details open>
+    <summary>JWT alg:none acceptance <span class="arrow">&#9656;</span></summary>
+    <div class="details-body">
+      {% if 'jwt_active' in locked %}{{ locked_card('jwt_active') }}
+      {% else %}
+        {% set ja = r.jwt_active %}
+        {% if ja.tested %}
+        <p class="note">Replay carrier: {{ ja.cookie }}. The forged token is derived from YOUR OWN session token - nothing is sent anywhere but the scanned site.</p>
+        <div class="table-scroll">
+        <table><thead><tr><th>Variant</th><th>Status</th><th>Body length</th></tr></thead><tbody>
+          {% for v in ja.variants %}<tr><td>{{ v.variant }}</td>
+            <td>{{ v.status if v.status is defined else (v.error or '-') }}</td>
+            <td>{{ v.length if v.length is defined else '-' }}</td></tr>{% endfor %}
+        </tbody></table>
+        </div>
+        {% else %}<p class="note">{{ ja.reason }}</p>{% endif %}
+      {% endif %}
+    </div>
+  </details>
+
+  <details open>
+    <summary>GraphQL deep probe <span class="arrow">&#9656;</span></summary>
+    <div class="details-body">
+      {% if 'graphql_deep' in locked %}{{ locked_card('graphql_deep') }}
+      {% else %}
+      {% if r.graphql_deep %}
+      <div class="table-scroll">
+      <table><thead><tr><th>Endpoint</th><th>Result</th><th>Field suggestions</th></tr></thead><tbody>
+        {% for row in r.graphql_deep %}<tr><td><code>{{ row.endpoint }}</code></td>
+          <td class="{{ 'medium' if 'introspection enabled' in row.result else 'pass' }}">{{ row.result }}</td>
+          <td class="{{ 'low' if row.field_suggestions else '' }}">{{ 'leaked' if row.field_suggestions else '-' }}</td></tr>{% endfor %}
+      </tbody></table>
+      </div>
+      {% else %}<p class="note">No GraphQL endpoints answered.</p>{% endif %}
+      {% endif %}
     </div>
   </details>
   {% endif %}
@@ -931,3 +1104,5 @@ function wvsToggleSecret(btn) {
 }
 </script>
 {% endblock %}
+
+

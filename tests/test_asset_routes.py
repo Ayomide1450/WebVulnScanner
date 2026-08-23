@@ -511,6 +511,10 @@ A05_BASE_CHECK_NAMES = [
     "headers", "cookies", "sensitive_paths", "open_ports",
     "cors", "http_methods", "directory_listing", "dns_email",
     "caching_sensitive",
+    # v1.5 Phase 20: these three are also CHECK_COMPLIANCE-owasp A05, so a
+    # "whole category locked" fixture has to lock them too or summarize_
+    # compliance correctly reports A05 as partially covered.
+    "host_header", "cache_deception", "subdomain_takeover",
 ]
 
 

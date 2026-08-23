@@ -95,15 +95,15 @@ def _add_report(scan, **data_overrides):
 # thead/tbody retrofit - source-level counts across all 23 tables
 # --------------------------------------------------------------------------
 
-def test_thead_tbody_all_23_tables_carry_tbody():
+def test_thead_tbody_all_32_tables_carry_tbody():
     html = _strip_comments(_read(SCAN_REPORT_TEMPLATE))
-    assert html.count("<table") == 23
-    assert html.count("<tbody") == 23
+    assert html.count("<table") == 32
+    assert html.count("<tbody") == 32
 
 
-def test_thead_tbody_21_column_header_tables_carry_thead():
+def test_thead_tbody_30_column_header_tables_carry_thead():
     html = _strip_comments(_read(SCAN_REPORT_TEMPLATE))
-    assert html.count("<thead") == 21
+    assert html.count("<thead") == 30
 
 
 def test_thead_tbody_table_scroll_wrapper_count_unchanged():
@@ -111,7 +111,7 @@ def test_thead_tbody_table_scroll_wrapper_count_unchanged():
     # in prose (explaining why the wrapper stays), which would otherwise
     # inflate a naive substring count by one.
     html = _strip_comments(_read(SCAN_REPORT_TEMPLATE))
-    assert html.count("table-scroll") == 23
+    assert html.count("table-scroll") == 32
 
 
 def test_thead_tbody_no_mobile_record_cards_or_desktop_table():

@@ -41,7 +41,14 @@ FEATURE_REQUIREMENTS = {
     # base scan - active (PAID)
     "crawl": Tier.PAID, "open_ports": Tier.PAID, "cors": Tier.PAID,
     "http_methods": Tier.PAID, "open_redirect": Tier.PAID, "directory_listing": Tier.PAID,
+    # Phase 20 (INTR-01..10) - single-request reflection probes / heuristics
+    # are PAID; deliberate multi-request bursts or active forgeries are
+    # ORG_VERIFIED (tier AND domain-verification enforced by run_scan).
+    "ssti": Tier.PAID, "host_header": Tier.PAID, "cache_deception": Tier.PAID,
+    "crlf": Tier.PAID, "csrf_posture": Tier.PAID, "subdomain_takeover": Tier.PAID,
     # base scan - intrusive (ORG_VERIFIED + domain-ownership check)
+    "path_traversal": Tier.ORG_VERIFIED, "rate_limit": Tier.ORG_VERIFIED,
+    "jwt_active": Tier.ORG_VERIFIED, "graphql_deep": Tier.ORG_VERIFIED,
     "xss_sqli": Tier.ORG_VERIFIED,
     # advanced scan - all intrusive (ORG_VERIFIED + domain-ownership check)
     "sqli_login": Tier.ORG_VERIFIED, "bruteforce": Tier.ORG_VERIFIED,

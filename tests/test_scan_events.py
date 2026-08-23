@@ -103,6 +103,10 @@ def _stub_all_checks(monkeypatch):
         "check_dns_email_security", "check_vulnerable_js", "check_xss_sqli",
         "check_exposed_secrets", "check_sri", "check_jwt_weakness",
         "check_file_upload", "check_privacy_exposure", "check_caching_sensitive_data",
+        # Phase 20 (INTR-01..10)
+        "check_ssti", "check_host_header", "check_cache_deception", "check_crlf_injection",
+        "check_csrf_posture", "check_subdomain_takeover", "check_path_traversal",
+        "check_rate_limit_posture", "check_jwt_active", "check_graphql_deep",
     ]
     for name in plain_stub_names:
         monkeypatch.setattr(scan_engine, name, lambda *a, **k: ({}, []))

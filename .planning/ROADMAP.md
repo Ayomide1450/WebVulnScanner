@@ -333,6 +333,40 @@ channel via an incoming webhook, or any generic HTTP receiver).
 
 **UI hint**: yes (/webhooks management page + per-webhook deliveries page + nav link)
 
+### Phase 20: Intrusive Coverage Expansion
+
+**Goal**: Give security engineers ten new intrusive-but-non-destructive check families across
+the base pipeline, chosen from the Group-1 "pure-Python wins" review - each one a single
+concept a practitioner would bill for, all inside the existing authorization model
+(tier-gated, org-verified where probing gets deliberate, hard-capped request budgets,
+marker-only proofs).
+**Depends on**: Phase 14/17 check conventions (`(data, findings)`, registry sync locks,
+MAX_ constants), Phase 12 finding schema
+**Requirements**: INTR-01..INTR-10 (see REQUIREMENTS.md)
+**Success Criteria** (what must be TRUE):
+
+  1. Ten new checks exist, one per INTR requirement, each following the house convention:
+     `(data, findings)` return shape, `requests.RequestException` never escapes the function,
+     every network loop bounded by a named `MAX_*` constant.
+  2. Every new check is registered in `FEATURE_REQUIREMENTS`, `CHECK_LABELS`, and
+     `CHECK_CATEGORY`; the existing regression tests proving those three stay in sync with
+     `run_scan()`'s jobs dict pass unchanged.
+  3. Tier mapping is deliberate and documented: PAID gets single-request reflection probes
+     (SSTI, host-header, cache deception, CRLF, CSRF posture, subdomain takeover DNS);
+     ORG_VERIFIED gets everything that sends deliberate multi-request bursts or active
+     forgeries (path traversal, rate-limit burst, active JWT `alg:none`, GraphQL arg canary).
+  4. No destructive payloads anywhere: traversal reads marker files only; rate-limit burst is
+     capped at ~15 requests and stops at first 429; JWT forgery only ever hits endpoints the
+     operator's own session already legally reaches; GraphQL stays read-only queries.
+  5. Regression locks cover: per-check request-budget arithmetic, tier gating matrix, and
+     label/category registry sync (tests/test_phase20_checks.py).
+  6. Findings render in scan_report.html's detailed-check-output section and the live feed
+     via CHECK_LABELS without template surgery beyond data-driven sections.
+
+**Plans**: Direct execution, single commit.
+
+**UI hint**: no (findings render through the existing report UI)
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -353,6 +387,8 @@ channel via an incoming webhook, or any generic HTTP receiver).
 | 14. Net-New Checks | v1.3 | Direct execution | Complete | 2026-08-20 |
 | 15. Request Expert Assessment | v1.3 | Direct execution | Complete | 2026-08-20 |
 | 16. Platform Admin User/Org Management | v1.4 | Direct execution | Complete | 2026-08-21 |
-| 17. Expanded Check Coverage | v1.4 | 0/TBD | Not started | - |
+| 17. Expanded Check Coverage | v1.4 | Direct execution | Complete | 2026-08-23 |
 | 18. CLI Client | v1.4 | Direct execution | Complete | 2026-08-23 |
 | 19. Webhooks & Slack Notifications | v1.4 | Direct execution | Complete | 2026-08-23 |
+| 20. Intrusive Coverage Expansion | v1.5 | Direct execution | Complete | 2026-08-23 |
+

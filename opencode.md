@@ -237,6 +237,42 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
 
 ### Done since audit
 
+- **CLI onboarding + masked token prompt SHIPPED TO STAGING (2026-08-23,
+  2a161fe/be5bcc5/d40f126/c7678f2)** — cli v1.0.1: `_prompt_secret()`
+  (msvcrt `*`-per-char masked input on Windows console when stdin isatty,
+  click hidden-prompt fallback for piped/CI), first-run guidance before the
+  token prompt, new cli/README.md, API Tokens page reveal-panel hint
+  (`pip install ./cli`, `glassbox init --api-url {{ request.url_root... }}`
+  + `.muted-cli-hint`). Client-only — no server deploy needed for 2a161fe;
+  d40f126 (template hint) deployed, healthz 200.
+- **Phase 17 crawl depth/variants SHIPPED TO STAGING (2026-08-23, b099a8a)**
+  - user approved "A AND B" (.planning/PHASE17-DEPTH-DECISION.md): 4
+    reflected-XSS marker variants, context-aware boolean-blind SQLi pairs,
+    MAX_PROBE_REQUESTS_PER_URL=12, 2 new SQL error signatures (=14),
+    `crawl_depth2_param_urls()` (MAX_CRAWL_PAGES=15) wired into run_scan()
+    gated on org-verified target; hop-1 priority merge capped [:10].
+    tests/test_phase17_coverage.py (20 locks). Full suite **960 passed**.
+    Deployed staging, healthz 200.
+- **Phase 20 Intrusive Coverage Expansion COMPLETE (2026-08-23)** — ten new
+  base-scan checks in checks.py: ssti, host_header, cache_deception,
+  crlf, csrf_posture (PAID tier); path_traversal, rate_limit,
+  jwt_active, graphql_deep, subdomain_takeover (ORG_VERIFIED).
+  Safety contracts: computed-result-only SSTI proof, own-token-only JWT
+  forgery with garbage-signature control requirement, GET-only rate-limit
+  burst (RATE_LIMIT_BURST=15) against auth paths only, zero-network CSRF
+  posture from crawled forms, DNS-only takeover fingerprints via existing
+  dns.resolver dep, read-only GraphQL queries. Wired: entitlements
+  FEATURE_REQUIREMENTS, CHECK_LABELS/CHECK_CATEGORY, scan_engine jobs dict
+  ×10, scan_report.html ten sections (all tables .table-scroll-wrapped per
+  D-01). Registry locks updated: CHECK_COMPLIANCE + SECURITY_DOMAIN_MAP
+  (+10 each), test_report_table_semantics counts 23→32 tables/tbody,
+  21→30 thead, 32 scroll wrappers; A05_BASE_CHECK_NAMES fixture extended
+  (host_header/cache_deception/subdomain_takeover are owasp-A05 too);
+  removed two `'&mdash;'|safe` violations caught by the autoescape lock.
+  tests/test_phase20_checks.py (28 locks). Full suite **988 passed /
+  0 failed**. NOTE: one transient org_invite tampered-signature failure
+  during a long run near UTC midnight — passes consistently; watch it.
+
 - **Email-verification gate on login SHIPPED TO STAGING (2026-08-22,
   bb7d5d0)** — reversed the old documented "unverified email does not
   block login" decision: login() now refuses unverified accounts (flash +
