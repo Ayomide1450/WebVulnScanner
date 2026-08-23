@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "glassbox-cli"
-version = "1.0.0"
+version = "1.0.1"
 description = "Glassbox command-line client - a security control plane for CI pipelines and terminals, speaking the /api/v1 HTTP surface only."
 requires-python = ">=3.10"
 dependencies = [

@@ -206,6 +206,51 @@ _shared_token_option = click.option("--token", envvar=["GLASSBOX_API_TOKEN", "WV
 _shared_url_option = click.option("--api-url", envvar=["GLASSBOX_API_URL", "WVS_API_URL"], default=None)
 
 
+def _prompt_secret(prompt_text):
+    """Reads a credential with VISUAL FEEDBACK - one '*' echoed per typed
+    or pasted character, backspace erases one '*'.
+
+    Why not just click.prompt(hide_input=True)? On Windows terminals that
+    mode shows literally nothing while you type or paste (no chars, no
+    dots, no cursor movement), which reads as a frozen program - a real
+    first-run user reported exactly that. This helper keeps the secret off
+    the screen while still proving input is being received.
+
+    The raw-console path runs only when stdin IS an interactive console
+    (msvcrt.getwch talks to the terminal directly and would bypass/ignore
+    piped input); scripts, CI, and test runners get the standard hidden
+    click.prompt fallback. Non-Windows keeps click's getpass-based prompt,
+    which already behaves acceptably there."""
+    if os.name == "nt":
+        import msvcrt
+
+        try:
+            if sys.stdin.isatty():
+                click.echo(f"{prompt_text} (input hidden - shown as *): ", nl=False)
+                buf = []
+                while True:
+                    ch = msvcrt.getwch()
+                    if ch in ("\r", "\n"):
+                        click.echo()
+                        return "".join(buf)
+                    if ch == "\x08":  # Backspace
+                        if buf:
+                            buf.pop()
+                            click.echo("\b \b", nl=False)
+                        continue
+                    if ch in ("\x00", "\xe0"):  # Arrow/F-key prefix - eat next code
+                        msvcrt.getwch()
+                        continue
+                    if ch == "\x03":  # Ctrl+C (getwch does NOT raise for it)
+                        raise KeyboardInterrupt
+                    if ch >= " ":  # Ignore other control codes
+                        buf.append(ch)
+                        click.echo("*", nl=False)
+        except OSError:
+            pass  # Not a real console after all - fall through to click.
+    return click.prompt(prompt_text, hide_input=True)
+
+
 @click.group()
 def cli():
     """glassbox - a security control plane for developers and security
@@ -224,7 +269,7 @@ def login(token, api_url):
     """Validate a token against the live API and persist it locally on
     success only."""
     if not token:
-        token = click.prompt("API token", hide_input=True)
+        token = _prompt_secret("API token")
     if not api_url:
         # Fall back to a previously-saved api_url before DEFAULT_API_URL -
         # otherwise a plain `glassbox login` re-run (e.g. to rotate an
