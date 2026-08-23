@@ -271,6 +271,31 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WEBH-01..07 | Phase 19 | Complete |
 | INTR-01..10 | Phase 20 | Complete |
 
-**Coverage:** 59/59 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for v1.3
-across 5 phases, 17 new for v1.4 across 4 phases, 10 new for v1.5 across 1 phase - all complete).
+### Detection Self-Test — Phase 21 (v1.5)
+
+- [ ] **ST-01** Loopback-only lure listener: `webvulnscanner/selftest.py` binds a
+  `ThreadingHTTPServer` to 127.0.0.1 on an ephemeral port; never a wildcard or external
+  interface; per-instance state so repeated runs see identical ground truth.
+- [ ] **ST-02** Five planted flaws with deterministic proofs: SSTI (`{{77*77}}` computed),
+  traversal (decoy passwd served on sandbox escape - identical on Windows/Linux/CI), JWT
+  cookie accepting alg:none but rejecting garbage signatures, GraphQL introspection +
+  "Did you mean" leak, token-less POST form.
+- [ ] **ST-03** Matrix runner: all ten Phase-20 checks execute in-process against the lure
+  via the real crawler; expectations = five positives fire at required severities, five
+  negatives stay silent; result `{passed, duration_ms, results[]}`.
+- [ ] **ST-04** Route + UI: POST /selftest (login required, CSRF form, rate-limited 30/hour)
+  runs the matrix synchronously; GET renders launcher; results table uses base.html tokens;
+  dashboard gains "Detection Self-Test" button.
+- [ ] **ST-05** Isolation contracts: no Scan row created, no Report file written, no
+  external network traffic, SSRF guard untouched (no user-supplied URL anywhere).
+- [ ] **ST-06** tests/test_selftest.py: full-matrix end-to-end over real HTTP,
+  determinism across runs, loopback-only binding lock, port release after teardown,
+  route auth redirect, no-scan-row contract.
+
+| ID(s) | Phase | Status |
+|---|---|---|
+| ST-01..06 | Phase 21 | Complete |
+
+**Coverage:** 65/65 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for v1.3
+across 5 phases, 17 new for v1.4 across 4 phases, 16 for v1.5 across 2 phases - all complete).
 

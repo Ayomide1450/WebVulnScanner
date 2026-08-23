@@ -208,8 +208,16 @@ def test_signup_without_invite_param_renders_ordinary_form(client):
 def test_decode_invite_token_rejects_tampered_signature(app):
     with app.app_context():
         token = generate_invite_token(org_id=5, role="member", email="invitee@example.com")
-        # Flip a single character in the signed payload/signature.
-        tampered = token[:-1] + ("a" if token[-1] != "a" else "b")
+        # Truncate one character off the end. A naive character FLIP here
+        # turned out to be intermittently lossless: itsdangerous emits
+        # UNPADDED urlsafe base64, so the final character can carry fewer
+        # than six significant bits - flipping between characters that
+        # differ only in the discarded low bits ('a'<->'b') yields a token
+        # that decodes to the IDENTICAL signature and validates cleanly.
+        # The flip failed this test only on runs whose signed timestamp
+        # shifted the base64 group alignment. Truncation always changes the
+        # signature, so the rejection being locked here is unconditional.
+        tampered = token[:-1]
         assert decode_invite_token(tampered) is None
         assert decode_invite_token(tampered, expected_email="invitee@example.com") is None
 

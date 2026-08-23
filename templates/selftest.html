@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Detection Self-Test - Glassbox{% endblock %}
+
+{% block content %}
+<div class="card hud-grid" style="padding:28px">
+  <h1 style="margin-top:0">Detection Self-Test</h1>
+  <p class="muted">Runs all ten intrusive checks against a temporary,
+  loopback-only lure server inside this process — planted flaws with known
+  ground truth. Nothing leaves this machine, no scan record is created, and
+  the listener is destroyed when the run ends.</p>
+
+  <form method="post" action="{{ url_for('selftest.index') }}">
+    {{ form.hidden_tag() }}
+    <button type="submit" class="btn primary"
+            {% if report %}disabled{% endif %}>Run self-test</button>
+  </form>
+</div>
+
+{% if report %}
+<div class="card" style="padding:24px; margin-top:20px">
+  <div class="status-pill {{ 'running' if not report.passed else 'done' }}">
+    <span class="dot"></span>
+    {% if report.passed %}All expectations met{% else %}Expectation mismatch{% endif %}
+    <span class="muted">&nbsp;·&nbsp;{{ report.duration_ms }} ms</span>
+  </div>
+
+  <div class="table-scroll" style="margin-top:16px">
+  <table>
+    <thead><tr><th>Check</th><th>Ground truth</th><th>Detected</th><th>Verdict</th></tr></thead>
+    <tbody>
+      {% for row in report.results %}
+      <tr>
+        <td>{{ row.name }}</td>
+        <td>{% if row.expect_finding %}must detect{% else %}must stay silent{% endif %}</td>
+        <td>
+          {% if row.error %}
+            <span class="badge critical">error</span>
+          {% elif row.findings %}
+            {% for f in row.findings[:3] %}
+              <span class="pill {{ f.severity }}">{{ f.severity }}</span>
+            {% endfor %}
+            {% if row.findings|length > 3 %}<span class="muted">+{{ row.findings|length - 3 }}</span>{% endif %}
+          {% else %}
+            <span class="muted">nothing</span>
+          {% endif %}
+        </td>
+        <td class="{{ 'pass' if row.matched else 'critical' }}">
+          {% if row.matched %}PASS{% elif row.error %}ERROR{% else %}FAIL{% endif %}
+          {% if row.error %}<div class="muted">{{ row.error }}</div>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <p class="muted" style="margin-bottom:0">Five positives prove sensitivity;
+  five negatives (clean lure surfaces) prove specificity. Any FAIL means a
+  check's detection logic regressed and should be fixed before trusting real
+  scans.</p>
+</div>
+{% endif %}
+{% endblock %}

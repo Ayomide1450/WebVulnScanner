@@ -292,7 +292,27 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
   asserts exactly one auth_token cookie leaves the process.
 - **OPS GOTCHA**: never rewrite repo files via PS Get-Content|Set-Content —
   it ANSI-mangles non-ASCII and adds a UTF-8 BOM that breaks ast-parsing
-  tests (fixed by git checkout + Edit tool re-apply).
+  tests (fixed by git checkout + Edit tool re-apply). Stray BOMs in md files
+  strip via [System.IO.File]::WriteAllText with UTF8Encoding($false).
+- **Phase 21 Built-in Detection Self-Test SHIPPED (2026-08-23)** — user
+  asked why lures need a separate URL; Option B chosen: selftest.py spins an
+  ephemeral 127.0.0.1-only ThreadingHTTPServer lure (SSTI/traversal-decoy-
+  passwd/JWT alg:none/GraphQL introspection/tokenless POST form + throttled
+  /login), runs all ten Phase-20 checks in-process via real crawl_same_
+  origin, compares to EXPECTATIONS matrix (5 must-fire incl. severity
+  floors, 5 must-stay-silent). No Scan row, no report file, SSRF guard
+  untouched (target generated internally, never user input). Route POST
+  /selftest (login, CSRF form, limiter 30/hour) renders pass/fail matrix;
+  dashboard button added; blueprint registration shifted __init__.py's
+  _safe_referrer line-lock 307→311. Gotchas fixed during build: (1) naive
+  query parsing missed URL-encoded payloads — parse_qs everywhere;
+  (2) module-level login-hit counter broke run-to-run determinism — state
+  moved onto server instance. **org_invite flake ROOT-CAUSED**: itsdangerous
+  emits UNPADDED b64url — last char can carry <6 significant bits so the
+  test's char-flip ('a'<->'b') was intermittently a NO-OP decode (7 of 60
+  sig lengths lossless, alignment shifts with timestamp); test now truncates
+  instead. Full suite **1001 passed**.
+
   during a long run near UTC midnight — passes consistently; watch it.
 
 - **Email-verification gate on login SHIPPED TO STAGING (2026-08-22,
