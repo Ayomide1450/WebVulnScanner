@@ -269,6 +269,12 @@ def login(token, api_url):
     """Validate a token against the live API and persist it locally on
     success only."""
     if not token:
+        # First-run guidance: the single most common failure is not knowing
+        # where a token comes from. Say it here, at the moment it's needed,
+        # instead of assuming the user found the docs.
+        click.echo("Don't have a token yet? Create one in the web app:")
+        click.echo("  Log in  ->  API Tokens (top nav)  ->  Generate Token.")
+        click.echo("Paste it below - each character shows as *.")
         token = _prompt_secret("API token")
     if not api_url:
         # Fall back to a previously-saved api_url before DEFAULT_API_URL -

@@ -32,6 +32,9 @@
   .reveal-panel .warn-box { flex-direction: column; margin-bottom: 0; }
   .reveal-panel .warn-box-heading { display:flex; align-items:center; gap:10px; font-size:13px; font-weight:600; color: var(--text); }
   .reveal-panel .warn-box-body { margin: var(--space-2) 0 var(--space-4); }
+.reveal-panel .warn-box-body.muted-cli-hint {
+  margin-top: 0; font-size: 0.85rem; color: var(--muted);
+}
   .token-value-row { display:flex; gap: var(--space-2); align-items:center; }
   .token-value-row input[readonly] {
     flex: 1; min-width: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--border);
@@ -77,6 +80,12 @@
             <span id="copy-token-btn-label">Copy</span>
           </button>
         </div>
+        <p class="warn-box-body muted-cli-hint">
+          Using the command line? Install the CLI from this repo with
+          <code>pip install ./cli</code>, then run
+          <code>glassbox init --api-url {{ request.url_root.rstrip('/') }}</code>
+          and paste this token when asked.
+        </p>
       </div>
     </div>
   </div>
