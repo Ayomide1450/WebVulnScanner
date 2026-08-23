@@ -45,8 +45,9 @@ deployable, tested (pytest on every push), and safe by design.
 
 ## State snapshot (last updated: 2026-08-23)
 
-- Branch `develop`, on top of bb7d5d0 "feat(10): require email verification before login".
-  Phase 18 close-out work is COMPLETE but UNCOMMITTED in this working tree.
+- Branch `develop`, HEAD 9405e81 "feat(18): close out CLI phase..." — **deployed to
+  staging** (fly CLI, both machines healthy, healthz 200, new report.csv endpoint
+  returns 401 JSON unauthenticated) and pushed to origin.
 - Tests run via `pytest` (fresh Flask app per test, SQLite under tmp_path).
 
 ### Done (recent history)
@@ -57,7 +58,7 @@ deployable, tested (pytest on every push), and safe by design.
   instructions, dark-theme select dropdowns.
 - Docs: v1.4 scope for Phases 16–18.
 
-### In progress (uncommitted at memory update, 2026-08-23)
+### Phase 18 close-out (SHIPPED TO STAGING 2026-08-23, commit 9405e81)
 
 **Phase 18 close-out (COMPLETE, verified 90 targeted tests pass, not yet committed):**
 - `webvulnscanner/api_routes.py` — new GET `/api/v1/scans/<int:scan_id>/report.csv`
