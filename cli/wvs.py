@@ -31,7 +31,7 @@ Commands:
     glassbox findings [<url>]      - list findings from the latest (or given) assessment
     glassbox verify <url>          - assess again and diff against the previous assessment
     glassbox compare <id> <id>     - diff two specific assessment ids
-    glassbox report [<url>]        - fetch/export a full assessment report
+    glassbox report [<url>]        - fetch/export a full assessment report (JSON, or --csv)
 
     Lower-level (unchanged, still supported):
     glassbox assets list           - list the caller's scoped Assets
@@ -627,14 +627,26 @@ def _print_compare(diff, as_json):
 @cli.command("report")
 @click.argument("url", required=False, default=None)
 @click.option("--json", "as_json", is_flag=True, default=True)
+@click.option("--csv", "as_csv", is_flag=True, default=False,
+              help="Export the findings as CSV instead of JSON (served by "
+                   "GET /api/v1/scans/<id>/report.csv).")
 @_shared_token_option
 @_shared_url_option
-def report_cmd(url, as_json, token, api_url):
+def report_cmd(url, as_json, as_csv, token, api_url):
     """Fetch/export URL's (or a bare scan id's) latest completed
-    assessment report as JSON, for piping/redirecting."""
+    assessment report as JSON (default) or --csv, for piping/redirecting.
+    CSV comes from the server's single shared writer
+    (scan_routes.findings_csv_document), so it is byte-identical to the
+    web UI's /scan/<id>/export.csv download."""
     token = _resolve_token(token)
     api_url = _resolve_api_url(api_url)
     scan_id = _resolve_target_scan_id(api_url, token, url)
+    if as_csv:
+        resp = _request("GET", api_url, f"/api/v1/scans/{scan_id}/report.csv", token)
+        if resp.status_code != 200:
+            _raise_for_error_response(resp)
+        click.echo(resp.text, nl=False)
+        return
     report = _fetch_report(api_url, token, scan_id)
     click.echo(json.dumps(report, indent=2))
 

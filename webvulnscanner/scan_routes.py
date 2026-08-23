@@ -1373,23 +1373,12 @@ def scan_report(scan_id):
     )
 
 
-@scan.route("/scan/<int:scan_id>/export.csv")
-@login_required
-def scan_report_csv(scan_id):
-    """CSV export of a single report's findings. Same ownership guard as
-    `scan_report` (404, not 403, for a scan the caller can't see) - export
-    is just an alternate rendering of the same already-authorized report,
-    not a new access path, so it reuses `_check_ownership` rather than
-    inventing its own check."""
-    s = Scan.query.get_or_404(scan_id)
-    _check_ownership(s)
-    if s.report is None:
-        abort(404)
-
-    report = _load_report_json(s)
-    if report is None:
-        abort(404)
-
+def findings_csv_document(report, scan_id):
+    """Shared CSV rendering of one report's findings - the single writer
+    behind both export surfaces (the session-web /scan/<id>/export.csv
+    route below and api_routes.py's token-authed GET /api/v1/scans/<id>/
+    report.csv), so the two formats cannot drift. Pure function: no Flask
+    objects in or out, returns (csv_text, filename)."""
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(["category", "title", "severity", "owasp_category", "detail", "recommendation"])
@@ -1401,8 +1390,31 @@ def scan_report_csv(scan_id):
 
     hostname = report.get("hostname") or urlparse(report.get("target", "")).netloc or "scan"
     filename = f"{hostname.replace(':', '_')}_scan{scan_id}_findings.csv"
+    return buf.getvalue(), filename
+
+
+@scan.route("/scan/<int:scan_id>/export.csv")
+@login_required
+def scan_report_csv(scan_id):
+    """CSV export of a single report's findings. Same ownership guard as
+    `scan_report` (404, not 403, for a scan the caller can't see) - export
+    is just an alternate rendering of the same already-authorized report,
+    not a new access path, so it reuses `_check_ownership` rather than
+    inventing its own check. The CSV body itself comes from
+    `findings_csv_document` above, shared verbatim with the /api/v1
+    token-authed export."""
+    s = Scan.query.get_or_404(scan_id)
+    _check_ownership(s)
+    if s.report is None:
+        abort(404)
+
+    report = _load_report_json(s)
+    if report is None:
+        abort(404)
+
+    csv_text, filename = findings_csv_document(report, scan_id)
     return Response(
-        buf.getvalue(),
+        csv_text,
         mimetype="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

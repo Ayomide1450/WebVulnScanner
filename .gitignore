@@ -16,3 +16,5 @@ handoff-archive.md
 dev-server-stdout.log
 dev-server-stderr.log
 graphify-out/
+cli/build/
+cli/*.egg-info/

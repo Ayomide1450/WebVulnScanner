@@ -14,7 +14,7 @@ session already could.
 """
 from functools import wraps
 
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, Response, abort, jsonify, request
 from flask_login import current_user
 
 from webvulnscanner.asset_routes import _check_asset_access, _scoped_asset_query
@@ -22,7 +22,13 @@ from webvulnscanner.entitlements import effective_tier
 from webvulnscanner.extensions import csrf, limiter
 from webvulnscanner.models import Asset, Scan
 from webvulnscanner.scan_engine import read_report_file
-from webvulnscanner.scan_routes import _check_ownership, _launch_base_scan, _load_report_json, diff_reports
+from webvulnscanner.scan_routes import (
+    _check_ownership,
+    _launch_base_scan,
+    _load_report_json,
+    diff_reports,
+    findings_csv_document,
+)
 from webvulnscanner.scheduler import _fire
 from webvulnscanner.security_gate import DEFAULT_FAIL_ON, GATE_SEVERITIES, evaluate_gate
 
@@ -205,6 +211,45 @@ def fetch_report(scan_id):
             return jsonify(error="report file is unavailable"), 500
 
     return jsonify(report), 200
+
+
+@api.route("/scans/<int:scan_id>/report.csv")
+@api_login_required
+@limiter.limit("60 per minute", key_func=_api_rate_limit_key)
+def fetch_report_csv(scan_id):
+    """Phase 18 (CLI-02): token-authed CSV export of a completed scan's
+    findings - the exact same bytes the session-web /scan/<id>/export.csv
+    route serves, via `scan_routes.findings_csv_document`'s single shared
+    writer, so `glassbox report --csv`, curl-with-a-token, and the browser
+    download can never drift into different formats. Alternate rendering of
+    an already-authorized report, not a new access path.
+
+    Ownership branches and error semantics are identical to fetch_report
+    above on purpose: same Asset-linked-vs-manual split (Pitfall-1 fix),
+    same WR-01 soft-delete guard, no Report row yet -> 404 JSON, Report
+    row whose blob/file is unreadable -> 500 JSON (WR-02 - cli/wvs.py's
+    _raise_for_error_response always expects a JSON body)."""
+    s = Scan.query.get_or_404(scan_id)
+    if s.asset_id is not None:
+        if s.asset.deleted_at is not None:
+            abort(404)
+        _check_asset_access(s.asset)
+    else:
+        _check_ownership(s)
+
+    if s.report is None:
+        return jsonify(error="report not available"), 404
+
+    report = _load_report_json(s)
+    if report is None:
+        return jsonify(error="report file is unavailable"), 500
+
+    csv_text, filename = findings_csv_document(report, scan_id)
+    return Response(
+        csv_text,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @api.route("/scans", methods=["GET", "POST"])

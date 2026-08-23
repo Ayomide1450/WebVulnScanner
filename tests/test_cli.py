@@ -207,6 +207,35 @@ def test_report_error_exits_nonzero_no_traceback(runner, isolated_config):
     assert "Traceback" not in result.output
 
 
+def test_report_csv_prints_server_csv_verbatim(runner, isolated_config):
+    # CLI-02's CSV half: --csv hits the token-authed report.csv endpoint and
+    # streams its body verbatim - no client-side re-rendering that could
+    # drift from the server's single shared CSV writer.
+    server_csv = 'category,title,severity,owasp_category,detail,recommendation\r\nHeaders,Missing CSP,medium,A05,No CSP.,Add one.\r\n'
+    with patch.object(
+        wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
+    ), patch.object(wvs.requests, "get") as mock_get:
+        mock_get.return_value = _FakeResponse(200, text=server_csv)
+        result = runner.invoke(wvs.cli, ["report", "42", "--csv"])
+
+    assert result.exit_code == 0
+    assert mock_get.call_args[0][0] == "http://example.test/api/v1/scans/42/report.csv"
+    assert mock_get.call_args.kwargs["headers"]["Authorization"] == "Bearer sekrit"
+    assert result.output == server_csv
+
+
+def test_report_csv_error_exits_nonzero_no_traceback(runner, isolated_config):
+    with patch.object(
+        wvs, "_load_config", return_value={"token": "sekrit", "api_url": "http://example.test"}
+    ), patch.object(wvs.requests, "get") as mock_get:
+        mock_get.return_value = _FakeResponse(404, json_body={"error": "report not available"})
+        result = runner.invoke(wvs.cli, ["report", "42", "--csv"])
+
+    assert result.exit_code != 0
+    assert "report not available" in result.output
+    assert "Traceback" not in result.output
+
+
 # --- WR-03: every HTTP call site passes timeout= ---
 
 

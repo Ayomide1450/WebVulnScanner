@@ -97,6 +97,9 @@ REGISTRY = {
     "api.scans_compare": "tests/test_api_routes.py::test_scans_compare_cross_org_is_404",
     "api.scan_status": "tests/test_api_routes.py::test_scan_status_different_org_gets_404",
     "api.fetch_report": "tests/test_api_routes.py::test_fetch_report_different_org_gets_404",
+    # fetch_report_csv (Phase 18 close-out) clones fetch_report's ownership
+    # branches verbatim, so its registry entry mirrors this one.
+    "api.fetch_report_csv": "tests/test_api_routes.py::test_report_csv_different_org_gets_404",
     # scans_gate shares fetch_report's two ownership branches; this entry names the
     # asset-linked cross-org denial - the manual-scan branch is additionally covered by
     # tests/test_security_gate.py::test_manual_scan_non_owner_member_gets_404.

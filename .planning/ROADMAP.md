@@ -261,7 +261,7 @@ implicit.
 
 **UI hint**: no (findings render through the existing report UI)
 
-### Phase 18: CLI Client
+### Phase 18: CLI Client ✅ COMPLETE (2026-08-23)
 
 **Goal**: A standalone `glassbox` command-line client authenticates via the existing API-token
 system and lets a security practitioner launch scans, poll status, and pull reports from a
@@ -272,13 +272,26 @@ against already exists)
 **Success Criteria** (what must be TRUE):
 
   1. The CLI authenticates with an existing API token (no new auth mechanism, no credentials
-     entered anywhere but the token itself).
+     entered anywhere but the token itself). ✅
   2. It can launch a scan, poll status, and fetch a finished report's JSON/CSV via the existing
-     API routes - no new server endpoints required for the MVP.
+     API routes - no new server endpoints required for the MVP. ✅
   3. It ships as a separate installable package/script, not embedded in the web app - explicitly
      ruled out an in-browser terminal (a much larger, harder-to-secure attack surface) per this
-     phase's scoping conversation.
-**Plans**: 0/TBD plans executed
+     phase's scoping conversation. ✅
+
+**Plans**: Built across f27fbb4 (wip), b87c15d (security gate + `glassbox gate`), and the
+2026-08-23 close-out commit (`/api/v1/scans/<id>/report.csv` token-authed CSV export +
+`glassbox report --csv` + `cli/pyproject.toml` packaging).
+
+**Actual outcome**: The CLI grew well past its MVP shape during Phase 18's life - beyond
+launch/poll/report it ships check/assess/readiness/gate/findings/verify/compare/assets plus a
+server-side gate endpoint shared with direct HTTP consumers. One deliberate deviation from the
+original "no new server endpoints" wording: the close-out added GET /api/v1/scans/<id>/report.csv,
+a read-only alternate rendering of an already-authorized report through scan_routes'
+single shared `findings_csv_document()` writer (same bytes as the web UI's export.csv download),
+plus `cli/pyproject.toml` so `pip install ./cli` provides a real `glassbox` console script.
+Both deviations serve the criterion's intent (JSON **and** CSV fetch; separate installable
+package) and are documented here rather than silently shipped.
 
 **UI hint**: no (separate CLI package, no web UI)
 
@@ -303,4 +316,4 @@ against already exists)
 | 15. Request Expert Assessment | v1.3 | Direct execution | Complete | 2026-08-20 |
 | 16. Platform Admin User/Org Management | v1.4 | Direct execution | Complete | 2026-08-21 |
 | 17. Expanded Check Coverage | v1.4 | 0/TBD | Not started | - |
-| 18. CLI Client | v1.4 | 0/TBD | Not started | - |
+| 18. CLI Client | v1.4 | Direct execution | Complete | 2026-08-23 |

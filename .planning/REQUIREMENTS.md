@@ -140,13 +140,18 @@ product framing, it does not change what the scanner is allowed to do to a targe
 
 ### CLI Client — Phase 18
 
-- [ ] **CLI-01**: A standalone `glassbox` CLI authenticates using the existing API-token system —
+- [x] **CLI-01**: A standalone `glassbox` CLI authenticates using the existing API-token system —
       no new auth mechanism.
-- [ ] **CLI-02**: The CLI can launch a scan, poll status, and fetch a finished report (JSON/CSV)
+- [x] **CLI-02**: The CLI can launch a scan, poll status, and fetch a finished report (JSON/CSV)
       via the existing API routes — no new server endpoints required for the MVP.
-- [ ] **CLI-03**: Ships as a separate installable package/script, not embedded in the web app —
+      Note (08-23 close-out): one read-only endpoint was added beyond the MVP wording —
+      GET /api/v1/scans/<id>/report.csv, the token-authed twin of the web UI's export.csv route,
+      sharing scan_routes.findings_csv_document() so both exports are byte-identical. Read-only
+      alternate rendering of an already-authorized report; no new execution surface.
+- [x] **CLI-03**: Ships as a separate installable package/script, not embedded in the web app —
       an in-browser terminal was explicitly considered and ruled out (larger, harder-to-secure
-      attack surface) during this phase's scoping conversation (08-20).
+      attack surface) during this phase's scoping conversation (08-20). `cli/pyproject.toml`
+      (08-23) makes `pip install ./cli` provide a real `glassbox` console script.
 
 ## Future Requirements
 
@@ -184,7 +189,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CTA-01..04 | Phase 15 | Complete |
 | ADMIN-01..04 | Phase 16 | Complete (ADMIN-03 scoped to suspend, not hard delete - see note) |
 | DEPTH-01..03 | Phase 17 | Not started |
-| CLI-01..03 | Phase 18 | Not started |
+| CLI-01..03 | Phase 18 | Complete |
 
 **Coverage:** 42/42 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for v1.3
 across 5 phases, 10 new for v1.4 across 3 phases).

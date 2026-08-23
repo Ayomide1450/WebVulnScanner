@@ -43,9 +43,10 @@ deployable, tested (pytest on every push), and safe by design.
   at 5 attempts; secrets redacted in reports; marker-only stored-XSS proof.
 - AI summary prompt keeps findings framed as data-to-summarize (injection bound).
 
-## State snapshot (last updated: 2026-08-22)
+## State snapshot (last updated: 2026-08-23)
 
-- Branch work is on top of `f27fbb4` "wip(18): Glassbox CLI (Phase 18)".
+- Branch `develop`, on top of bb7d5d0 "feat(10): require email verification before login".
+  Phase 18 close-out work is COMPLETE but UNCOMMITTED in this working tree.
 - Tests run via `pytest` (fresh Flask app per test, SQLite under tmp_path).
 
 ### Done (recent history)
@@ -56,18 +57,30 @@ deployable, tested (pytest on every push), and safe by design.
   instructions, dark-theme select dropdowns.
 - Docs: v1.4 scope for Phases 16–18.
 
-### In progress (uncommitted at memory creation)
+### In progress (uncommitted at memory update, 2026-08-23)
 
-- New module `webvulnscanner/security_gate.py` — CI/CD-style pass/fail gate
-  over a completed scan's findings (`evaluate_gate(findings, fail_on)`,
-  default threshold `high`; deliberately NOT persistence-backed — pure
-  function of the stored Report JSON).
-- New test `tests/test_security_gate.py`.
-- `webvulnscanner/api_routes.py` — new `/api/v1/scans/<id>/gate` endpoint
-  delegating to the gate module (single source of truth so CLI and direct
-  HTTP consumers can't drift).
-- `cli/wvs.py` — `glassbox gate` command calling that endpoint.
-- Test updates: `tests/test_cli.py`, `tests/test_cross_org_idor.py`.
+**Phase 18 close-out (COMPLETE, verified 90 targeted tests pass, not yet committed):**
+- `webvulnscanner/api_routes.py` — new GET `/api/v1/scans/<int:scan_id>/report.csv`
+  (token-authed CSV export; ownership branches + WR-01/WR-02 error semantics cloned
+  verbatim from fetch_report).
+- `webvulnscanner/scan_routes.py` — CSV writer extracted to shared pure helper
+  `findings_csv_document(report, scan_id)`; web export.csv route now calls it too
+  (single writer behind both surfaces — byte-identical output proven by test).
+- `cli/wvs.py` — `glassbox report --csv` flag hitting the new endpoint.
+- `cli/pyproject.toml` (new) — installable package; `pip install ./cli` provides a
+  real `glassbox` console script (wheel build + entry_points.txt verified).
+- Tests: test_api_routes.py (+7 report.csv tests), test_cli.py (+2 --csv tests),
+  test_cross_org_idor.py REGISTRY += api.fetch_report_csv.
+- Planning docs updated: ROADMAP Phase 18 → ✅ Complete 2026-08-23; REQUIREMENTS.md
+  CLI-01..03 → [x] with the "no new endpoints" deviation documented in place.
+
+### Phase 19 decision (user-confirmed 2026-08-23)
+
+**Phase 19 = Webhooks/Slack integrations** (outbound webhook on scan completion,
+Slack-compatible payload). Builds on the gate endpoint. Not started yet.
+
+Also user-directed: **stale docs (PRODUCT.md/README/CLAUDE.md) are OFF-LIMITS for the
+assistant** — the user will review/update them personally. Do not edit them.
 
 ### Full-product audit (2026-08-22, user asked "is it sophisticated enough?")
 
@@ -148,6 +161,24 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
 
 ### Done since audit
 
+- **Email-verification gate on login SHIPPED TO STAGING (2026-08-22,
+  bb7d5d0)** — reversed the old documented "unverified email does not
+  block login" decision: login() now refuses unverified accounts (flash +
+  resend option rendered via `resend_email` template var); new POST
+  /resend-verification (5/hour, anti-enumeration neutral flash, mints a
+  token for legacy tokenless rows). login.html gained the resend details
+  block. 7 new tests; source-parse locks updated for shifted line numbers
+  (_safe_next now line 94; _safe_next call sites 165/311/354). Full suite
+  **904 passed / 0 failed**; deployed to staging (healthz 200).
+- **Security-gate feature SHIPPED TO STAGING (2026-08-22, pipeline steps 1–2
+  done)** — full suite 897 passed / 0 failed; committed to develop as
+  b87c15d (feat(18): security_gate.py + /api/v1/scans/<id>/gate + `glassbox
+  gate` CLI + tests) and 21880f2 (scanner-wording purge + opencode.md +
+  .dockerignore); pushed; deployed locally to staging (new image rev),
+  healthz 200, gate endpoint live (401 unauthenticated = auth guard OK).
+  **NOT yet promoted to production** — awaiting user's staging verification
+  per the STAGING-FIRST POLICY.
+
 - **"Scanner" purge complete (2026-08-22)** — zero occurrences left in
   templates/source outside the `webvulnscanner` package name and opaque test
   fixture URLs (`scanner.example.com`, `scanner@example.com`). Changed:
@@ -164,19 +195,40 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
 
 ### What's next (candidate queue)
 
+0. ~~Turnstile on staging~~ → **FIXED (2026-08-22)**: user supplied their
+   Cloudflare widget keys; set as TURNSTILE_SITE_KEY/TURNSTILE_SECRET_KEY
+   secrets on glassboxsec-staging. Verified: widget renders on /signup with
+   the correct sitekey + script tag; server-side siteverify now ACTIVE on
+   staging.
+0b. **Staging email is console-mode BY DESIGN** (user hit this when testing
+   resend: links only appear in fly logs, no inbox delivery). Fix = user
+   supplies RESEND_API_KEY + RESEND_FROM_EMAIL (prod's Fly secrets are
+   write-only, local .env doesn't have them), then:
+   `fly secrets set -a glassboxsec-staging EMAIL_MODE=resend RESEND_API_KEY=re_… RESEND_FROM_EMAIL=…`
+   Domain already Resend-verified via prod use; free tier covers staging.
+   Pending user action as of 2026-08-22.
+
 1. GitHub Actions billing returns next month (user confirmed) — re-verify
    the branch-wired auto-deploys fire once it does. Until then all deploys
    are local fly CLI commands (see above).
-2. Finish + verify the security-gate WIP: run `pytest`, review diff, commit
-   to develop (staging deploys it on next push/deploy), then release to
-   master when satisfied.
-3. Refresh stale docs (PRODUCT.md still says WebVulnScanner/no-migrations;
-   README/CLAUDE.md predate assets/scheduler/API/CLI/admin modules).
-4. Decide remaining Phase 18 scope vs. opening Phase 19.
-5. Sophistication roadmap candidates (pro audience): report PDF export,
-   webhook/Slack notifications, audit log, API docs page.
+2. ~~Finish + verify the security-gate WIP~~ → shipped to staging (b87c15d,
+   see "Done since audit"). ~~Phase 18 close-out~~ → complete 2026-08-23
+   (CSV API + `glassbox report --csv` + cli/pyproject.toml packaging);
+   **uncommitted** — commit to develop, then deploy to staging per the
+   STAGING-FIRST POLICY.
+3. ~~Refresh stale docs~~ → USER-OWNED now (explicit instruction 2026-08-23):
+   the user reviews/updates PRODUCT.md/README/CLAUDE.md personally; the
+   assistant must not edit them.
+4. ~~Decide Phase 18 vs 19~~ → decided 2026-08-23: Phase 18 closed; Phase 19 =
+   Webhooks/Slack integrations (see "Phase 19 decision" above).
+5. Sophistication roadmap candidates (pro audience, post-P19): report PDF
+   export, audit log generalization, SSO/SAML, API docs page.
 6. Housekeeping: `dev-server-*.log` files and `instance/` are untracked
    clutter candidates (check .gitignore covers them).
+7. Phase 17 (Expanded Check Coverage) is still v1.4's only open phase:
+   DEPTH-01 needs an explicit signed crawl-depth decision; DEPTH-02/03 are
+   payload-variant work. Decide whether it stays in v1.4 or moves to a
+   later milestone.
 
 ## Conventions to honor while working here
 

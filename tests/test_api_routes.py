@@ -767,3 +767,154 @@ def test_scans_compare_cross_org_is_404(client, db):
     resp = client.get(f"/api/v1/scans/{scan_a1.id}/compare/{scan_a2.id}", headers=_auth_headers(raw_token_b))
 
     assert resp.status_code == 404
+
+
+# --------------------------------------------------------------------------
+# Phase 18 close-out (CLI-02): GET /api/v1/scans/<id>/report.csv - token-
+# authed CSV export sharing scan_routes.findings_csv_document's single
+# writer with the web UI's /scan/<id>/export.csv route. Ownership and error
+# semantics must be byte-for-byte the same decision tree as fetch_report
+# above - these tests mirror that file's fetch_report matrix one-to-one.
+# --------------------------------------------------------------------------
+
+_CSV_FINDINGS_REPORT = {
+    "score": 91,
+    "hostname": "example.com",
+    "findings": [
+        {
+            "category": "Headers",
+            "title": "Missing CSP",
+            "severity": "medium",
+            "owasp_category": "A05",
+            "detail": "No Content-Security-Policy header.",
+            "recommendation": "Add a CSP.",
+        },
+        {
+            "category": "Cookies",
+            "title": "Session cookie lacks Secure flag",
+            "severity": "low",
+            "owasp_category": "",
+            "detail": "Set the Secure attribute.",
+            "recommendation": "",
+        },
+    ],
+}
+
+
+def test_report_csv_returns_shared_writer_output_for_owner(client, db):
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+    a = make_asset(org, user, name="Asset")
+    scan = make_scan(user, org=org, status=ScanStatus.COMPLETED)
+    scan.asset_id = a.id
+    db.session.commit()
+    _make_report(db, scan, dict(_CSV_FINDINGS_REPORT))
+
+    resp = client.get(f"/api/v1/scans/{scan.id}/report.csv", headers=_auth_headers(raw_token))
+
+    assert resp.status_code == 200
+    assert resp.content_type.startswith("text/csv")
+    assert 'attachment; filename="example.com_scan' in resp.headers["Content-Disposition"]
+    rows = [line.split(",") for line in resp.get_data(as_text=True).splitlines()]
+    assert rows[0] == ["category", "title", "severity", "owasp_category", "detail", "recommendation"]
+    assert rows[1][0] == "Headers"
+    assert rows[2][2] == "low"
+
+
+def test_report_csv_matches_shared_writer_bytes_exactly(client, db):
+    # The token-authed export must serve findings_csv_document's output
+    # byte-for-byte - the same function the session-web /scan/<id>/export.csv
+    # route calls - proving one shared writer behind both surfaces.
+    from webvulnscanner.scan_routes import findings_csv_document
+
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+    a = make_asset(org, user, name="Asset")
+    scan = make_scan(user, org=org, status=ScanStatus.COMPLETED)
+    scan.asset_id = a.id
+    db.session.commit()
+    _make_report(db, scan, dict(_CSV_FINDINGS_REPORT))
+
+    resp = client.get(f"/api/v1/scans/{scan.id}/report.csv", headers=_auth_headers(raw_token))
+
+    expected_body, _ = findings_csv_document(_CSV_FINDINGS_REPORT, scan.id)
+    assert resp.status_code == 200
+    assert resp.get_data(as_text=True) == expected_body
+
+
+def test_report_csv_different_org_gets_404(client, db):
+    org_a = make_org(plan=Plan.PAID, name="Org A")
+    org_b = make_org(plan=Plan.PAID, name="Org B")
+    user_a = make_user("a@example.com", org=org_a)
+    user_b = make_user("b@example.com", org=org_b)
+    db.session.commit()
+    _, raw_token_b = make_api_token(user_b, name="b-tok")
+    a = make_asset(org_a, user_a, name="Asset")
+    scan = make_scan(user_a, org=org_a, status=ScanStatus.COMPLETED)
+    scan.asset_id = a.id
+    db.session.commit()
+    _make_report(db, scan)
+
+    resp = client.get(f"/api/v1/scans/{scan.id}/report.csv", headers=_auth_headers(raw_token_b))
+
+    assert resp.status_code == 404
+
+
+def test_report_csv_manual_scan_non_owner_gets_404(client, db):
+    org = make_org(plan=Plan.PAID, name="Org")
+    owner = make_user("owner@example.com", org=org, role=Role.MEMBER)
+    other_member = make_user("other@example.com", org=org, role=Role.MEMBER)
+    db.session.commit()
+    _, raw_token = make_api_token(other_member, name="tok")
+    scan = make_scan(owner, org=org, status=ScanStatus.COMPLETED)  # no asset_id
+    db.session.commit()
+    _make_report(db, scan)
+
+    resp = client.get(f"/api/v1/scans/{scan.id}/report.csv", headers=_auth_headers(raw_token))
+
+    assert resp.status_code == 404
+
+
+def test_report_csv_soft_deleted_asset_gets_404(client, db):
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+    a = make_asset(org, user, name="Deleted asset", deleted_at=datetime.now(timezone.utc))
+    scan = make_scan(user, org=org, status=ScanStatus.COMPLETED)
+    scan.asset_id = a.id
+    db.session.commit()
+    _make_report(db, scan)
+
+    resp = client.get(f"/api/v1/scans/{scan.id}/report.csv", headers=_auth_headers(raw_token))
+
+    assert resp.status_code == 404
+    assert resp.is_json
+
+
+def test_report_csv_no_report_row_yet_gets_404_json(client, db):
+    org = make_org(plan=Plan.PAID, name="Org")
+    user = make_user("owner@example.com", org=org)
+    db.session.commit()
+    _, raw_token = make_api_token(user, name="tok")
+    a = make_asset(org, user, name="Asset")
+    scan = make_scan(user, org=org, status=ScanStatus.RUNNING)
+    scan.asset_id = a.id
+    db.session.commit()
+
+    resp = client.get(f"/api/v1/scans/{scan.id}/report.csv", headers=_auth_headers(raw_token))
+
+    assert resp.status_code == 404
+    assert resp.is_json
+    assert resp.get_json()["error"] == "report not available"
+
+
+def test_report_csv_unauthenticated_gets_401_json(client, db):
+    resp = client.get("/api/v1/scans/1/report.csv")
+
+    assert resp.status_code == 401
+    assert resp.is_json
