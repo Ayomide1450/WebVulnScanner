@@ -139,6 +139,13 @@ scan_routes):
   `_prompt_secret()` in cli/wvs.py now echoes '*' per keystroke/pasted char
   (msvcrt path when stdin is a console; piped input/tests keep click's
   hidden prompt), backspace erases visibly, Ctrl+C works. v1.0.1.
+- Onboarding follow-up d40f126 (deployed to staging, healthz 200): (a)
+  interactive login/init now prints where to create a token before
+  prompting; (b) new cli/README.md quickstart incl. the "glassbox not
+  recognized" venv gotcha; (c) api_tokens.html reveal panel shows
+  `pip install ./cli` + `glassbox init --api-url {{ request.url_root }}`
+  hint (host-aware, works staging AND prod). 43 CLI/api-token/markup
+  tests green.
 
 ### Full-product audit (2026-08-22, user asked "is it sophisticated enough?")
 
