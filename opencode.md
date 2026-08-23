@@ -134,6 +134,11 @@ scan_routes):
   release_command needed).
 - Commit 001dfa6 pushed to origin; awaiting user staging verification for
   production promotion (merge develop → master, `fly deploy -a glassboxsec`).
+- Follow-up fix 2a161fe: CLI credential prompt gave ZERO visual feedback on
+  Windows (hide_input=True) — real first-run user thought the program froze.
+  `_prompt_secret()` in cli/wvs.py now echoes '*' per keystroke/pasted char
+  (msvcrt path when stdin is a console; piped input/tests keep click's
+  hidden prompt), backspace erases visibly, Ctrl+C works. v1.0.1.
 
 ### Full-product audit (2026-08-22, user asked "is it sophisticated enough?")
 
