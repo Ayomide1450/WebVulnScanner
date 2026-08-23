@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}Webhooks - Glassbox{% endblock %}
+{% block head %}
+{% include "_empty_state.html" %}
+<style>
+  /* h1/.card/.warn-box/.pill/.btn/table/.table-scroll come from base.html -
+     see its comments. Same page-scoped-<style>-block discipline
+     api_tokens.html established: this page needs label/input form rules but
+     must NOT pull _admin_form_styles.html's unscoped selectors (they would
+     collide with this page's .btn-based buttons). Spacing values reuse the
+     --space-* scale; no new component vocabulary. */
+  h1 { margin-top: 20px; }
+  .intro { color: var(--muted); font-size: 15px; line-height: 1.5; max-width: 680px; margin: 0 0 var(--space-5); }
+
+  .create-webhook-form { margin-bottom: var(--space-5); }
+  .create-webhook-form label { display: block; margin-top: var(--space-4); font-weight: 600; font-size: 13px; color: var(--text); }
+  .create-webhook-form label:first-of-type { margin-top: 0; }
+  .create-webhook-form input[type=text] {
+    width: 100%; max-width: 520px; padding: var(--space-3) var(--space-4); margin-top: var(--space-2);
+    border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px;
+    background: rgba(255,255,255,.03); color: var(--text);
+  }
+  .create-webhook-form input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,197,94,.18); outline: none; }
+  .create-webhook-form .btn { margin-top: var(--space-4); }
+  .form-hint { color: var(--muted); font-size: 12.5px; margin-top: var(--space-1); max-width: 620px; line-height: 1.45; }
+
+  .reveal-panel { margin-bottom: var(--space-5); }
+  .reveal-panel .warn-box { flex-direction: column; margin-bottom: 0; }
+  .reveal-panel .warn-box-heading { display:flex; align-items:center; gap:10px; font-size:13px; font-weight:600; color: var(--text); }
+  .reveal-panel .warn-box-body { margin: var(--space-2) 0 var(--space-4); }
+  .secret-value-row { display:flex; gap: var(--space-2); align-items:center; }
+  .secret-value-row input[readonly] {
+    flex: 1; min-width: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); background: rgba(255,255,255,.03); color: var(--text);
+    font-family: "Fira Code", monospace; font-size: 13px; overflow-x: auto; white-space: nowrap;
+  }
+  .secret-value-row .btn { flex-shrink: 0; }
+
+  td.webhook-label { word-break: break-word; max-width: 220px; }
+  td.webhook-url { font-family: "Fira Code", monospace; font-size: 12px; color: var(--muted); word-break: break-all; max-width: 260px; }
+  .row-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+  .row-action-btn { padding: 6px 12px; font-size: 13px; } /* _admin_form_styles' compact in-table padding precedent */
+  .muted-text { color: var(--muted); font-size: 13px; }
+</style>
+{% endblock %}
+{% block content %}
+{% from "_empty_state.html" import empty_state %}
+<div class="wrap">
+  <h1>Webhooks</h1>
+  <p class="intro">
+    {% if current_user.org_id and current_user.role == Role.ORG_ADMIN %}
+    Webhooks push a JSON notification to your own HTTP endpoint every time a scan completes for
+    {{ current_user.organization.name }} &mdash; connect a Slack incoming webhook (or any receiver)
+    and your team hears about posture changes without logging in.
+    {% elif current_user.org_id %}
+    Webhook management is an organization-admin feature. Ask your organization admin to set up
+    scan-completed notifications for your team.
+    {% else %}
+    Webhooks push a JSON notification to your own HTTP endpoint every time one of your scans
+    completes &mdash; connect a Slack incoming webhook (or any receiver) so results reach you
+    where you already work.
+    {% endif %}
+    Every delivery is signed with HMAC-SHA256 so your endpoint can verify it really came from Glassbox.
+  </p>
+
+  {% if new_webhook %}
+  <div class="reveal-panel">
+    <div class="warn-box">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-key"/></svg>
+      <div style="flex:1;">
+        <div class="warn-box-heading">Copy "{{ new_webhook.label }}"'s signing secret now &mdash; it won't be shown again</div>
+        <p class="warn-box-body">
+          Each delivery carries an <code>X-Glassbox-Signature: sha256=HMAC-SHA256(secret, body)</code>
+          header. Store this secret on your receiver to verify signatures &mdash; Glassbox can't show
+          it again after you leave this page.
+        </p>
+        <div class="secret-value-row">
+          <input id="new-secret-value" type="text" readonly value="{{ new_webhook.secret }}" aria-label="Signing secret for {{ new_webhook.label }}">
+          <button type="button" id="copy-secret-btn" class="btn secondary">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-copy"/></svg>
+            <span id="copy-secret-btn-label">Copy</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not member_note %}
+  <form id="create-webhook-form" class="create-webhook-form" method="POST" action="{{ url_for('webhooks.add') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="webhook-label">Label</label>
+    <input id="webhook-label" type="text" name="label" maxlength="120" placeholder='e.g. "Security alerts - #sec-channel"' required>
+    <label for="webhook-url">Webhook URL</label>
+    <input id="webhook-url" type="text" name="url" maxlength="2048" placeholder="https://hooks.slack.com/services/..." required>
+    <p class="form-hint">
+      Must be HTTPS and reachable from the public internet &mdash; private/internal addresses are rejected
+      by the same SSRF guard that protects scan targets. For Slack: create an incoming webhook, then paste its URL here.
+    </p>
+    <button type="submit" class="btn primary">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-network"/></svg>
+      Add Webhook
+    </button>
+  </form>
+
+  <div class="card">
+    {% if webhooks %}
+    <div class="table-scroll desktop-table">
+    <table>
+      <thead>
+      <tr><th>Label</th><th>Endpoint</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+      {% for w in webhooks %}
+      <tr>
+        <td class="webhook-label">{{ w.label }}</td>
+        <td class="webhook-url" title="{{ redact(w.url) }}">{{ redact(w.url) }}</td>
+        <td>
+          {% if w.is_active %}
+          <span class="pill pass">Active</span>
+          {% else %}
+          <span class="pill info">Paused</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="row-actions">
+            <a class="btn secondary row-action-btn" href="{{ url_for('webhooks.deliveries', webhook_id=w.id) }}">Deliveries</a>
+            <form method="POST" action="{{ url_for('webhooks.test_webhook', webhook_id=w.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn secondary row-action-btn">Test</button>
+            </form>
+            <form method="POST" action="{{ url_for('webhooks.toggle_webhook', webhook_id=w.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn secondary row-action-btn">{{ 'Pause' if w.is_active else 'Resume' }}</button>
+            </form>
+            <form class="delete-webhook-form" method="POST" action="{{ url_for('webhooks.delete_webhook', webhook_id=w.id) }}" data-webhook-name="{{ w.label }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn destructive row-action-btn">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+
+    <ul class="mobile-record-cards">
+      {% for w in webhooks %}
+      <li class="card record-card">
+        <div class="record-card-top">
+          <span class="record-card-id webhook-label">{{ w.label }}</span>
+          {% if w.is_active %}
+          <span class="pill pass">Active</span>
+          {% else %}
+          <span class="pill info">Paused</span>
+          {% endif %}
+        </div>
+        <div class="record-card-meta">{{ redact(w.url) }}</div>
+        <div class="record-card-action">
+          <div class="row-actions">
+            <a class="btn secondary block" href="{{ url_for('webhooks.deliveries', webhook_id=w.id) }}">Deliveries</a>
+            <form method="POST" action="{{ url_for('webhooks.test_webhook', webhook_id=w.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn secondary block">Test</button>
+            </form>
+            <form method="POST" action="{{ url_for('webhooks.toggle_webhook', webhook_id=w.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn secondary block">{{ 'Pause' if w.is_active else 'Resume' }}</button>
+            </form>
+            <form class="delete-webhook-form" method="POST" action="{{ url_for('webhooks.delete_webhook', webhook_id=w.id) }}" data-webhook-name="{{ w.label }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn destructive block">Delete</button>
+            </form>
+          </div>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    {% call empty_state('No webhooks yet', 'Add one to get a notification every time a scan completes.', cta_label='Add your first webhook →', cta_url='#create-webhook-form') %}
+    <use href="#icon-network"/>
+    {% endcall %}
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+<script>
+  (function () {
+    var copyBtn = document.getElementById('copy-secret-btn');
+    var copyBtnLabel = document.getElementById('copy-secret-btn-label');
+    var secretInput = document.getElementById('new-secret-value');
+    if (copyBtn && secretInput && copyBtnLabel) {
+      copyBtn.addEventListener('click', function () {
+        var showCopied = function () {
+          copyBtnLabel.textContent = 'Copied';
+          setTimeout(function () { copyBtnLabel.textContent = 'Copy'; }, 2000);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(secretInput.value).then(showCopied, function () {
+            secretInput.select();
+          });
+        } else {
+          secretInput.select();
+        }
+      });
+    }
+
+    document.querySelectorAll('.delete-webhook-form').forEach(function (f) {
+      f.addEventListener('submit', function (e) {
+        var name = f.getAttribute('data-webhook-name');
+        var confirmMessage = 'Delete "' + name + '"? It will stop receiving scan notifications ' +
+          "immediately. This can't be undone.";
+        if (!confirm(confirmMessage)) {
+          e.preventDefault();
+          return;
+        }
+      });
+    });
+  })();
+</script>
+{% endblock %}

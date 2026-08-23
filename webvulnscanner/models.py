@@ -530,3 +530,67 @@ class PlatformAuditEvent(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
 
     actor = db.relationship("User")
+
+
+class OutboundWebhook(db.Model):
+    """Phase 19: a registered outbound-webhook endpoint that receives a JSON
+    POST every time a scan in its scope completes - the delivery half of the
+    platform's continuous-validation loop (the scheduler fires scans on a
+    cadence; this is what announces the result to the places a team already
+    watches, e.g. a Slack incoming webhook).
+
+    Scope model deliberately mirrors `_scoped_asset_query()`'s dual rule
+    (asset_routes.py): an org webhook (`org_id` set, managed by that org's
+    ORG_ADMIN) receives every completed scan run by that org; a solo user's
+    personal webhook (`org_id` None) only ever receives scans they ran
+    themselves. Two different solo users both have `org_id = None`, so the
+    solo branch must match on `created_by_user_id` explicitly, never on
+    NULL-org equality.
+
+    `url` is the receiver's HTTPS endpoint and is sensitive: Slack incoming-
+    webhook URLs embed a token in their path. It is stored (needed to POST)
+    but NEVER rendered back in full anywhere - templates show
+    webhooks.redact_webhook_url()'s scheme://host/*** form only.
+
+    `secret` is a per-webhook random value shown once at creation time;
+    every delivery carries `X-Glassbox-Signature: sha256=HMAC(secret, body)`
+    so a receiver can verify the request really came from Glassbox."""
+    __tablename__ = "outbound_webhooks"
+
+    id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    label = db.Column(db.String(120), nullable=False)
+    url = db.Column(db.String(2048), nullable=False)
+    secret = db.Column(db.String(64), nullable=False)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+
+    organization = db.relationship("Organization")
+    creator = db.relationship("User")
+
+
+class WebhookDelivery(db.Model):
+    """One row per POST attempt an OutboundWebhook received, for the recent-
+    deliveries table on /webhooks - without it a silently-failing endpoint
+    (expired Slack URL, down receiver) would be indistinguishable from a
+    healthy one. Append-only history like OrgAuditEvent: deliveries are
+    facts about the past, not live relationships, so scan_id/webhook_id
+    rows outliving either side is acceptable by design."""
+    __tablename__ = "webhook_deliveries"
+    __table_args__ = (
+        db.Index("ix_webhook_deliveries_webhook_id_id", "webhook_id", "id"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    webhook_id = db.Column(db.Integer, db.ForeignKey("outbound_webhooks.id"), nullable=False)
+    # Nullable: a POST fired by the owner's "send test" button isn't about
+    # any particular scan - only real scan-completed deliveries set this.
+    scan_id = db.Column(db.Integer, db.ForeignKey("scans.id"), nullable=True)
+    status = db.Column(db.String(16), nullable=False)  # "delivered" | "failed"
+    response_code = db.Column(db.Integer, nullable=True)
+    error_message = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+
+    webhook = db.relationship("OutboundWebhook")
+    scan = db.relationship("Scan")

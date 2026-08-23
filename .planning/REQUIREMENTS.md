@@ -153,6 +153,36 @@ product framing, it does not change what the scanner is allowed to do to a targe
       attack surface) during this phase's scoping conversation (08-20). `cli/pyproject.toml`
       (08-23) makes `pip install ./cli` provide a real `glassbox` console script.
 
+### Webhooks & Slack Notifications — Phase 19
+
+- [x] **WEBH-01**: A completed scan triggers delivery to every matching ACTIVE webhook.
+      Org webhooks (org_id set) fire for scans run by that org; solo users' personal webhooks
+      fire only for scans they ran themselves — matched on `created_by_user_id`, never NULL-org
+      equality (two different solo users both have org_id NULL). Hook lives in
+      `_run_scan_in_background`'s shared tail so wizard/API/scheduler paths all converge.
+- [x] **WEBH-02**: Every delivery is signed: `X-Glassbox-Signature: sha256=HMAC-SHA256(secret, body)`
+      with a per-webhook secret (`secrets.token_hex(32)`) shown exactly once at creation time,
+      same reveal-once convention as API tokens. Receivers can verify authenticity and integrity.
+- [x] **WEBH-03**: Receiver URLs validated at creation: HTTPS required, hostname must pass the
+      SAME `is_ssrf_safe_hostname` gate scan targets go through — a webhook can't be used to make
+      Glassbox POST at internal services or cloud-metadata endpoints. Same documented DNS-rebinding
+      caveat as the scan-target flow (submission-time check only).
+- [x] **WEBH-04**: One payload serves Slack AND generic receivers: Slack renders the first-class
+      `text` line; structured `event`/`scan`/`gate`/`top_findings` ride along (Slack ignores
+      unknown keys). The gate verdict comes from the single-source `evaluate_gate()` shared with
+      /api/v1 gate endpoint and `glassbox gate`.
+- [x] **WEBH-05**: Delivery failures never break a finished scan and never raise past the fan-out;
+      each attempt is recorded in a WebhookDelivery row (status/response_code/error_message),
+      visible per-webhook via /webhooks/<id>/deliveries — a dead receiver is diagnosable, not silent.
+- [x] **WEBH-06**: Owner-triggered test ping per webhook (rate-limited 10/hour) fires a real signed
+      POST recording a scanless delivery row, proving connectivity before any scan needs it.
+      Stored URLs are never rendered back in full anywhere (Slack URLs embed credentials in their
+      path) — templates show redact_webhook_url()'s scheme://host/*** form only.
+- [x] **WEBH-07**: Management UI (/webhooks) with server-side scoping: org webhooks manageable by
+      that org's ORG_ADMIN only, solo webhooks by their creator, 404-not-403 on all cross-scope
+      access; add/toggle/delete/test/deliveries routes registered in tests/test_cross_org_idor.py's
+      REGISTRY with denial tests; schema via Alembic migration c3f8a91d2e47.
+
 ## Future Requirements
 
 <!-- Deferred from this milestone, candidates for the next one. -->
@@ -190,6 +220,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ADMIN-01..04 | Phase 16 | Complete (ADMIN-03 scoped to suspend, not hard delete - see note) |
 | DEPTH-01..03 | Phase 17 | Not started |
 | CLI-01..03 | Phase 18 | Complete |
+| WEBH-01..07 | Phase 19 | Complete |
 
-**Coverage:** 42/42 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for v1.3
-across 5 phases, 10 new for v1.4 across 3 phases).
+**Coverage:** 49/49 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for v1.3
+across 5 phases, 17 new for v1.4 across 4 phases).

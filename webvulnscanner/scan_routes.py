@@ -73,6 +73,7 @@ from webvulnscanner.scan_engine import (
     run_scan,
     save_report,
 )
+from webvulnscanner.webhooks import fire_scan_webhooks
 
 scan = Blueprint("scan", __name__)
 
@@ -258,6 +259,16 @@ def _run_scan_in_background(app, scan_id, scan_type, **kwargs):
             s.risk_score = report["score"]
             s.completed_at = datetime.now(timezone.utc)
             db.session.commit()
+            # Phase 19: push a scan-completed notice to every matching
+            # outbound webhook (org Slack channels / CI receivers). Called
+            # AFTER the terminal commit so deliveries observe committed
+            # state; fire_scan_webhooks() itself never raises (see its
+            # docstring), and this whole block is belt-and-suspenders
+            # guarded anyway - notifications must never un-complete a scan.
+            try:
+                fire_scan_webhooks(scan_id)
+            except Exception:  # noqa: BLE001 - same degrade-gracefully contract
+                pass
         except Exception as e:  # noqa: BLE001 - a failed scan must not leave the row stuck RUNNING
             s = Scan.query.get(scan_id)
             # Same race guard as the success path above: don't overwrite a

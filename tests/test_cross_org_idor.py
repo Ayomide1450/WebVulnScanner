@@ -105,6 +105,14 @@ REGISTRY = {
     # tests/test_security_gate.py::test_manual_scan_non_owner_member_gets_404.
     "api.scans_gate": "tests/test_security_gate.py::test_cross_org_asset_linked_scan_gets_404",
     "api_tokens.revoke_token": "tests/test_api_tokens_routes.py::test_user_cannot_revoke_another_users_token",
+    # Phase 19 webhook management: all four id-accepting routes share
+    # _scoped_webhook_or_404's dual scope rule (org webhooks -> that org's
+    # ORG_ADMIN, solo webhooks -> creator only); each denial test below
+    # covers all four actions so the registry entries point at the same pair.
+    "webhooks.delete_webhook": "tests/test_webhooks.py::test_all_four_webhook_actions_are_404_for_a_solo_non_owner",
+    "webhooks.toggle_webhook": "tests/test_webhooks.py::test_all_four_webhook_actions_are_404_for_a_solo_non_owner",
+    "webhooks.test_webhook": "tests/test_webhooks.py::test_all_four_webhook_actions_are_404_for_another_orgs_admin",
+    "webhooks.deliveries": "tests/test_webhooks.py::test_all_four_webhook_actions_are_404_for_another_orgs_admin",
     "asset.asset_detail": "tests/test_asset_routes.py::test_get_asset_detail_for_other_org_is_404",
     "asset.delete_asset": "tests/test_asset_routes.py::test_pause_resume_delete_all_three_404_for_non_owning_org",
     "asset.pause_asset": "tests/test_asset_routes.py::test_pause_resume_delete_all_three_404_for_non_owning_org",

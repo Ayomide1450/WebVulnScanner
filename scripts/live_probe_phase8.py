@@ -268,6 +268,7 @@ def _seed_two_orgs(_db):
         Invitation,
         InvitationStatus,
         Organization,
+        OutboundWebhook,
         Plan,
         Role,
         Scan,
@@ -335,6 +336,16 @@ def _seed_two_orgs(_db):
         api_token = ApiToken(user_id=admin.id, name="Live probe token", token_hash=token_hash)
         _db.session.add(api_token)
 
+        # Phase 19: one org webhook per probe bundle, for the webhooks
+        # IDOR family's cross-org 404 case below.
+        webhook = OutboundWebhook(
+            org_id=org.id, created_by_user_id=admin.id,
+            label=f"Live Probe Webhook {label}",
+            url="https://receiver.example.com/hooks/live-probe",
+            secret=secrets.token_hex(32),
+        )
+        _db.session.add(webhook)
+
         _db.session.flush()
 
         return {
@@ -344,6 +355,7 @@ def _seed_two_orgs(_db):
             "scan_id": scan.id, "asset_id": asset.id, "asset_name": asset.name,
             "invoice_id": invoice.id, "invitation_id": invitation.id,
             "api_token_id": api_token.id, "api_token_raw": raw_token,
+            "webhook_id": webhook.id,
         }
 
     org_a = _bundle("A")
@@ -432,6 +444,16 @@ CASES = [
         "path": "/scan/{org_b[scan_id]}",
         "expected_status": 404,
         "covering_test": "tests/test_scan_ownership.py::test_admin_of_a_different_org_cannot_view_scan",
+    },
+    {
+        # Phase 19: org webhooks are manageable only by their own org's
+        # ORG_ADMIN - another org's admin gets the standard 404.
+        "name": "webhook_deliveries_cross_org",
+        "family": "webhooks",
+        "kind": "get",
+        "path": "/webhooks/{org_b[webhook_id]}/deliveries",
+        "expected_status": 404,
+        "covering_test": "tests/test_webhooks.py::test_all_four_webhook_actions_are_404_for_another_orgs_admin",
     },
     {
         # Phase 16: /platform-admin/* is cross-org BY DESIGN (a platform

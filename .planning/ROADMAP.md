@@ -295,6 +295,37 @@ package) and are documented here rather than silently shipped.
 
 **UI hint**: no (separate CLI package, no web UI)
 
+### Phase 19: Webhooks & Slack Notifications ✅ COMPLETE (2026-08-23)
+
+**Goal**: When a scan completes, Glassbox pushes a signed JSON notification to every webhook
+registered in the scan's scope (org webhooks for the org's scans, solo users' personal webhooks
+for their own scans) - closing the continuous-validation loop: scheduled scans already fire on a
+cadence, but until now nothing announced their results to where a team actually watches (a Slack
+channel via an incoming webhook, or any generic HTTP receiver).
+**Depends on**: Phase 1 (Scan lifecycle + `_run_scan_in_background` shared tail), Phase 2
+(API-token-era auth conventions), Phase 16 (org/solo dual-scope pattern from Assets)
+**Requirements**: WEBH-01..WEBH-07 (see REQUIREMENTS.md)
+**Success Criteria** (what must be TRUE):
+
+  1. A completed scan triggers delivery to every matching ACTIVE webhook - org scope matches
+     `scan.org_id`, solo scope matches creator only (NULL-org equality never cross-matches). ✅
+  2. Deliveries are HMAC-SHA256-signed (`X-Glassbox-Signature: sha256=...`) with a per-webhook
+     secret shown exactly once at creation; receiver URLs are validated HTTPS + SSRF-safe at
+     creation time via the same `is_ssrf_safe_hostname` gate scan targets use. ✅
+  3. One payload serves Slack AND generic receivers (`text` line first-class + structured
+     event/scan/gate/top_findings); the gate verdict comes from the same single-source
+     `evaluate_gate()` the API endpoint and CLI use. ✅
+  4. Delivery failures never break a finished scan and never raise past the fan-out; each
+     attempt is recorded in a WebhookDelivery row visible per-webhook (recent deliveries page),
+     including owner-triggered test pings (scan_id NULL). ✅
+  5. Management UI (/webhooks) enforces server-side scoping: org webhooks manageable by that
+     org's ORG_ADMIN only, solo webhooks by their creator; all four id-accepting routes are
+     registered in the IDOR registry with denial tests. ✅
+
+**Plans**: Direct execution, single commit.
+
+**UI hint**: yes (/webhooks management page + per-webhook deliveries page + nav link)
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -317,3 +348,4 @@ package) and are documented here rather than silently shipped.
 | 16. Platform Admin User/Org Management | v1.4 | Direct execution | Complete | 2026-08-21 |
 | 17. Expanded Check Coverage | v1.4 | 0/TBD | Not started | - |
 | 18. CLI Client | v1.4 | Direct execution | Complete | 2026-08-23 |
+| 19. Webhooks & Slack Notifications | v1.4 | Direct execution | Complete | 2026-08-23 |

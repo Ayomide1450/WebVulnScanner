@@ -186,6 +186,10 @@ def create_app(config_class=Config):
 
     app.register_blueprint(api_tokens_blueprint)
 
+    from webvulnscanner.webhook_routes import webhooks_bp as webhooks_blueprint
+
+    app.register_blueprint(webhooks_blueprint)
+
     from webvulnscanner.api_routes import api as api_blueprint
 
     app.register_blueprint(api_blueprint)

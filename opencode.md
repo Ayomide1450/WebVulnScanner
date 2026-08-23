@@ -45,10 +45,12 @@ deployable, tested (pytest on every push), and safe by design.
 
 ## State snapshot (last updated: 2026-08-23)
 
-- Branch `develop`, HEAD 9405e81 "feat(18): close out CLI phase..." — **deployed to
-  staging** (fly CLI, both machines healthy, healthz 200, new report.csv endpoint
-  returns 401 JSON unauthenticated) and pushed to origin.
+- Branch `develop`, HEAD 9405e81 + b1255cf (docs) — **deployed to staging**
+  (healthz 200, report.csv endpoint live) and pushed to origin.
+  Phase 19 (webhooks) is COMPLETE in the working tree, full suite green,
+  NOT yet committed/deployed — see "Phase 19 implementation" below.
 - Tests run via `pytest` (fresh Flask app per test, SQLite under tmp_path).
+  Full suite is ~11 min / 940 tests; use targeted runs during development.
 
 ### Done (recent history)
 
@@ -60,7 +62,7 @@ deployable, tested (pytest on every push), and safe by design.
 
 ### Phase 18 close-out (SHIPPED TO STAGING 2026-08-23, commit 9405e81)
 
-**Phase 18 close-out (COMPLETE, verified 90 targeted tests pass, not yet committed):**
+**Phase 18 close-out (COMPLETE, committed 9405e81, shipped to staging):**
 - `webvulnscanner/api_routes.py` — new GET `/api/v1/scans/<int:scan_id>/report.csv`
   (token-authed CSV export; ownership branches + WR-01/WR-02 error semantics cloned
   verbatim from fetch_report).
@@ -78,10 +80,53 @@ deployable, tested (pytest on every push), and safe by design.
 ### Phase 19 decision (user-confirmed 2026-08-23)
 
 **Phase 19 = Webhooks/Slack integrations** (outbound webhook on scan completion,
-Slack-compatible payload). Builds on the gate endpoint. Not started yet.
+Slack-compatible payload). Builds on the gate endpoint.
 
 Also user-directed: **stale docs (PRODUCT.md/README/CLAUDE.md) are OFF-LIMITS for the
 assistant** — the user will review/update them personally. Do not edit them.
+
+### Phase 19 implementation (COMPLETE 2026-08-23, full suite green, UNCOMMITTED)
+
+**Why it matters**: closes the continuous-validation loop — scheduled scans
+fire on a cadence, but results previously reached a team only when someone
+logged in. Webhooks push each completed scan's outcome to where the team
+already watches (Slack incoming webhook or any HTTP receiver), minutes after
+it happens; HMAC signing lets receivers verify it came from Glassbox.
+
+Built (wizard/API/scheduler all converge on `_run_scan_in_background`'s
+shared tail — confirmed scheduler imports `_spawn_scan_thread` from
+scan_routes):
+
+- `models.py`: `OutboundWebhook` + `WebhookDelivery` (scan_id NULLABLE for
+  test pings). Migration `c3f8a91d2e47`, down_revision='1da1e657ca46' —
+  **run `flask db upgrade` on deploy**.
+- `webvulnscanner/webhooks.py` — engine: `validate_webhook_url` (HTTPS +
+  `is_ssrf_safe_hostname`, same SSRF gate as scan targets),
+  `redact_webhook_url` (never render stored URLs — Slack URLs embed creds),
+  `build_scan_payload` (Slack-first `text` + structured event/scan/gate/
+  top_findings ≤5, gate via single-source `evaluate_gate`),
+  `sign_payload`/`_post_payload` (X-Glassbox-Signature sha256=HMAC over
+  exact bytes, 5s timeout), `deliver` (never raises, records row),
+  `send_test_ping` (scanless ping), `fire_scan_webhooks` (org→org_id,
+  solo→created_by_user_id never NULL-org equality, active only).
+- `scan_routes.py`: hook after terminal COMPLETED commit.
+- `webhook_routes.py` blueprint `/webhooks`: index (?created=<id> secret-
+  shown-once; member_note for org MEMBERs), POST /add (20/hour), POST
+  /<id>/delete|toggle|test (test 10/hour), GET /<id>/deliveries.
+  `_scoped_webhook_or_404`: org webhook → that org's ORG_ADMIN, solo →
+  creator, else 404. Registered in `__init__.py`.
+- `templates/webhooks.html` + `webhook_deliveries.html`: dual-markup
+  contract from birth (desktop table + .mobile-record-cards); page-scoped
+  styles per api_tokens.html discipline; `base.html` gained a "Webhooks"
+  nav link after API Tokens.
+- Tests: `tests/test_webhooks.py` (+23); IDOR REGISTRY += 4 webhooks
+  endpoints; live_probe_phase8.py += webhooks family case + webhook in the
+  probe bundle; tripwire locks updated deliberately:
+  `_EXPECTED_SAFE_REFERRER_CALL_SITES` 303→307 (blueprint registration
+  shifted __init__.py), card-conversion scope six→eight templates.
+- Docs: ROADMAP Phase 19 ✅ Complete + progress row; REQUIREMENTS
+  WEBH-01..07 all [x], traceability 49/49.
+- Full suite: **940 passed / 0 failed** (~11 min).
 
 ### Full-product audit (2026-08-22, user asked "is it sophisticated enough?")
 
@@ -108,7 +153,8 @@ The codebase has grown far past CLAUDE.md's description. Verified surface:
 Verified gaps for a pro audience (grep-confirmed absent):
 1. ~~Positioning language~~ → **FIXED** (see "Done since audit").
 2. No PDF/report export (JSON only).
-3. No integrations: webhooks, Slack, GitHub, SIEM — none exist.
+3. ~~No integrations: webhooks, Slack, GitHub, SIEM — none exist~~ →
+   webhooks + Slack **BUILT in Phase 19 (2026-08-23)**; GitHub/SIEM still open.
 4. No audit-log model.
 5. No SSO/SAML.
 6. No developer-facing API docs page/template.
@@ -221,7 +267,10 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    the user reviews/updates PRODUCT.md/README/CLAUDE.md personally; the
    assistant must not edit them.
 4. ~~Decide Phase 18 vs 19~~ → decided 2026-08-23: Phase 18 closed; Phase 19 =
-   Webhooks/Slack integrations (see "Phase 19 decision" above).
+   Webhooks/Slack integrations. ~~Phase 19 build~~ → COMPLETE 2026-08-23,
+   full suite green — **UNCOMMITTED**: commit to develop, then deploy to
+   staging (`fly deploy -a glassboxsec-staging --config fly.staging.toml`;
+   `flask db upgrade` runs in release via fly's release_command) and verify.
 5. Sophistication roadmap candidates (pro audience, post-P19): report PDF
    export, audit log generalization, SSO/SAML, API docs page.
 6. Housekeeping: `dev-server-*.log` files and `instance/` are untracked
@@ -233,6 +282,10 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
 
 ## Conventions to honor while working here
 
+- **Always explain the "why"** (standing user directive, 2026-08-23): whenever
+  building or changing anything, state the reason behind the work and how it
+  helps the website/product — in plain language, before or alongside the
+  implementation, not after the fact.
 - Checks return `(data, findings)`; never let a check raise past itself
   (wrap network calls in `try/except requests.RequestException`).
 - New base-scan check ⇒ add `FEATURE_REQUIREMENTS` entry (entitlements.py),

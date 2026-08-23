@@ -535,9 +535,10 @@ _EXPECTED_SAFE_NEXT_CALL_SITES = {
 }
 
 # Same closed-set treatment for _safe_referrer() (webvulnscanner/__init__.py's
-# CSRFError handler) - currently exactly one call site.
+# CSRFError handler) - currently exactly one call site. Line moved 303 -> 307
+# when Phase 19 registered the webhooks blueprint above it.
 _EXPECTED_SAFE_REFERRER_CALL_SITES = {
-    ("__init__.py", 303),
+    ("__init__.py", 307),
 }
 
 
