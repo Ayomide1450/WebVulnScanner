@@ -269,8 +269,30 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
   21→30 thead, 32 scroll wrappers; A05_BASE_CHECK_NAMES fixture extended
   (host_header/cache_deception/subdomain_takeover are owasp-A05 too);
   removed two `'&mdash;'|safe` violations caught by the autoescape lock.
-  tests/test_phase20_checks.py (28 locks). Full suite **988 passed /
-  0 failed**. NOTE: one transient org_invite tampered-signature failure
+   tests/test_phase20_checks.py (28→29 locks). Full suite **989 passed /
+   0 failed**. NOTE: one transient org_invite tampered-signature failure
+- **Phase 20 LIVE-FIRE VERIFIED (2026-08-23, 3ee435c)** — user asked "how do
+  I know these work"; drove end-to-end on staging via CLI. Staging account
+  arktechdesigns@gmail.com / Review Org was plan=free → flipped to
+  ORG_VERIFIED + seeded DomainVerification rows (nextlevelhub.xyz,
+  www.nextlevelhub.xyz, glassbox-lure.fly.dev) via fly ssh console +
+  base64-encoded python one-liners (PS quoting: outer double quotes, inner
+  singles, blob as bare argv token — SFTP put does NOT land where console
+  looks). Scan progression proved tier gating: scan1 free=16 locked,
+  scan3 org-verified+hostname-match=0 locked. Deployed lure app
+  (lure_app.py → fly app `glassbox-lure`, .lure_deploy/ has its Dockerfile+
+  fly.toml; destroy when done). Lure scan: ALL FOUR positive detections
+  fired with Confirmed confidence — ssti critical (6776), path_traversal
+  critical (real /etc/passwd read), jwt_active critical (alg:none accepted,
+  garbage control 401), graphql_deep medium introspection + low field-
+  suggestions; honest negatives elsewhere. **Bug caught & fixed**: jar
+  eviction in check_jwt_active — session jar's genuine token rode along on
+  every replay so the garbage-signature CONTROL could never differ;
+  now evicts per-variant, restores after, wire-level regression test
+  asserts exactly one auth_token cookie leaves the process.
+- **OPS GOTCHA**: never rewrite repo files via PS Get-Content|Set-Content —
+  it ANSI-mangles non-ASCII and adds a UTF-8 BOM that breaks ast-parsing
+  tests (fixed by git checkout + Edit tool re-apply).
   during a long run near UTC midnight — passes consistently; watch it.
 
 - **Email-verification gate on login SHIPPED TO STAGING (2026-08-22,
