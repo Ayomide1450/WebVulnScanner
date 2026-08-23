@@ -131,12 +131,17 @@ product framing, it does not change what the scanner is allowed to do to a targe
 
 ### Expanded Check Coverage — Phase 17
 
-- [ ] **DEPTH-01**: An explicit, signed-off decision on same-origin depth-1 crawl vs. a deeper/
+- [x] **DEPTH-01**: An explicit, signed-off decision on same-origin depth-1 crawl vs. a deeper/
       multi-page crawl — this changes the app's safety posture and must not be flipped quietly.
-- [ ] **DEPTH-02**: Injection-class checks (XSS/SQLi) gain additional payload/variant coverage
+      (Approved 2026-08-23, "A AND B": .planning/PHASE17-DEPTH-DECISION.md)
+- [x] **DEPTH-02**: Injection-class checks (XSS/SQLi) gain additional payload/variant coverage
       without violating existing safety constraints (no destructive payloads, same caps).
-- [ ] **DEPTH-03**: All coverage additions are registered in `FEATURE_REQUIREMENTS`/
+      (4 reflected-XSS shapes, context-aware boolean pairs, 14 error signatures,
+      MAX_PROBE_REQUESTS_PER_URL=12 budget lock)
+- [x] **DEPTH-03**: All coverage additions are registered in `FEATURE_REQUIREMENTS`/
       `CHECK_LABELS`/`CHECK_CATEGORY` with regression-lock tests, per the existing convention.
+      (No new check names - variants ride inside xss_sqli; registry locks in
+      tests/test_phase17_coverage.py)
 
 ### CLI Client — Phase 18
 
@@ -218,7 +223,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CHECK-01..06 | Phase 14 | Complete |
 | CTA-01..04 | Phase 15 | Complete |
 | ADMIN-01..04 | Phase 16 | Complete (ADMIN-03 scoped to suspend, not hard delete - see note) |
-| DEPTH-01..03 | Phase 17 | Not started |
+| DEPTH-01..03 | Phase 17 | Complete |
 | CLI-01..03 | Phase 18 | Complete |
 | WEBH-01..07 | Phase 19 | Complete |
 

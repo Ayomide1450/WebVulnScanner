@@ -146,6 +146,16 @@ scan_routes):
   `pip install ./cli` + `glassbox init --api-url {{ request.url_root }}`
   hint (host-aware, works staging AND prod). 43 CLI/api-token/markup
   tests green.
+- PHASE 17 COMPLETE (2026-08-23): DEPTH-01 signed off "A AND B" — decision
+  record .planning/PHASE17-DEPTH-DECISION.md. checks.py: REFLECTED_XSS_VARIANTS
+  (4 marker-only shapes), context-aware boolean-blind pairs (numeric vs quote),
+  SQL_ERROR_SIGNATURES=14, MAX_PROBE_REQUESTS_PER_URL=12, crawl_depth2_param_urls
+  (MAX_CRAWL_PAGES=15, same-origin/robots/HTML-only, GET-only) wired in
+  scan_engine.run_scan for org_verified_for_domain only, merged behind hop-1,
+  probe list still capped [:10]. tests/test_phase17_coverage.py = 20 locks
+  (registry minimums, budget arithmetic, caps, robots/cross-origin skips,
+  run_scan merge-order + gating). Full suite 960 passed. ROADMAP P17 ✅,
+  REQUIREMENTS DEPTH-01..03 [x], traceability Complete.
 
 ### Full-product audit (2026-08-22, user asked "is it sophisticated enough?")
 

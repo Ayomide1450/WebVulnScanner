@@ -37,6 +37,7 @@ from webvulnscanner.checks import (
     check_headers,
     check_cookies,
     crawl_same_origin,
+    crawl_depth2_param_urls,
     check_tls_cert,
     check_https_redirect,
     check_sensitive_paths,
@@ -423,6 +424,17 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         param_urls, forms = [], []
     else:
         param_urls, forms = crawl_same_origin(base_url, home_html, session=session)
+        # Phase 17 / DEPTH-01 approved extension: one capped hop deeper
+        # (same-origin, robots-honored, MAX_CRAWL_PAGES pages) to find
+        # param URLs interior pages hide. Runs only for org-verified domains -
+        # the extra fetching is justified exactly where the intrusive probes
+        # that consume its output are allowed anyway - and merges BEHIND the
+        # hop-1 results so the limit=10 probe list (and thus per-scan probe
+        # request budget) stays what it was.
+        if org_verified_for_domain:
+            param_urls = param_urls + [u for u in crawl_depth2_param_urls(session, base_url, home_html)
+                                       if u not in param_urls]
+            param_urls = param_urls[:10]
     if manual_test_url:
         param_urls = [manual_test_url] + [u for u in param_urls if u != manual_test_url]
 

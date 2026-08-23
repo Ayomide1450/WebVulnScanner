@@ -241,7 +241,7 @@ REQUIREMENTS.md's ADMIN-03 note) - a real, valid future requirement, not dropped
 **UI hint**: yes (new user/org detail pages + destructive-action confirmation flows on
 `/platform-admin`)
 
-### Phase 17: Expanded Check Coverage
+### Phase 17: Expanded Check Coverage ✅ COMPLETE (2026-08-23)
 
 **Goal**: Each existing check category (injection, headers, auth, exposure) gets meaningfully
 more payload/variant coverage within the existing non-destructive/same-origin/depth-1 safety
@@ -257,7 +257,14 @@ implicit.
      violating existing safety constraints (no destructive payloads, same caps).
   3. Coverage additions are registered in `FEATURE_REQUIREMENTS`/`CHECK_LABELS`/`CHECK_CATEGORY`
      per the existing convention, with regression-lock tests proving the registries stay in sync.
-**Plans**: 0/TBD plans executed
+**Plans**: Complete - user signed off "A AND B" on the crawl-depth question
+(.planning/PHASE17-DEPTH-DECISION.md): reflected XSS went from 1 to 4 marker-only shapes
+(`REFLECTED_XSS_VARIANTS`), boolean-blind SQLi now picks quote-context vs numeric-context
+pairs by param value, SQL_ERROR_SIGNATURES grew to 14, and an approved capped depth-2 crawl
+(`crawl_depth2_param_urls`, MAX_CRAWL_PAGES=15, same-origin/robots-honored, merged BEHIND
+hop-1 so the limit=10 probe list is unchanged) runs only for org-verified domains. Budget lock:
+MAX_PROBE_REQUESTS_PER_URL=12 enforced by source-arithmetic regression tests
+(tests/test_phase17_coverage.py, 20 tests).
 
 **UI hint**: no (findings render through the existing report UI)
 

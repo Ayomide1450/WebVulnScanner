@@ -460,7 +460,17 @@ SQL_ERROR_SIGNATURES = [
     r"quoted string not properly terminated", r"pg::syntaxerror", r"sqlstate\[",
     r"sqlite3\.operationalerror", r"ora-\d{5}", r"prisma.*query.*failed",
     r"invalid input syntax for type", r"npgsql\.", r"sequelizedatabaseerror",
+    # Phase 17 (DEPTH-02) additions - matched against response text lowercased,
+    # so keep every pattern lowercase-safe.
+    r"system\.data\.sqlclient\.sqlexception", r"mysql_fetch_array\(\)",
 ]
+
+# Hard ceiling on probe requests check_xss_sqli may spend per discovered
+# parameter (Phase 17 / DEPTH-02 budget guard). Worst case today:
+# len(REFLECTED_XSS_VARIANTS) XSS probes + 1 error probe + 2 boolean-blind
+# requests = 4 + 1 + 2 = 7. A regression test locks that arithmetic against
+# this constant, so adding variants without revisiting the cap fails CI.
+MAX_PROBE_REQUESTS_PER_URL = 12
 
 REDIRECT_PARAMS = ["redirect", "url", "next", "return", "returnUrl", "continue", "dest", "callbackUrl", "redirect_uri"]
 AUTH_LIKE_PATH_HINTS = ["login", "signin", "signup", "logout", "signout", "auth", "sso"]
@@ -1909,6 +1919,71 @@ def crawl_same_origin(base_url, home_html, limit=10, session=None):
     return list(dict.fromkeys(param_urls))[:limit], forms
 
 
+# Phase 17 / DEPTH-01 APPROVED posture (see
+# .planning/PHASE17-DEPTH-DECISION.md): the crawl may go ONE hop deeper than
+# the homepage, under hard caps. Binding numbers:
+MAX_CRAWL_PAGES = 15          # interior pages fetched per scan, hop-2 only
+_NON_PAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".ico",
+                        ".css", ".js", ".mjs", ".pdf", ".zip", ".woff", ".woff2",
+                        ".ttf", ".eot", ".mp4", ".webm", ".mp3", ".xml", ".json")
+
+
+def crawl_depth2_param_urls(session, base_url, home_html, max_pages=MAX_CRAWL_PAGES):
+    """Harvest query-param links from up to `max_pages` interior same-origin
+    pages (the approved depth-2 extension of crawl_same_origin).
+
+    Caps honored here, per the signed-off decision record: same-origin only,
+    robots.txt Disallow respected for every fetched page and every harvested
+    link, HTML responses only, GET fetches only, and the caller merges the
+    result BEHIND the hop-1 list so the existing limit=10 probe budget is
+    never enlarged by this function. Forms are NOT collected here - hop-1
+    already enumerates homepage forms and forms are display-only."""
+    if not home_html:
+        return []
+    origin = urlparse(base_url).netloc
+    disallow_prefixes = _fetch_robots_disallow_prefixes(session, base_url)
+
+    soup = BeautifulSoup(home_html, "html.parser")
+    seeds = []
+    for a in soup.find_all("a", href=True):
+        abs_url = urljoin(base_url + "/", a["href"])
+        p = urlparse(abs_url)
+        if p.netloc != origin:
+            continue
+        if _robots_disallows(p.path, disallow_prefixes):
+            continue
+        if p.path.lower().endswith(_NON_PAGE_EXTENSIONS):
+            continue
+        # No point re-fetching the page we already parsed.
+        if abs_url.rstrip("/") == base_url.rstrip("/"):
+            continue
+        if p.query:
+            continue  # hop-1 already harvested this URL's params directly
+        seeds.append(abs_url)
+    seeds = list(dict.fromkeys(seeds))[:max_pages]
+
+    found = []
+    for seed in seeds:
+        try:
+            resp = session.get(seed, timeout=REQUEST_TIMEOUT)
+        except requests.RequestException:
+            continue
+        ctype = ((getattr(resp, "headers", None) or {}).get("Content-Type") or "").lower()
+        if "html" not in ctype:
+            continue
+        for a in BeautifulSoup(resp.text, "html.parser").find_all("a", href=True):
+            abs_url = urljoin(seed + "/", a["href"])
+            p = urlparse(abs_url)
+            if p.netloc != origin:
+                continue
+            if _robots_disallows(p.path, disallow_prefixes):
+                continue
+            if p.query or any(h in p.path.lower() for h in AUTH_LIKE_PATH_HINTS):
+                found.append(abs_url)
+
+    return list(dict.fromkeys(found))
+
+
 # Field-name substrings used to guess which text input in a detected login
 # form is the "username" one - checked in this order, first match wins.
 # Deliberately narrow (no bare "name", "text" etc.) to avoid grabbing an
@@ -2023,37 +2098,65 @@ def _inject_param(url, param, value):
     return urlunparse(parsed._replace(query=urlencode(qs, doseq=True)))
 
 
+# Reflected-XSS probe shapes (Phase 17 / DEPTH-02). Marker-only: every
+# payload embeds XSS_MARKER and detection is "the exact injected string came
+# back in the HTML" - no alert(), no execution attempt, same proof style as
+# check_xss_stored. Mirrors the (name, template) convention of
+# XSS_PAYLOAD_VARIANTS so the registry-lock tests can treat both alike.
+REFLECTED_XSS_VARIANTS = [
+    ("svg-onload", '"><svg onload={m}>'),
+    ("img-onerror", "<img src=x onerror={m}>"),
+    ("attr-breakout", '" onmouseover={m} x="'),
+    ("case-evasion", "><ScRiPt>{m}</ScRiPt>"),
+]
+
+
 def check_xss_sqli(urls, session):
-    """Reflected-XSS canary + error-based and boolean-based blind SQLi probe.
-    One extra request per technique per parameter - not a full fuzzer."""
+    """Reflected-XSS canary (4 marker variants) + error-based and
+    boolean-based blind SQLi probe. Request budget per parameter is capped
+    at MAX_PROBE_REQUESTS_PER_URL - not a full fuzzer."""
     findings = []
     tested = []
     for url in urls:
         qs = parse_qs(urlparse(url).query)
         for param in qs:
             row = {"url": url, "param": param, "xss": "pass", "sqli": "pass"}
+            probe_count = 0
 
-            xss_url = _inject_param(url, param, f"\"><svg onload={XSS_MARKER}>")
-            try:
-                r = session.get(xss_url, timeout=REQUEST_TIMEOUT)
-                if f"<svg onload={XSS_MARKER}>" in r.text:
-                    row["xss"] = "fail"
-                    findings.append(Finding("XSS", f"Reflected XSS in '{param}' on {url}", "critical",
-                                             "Injected markup was reflected unescaped into the HTML response.",
-                                             "Escape/encode all user input before rendering; verify with a CSP.", confidence="Confirmed"))
-            except requests.RequestException:
-                row["xss"] = "info"
+            for variant_name, template in REFLECTED_XSS_VARIANTS:
+                payload = template.format(m=XSS_MARKER)
+                xss_url = _inject_param(url, param, payload)
+                try:
+                    r = session.get(xss_url, timeout=REQUEST_TIMEOUT)
+                    probe_count += 1
+                    if payload in r.text:
+                        row["xss"] = "fail"
+                        findings.append(Finding("XSS", f"Reflected XSS in '{param}' on {url} ({variant_name} shape)",
+                                                 "critical",
+                                                 f"Injected markup ({variant_name}) was reflected unescaped into the HTML response.",
+                                                 "Escape/encode all user input before rendering; verify with a CSP.", confidence="Confirmed"))
+                except requests.RequestException:
+                    row["xss"] = "info"
 
             try:
                 err_r = session.get(_inject_param(url, param, "'"), timeout=REQUEST_TIMEOUT)
+                probe_count += 1
                 if any(re.search(sig, err_r.text.lower()) for sig in SQL_ERROR_SIGNATURES):
                     row["sqli"] = "fail"
                     findings.append(Finding("SQL Injection", f"DB error signature via '{param}' on {url}", "critical",
                                              "A single quote triggered a database error visible in the response.",
                                              "Use parameterized queries/ORM bindings; never string-concat user input into SQL.", confidence="Strong Evidence"))
                 else:
-                    true_r = session.get(_inject_param(url, param, "1' AND '1'='1"), timeout=REQUEST_TIMEOUT)
-                    false_r = session.get(_inject_param(url, param, "1' AND '1'='2"), timeout=REQUEST_TIMEOUT)
+                    # Boolean-blind pair - context picked from the param's own
+                    # value: numeric params get unquoted arithmetic probes,
+                    # everything else keeps the quote-context pair.
+                    if str(qs[param][0]).isdigit():
+                        true_payload, false_payload = "1 AND 1=1", "1 AND 1=2"
+                    else:
+                        true_payload, false_payload = "1' AND '1'='1", "1' AND '1'='2"
+                    true_r = session.get(_inject_param(url, param, true_payload), timeout=REQUEST_TIMEOUT)
+                    false_r = session.get(_inject_param(url, param, false_payload), timeout=REQUEST_TIMEOUT)
+                    probe_count += 2
                     if (true_r.status_code == 200 and len(true_r.text) > 0 and
                             abs(len(true_r.text) - len(false_r.text)) > max(50, 0.1 * len(true_r.text))):
                         row["sqli"] = "review"
