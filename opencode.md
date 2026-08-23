@@ -45,12 +45,14 @@ deployable, tested (pytest on every push), and safe by design.
 
 ## State snapshot (last updated: 2026-08-23)
 
-- Branch `develop`, HEAD 9405e81 + b1255cf (docs) — **deployed to staging**
-  (healthz 200, report.csv endpoint live) and pushed to origin.
-  Phase 19 (webhooks) is COMPLETE in the working tree, full suite green,
-  NOT yet committed/deployed — see "Phase 19 implementation" below.
+- Branch `develop`, HEAD 001dfa6 "feat(19): webhooks..." — **deployed to
+  staging** (healthz 200; /webhooks + deliveries routes respond via login
+  redirect, no 500; `flask db current` on staging = c3f8a91d2e47 head, so
+  both new tables exist) and pushed to origin.
+  NOT yet promoted to production — awaiting user's staging verification
+  per the STAGING-FIRST POLICY.
 - Tests run via `pytest` (fresh Flask app per test, SQLite under tmp_path).
-  Full suite is ~11 min / 940 tests; use targeted runs during development.
+  Full suite is ~11–17 min / 940 tests; use targeted runs during development.
 
 ### Done (recent history)
 
@@ -85,7 +87,7 @@ Slack-compatible payload). Builds on the gate endpoint.
 Also user-directed: **stale docs (PRODUCT.md/README/CLAUDE.md) are OFF-LIMITS for the
 assistant** — the user will review/update them personally. Do not edit them.
 
-### Phase 19 implementation (COMPLETE 2026-08-23, full suite green, UNCOMMITTED)
+### Phase 19 implementation (SHIPPED TO STAGING 2026-08-23, commit 001dfa6)
 
 **Why it matters**: closes the continuous-validation loop — scheduled scans
 fire on a cadence, but results previously reached a team only when someone
@@ -126,7 +128,12 @@ scan_routes):
   shifted __init__.py), card-conversion scope six→eight templates.
 - Docs: ROADMAP Phase 19 ✅ Complete + progress row; REQUIREMENTS
   WEBH-01..07 all [x], traceability 49/49.
-- Full suite: **940 passed / 0 failed** (~11 min).
+- Full suite: **940 passed / 0 failed**. Staging verified: healthz 200,
+  webhook routes live (login-gated), migration c3f8a91d2e47 applied
+  (Dockerfile CMD runs `flask db upgrade` on every machine start — no
+  release_command needed).
+- Commit 001dfa6 pushed to origin; awaiting user staging verification for
+  production promotion (merge develop → master, `fly deploy -a glassboxsec`).
 
 ### Full-product audit (2026-08-22, user asked "is it sophisticated enough?")
 
@@ -267,10 +274,9 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    the user reviews/updates PRODUCT.md/README/CLAUDE.md personally; the
    assistant must not edit them.
 4. ~~Decide Phase 18 vs 19~~ → decided 2026-08-23: Phase 18 closed; Phase 19 =
-   Webhooks/Slack integrations. ~~Phase 19 build~~ → COMPLETE 2026-08-23,
-   full suite green — **UNCOMMITTED**: commit to develop, then deploy to
-   staging (`fly deploy -a glassboxsec-staging --config fly.staging.toml`;
-   `flask db upgrade` runs in release via fly's release_command) and verify.
+   Webhooks/Slack integrations. ~~Phase 19 build~~ → SHIPPED TO STAGING
+   2026-08-23 (commit 001dfa6, suite green, migration applied). Next:
+   user verifies staging, then production promotion.
 5. Sophistication roadmap candidates (pro audience, post-P19): report PDF
    export, audit log generalization, SSO/SAML, API docs page.
 6. Housekeeping: `dev-server-*.log` files and `instance/` are untracked
