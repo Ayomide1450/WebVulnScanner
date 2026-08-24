@@ -598,6 +598,46 @@ timeline on the Asset detail page; `finding.regressed` rides Phase 19's signed f
 new High/Critical only; pure diff in `regressions.py` with a determinism lock
 (tests/test_regressions.py).
 
+### Phase 27.1: Risk-Score-Over-Time Chart Legibility Fix (INSERTED)
+
+**Goal**: Fix a real UX defect caught during live staging verification of Phase 27
+(2026-08-24, browser + API walkthrough — an Asset was scanned twice via
+`POST /api/v1/assets/<id>/scans` specifically to exercise the new chart with real data):
+the Asset detail page's "Risk score over time" sparkline (pre-existing, from Phase 1/the
+dashboard's per-target trend work — not introduced by Phase 27, but the first phase to put
+real user attention on this exact chart) renders as an unlabeled flat line with no axis, no
+per-point value, and no severity-aware color — at a 0/100 (worst possible, Grade F) score, it
+renders in the app's `--accent` green, the same color the design system uses everywhere else
+to mean "good" or "passing." A trend chart that can't communicate "this got worse" at a glance
+fails at its one job, and a worst-possible score rendered in the "safe" color is actively
+misleading, not just plain.
+**Depends on**: nothing new — same chart Phase 1's per-target dashboard sparkline already
+established; only relevant precedent is the `n==1` single-point-line fix already made to that
+sparkline (see `handoff.md`'s bug log) — this is a related but distinct defect on a different
+instance of the same UI idea (the Asset detail page's own line, not the dashboard's).
+**Requirements**: CHARTUX-01..CHARTUX-04 (see REQUIREMENTS.md)
+**Success Criteria**:
+
+   1. Each point on the line is colored by that scan's own grade/severity, not a single fixed
+      `--accent` green — reuse the existing severity/grade color tokens `base.html` already
+      defines (critical/high/medium/low or A-F grade colors, whichever this chart's data shape
+      maps to more directly), not a new ad hoc palette.
+   2. Each point shows its risk score value directly on or immediately next to the mark (a
+      static label, a hover tooltip, or both) — a viewer should never have to re-read the
+      caption sentence above the chart to know what a given point's score was.
+   3. A light axis or gridline reference (even a simple 0/50/100 y-axis tick set) gives the eye
+      a frame of reference instead of a line floating in empty space.
+   4. The existing `n==1` single-point special case (flat 2-point reference line + text label,
+      per the dashboard sparkline's own prior fix) still renders correctly — this fix must not
+      regress the already-solved single-scan case on either the dashboard or Asset detail chart.
+   5. Load the `dataviz` skill before implementing — this is exactly the "severity-aware color
+      scale + labeled marks + legible small chart" problem it's designed for; don't freehand a
+      new chart convention when established guidance already covers this shape.
+
+**Plans**: Direct execution, single commit.
+
+**UI hint**: yes (Asset detail page + dashboard sparkline, if the fix is shared between them)
+
 ### Phase 28: Check Extensibility (Plugin Architecture)
 
 **Goal**: Let a check be added without touching `checks.py`/`scan_engine.py` core — a
@@ -710,6 +750,7 @@ not a failure to ship.
 | 26. SSO / SAML | v1.6 | Direct execution | Planned | - |
 | 21.1. Detection-Verification UX Fold-In (INSERTED) | v1.5 | Direct execution | Complete | 2026-08-24 |
 | 27. Continuous Regression Tracking | v1.7 | Direct execution | Complete 2026-08-24 | 4e5947e (staging v14) |
+| 27.1. Risk-Score-Over-Time Chart Legibility Fix (INSERTED) | v1.7 | Direct execution | Planned | - |
 | 28. Check Extensibility (Plugin Architecture) | v1.7 | Direct execution | Planned | - |
 | 29. SARIF Export | v1.7 | Direct execution | Planned | - |
 | 30. Self-Hostable / Open-Core Decision Spike | v1.7 | Direct execution | Planned | - |

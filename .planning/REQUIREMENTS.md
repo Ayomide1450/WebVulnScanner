@@ -426,6 +426,21 @@ Which phases cover which requirements. Updated during roadmap creation.
       findings out) and unit-tested with no network calls.
       *(Implementation note: `webvulnscanner/regressions.py` imports neither Flask nor db; resolved snapshots sorted by (check_name, title) so identical inputs produce byte-equal output — locked by a determinism test.)
 
+### Risk-Score-Over-Time Chart Legibility Fix (CHARTUX) — Phase 27.1 (v1.7, INSERTED)
+
+- [ ] **CHARTUX-01**: Each point on the "Risk score over time" line is colored by that scan's
+      own grade/severity (reusing `base.html`'s existing severity/grade color tokens), not a
+      single fixed `--accent` green regardless of score — a 0/100 Grade-F point must not render
+      in the same color the design system uses to mean "passing" everywhere else.
+- [ ] **CHARTUX-02**: Each point's risk score value is visible directly on/near the mark
+      (static label and/or hover tooltip) — never requires re-reading the caption sentence
+      above the chart to know a given point's value.
+- [ ] **CHARTUX-03**: A light axis/gridline reference (at minimum 0/50/100 y-axis ticks) gives
+      the chart a frame of reference instead of a line floating in empty space.
+- [ ] **CHARTUX-04**: The pre-existing `n==1` single-point special case (flat 2-point reference
+      line + text label) still renders correctly on both the dashboard's per-target sparkline
+      and the Asset detail page's chart — this fix must not regress that already-solved case.
+
 ### Check Extensibility / Plugin Architecture (PLUG) — Phase 28 (v1.7)
 
 - [ ] **PLUG-01**: A declarative (YAML-based, HTTP request/response pattern-match only)

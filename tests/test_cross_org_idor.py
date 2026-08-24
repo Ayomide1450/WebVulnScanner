@@ -164,6 +164,11 @@ REGISTRY = {
     "scan.scan_events": "tests/test_scan_ownership.py::test_scan_events_denies_cross_org_access",
     "scan.scan_report": "tests/test_scan_ownership.py::test_scan_report_and_scan_compare_enforce_ownership_too",
     "scan.scan_report_csv": "tests/test_scan_ownership.py::test_scan_report_csv_cross_org_is_404_and_leaks_no_finding_text",
+    # fetch_report_sarif (Phase 29) clones fetch_report/fetch_report_csv's
+    # ownership branches verbatim; its denial tests live alongside the rest
+    # of the SARIF suite.
+    "api.fetch_report_sarif": "tests/test_sarif_export.py::test_report_sarif_different_org_gets_404",
+    "scan.scan_report_sarif": "tests/test_sarif_export.py::test_scan_report_sarif_cross_org_is_404_and_leaks_no_finding_text",
     "scan.scan_status": "tests/test_scan_status.py::test_status_different_org_gets_404",
 }
 

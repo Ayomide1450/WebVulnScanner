@@ -319,6 +319,29 @@ MAX_API_JS_ENDPOINTS = 30
 SEVERITY_WEIGHT = {"critical": 25, "high": 15, "medium": 7, "low": 3, "info": 0}
 SEVERITY_ORDER = ["critical", "high", "medium", "low", "info", "pass"]
 
+# Phase 29 (SARIF-02): the ONE severity -> SARIF `level` mapping, shared by
+# every SARIF exporter (session-web /scan/<id>/report.sarif and the
+# token-authed /api/v1 twin both render through sarif.build_sarif_report,
+# which is the only caller today - the function lives here beside the
+# severity vocabulary it translates rather than in sarif.py so a future
+# exporter can't grow its own private copy). Mapping per ROADMAP Phase 29:
+# critical/high -> "error", medium -> "warning", low/info -> "note";
+# "pass" findings are not problems at all -> "none" (a valid SARIF level).
+# Unknown severities degrade to "note" (visible-but-informational) rather
+# than raising - same degrade-gracefully convention as owasp_category_for.
+SARIF_SEVERITY_LEVEL = {
+    "critical": "error",
+    "high": "error",
+    "medium": "warning",
+    "low": "note",
+    "info": "note",
+    "pass": "none",
+}
+
+
+def severity_to_sarif_level(severity):
+    return SARIF_SEVERITY_LEVEL.get(str(severity or "").lower(), "note")
+
 # Maps each Finding.category string (the values passed as Finding(...)'s
 # first positional arg, verified against every call site in this file) to
 # an OWASP Top 10 (2021) category, purely for report grouping/filtering -

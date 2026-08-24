@@ -76,6 +76,7 @@ from webvulnscanner.scan_engine import (
 )
 from webvulnscanner.webhooks import fire_scan_webhooks, fire_regression_webhooks
 from webvulnscanner.regressions import classify_regressions
+from webvulnscanner.sarif import build_sarif_report, sarif_text
 
 scan = Blueprint("scan", __name__)
 
@@ -1502,6 +1503,33 @@ def scan_report_csv(scan_id):
     return Response(
         csv_text,
         mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@scan.route("/scan/<int:scan_id>/report.sarif")
+@login_required
+def scan_report_sarif(scan_id):
+    """Phase 29 (SARIF-01): SARIF 2.1.0 export of a single report's
+    findings, ingestible by GitHub's Security tab via
+    github/codeql-action/upload-sarif. Same ownership guard as
+    `scan_report`/`scan_report_csv` (404, not 403) - an alternate rendering
+    of the same already-authorized report, not a new access path. The body
+    comes from sarif.build_sarif_report + sarif.sarif_text, shared verbatim
+    with the /api/v1 token-authed twin."""
+    s = Scan.query.get_or_404(scan_id)
+    _check_ownership(s)
+    if s.report is None:
+        abort(404)
+
+    report = _load_report_json(s)
+    if report is None:
+        abort(404)
+
+    doc, filename = build_sarif_report(report, scan_id)
+    return Response(
+        sarif_text(doc),
+        mimetype="application/sarif+json",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 

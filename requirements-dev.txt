@@ -2,3 +2,4 @@
 pytest
 fakeredis
 lupa
+jsonschema

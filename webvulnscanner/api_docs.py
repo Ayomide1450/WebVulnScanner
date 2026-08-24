@@ -145,6 +145,24 @@ API_ENDPOINTS = [
         ),
     },
     {
+        "path": "/api/v1/scans/<int:scan_id>/report.sarif",
+        "methods": ["GET"],
+        "group": "Reports",
+        "summary": "The same report as SARIF 2.1.0 - byte-identical to the web UI's "
+        "report.sarif download (one shared writer behind both). Ingestible directly by "
+        "GitHub's Security tab via github/codeql-action/upload-sarif: severity maps to "
+        "SARIF level (critical/high -> error, medium -> warning, low/info -> note) and "
+        "CWE ids ride rule tags where known. Served as an attachment.",
+        "auth": _API_TOKEN_AUTH,
+        "rate_limit": "60/minute",
+        "request_example": None,
+        "response_example": (
+            '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "Glassbox", '
+            '"rules": [...]}}, "results": [{"ruleId": "headers", "level": "warning", '
+            '"message": {"text": "..."}, ...}]}]}'
+        ),
+    },
+    {
         "path": "/api/v1/scans/<int:scan_id>/compare/<int:other_id>",
         "methods": ["GET"],
         "group": "Reports",

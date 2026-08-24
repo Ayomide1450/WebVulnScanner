@@ -177,6 +177,17 @@ ALLOWLIST = {
         "synthetic fixture value used to seed a Report row for the "
         "containment/path-traversal proofs - not a real credential"
     ),
+    # opencodefailure.md's Phase 27 entry QUOTES the credential-shaped
+    # literal a test once used (describing the catch), which re-trips the
+    # sweep on both surfaces - the actual test was fixed in the same
+    # session to a non-secret-shaped hex string ("4" * 64); the quoted form
+    # only exists inside the failure log as documentation.
+    'secret="s3cret-regression-key"': (
+        "quoted example of a flagged literal inside opencodefailure.md's "
+        "own Phase 27 failure entry (describing the catch) - the real test "
+        "literal was replaced with a benign hex-style fixture before "
+        "commit; this is documentation text, not a credential"
+    ),
     # A synthetic, obviously-sequential (not random) EVM wallet address
     # used as this app's billing-test fixture default - both the current
     # test module and the prior planning doc it was authored from.
