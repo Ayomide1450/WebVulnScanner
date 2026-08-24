@@ -115,3 +115,21 @@ the old block unchanged plus a suspiciously short file).
 **Prevention**: never hand-compute slice bounds for whole-file rewrites in PowerShell -
 prefer the edit tool's string matching for targeted replacements; if a shell rewrite is truly
 needed, echo the affected region BEFORE and AFTER in the same command.
+
+### 2026-08-24 - Set-Content rewrote ALL of opencode.md double-encoded (+BOM), committed it
+
+**What broke**: after a misindexed array splice damaged opencode.md, I restored from HEAD and
+redid the edit via PowerShell `Set-Content -Encoding UTF8` on the full file. Windows
+PowerShell 5.1 wrote UTF-8 WITH BOM and re-encoded every pre-existing em-dash/arrow as
+double-encoded mojibake across all ~570 lines - and I then committed that degraded version
+(93f62ff showed 320 changed lines for what should have been ~50).
+**Root cause**: used a whole-file shell rewrite where a targeted string edit was the right
+tool; PS 5.1's `-Encoding UTF8` is not BOM-less UTF-8; and I read the commit stat (320/156)
+without stopping to ask why a docs commit touched every line.
+**Fix**: `git checkout 93f62ff~1 -- opencode.md` to recover the good bytes, reapplied the three
+intended changes with the edit tool only, verified diff = 33 insertions / 24 deletions and
+zero mojibake lines before committing this corrective commit.
+**Caught by**: self-caught reviewing 93f62ff's per-file diff stat immediately after committing.
+**Prevention**: opencode.md (and every doc with typographic characters) gets edited ONLY via
+the string-matching edit tool on this machine - never Set-Content/Add-Content whole-file
+rewrites; treat "diff way bigger than the change" as an automatic stop-and-investigate.
