@@ -4,6 +4,36 @@
 > session** (and whenever a meaningful change lands): what was done, what
 > changed, what's next. Read it first when starting a new session.
 
+## Operating model (added 2026-08-24 — read before starting any new phase)
+
+This project now runs a two-role loop: **Claude** (via Claude Code, working alongside the user
+in `handoff.md`) acts as senior UX/UI engineer, senior full-stack developer, senior product
+engineer, and DevOps reviewer — reviewing what you (opencode) ship, verifying it live via
+browser automation against real staging, scoping and prioritizing what's next, and writing the
+roadmap/requirement entries you should build against. **You (opencode) are the build arm** —
+you write the code, run the tests, and ship to staging per the STAGING-FIRST POLICY.
+
+**Rules for this loop to work without drift:**
+
+1. **Build exactly what's scoped in `.planning/ROADMAP.md`/`REQUIREMENTS.md`** — don't
+   silently reprioritize or invent scope Claude/the user hasn't reviewed. If you think the
+   scoped order is wrong, say so in `opencode.md`'s "What's next" section rather than
+   reordering unilaterally (this has happened before — see Phase 22-26 sequencing, which
+   Claude's review flagged as needing a swap; the roadmap now reflects the corrected order).
+2. **No mistake goes unrecorded.** Every test failure you had to fix, every bug a human/
+   reviewer caught that you didn't catch yourself, every revert, every "shipped" claim that
+   turned out wrong — log it in `opencodefailure.md` the same session, using that file's entry
+   format. This is not optional and not a blocker to shipping; log and move on.
+3. **Full suite green + targeted live-fire verification before any "shipped to staging"
+   claim** in this file. A claim here gets spot-checked live via browser automation — don't
+   write "verified" unless you actually ran the verification, not just the test suite.
+4. **UX matters as much as correctness.** A check that works but ships behind confusing
+   copy, a dev-tool-sounding page, or a standalone route nobody discovers is not done — see
+   the Phase 21.1 entry below for a concrete example of exactly this being caught after the
+   fact and having to be reworked.
+5. Everything else in "Conventions to honor while working here" (below) still applies
+   unchanged.
+
 ---
 
 ## Project
@@ -45,20 +75,26 @@ deployable, tested (pytest on every push), and safe by design.
 
 ## State snapshot (last updated: 2026-08-24)
 
-- Branch `develop`, HEAD 4ee1d57 "docs: phase 20/21 staging record + lure
-  fixture hygiene decisions" — includes
+- Branch `develop`, HEAD 57d090e "docs: scope v1.6 - phases 22-26" + UNCOMMITTED
+  Phase 22 build (api_docs.py / docs_route.py / api_docs.html / tests) AND
+  UNCOMMITTED Phase 21 surface redesign (selftest route/page/button REMOVED;
+  engine folded into run_scan() → report["detection_verified"] → "Engine
+  verified" badge on scan_report.html; suite green — see entries under
+  "Done since audit") — includes
   Phase 20 (c2727f9 + 3ee435c) and Phase 21 (2886b1e), **all deployed to
   staging and verified there** (see their entries under "Done since audit")
-  and pushed to origin. Re-checked 2026-08-24: /healthz 200, /selftest 302
-  login-gated (route live; fly release v11 postdates feat(21)).
+  and pushed to origin. Re-checked 2026-08-24: /healthz 200 (note: /selftest
+  is now 404 by design after the redesign; staging still runs the old release
+  until next deploy).
   NOT yet promoted to production — awaiting user's staging verification
   per the STAGING-FIRST POLICY (covers Phases 17–21 alike).
 - **v1.6 scoped 2026-08-24**: Phases 22–26 (API docs / audit log / PDF export
   / GitHub+SIEM integrations / SSO-SAML) drafted in .planning/ ROADMAP +
   REQUIREMENTS — see "What's next" item 5. Lure app `glassbox-lure` confirmed
-  destroyed (fly apps list).
+  destroyed (fly apps list). Phase 22 built same day; selftest surface redesign
+  same day (both uncommitted, share the working tree).
 - Tests run via `pytest` (fresh Flask app per test, SQLite under tmp_path).
-  Full suite is ~11–17 min / 940 tests; use targeted runs during development.
+  Full suite is ~11–18 min / ~1015 tests; use targeted runs during development.
 
 ### Done (recent history)
 
@@ -343,6 +379,57 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    (302 unauthenticated, no 404). Production promotion pending per the
    STAGING-FIRST POLICY.
 
+- **Phase 22 In-Product API Documentation BUILT (2026-08-24, v1.6 first
+  phase)** — why: Phases 2/18/19 shipped a full token-authed REST surface +
+  CLI + signed webhooks discoverable only by reading source; /docs/api makes
+  it integrable in one sitting and can't drift. `webvulnscanner/api_docs.py`
+  = single-source spec (API_ENDPOINTS ×8 routes, error-semantics table,
+  curl example); `docs_route.py` blueprint GET /docs/api (@login_required);
+  templates/api_docs.html (base.html tokens only, endpoint overview table +
+  mobile-record-cards from birth). Three drift locks in
+  tests/test_api_docs.py (10 tests): (1) url_map↔spec bidirectional incl.
+  method-drift check — a new /api/v1 route fails CI BY NAME until documented;
+  (2) WEBHOOK_VERIFY_SNIPPET exec()ed and behaviorally compared both
+  directions against webhooks.sign_payload (tamper/wrong-secret/wrong-scheme
+  negatives); (3) CLI_SUBCOMMANDS set == cli/README.md's `glassbox <cmd>`
+  lines with named-diff failure. Tripwires updated deliberately: _safe_
+  referrer call-site lock 311→315 (__init__ registration), card-conversion
+  scope eight→nine (api_docs.html), test renamed exactly_eight→exactly_
+   nine_templates. Full suite **1015 passed / 0 failed** (18 min). NOT yet
+   committed/deployed.
+
+- **Phase 21 selftest SURFACE REDESIGN BUILT (2026-08-24, user direction —
+  same uncommitted tree as Phase 22)** — why: the standalone /selftest page +
+  dashboard button read as "another scanner: which domain does THIS one hit?"
+  — the exact confusion the loopback design exists to avoid. User's framing:
+  the self-test is "the gun works"; a scan verdict is about "is your house
+  locked" — those must not look like two parallel products. Changes: (a)
+  `selftest.py` gained `detection_verification()` (runs the matrix once per
+  worker process, threading.Lock-guarded cache; errors return None and are
+  NOT cached — next scan retries) + `verification_summary()` (compact
+  {passed, confirmed, total, duration_ms, failed[]} badge dict) +
+  `reset_detection_verification_cache()` test hook; engine itself UNTOUCHED.
+  (b) `run_scan()` calls verification_summary() at the very END of the
+  pipeline (after scoring, so the live feed isn't delayed on a worker's first
+  scan) and attaches `report["detection_verified"]` only when present — an
+  unavailable verification omits the badge, never fails the scan.
+  (c) DELETED: `webvulnscanner/selftest_routes.py`, `templates/selftest.html`,
+  dashboard.html's "Detection Self-Test" button, __init__ registration
+  (_safe_referrer tripwire back 315→311 with history note). (d)
+  scan_report.html renders a quiet `.pill.pass` "Engine verified · N/10
+  detections confirmed" beside the score + muted note "Verified against
+  Glassbox's internal check target — not your site."; drift → `pill medium`
+  naming the failed checks; absent key → nothing rendered.
+  (e) tests/test_selftest.py: route tests replaced by /selftest-returns-404
+  regression lock, cache-semantics tests (compute-once via identity assert,
+  error-not-cached), summary-shape exact-equality test, and structural locks
+  (source-parse precedent) tying run_scan ordering (scoring < summary call <
+  attach) + template to the key. REQUIREMENTS ST-04 got the CLI-02-style
+  dated SUPERSEDED note; ST-06 annotated. Targeted suites green (223 across
+  selftest/api_docs/auth_flows/template_consistency/accessibility/responsive_
+  markup); FULL suite pending at entry-writing time.
+
+
 - **Email-verification gate on login SHIPPED TO STAGING (2026-08-22,
   bb7d5d0)** — reversed the old documented "unverified email does not
   block login" decision: login() now refuses unverified accounts (flash +
@@ -410,6 +497,20 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    22 in-product API docs page, 23 audit log, 24 report PDF export,
    25 pipeline integrations (GitHub Actions/SIEM), 26 SSO/SAML (spike-first with
    explicit NO-GO escape hatch). Start at Phase 22 whenever user says go.
+
+   **v1.7 SCOPED (2026-08-24, from the "what makes this world-class" strategic review)**:
+   Phase 21.1 (INSERTED, currently IN PROGRESS UNCOMMITTED in this working tree — finish and
+   commit this one first, it's already mid-flight: fold `/selftest` into the real scan report
+   as a badge, remove the standalone page/nav/dashboard button) → then Phase 27 (Continuous
+   Regression Tracking — diff findings across an Asset's scheduled scans, tag new/recurring/
+   resolved, fire a `finding.regressed` webhook) → Phase 28 (Check Extensibility — a narrow
+   YAML-based community-check loader, HTTP pattern-match only, same tier-gating as built-ins)
+   → Phase 29 (SARIF export — reuses report.csv's guard pattern, targets GitHub's Security
+   tab) → Phase 30 (self-hostable/open-core decision spike — doc only, GO or NO-GO both valid).
+   **Recommended order once 21.1 lands: 27 and 29 before 28/30** — regression tracking and
+   SARIF export are near-term user-facing wins with low build risk; extensibility and the
+   open-core decision are bigger, slower-burn bets worth sequencing after some v1.7 momentum
+   is visible. This overrides the raw phase-number order if you'd otherwise default to it.
 6. Housekeeping: `dev-server-*.log` files and `instance/` are untracked
    clutter candidates (check .gitignore covers them). Also: staging DB still
    has a dangling DomainVerification row for glassbox-lure.fly.dev (lure app

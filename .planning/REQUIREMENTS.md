@@ -286,11 +286,23 @@ Which phases cover which requirements. Updated during roadmap creation.
 - [x] **ST-04** Route + UI: POST /selftest (login required, CSRF form, rate-limited 30/hour)
   runs the matrix synchronously; GET renders launcher; results table uses base.html tokens;
   dashboard gains "Detection Self-Test" button.
+  *SUPERSEDED 2026-08-24 by explicit user direction (same deviation-note treatment as
+  CLI-02): the standalone /selftest page and dashboard button read as "another scanner -
+  which domain does THIS one hit?" - the exact confusion the loopback design exists to
+  avoid. The route, template, and button were removed; the engine now runs once per
+  worker process (cached) at the end of `run_scan()`, attaches
+  `report["detection_verified"]`, and scan_report.html renders it as an "Engine verified"
+  badge beside the risk score. ST-01/02/03/05/06 are untouched - the matrix itself is
+  unchanged.*
 - [x] **ST-05** Isolation contracts: no Scan row created, no Report file written, no
   external network traffic, SSRF guard untouched (no user-supplied URL anywhere).
 - [x] **ST-06** tests/test_selftest.py: full-matrix end-to-end over real HTTP,
   determinism across runs, loopback-only binding lock, port release after teardown,
   route auth redirect, no-scan-row contract.
+  *2026-08-24: the two route tests left with ST-04's surface; replaced by locks on the
+  per-process cache (compute-once, errors-not-cached), `verification_summary()`'s shape,
+  a /selftest-returns-404 regression lock, and structural locks tying `run_scan()` +
+  scan_report.html to the `detection_verified` key.*
 
 | ID(s) | Phase | Status |
 |---|---|---|
@@ -298,17 +310,22 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ### In-Product API Documentation — Phase 22 (v1.6)
 
-- [ ] **DOCS-01**: /docs/api renders from ONE server-side spec structure (not hand-duplicated
+- [x] **DOCS-01**: /docs/api renders from ONE server-side spec structure (not hand-duplicated
       HTML per route); a url_map-enumeration regression test fails naming any `/api/v1` rule
       missing from the spec, so a new endpoint cannot ship undocumented.
-- [ ] **DOCS-02**: Every endpoint row documents method, path, required auth (session/token/
+      (webvulnscanner/api_docs.py API_ENDPOINTS; bidirectional lock incl. method drift)
+- [x] **DOCS-02**: Every endpoint row documents method, path, required auth (session/token/
       public), rate limit, and request+response examples drawn from real test fixtures.
-- [ ] **DOCS-03**: Webhook section includes a copy-pasteable HMAC-SHA256 verification snippet
+      (examples shaped after _serialize_asset/_serialize_scan_summary/evaluate_gate output)
+- [x] **DOCS-03**: Webhook section includes a copy-pasteable HMAC-SHA256 verification snippet
       that a test proves matches `webhooks.sign_payload`'s algorithm exactly.
-- [ ] **DOCS-04**: CLI section mirrors cli/README.md essentials (install, init, gate exit
+      (snippet is exec()ed and behaviorally compared both directions vs the real signer)
+- [x] **DOCS-04**: CLI section mirrors cli/README.md essentials (install, init, gate exit
       codes); a test keeps the section's command list in sync with the README's.
-- [ ] **DOCS-05**: Login-gated page on base.html tokens with the dual-markup responsive
-      contract; nav link after API Tokens.
+      (CLI_SUBCOMMANDS set == README `glassbox <cmd>` lines, named-diff failure)
+- [x] **DOCS-05**: Login-gated page on base.html tokens with the dual-markup responsive
+      contract; nav link after Webhooks.
+      (/docs/api; api_docs.html joins the card-conversion closed set, scope lock eight→nine)
 
 ### Audit Log — Phase 23 (v1.6)
 
@@ -366,15 +383,80 @@ Which phases cover which requirements. Updated during roadmap creation.
 - [ ] **SSO-05**: Outbound metadata/ACS fetches get SSRF-guard scrutiny equivalent to scan
       targets; cross-org config access is 404-not-403 with IDOR REGISTRY entries.
 
+### Detection-Verification UX Fold-In (UXFT) — Phase 21.1 (v1.5, INSERTED)
+
+- [ ] **UXFT-01**: `/selftest` route, nav link, and dashboard button removed entirely.
+- [ ] **UXFT-02**: `run_scan()` attaches a `detection_verified` summary to every base-scan
+      report, computed once per worker process (never re-run per scan request).
+- [ ] **UXFT-03**: `scan_report.html` shows an "Engine verified · N/10 detections confirmed"
+      pill near the score, with copy explicit that it checked Glassbox's own internal target,
+      not the user's site.
+- [ ] **UXFT-04**: A verification failure/exception degrades to an absent badge — never fails
+      or delays the real scan.
+
+### Continuous Regression Tracking (CONT) — Phase 27 (v1.7)
+
+- [ ] **CONT-01**: Each scheduled Asset fire diffs findings against that Asset's previous
+      completed scan (matched by check name + finding title/path) and tags each finding
+      `new` / `recurring` / `resolved` in the stored report.
+- [ ] **CONT-02**: Asset detail page renders a regression timeline across the Asset's scan
+      history, not just the latest report.
+- [ ] **CONT-03**: A `finding.regressed` webhook event fires via Phase 19's existing signed-
+      delivery machinery when a new High/Critical finding appears since the last scan — no
+      second notification path built.
+- [ ] **CONT-04**: The diff function is pure/deterministic (two report dicts in, tagged
+      findings out) and unit-tested with no network calls.
+
+### Check Extensibility / Plugin Architecture (PLUG) — Phase 28 (v1.7)
+
+- [ ] **PLUG-01**: A declarative (YAML-based, HTTP request/response pattern-match only)
+      community-check format loads from a `checks/community/*.yaml` directory at startup.
+- [ ] **PLUG-02**: A loaded community check runs through the identical `(data, findings)`
+      contract, jobs-dict wiring, and `FEATURE_REQUIREMENTS` tier-gating as a built-in check —
+      defaulting to the most restrictive tier, never FREE, unless explicitly configured.
+- [ ] **PLUG-03**: Malformed or unsafe check definitions (non-GET methods, off-target hosts,
+      missing required fields) fail closed at load time with a clear error — never silently
+      skipped, never executed with unsafe defaults.
+- [ ] **PLUG-04**: A schema doc plus 2-3 example community checks ship in-repo as the
+      contributor reference.
+- [ ] **PLUG-05**: Load-time validation is covered by tests, including one deliberately
+      malformed fixture per rejection reason.
+
+### SARIF Export (SARIF) — Phase 29 (v1.7)
+
+- [ ] **SARIF-01**: `GET /scan/<id>/report.sarif` (session-authed) plus a token-authed
+      `/api/v1` twin, both behind the same ownership guard as report.csv, registered in the
+      IDOR REGISTRY.
+- [ ] **SARIF-02**: Output validates against the SARIF 2.1.0 JSON schema (fixture-based test);
+      severity maps to SARIF `level` via one shared mapping function, not duplicated per
+      exporter.
+- [ ] **SARIF-03**: Verified once for real — a fixture scan's SARIF output uploaded to a
+      scratch GitHub repo via `codeql-action/upload-sarif`, confirmed to render PR
+      annotations, not just schema-valid in isolation.
+
+### Self-Hostable / Open-Core Decision Spike (OSSD) — Phase 30 (v1.7)
+
+- [ ] **OSSD-01**: A decision doc at `.planning/PHASE30-OPEN-CORE-DECISION.md` records what a
+      self-hosted edition would/wouldn't include, the licensing model considered, and the
+      maintenance-burden cost of two deploy shapes — GO or NO-GO, either is an acceptable,
+      complete outcome for this phase.
+
 | ID(s) | Phase | Status |
 |---|---|---|
-| DOCS-01..05 | Phase 22 | Planned |
+| DOCS-01..05 | Phase 22 | Complete |
 | AUDIT-01..05 | Phase 23 | Planned |
 | PDFX-01..05 | Phase 24 | Planned |
 | INTG-01..04 | Phase 25 | Planned |
 | SSO-01..05 | Phase 26 | Planned |
+| UXFT-01..04 | Phase 21.1 | Planned (in progress uncommitted 2026-08-24) |
+| CONT-01..04 | Phase 27 | Planned |
+| PLUG-01..05 | Phase 28 | Planned |
+| SARIF-01..03 | Phase 29 | Planned |
+| OSSD-01 | Phase 30 | Planned |
 
-**Coverage:** 89/89 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for v1.3
-across 5 phases, 17 new for v1.4 across 4 phases, 16 for v1.5 across 2 phases - all complete;
-24 planned for v1.6 across 5 phases).
+**Coverage:** 105/105 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for
+v1.3 across 5 phases, 17 new for v1.4 across 4 phases, 16 for v1.5 across 2 phases - all
+complete; 24 planned for v1.6 across 5 phases; 4 for the Phase 21.1 UX fix; 12 planned for
+v1.7 across 4 phases, scoped 2026-08-24 from the strategic "what makes this world-class"
+review).
 

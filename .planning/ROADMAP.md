@@ -9,6 +9,7 @@
 - ðŸš§ **v1.4 Admin Controls, Check Depth & CLI Client** - Phases 16-19 (shipped 2026-08-23)
 - **v1.5 Detection Depth & Built-in Self-Test** - Phases 20-21 (shipped 2026-08-23)
 - **v1.6 Platform Surface & Enterprise Readiness** - Phases 22-26 (planned)
+- **v1.7 World-Class Platform Foundations** - Phases 27-30 (planned, scoped 2026-08-24)
 
 ## Phases
 
@@ -536,6 +537,140 @@ shipping a half-build.
 
 **UI hint**: yes (org-admin SSO config panel; login-page "Sign in with SSO")
 
+### Phase 21.1: Detection-Verification UX Fold-In (INSERTED)
+
+**Goal**: Fix a real UX defect caught during live staging verification (2026-08-24, browser
+walkthrough): `/selftest` shipped as its own top-level nav item next to "New Scan," presenting
+raw dev-tool language ("loopback-only lure server," "planted flaws," "ground truth") and a bare
+Check/Ground-truth/Detected/Verdict table to end users who have no reason to know what any of
+that means. Reframes detection verification as a quiet trust signal riding on the real scan a
+user already ran, instead of a standalone page they have to seek out and interpret alone.
+**Depends on**: Phase 21 (selftest.py engine, unchanged)
+**Requirements**: none new — UX-only rework of ST-04/ST-05's surface, tracked inline here since
+it was caught post-hoc rather than planned
+**Success Criteria**:
+
+   1. `/selftest` route, its nav link, and its dashboard button are removed; no dead links.
+   2. `run_scan()` calls the self-test engine once (cached per worker process, never
+      per-scan-request) and attaches a `detection_verified` summary to the report dict.
+   3. `scan_report.html` renders a small pill near the score — "Engine verified · N/10
+      detections confirmed" — with a tooltip/caption making explicit it was checked against
+      Glassbox's own internal target, never the user's site (avoids implying their site was
+      re-scanned twice).
+   4. A verification failure degrades to an absent badge, never a failed or delayed real scan.
+   5. `tests/test_selftest.py` updated to assert the new integration; no standalone-page tests
+      remain testing dead routes.
+
+**Plans**: Direct execution, single commit.
+
+**UI hint**: yes (scan_report.html badge; dashboard button removed)
+
+### Phase 27: Continuous Regression Tracking
+
+**Goal**: Turn Phase 1's existing Asset/scheduler foundation from "reruns the same checks on a
+timer" into "tells you what changed" — new/resolved/recurring findings surfaced automatically
+between two scheduled runs of the same Asset, with an optional webhook/email alert when a
+regression appears. This is the single highest-leverage gap identified in the 2026-08-24
+strategic review: a team adopts a continuous tool for the diff, not the raw re-scan.
+**Depends on**: Phase 1 (Asset model + scheduler), Phase 19 (webhooks, for regression alerts)
+**Requirements**: CONT-01..CONT-04 (see REQUIREMENTS.md)
+**Success Criteria**:
+
+   1. Each scheduled fire diffs its findings against the Asset's previous completed scan
+      (matched by check name + finding title/path, not raw list order) and tags each finding
+      `new` / `recurring` / `resolved` in the stored report.
+   2. Asset detail page shows a regression timeline (findings appearing/disappearing across
+      the Asset's scan history), not just the latest report.
+   3. An existing webhook attached to the Asset's org fires a distinct `finding.regressed`
+      event (new High/Critical finding since last scan) reusing Phase 19's signed-delivery
+      machinery — no second notification path.
+   4. Diffing is pure/deterministic given two report dicts — covered by unit tests with no
+      network calls, matching the existing `_score_report` test-isolation discipline.
+
+**Plans**: Direct execution, single commit.
+
+**UI hint**: yes (Asset detail page regression timeline)
+
+### Phase 28: Check Extensibility (Plugin Architecture)
+
+**Goal**: Let a check be added without touching `checks.py`/`scan_engine.py` core — a
+declarative check format (starting narrow: HTTP request/response pattern-match checks only,
+the class of check most community contributions would actually be) loaded from a
+`checks/community/*.yaml`-style directory at startup, validated at load time, and run through
+the exact same `(data, findings)` contract and entitlement gating as built-in checks. This is
+what lets the check library outgrow what one team can hand-write — the second-biggest gap from
+the 2026-08-24 review, deliberately scoped narrow so it ships instead of stalling on trying to
+support every check shape on day one.
+**Depends on**: nothing new (extends existing check-registration conventions)
+**Requirements**: PLUG-01..PLUG-05 (see REQUIREMENTS.md)
+**Success Criteria**:
+
+   1. A loaded community check is indistinguishable to `run_scan()`/`entitlements.py` from a
+      built-in one — same jobs-dict wiring, same `FEATURE_REQUIREMENTS` gating (community
+      checks default to the most restrictive tier unless explicitly configured, never FREE by
+      default), same `CHECK_LABELS`/`CHECK_CATEGORY` requirement.
+   2. Malformed/unsafe check definitions (non-GET methods, off-target hosts, missing required
+      fields) fail closed at load time with a clear error — never silently skipped, never
+      executed with unsafe defaults.
+   3. A schema doc + 2-3 example community checks ship in-repo as the reference for
+      contributors.
+   4. Load-time validation is covered by tests including at least one deliberately malformed
+      fixture per rejection reason.
+
+**Plans**: Direct execution, single commit.
+
+**UI hint**: no (internal loader; existing report UI already renders arbitrary check output)
+
+### Phase 29: SARIF Export
+
+**Goal**: `GET /scan/<id>/report.sarif` (+ token-authed `/api/v1` twin) — SARIF 2.1.0 output
+that GitHub's native Security tab ingests directly via `github/codeql-action/upload-sarif`,
+turning findings into inline PR annotations without the user building any glue code. Low
+lift relative to Phase 24's PDF export (reuses the same report dict, same ownership guard,
+same CSV-export precedent) for outsized adoption leverage with the CI/CD audience Phase 18's
+CLI and Phase 25's pipeline work already targets.
+**Depends on**: Phase 12 finding schema (confidence/CWE fields SARIF's `level`/`rules` want)
+**Requirements**: SARIF-01..SARIF-03 (see REQUIREMENTS.md)
+**Success Criteria**:
+
+   1. Output validates against the SARIF 2.1.0 JSON schema (a fixture-based test, not just
+      "GitHub accepted it once").
+   2. Severity maps to SARIF `level` (critical/high → error, medium → warning, low/info →
+      note) via one shared mapping function, not duplicated per exporter.
+   3. Same ownership guard + IDOR REGISTRY entry as report.csv/report.pdf.
+   4. Verified once for real: a fixture scan's SARIF output uploaded to a scratch GitHub repo
+      via `codeql-action/upload-sarif` and confirmed to render PR annotations, not just
+      schema-valid in isolation.
+
+**Plans**: Direct execution, single commit.
+
+**UI hint**: yes (download link alongside existing CSV/PDF export)
+
+### Phase 30: Self-Hostable / Open-Core Decision Spike
+
+**Goal**: Not a build — a scoped, time-boxed decision spike answering whether Glassbox should
+offer a self-hostable open-core edition (scan engine + CLI open, hosted dashboard/billing/org
+features as the upsell), the trust-and-data-residency gap flagged in the 2026-08-22 audit as
+the thing that most affects adoption by the exact security-engineer audience this product
+targets. Recorded as a decision doc either way — a reasoned NO is a valid, useful outcome here,
+not a failure to ship.
+**Depends on**: nothing (research/decision only)
+**Requirements**: OSSD-01 (see REQUIREMENTS.md)
+**Success Criteria**:
+
+   1. A decision doc at `.planning/PHASE30-OPEN-CORE-DECISION.md` covering: what a self-hosted
+      edition would/wouldn't include (crypto billing and org/SaaS features almost certainly
+      stay hosted-only), the licensing model considered, and the maintenance-burden cost of
+      supporting two deploy shapes.
+   2. If GO: a follow-up phase gets scoped separately — this phase does not itself split the
+      codebase.
+   3. If NO-GO: the reasoning is recorded so the question doesn't get silently re-asked next
+      milestone without new information.
+
+**Plans**: Direct execution (research + doc, no code required for a NO-GO outcome).
+
+**UI hint**: no
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -561,9 +696,14 @@ shipping a half-build.
 | 19. Webhooks & Slack Notifications | v1.4 | Direct execution | Complete | 2026-08-23 |
 | 20. Intrusive Coverage Expansion | v1.5 | Direct execution | Complete | 2026-08-23 |
 | 21. Built-in Detection Self-Test | v1.5 | Direct execution | Complete | 2026-08-23 |
-| 22. In-Product API Documentation | v1.6 | Direct execution | Planned | - |
+| 22. In-Product API Documentation | v1.6 | Direct execution | Complete | 2026-08-24 |
 | 23. Audit Log | v1.6 | Direct execution | Planned | - |
 | 24. Report PDF Export | v1.6 | Direct execution | Planned | - |
 | 25. Pipeline Integrations (GitHub/SIEM) | v1.6 | Direct execution | Planned | - |
 | 26. SSO / SAML | v1.6 | Direct execution | Planned | - |
+| 21.1. Detection-Verification UX Fold-In (INSERTED) | v1.5 | Direct execution | In progress | - |
+| 27. Continuous Regression Tracking | v1.7 | Direct execution | Planned | - |
+| 28. Check Extensibility (Plugin Architecture) | v1.7 | Direct execution | Planned | - |
+| 29. SARIF Export | v1.7 | Direct execution | Planned | - |
+| 30. Self-Hostable / Open-Core Decision Spike | v1.7 | Direct execution | Planned | - |
 
