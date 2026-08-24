@@ -244,6 +244,9 @@ _EXPECTED_CARD_CONVERSION_TEMPLATES = {
     # (desktop <table> + curated .mobile-record-cards list) from birth.
     "webhooks.html",
     "webhook_deliveries.html",
+    # Phase 22: the API reference's endpoint overview is a real record table
+    # (method/path/rate-limit per row) - same contract from birth.
+    "api_docs.html",
 }
 
 # The single canonical selectors Phase 6 consolidated onto base.html. A
@@ -328,11 +331,12 @@ def test_phase_gate_scan_progress_breakpoints_unchanged():
     assert ".bar-track { width: 100%; max-width: none; }" in text
 
 
-def test_phase_gate_card_conversion_scope_is_exactly_eight_templates():
+def test_phase_gate_card_conversion_scope_is_exactly_nine_templates():
     # Was "exactly six" through Phase 18; Phase 19's two webhook pages were
-    # built to the dual-markup contract from birth and join the closed set.
+    # built to the dual-markup contract from birth and join the closed set;
+    # Phase 22's api_docs.html endpoint overview makes it nine.
     _assert_card_conversion_scope_exact()
-    assert len(_card_conversion_scope()) == 8
+    assert len(_card_conversion_scope()) == 9
 
 
 def test_phase_gate_card_conversion_scope_negative_control_scan_compare():

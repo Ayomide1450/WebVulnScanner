@@ -398,6 +398,7 @@
         <a href="/account/billing">Billing</a>
         <a href="{{ url_for('api_tokens.list_tokens') }}">API Tokens</a>
         <a href="{{ url_for('webhooks.index') }}">Webhooks</a>
+        <a href="{{ url_for('api_docs.api_reference') }}">API Docs</a>
         {% if current_user.role == Role.ORG_ADMIN %}
         <a href="/org/admin">Organization</a>
         {% endif %}

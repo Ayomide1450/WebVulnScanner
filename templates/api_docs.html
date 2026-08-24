@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}API Reference - Glassbox{% endblock %}
+{% block head %}
+<style>
+  /* h1/.card/.pill/.btn/table/.table-scroll/.mobile-record-cards come from
+     base.html - this page adds only its own documentation-specific layout,
+     page-scoped here rather than promoted into base.html (same discipline
+     api_tokens.html established). Code blocks reuse the Fira Code data font
+     token the rest of the design system already uses. */
+  h1 { margin-top: 20px; }
+  .intro { color: var(--muted); font-size: 15px; line-height: 1.5; max-width: 720px; margin: 0 0 var(--space-5); }
+
+  .code-block {
+    background: rgba(255,255,255,.03);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3) var(--space-4);
+    overflow-x: auto;
+    white-space: pre;
+    font-family: "Fira Code", monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text);
+    margin: var(--space-2) 0 0;
+  }
+  .code-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; margin-top: var(--space-4); }
+
+  .method-pill { display: inline-block; min-width: 52px; text-align: center; }
+  td.endpoint-path, .endpoint-path { font-family: "Fira Code", monospace; font-size: 13px; word-break: break-all; }
+
+  .endpoint-section { margin-top: var(--space-5); }
+  .endpoint-section h2 { margin-bottom: var(--space-2); }
+  .endpoint-summary { color: var(--muted); font-size: 14px; line-height: 1.55; max-width: 720px; }
+  .meta-row { display: flex; gap: var(--space-3); flex-wrap: wrap; margin: var(--space-2) 0 var(--space-3); color: var(--muted); font-size: 13px; align-items: center; }
+
+  .group-heading { margin-top: var(--space-6); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <h1>API Reference</h1>
+  <p class="intro">
+    Every Glassbox capability the web UI offers &mdash; assets, scans, reports,
+    compare, and the CI gate &mdash; is available as a token-authenticated JSON
+    API under <code>/api/v1</code>, and the <code>glassbox</code> CLI is a thin
+    client over these same routes. This reference is generated from the same
+    spec the server's regression tests lock against the live route table, so it
+    cannot drift from what's actually deployed.
+  </p>
+
+  <div class="card">
+    <h2>Authentication</h2>
+    <p class="endpoint-summary">
+      Send one of your API tokens as a Bearer header on every request.
+      A token acts as <em>you</em> &mdash; it sees exactly what your logged-in
+      session sees, nothing more. Tokens are created and revoked on the
+      <a href="{{ url_for('api_tokens.list_tokens') }}">API Tokens</a> page and
+      are shown only once at creation.
+    </p>
+    <div class="code-label">Example</div>
+    <pre class="code-block">{{ curl_example }}</pre>
+    <p class="endpoint-summary" style="margin-top: var(--space-3);">
+      All errors are JSON (<code>{"error": "..."}</code>), never an HTML page.
+      Responses to token-authenticated requests never set cookies.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Endpoints</h2>
+    <div class="table-scroll desktop-table">
+    <table>
+      <thead>
+      <tr><th>Methods</th><th>Path</th><th>Purpose</th><th>Rate limit</th></tr>
+      </thead>
+      <tbody>
+      {% for ep in endpoints %}
+      <tr>
+        <td>
+          {% for m in ep.methods %}<span class="pill {{ 'info' if m == 'GET' else 'warn' }} method-pill">{{ m }}</span>{% endfor %}
+        </td>
+        <td class="endpoint-path"><a href="#ep-{{ loop.index }}">{{ ep.path }}</a></td>
+        <td>{{ ep.summary|truncate(90) }}</td>
+        <td>{{ ep.rate_limit }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <ul class="mobile-record-cards">
+      {% for ep in endpoints %}
+      <li class="card record-card">
+        <div class="record-card-top">
+          {% for m in ep.methods %}<span class="pill {{ 'info' if m == 'GET' else 'warn' }} method-pill">{{ m }}</span>{% endfor %}
+        </div>
+        <div class="record-card-id endpoint-path">{{ ep.path }}</div>
+        <div class="record-card-meta">{{ ep.rate_limit }}</div>
+        <div class="record-card-action">
+          <a class="btn secondary block" href="#ep-{{ loop.index }}">Details</a>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  {% set ns = namespace(i=0) %}
+  {% for ep in endpoints %}
+  {% set ns.i = ns.i + 1 %}
+  <div class="endpoint-section" id="ep-{{ ns.i }}">
+    <h2>{% for m in ep.methods %}<span class="pill {{ 'info' if m == 'GET' else 'warn' }} method-pill">{{ m }}</span> {% endfor %}
+        <span class="endpoint-path">{{ ep.path }}</span></h2>
+    <div class="meta-row">
+      <span>{{ ep.group }}</span> &middot;
+      <span>{{ ep.auth }}</span> &middot;
+      <span>{{ ep.rate_limit }}</span>
+    </div>
+    <p class="endpoint-summary">{{ ep.summary }}</p>
+    {% if ep.request_example %}
+    <div class="code-label">Request body</div>
+    <pre class="code-block">{{ ep.request_example|tojson(indent=2) }}</pre>
+    {% endif %}
+    <div class="code-label">Response {{ 'body' if ep.request_example else 'body (200)' }}</div>
+    {% if ep.response_example is mapping %}
+    <pre class="code-block">{{ ep.response_example|tojson(indent=2) }}</pre>
+    {% else %}
+    <pre class="code-block">{{ ep.response_example }}</pre>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <div class="card endpoint-section">
+    <h2>Error semantics</h2>
+    <p class="endpoint-summary">
+      Ownership failures are deliberately indistinguishable from missing
+      resources across the whole API &mdash; a probe learns nothing either way.
+    </p>
+    <div class="table-scroll desktop-table">
+    <table>
+      <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+      <tbody>
+      {% for status, meaning in error_semantics %}
+      <tr><td><span class="pill {{ 'critical' if status == '500' else ('warn' if status == '404' else 'info') }}">{{ status }}</span></td><td>{{ meaning }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <ul class="mobile-record-cards">
+      {% for status, meaning in error_semantics %}
+      <li class="card record-card">
+        <div class="record-card-top"><span class="pill {{ 'critical' if status == '500' else ('warn' if status == '404' else 'info') }}">{{ status }}</span></div>
+        <div class="record-card-meta">{{ meaning }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card endpoint-section">
+    <h2>Webhooks: verifying signatures</h2>
+    <p class="endpoint-summary">
+      Every webhook delivery carries an
+      <code>X-Glassbox-Signature: sha256=&lt;digest&gt;</code> header &mdash; an
+      HMAC-SHA256 of the exact request body bytes, keyed with the per-webhook
+      secret that was revealed once at creation time. Verify it before trusting
+      a delivery:
+    </p>
+    <div class="code-label">Python receiver check</div>
+    <pre class="code-block">{{ webhook_snippet }}</pre>
+    <p class="endpoint-summary" style="margin-top: var(--space-3);">
+      Compare against the raw body bytes your framework gives you pre-parsing
+      (re-serialized JSON will not match). Lost your webhook secret? Delete and
+      re-create the webhook &mdash; secrets are never rendered again after the
+      initial reveal, and stored URLs are always shown redacted.
+    </p>
+  </div>
+
+  <div class="card endpoint-section">
+    <h2>CLI quickstart</h2>
+    <p class="endpoint-summary">
+      The <code>glassbox</code> command wraps these endpoints for terminal and
+      CI use &mdash; every launch goes through the same server-side SSRF, tier,
+      and authorization gates as the web UI.
+    </p>
+    <div class="code-label">Install &amp; connect</div>
+    <pre class="code-block">pip install ./cli
+glassbox init --api-url {{ request.url_root.rstrip('/') }}</pre>
+    <div class="code-label">Subcommands</div>
+    <pre class="code-block">{% for cmd in cli_subcommands %}glassbox {{ cmd }}
+{% endfor %}</pre>
+    <p class="endpoint-summary" style="margin-top: var(--space-3);">
+      Full command reference lives in <code>cli/README.md</code>; every command
+      also supports <code>--help</code>.
+    </p>
+  </div>
+</div>
+{% endblock %}
