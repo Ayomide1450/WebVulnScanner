@@ -6,7 +6,9 @@
 - âœ… **v1.1 Production Audit, Hardening & Redesign** - Phases 5-9 (shipped 2026-08-20)
 - â¸ï¸ **v1.2 Live Verification Closeout** - Phase 10 (deferred, not dropped - reprioritized behind v1.3)
 - âœ… **v1.3 Glassbox Rebrand & Production Security Readiness** - Phases 11-15 (shipped 2026-08-20)
-- ðŸš§ **v1.4 Admin Controls, Check Depth & CLI Client** - Phases 16-18 (planned)
+- ðŸš§ **v1.4 Admin Controls, Check Depth & CLI Client** - Phases 16-19 (shipped 2026-08-23)
+- **v1.5 Detection Depth & Built-in Self-Test** - Phases 20-21 (shipped 2026-08-23)
+- **v1.6 Platform Surface & Enterprise Readiness** - Phases 22-26 (planned)
 
 ## Phases
 
@@ -399,6 +401,141 @@ negatives that MUST stay silent) and rendered as a pass/fail table at /selftest.
 
 **UI hint**: no (findings render through the existing report UI)
 
+### Phase 22: In-Product API Documentation
+
+**Goal**: Every `/api/v1` endpoint, the token-auth scheme, error semantics, the `glassbox`
+CLI quickstart, and webhook signature verification become discoverable in-product at
+/docs/api — closing the "developer-facing API docs page" gap from the 2026-08-22 audit.
+Security engineers and DevOps should not need to read source to integrate; this is the
+capstone of the API/CLI surface Phases 2/18/19 built.
+**Depends on**: nothing new (documents already-shipped surface)
+**Requirements**: DOCS-01..DOCS-05 (see REQUIREMENTS.md)
+**Success Criteria** (what must be TRUE):
+
+   1. Single-source generation: the page renders from one server-side spec structure, not
+      hand-duplicated HTML per route; a url_map-enumeration regression test fails naming any
+      /api/v1 rule missing from the spec — same self-maintaining discipline as the IDOR
+      registry test.
+   2. Each endpoint documents method, path, required auth (session/token/public), rate limit,
+      and request+response examples drawn from real fixtures used in tests.
+   3. Webhook section carries a copy-pasteable HMAC-SHA256 verification snippet that a test
+      proves matches `webhooks.sign_payload`'s algorithm exactly (docs can't silently drift).
+   4. CLI section mirrors cli/README.md essentials (install, init, gate exit codes); a test
+      keeps the section's command list in sync with the README's.
+   5. Login-gated page reusing base.html tokens and the dual-markup responsive contract;
+      nav link placed after API Tokens.
+
+**Plans**: Direct execution, single commit.
+
+**UI hint**: yes (/docs/api page + nav link)
+
+### Phase 23: Audit Log
+
+**Goal**: An append-only who-did-what trail for security-sensitive actions — org membership
+changes, domain verification lifecycle, webhook/API-token lifecycle, billing activations,
+platform-admin actions. Closes audit gap #4, gives ORG_ADMINs evidence for their own
+compliance story, and gives every later feature (SSO included) a standard place to log.
+**Depends on**: house conventions only (Alembic migration path, IDOR registry)
+**Requirements**: AUDIT-01..AUDIT-05 (see REQUIREMENTS.md)
+**Success Criteria**:
+
+   1. `AuditEvent` model + Alembic migration; append-only in practice — no update/delete
+      routes exist, proven by a test asserting their absence.
+   2. Emission sites cover the enumerated mutation set (invite send/revoke/redeem, role or
+      join changes, domain add/verify/request-deletion, token create/revoke, webhook
+      create/toggle/delete/test, invoice verify / plan activate, platform-admin actions);
+      a registry-driven test fails if a listed route stops emitting.
+   3. ORG_ADMIN sees own-org events paginated at /org/audit; platform admins see all orgs;
+      everyone else gets 404-not-403 with IDOR REGISTRY entries.
+   4. Retention strategy decided and documented at build time (per-org trim on insert vs.
+      cleanup command), bounded by a named constant either way.
+   5. Events render actor/action/target/timestamp/detail in dual markup.
+
+**Plans**: Direct execution, single commit.
+
+**UI hint**: yes (/org/audit page)
+
+### Phase 24: Report PDF Export
+
+**Goal**: A finished scan exports as a professional PDF alongside JSON and CSV — the
+deliverable non-engineer stakeholders attach to tickets and exec summaries. Closes audit
+gap #2 and completes the "professional output" positioning.
+**Depends on**: Phase 12 finding schema (confidence/CWE columns exist to render)
+**Requirements**: PDFX-01..PDFX-05 (see REQUIREMENTS.md)
+**Success Criteria**:
+
+   1. GET /scan/<id>/report.pdf (session-authed) plus a token-authed /api/v1 twin, both
+      behind the same ownership guard as report.csv, registered in the IDOR REGISTRY.
+   2. Rendering dependency chosen deliberately for the Fly image (pure-python wheels
+      preferred over system-library heavyweights); the decision and the image-size delta
+      are recorded in the phase notes.
+   3. Content sourced from the SAME report dict `save_report()` writes — score/grade,
+      severity tally, per-check tables including confidence/CWE where present, AI summary
+      when present; no parallel formatting logic over raw findings.
+   4. Output validates as a parseable PDF (magic bytes + parser round-trip) containing the
+      key report strings; deterministic given identical report input.
+   5. Redaction invariant holds end-to-end: `_redact_secret`-ed values appear redacted in
+      the PDF too — the export must not become a second leak of any credential.
+
+**Plans**: Direct execution, single commit.
+
+**UI hint**: yes (download button on scan-report page)
+
+### Phase 25: Pipeline Integrations (GitHub Actions / SIEM)
+
+**Goal**: Move beyond generic webhooks to pipeline-native consumption: NDJSON findings
+export for SIEM ingestion, a Splunk-HEC-compatible webhook payload preset, bounded delivery
+retry, and a verified GitHub Actions gate recipe. Builds on Phase 19's signed-delivery
+machinery rather than adding a second notification path.
+**Depends on**: Phase 19 webhooks; benefits from Phase 23 audit events
+**Requirements**: INTG-01..INTG-04 (see REQUIREMENTS.md)
+**Success Criteria**:
+
+   1. GET /api/v1/scans/<id>/findings.ndjson — one finding per line, token-authed, same
+      ownership guard, NDJSON shape validated line-by-line in tests.
+   2. Per-webhook payload_format option gains `splunk_hec` (event-keyed body Splunk HEC
+      accepts); slack/generic behavior byte-unchanged — existing payload tests pass
+      unmodified.
+   3. Failed deliveries gain bounded retry with backoff recorded as additional
+      WebhookDelivery attempts (attempt cap is a named MAX_* constant; retry never delays
+      `_run_scan_in_background`'s tail).
+   4. A GitHub Actions recipe (checkout → glassbox init → glassbox gate → step summary)
+      published on the docs page AND executed once against staging with a real token
+      before sign-off — docs examples must be run, not assumed.
+
+**Plans**: Direct execution, single commit.
+
+**UI hint**: yes (webhook form format selector; Phase 22 docs additions)
+
+### Phase 26: SSO / SAML
+
+**Goal**: Org-level SAML 2.0 single-sign-on — removing the last enterprise blocker from the
+audit gaps list. The milestone's biggest lift, deliberately last, and gated by a feasibility
+spike BEFORE the full build: whether xmlsec-class dependencies live cleanly inside the Fly
+image decides go/no-go, with an explicit NO-GO escape hatch that records findings instead of
+shipping a half-build.
+**Depends on**: Phase 23 (SSO config changes and logins emit audit events)
+**Requirements**: SSO-01..SSO-05 (see REQUIREMENTS.md)
+**Success Criteria**:
+
+   1. Spike-first: IdP-metadata parse + response signature validation proven inside the
+      deploy image before feature work starts; NO-GO is an acceptable outcome recorded in
+      .planning/.
+   2. SP-initiated SAML login per configured org; JIT provisioning binds the asserted
+      email's domain to THAT org's verified domains — mismatch refuses with an
+      anti-enumeration-neutral error.
+   3. Local password auth stays available unless the org explicitly disables it; disabling
+      it is itself an audited event requiring fresh confirmation.
+   4. All SSO config changes and SSO logins emit Phase-23 AuditEvents; IdP metadata/cert
+      secrets stored encrypted at rest (app-level Fernet keyed off SECRET_KEY or equivalent,
+      decision recorded).
+   5. Outbound metadata/ACS fetches get SSRF-guard scrutiny equivalent to scan targets;
+      cross-org config access is 404-not-403 with IDOR REGISTRY entries.
+
+**Plans**: Direct execution (spike may land as its own commit).
+
+**UI hint**: yes (org-admin SSO config panel; login-page "Sign in with SSO")
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -424,4 +561,9 @@ negatives that MUST stay silent) and rendered as a pass/fail table at /selftest.
 | 19. Webhooks & Slack Notifications | v1.4 | Direct execution | Complete | 2026-08-23 |
 | 20. Intrusive Coverage Expansion | v1.5 | Direct execution | Complete | 2026-08-23 |
 | 21. Built-in Detection Self-Test | v1.5 | Direct execution | Complete | 2026-08-23 |
+| 22. In-Product API Documentation | v1.6 | Direct execution | Planned | - |
+| 23. Audit Log | v1.6 | Direct execution | Planned | - |
+| 24. Report PDF Export | v1.6 | Direct execution | Planned | - |
+| 25. Pipeline Integrations (GitHub/SIEM) | v1.6 | Direct execution | Planned | - |
+| 26. SSO / SAML | v1.6 | Direct execution | Planned | - |
 

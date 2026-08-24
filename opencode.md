@@ -45,13 +45,18 @@ deployable, tested (pytest on every push), and safe by design.
 
 ## State snapshot (last updated: 2026-08-24)
 
-- Branch `develop`, HEAD 2b0759a "chore: remove ops scratch file" — includes
+- Branch `develop`, HEAD 4ee1d57 "docs: phase 20/21 staging record + lure
+  fixture hygiene decisions" — includes
   Phase 20 (c2727f9 + 3ee435c) and Phase 21 (2886b1e), **all deployed to
   staging and verified there** (see their entries under "Done since audit")
   and pushed to origin. Re-checked 2026-08-24: /healthz 200, /selftest 302
   login-gated (route live; fly release v11 postdates feat(21)).
   NOT yet promoted to production — awaiting user's staging verification
   per the STAGING-FIRST POLICY (covers Phases 17–21 alike).
+- **v1.6 scoped 2026-08-24**: Phases 22–26 (API docs / audit log / PDF export
+  / GitHub+SIEM integrations / SSO-SAML) drafted in .planning/ ROADMAP +
+  REQUIREMENTS — see "What's next" item 5. Lure app `glassbox-lure` confirmed
+  destroyed (fly apps list).
 - Tests run via `pytest` (fresh Flask app per test, SQLite under tmp_path).
   Full suite is ~11–17 min / 940 tests; use targeted runs during development.
 
@@ -400,10 +405,18 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    Webhooks/Slack integrations. ~~Phase 19 build~~ → SHIPPED TO STAGING
    2026-08-23 (commit 001dfa6, suite green, migration applied). Next:
    user verifies staging, then production promotion.
-5. Sophistication roadmap candidates (pro audience, post-P19): report PDF
-   export, audit log generalization, SSO/SAML, API docs page.
+5. ~~Sophistication roadmap candidates~~ → **v1.6 SCOPED (2026-08-24)**: Phases 22–26
+   in .planning/ROADMAP.md + REQUIREMENTS.md (24 requirements, all Planned):
+   22 in-product API docs page, 23 audit log, 24 report PDF export,
+   25 pipeline integrations (GitHub Actions/SIEM), 26 SSO/SAML (spike-first with
+   explicit NO-GO escape hatch). Start at Phase 22 whenever user says go.
 6. Housekeeping: `dev-server-*.log` files and `instance/` are untracked
-   clutter candidates (check .gitignore covers them).
+   clutter candidates (check .gitignore covers them). Also: staging DB still
+   has a dangling DomainVerification row for glassbox-lure.fly.dev (lure app
+   destroyed 2026-08-24, confirmed via fly apps list) — harmless, delete the
+   row next time you're in the staging org-admin page. Note: Fly shows
+   glassboxsec-staging as "suspended" between requests — that's normal
+   machine-idling, it auto-resumes on traffic.
 7. Phase 17 (Expanded Check Coverage) is still v1.4's only open phase:
    DEPTH-01 needs an explicit signed crawl-depth decision; DEPTH-02/03 are
    payload-variant work. Decide whether it stays in v1.4 or moves to a

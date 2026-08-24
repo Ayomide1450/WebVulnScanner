@@ -296,6 +296,85 @@ Which phases cover which requirements. Updated during roadmap creation.
 |---|---|---|
 | ST-01..06 | Phase 21 | Complete |
 
-**Coverage:** 65/65 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for v1.3
-across 5 phases, 17 new for v1.4 across 4 phases, 16 for v1.5 across 2 phases - all complete).
+### In-Product API Documentation — Phase 22 (v1.6)
+
+- [ ] **DOCS-01**: /docs/api renders from ONE server-side spec structure (not hand-duplicated
+      HTML per route); a url_map-enumeration regression test fails naming any `/api/v1` rule
+      missing from the spec, so a new endpoint cannot ship undocumented.
+- [ ] **DOCS-02**: Every endpoint row documents method, path, required auth (session/token/
+      public), rate limit, and request+response examples drawn from real test fixtures.
+- [ ] **DOCS-03**: Webhook section includes a copy-pasteable HMAC-SHA256 verification snippet
+      that a test proves matches `webhooks.sign_payload`'s algorithm exactly.
+- [ ] **DOCS-04**: CLI section mirrors cli/README.md essentials (install, init, gate exit
+      codes); a test keeps the section's command list in sync with the README's.
+- [ ] **DOCS-05**: Login-gated page on base.html tokens with the dual-markup responsive
+      contract; nav link after API Tokens.
+
+### Audit Log — Phase 23 (v1.6)
+
+- [ ] **AUDIT-01**: `AuditEvent` model + Alembic migration; append-only in practice — no
+      update/delete routes exist, proven by a test asserting their absence.
+- [ ] **AUDIT-02**: Emission sites cover the enumerated mutation set (invites, role/join
+      changes, domain lifecycle, token create/revoke, webhook lifecycle, invoice verify /
+      plan activation, platform-admin actions); registry-driven test fails if a listed route
+      stops emitting.
+- [ ] **AUDIT-03**: ORG_ADMIN sees own-org events paginated at /org/audit; platform admins
+      see all; everyone else 404-not-403, registered in the IDOR REGISTRY.
+- [ ] **AUDIT-04**: Retention strategy decided and documented at build time (per-org trim on
+      insert vs. cleanup command), bounded by a named constant either way.
+- [ ] **AUDIT-05**: Events render actor/action/target/timestamp/detail in dual markup.
+
+### Report PDF Export — Phase 24 (v1.6)
+
+- [ ] **PDFX-01**: GET /scan/<id>/report.pdf (session-authed) plus a token-authed /api/v1
+      twin, both behind the same ownership guard as report.csv, in the IDOR REGISTRY.
+- [ ] **PDFX-02**: Rendering dependency chosen deliberately for the Fly image (pure-python
+      wheels preferred); decision + image-size delta recorded in phase notes.
+- [ ] **PDFX-03**: Content sourced from the SAME report dict `save_report()` writes (score/
+      grade, severity tally, per-check tables incl. confidence/CWE, AI summary when present);
+      no parallel formatting logic over raw findings.
+- [ ] **PDFX-04**: Output validates as parseable PDF (magic bytes + parser round-trip) with
+      key report strings present; deterministic given identical input.
+- [ ] **PDFX-05**: `_redact_secret`-ed values appear redacted in the PDF too — the export
+      must not become a second leak of any credential.
+
+### Pipeline Integrations (GitHub Actions / SIEM) — Phase 25 (v1.6)
+
+- [ ] **INTG-01**: GET /api/v1/scans/<id>/findings.ndjson — one finding per line,
+      token-authed, same ownership guard; NDJSON shape validated line-by-line in tests.
+- [ ] **INTG-02**: Per-webhook payload_format gains `splunk_hec` (event-keyed body Splunk HEC
+      accepts); slack/generic behavior byte-unchanged — existing payload tests unmodified.
+- [ ] **INTG-03**: Failed deliveries gain bounded retry with backoff recorded as additional
+      WebhookDelivery attempts (cap = named MAX_* constant; retry never delays the scan tail).
+- [ ] **INTG-04**: GitHub Actions recipe (checkout → glassbox init → glassbox gate → step
+      summary) published on the docs page AND executed once against staging with a real
+      token before sign-off.
+
+### SSO / SAML — Phase 26 (v1.6)
+
+- [ ] **SSO-01**: Spike-first: IdP-metadata parse + response signature validation proven
+      inside the deploy image BEFORE feature build; NO-GO recorded in .planning/ is an
+      acceptable outcome instead of a half-build.
+- [ ] **SSO-02**: SP-initiated SAML login per configured org; JIT provisioning binds the
+      asserted email's domain to THAT org's verified domains — mismatch refuses with an
+      anti-enumeration-neutral error.
+- [ ] **SSO-03**: Local password auth stays available unless the org explicitly disables it;
+      disabling it is an audited event requiring fresh confirmation.
+- [ ] **SSO-04**: All SSO config changes and logins emit Phase-23 AuditEvents; IdP secrets
+      stored encrypted at rest (app-level Fernet off SECRET_KEY or equivalent, decision
+      recorded).
+- [ ] **SSO-05**: Outbound metadata/ACS fetches get SSRF-guard scrutiny equivalent to scan
+      targets; cross-org config access is 404-not-403 with IDOR REGISTRY entries.
+
+| ID(s) | Phase | Status |
+|---|---|---|
+| DOCS-01..05 | Phase 22 | Planned |
+| AUDIT-01..05 | Phase 23 | Planned |
+| PDFX-01..05 | Phase 24 | Planned |
+| INTG-01..04 | Phase 25 | Planned |
+| SSO-01..05 | Phase 26 | Planned |
+
+**Coverage:** 89/89 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for v1.3
+across 5 phases, 17 new for v1.4 across 4 phases, 16 for v1.5 across 2 phases - all complete;
+24 planned for v1.6 across 5 phases).
 
