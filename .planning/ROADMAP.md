@@ -423,5 +423,5 @@ negatives that MUST stay silent) and rendered as a pass/fail table at /selftest.
 | 18. CLI Client | v1.4 | Direct execution | Complete | 2026-08-23 |
 | 19. Webhooks & Slack Notifications | v1.4 | Direct execution | Complete | 2026-08-23 |
 | 20. Intrusive Coverage Expansion | v1.5 | Direct execution | Complete | 2026-08-23 |
-| 21. Built-in Detection Self-Test | v1.5 | Direct execution | In progress | - |
+| 21. Built-in Detection Self-Test | v1.5 | Direct execution | Complete | 2026-08-23 |
 

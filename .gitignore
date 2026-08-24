@@ -18,3 +18,5 @@ dev-server-stderr.log
 graphify-out/
 cli/build/
 cli/*.egg-info/
+srv_files/
+.lure_deploy/srv_files/

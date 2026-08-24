@@ -43,14 +43,15 @@ deployable, tested (pytest on every push), and safe by design.
   at 5 attempts; secrets redacted in reports; marker-only stored-XSS proof.
 - AI summary prompt keeps findings framed as data-to-summarize (injection bound).
 
-## State snapshot (last updated: 2026-08-23)
+## State snapshot (last updated: 2026-08-24)
 
-- Branch `develop`, HEAD 001dfa6 "feat(19): webhooks..." — **deployed to
-  staging** (healthz 200; /webhooks + deliveries routes respond via login
-  redirect, no 500; `flask db current` on staging = c3f8a91d2e47 head, so
-  both new tables exist) and pushed to origin.
+- Branch `develop`, HEAD 2b0759a "chore: remove ops scratch file" — includes
+  Phase 20 (c2727f9 + 3ee435c) and Phase 21 (2886b1e), **all deployed to
+  staging and verified there** (see their entries under "Done since audit")
+  and pushed to origin. Re-checked 2026-08-24: /healthz 200, /selftest 302
+  login-gated (route live; fly release v11 postdates feat(21)).
   NOT yet promoted to production — awaiting user's staging verification
-  per the STAGING-FIRST POLICY.
+  per the STAGING-FIRST POLICY (covers Phases 17–21 alike).
 - Tests run via `pytest` (fresh Flask app per test, SQLite under tmp_path).
   Full suite is ~11–17 min / 940 tests; use targeted runs during development.
 
@@ -235,6 +236,22 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
 - config.py now falls back SQLALCHEMY_DATABASE_URI → DATABASE_URL → sqlite
   (prod secret keeps precedence; standard var name works for attached DBs).
 
+### Repo-hygiene decisions (recorded 2026-08-24)
+
+- `.lure_deploy/` (Dockerfile + fly.toml + lure_app.py) stays IN-TREE
+  permanently as the reusable live-fire verification fixture for the ten
+  intrusive checks: `selftest.py` proves detection logic in-process on
+  loopback, while the deployed lure proves network-path behavior end-to-end
+  against real staging infrastructure — complementary, both worth keeping.
+  The fly app `glassbox-lure` is ephemeral ops state, not a fixture: redeploy
+  on demand from `.lure_deploy/`, destroy when done.
+- Root-level `lure_app.py` DELETED (was a byte-identical duplicate of
+  `.lure_deploy/lure_app.py`, which is the copy the Dockerfile builds from).
+- `srv_files/` DELETED from the tree — it only ever held a 47-byte
+  manual.pdf stub that lure_app.py auto-regenerates at startup when missing,
+  and nothing in-tree references the path. Both `srv_files/` and
+  `.lure_deploy/srv_files/` are now gitignored so local runs don't re-track it.
+
 ### Done since audit
 
 - **CLI onboarding + masked token prompt SHIPPED TO STAGING (2026-08-23,
@@ -253,7 +270,8 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
     gated on org-verified target; hop-1 priority merge capped [:10].
     tests/test_phase17_coverage.py (20 locks). Full suite **960 passed**.
     Deployed staging, healthz 200.
-- **Phase 20 Intrusive Coverage Expansion COMPLETE (2026-08-23)** — ten new
+- **Phase 20 Intrusive Coverage Expansion COMPLETE, SHIPPED TO STAGING
+  (2026-08-23, c2727f9 + 3ee435c)** — ten new
   base-scan checks in checks.py: ssti, host_header, cache_deception,
   crlf, csrf_posture (PAID tier); path_traversal, rate_limit,
   jwt_active, graphql_deep, subdomain_takeover (ORG_VERIFIED).
@@ -269,9 +287,12 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
   21→30 thead, 32 scroll wrappers; A05_BASE_CHECK_NAMES fixture extended
   (host_header/cache_deception/subdomain_takeover are owasp-A05 too);
   removed two `'&mdash;'|safe` violations caught by the autoescape lock.
-   tests/test_phase20_checks.py (28→29 locks). Full suite **989 passed /
-   0 failed**. NOTE: one transient org_invite tampered-signature failure
-- **Phase 20 LIVE-FIRE VERIFIED (2026-08-23, 3ee435c)** — user asked "how do
+    tests/test_phase20_checks.py (28→29 locks). Full suite **989 passed /
+    0 failed**. NOTE: one transient org_invite tampered-signature failure
+   during a long run near UTC midnight — ROOT-CAUSED & CLOSED same day
+   (itsdangerous unpadded b64url; test now truncates — see Phase 21 below).
+   No recurrence in any subsequent full-suite run; no longer being watched.
+- **Phase 20 LIVE-FIRE VERIFIED ON STAGING (2026-08-23, 3ee435c)** — user asked "how do
   I know these work"; drove end-to-end on staging via CLI. Staging account
   arktechdesigns@gmail.com / Review Org was plan=free → flipped to
   ORG_VERIFIED + seeded DomainVerification rows (nextlevelhub.xyz,
@@ -294,7 +315,8 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
   it ANSI-mangles non-ASCII and adds a UTF-8 BOM that breaks ast-parsing
   tests (fixed by git checkout + Edit tool re-apply). Stray BOMs in md files
   strip via [System.IO.File]::WriteAllText with UTF8Encoding($false).
-- **Phase 21 Built-in Detection Self-Test SHIPPED (2026-08-23)** — user
+- **Phase 21 Built-in Detection Self-Test SHIPPED TO STAGING (2026-08-23,
+  2886b1e)** — user
   asked why lures need a separate URL; Option B chosen: selftest.py spins an
   ephemeral 127.0.0.1-only ThreadingHTTPServer lure (SSTI/traversal-decoy-
   passwd/JWT alg:none/GraphQL introspection/tokenless POST form + throttled
@@ -310,10 +332,11 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
   moved onto server instance. **org_invite flake ROOT-CAUSED**: itsdangerous
   emits UNPADDED b64url — last char can carry <6 significant bits so the
   test's char-flip ('a'<->'b') was intermittently a NO-OP decode (7 of 60
-  sig lengths lossless, alignment shifts with timestamp); test now truncates
-  instead. Full suite **1001 passed**.
-
-  during a long run near UTC midnight — passes consistently; watch it.
+   sig lengths lossless, alignment shifts with timestamp); test now truncates
+   instead. Full suite **1001 passed**. Deployed to staging (release v11):
+   re-checked 2026-08-24 — /healthz 200, POST /selftest live behind login
+   (302 unauthenticated, no 404). Production promotion pending per the
+   STAGING-FIRST POLICY.
 
 - **Email-verification gate on login SHIPPED TO STAGING (2026-08-22,
   bb7d5d0)** — reversed the old documented "unverified email does not
@@ -392,6 +415,11 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
   building or changing anything, state the reason behind the work and how it
   helps the website/product — in plain language, before or alongside the
   implementation, not after the fact.
+- **Live-fire verification runs must log "confirmed via fresh process"**:
+  state that the target was a freshly deployed/restarted process (and that no
+  stale dev server or nested `app_context()` participated), so a verification
+  can't silently validate old code — see handoff.md's duplicate-server and
+  nested-context gotchas.
 - Checks return `(data, findings)`; never let a check raise past itself
   (wrap network calls in `try/except requests.RequestException`).
 - New base-scan check ⇒ add `FEATURE_REQUIREMENTS` entry (entitlements.py),
