@@ -591,6 +591,13 @@ strategic review: a team adopts a continuous tool for the diff, not the raw re-s
 
 **UI hint**: yes (Asset detail page regression timeline)
 
+**Status**: Complete 2026-08-24 (commit 4e5947e, staging release v14). All four criteria met:
+diff keyed on (case-folded check name-or-category, exact title) — order-independent, path-aware
+via titles; tags land in the stored Report blob (`report["regression"]` + per-finding keys);
+timeline on the Asset detail page; `finding.regressed` rides Phase 19's signed fan-out gated on
+new High/Critical only; pure diff in `regressions.py` with a determinism lock
+(tests/test_regressions.py).
+
 ### Phase 28: Check Extensibility (Plugin Architecture)
 
 **Goal**: Let a check be added without touching `checks.py`/`scan_engine.py` core — a
@@ -702,7 +709,7 @@ not a failure to ship.
 | 25. Pipeline Integrations (GitHub/SIEM) | v1.6 | Direct execution | Planned | - |
 | 26. SSO / SAML | v1.6 | Direct execution | Planned | - |
 | 21.1. Detection-Verification UX Fold-In (INSERTED) | v1.5 | Direct execution | Complete | 2026-08-24 |
-| 27. Continuous Regression Tracking | v1.7 | Direct execution | Planned | - |
+| 27. Continuous Regression Tracking | v1.7 | Direct execution | Complete 2026-08-24 | 4e5947e (staging v14) |
 | 28. Check Extensibility (Plugin Architecture) | v1.7 | Direct execution | Planned | - |
 | 29. SARIF Export | v1.7 | Direct execution | Planned | - |
 | 30. Self-Hostable / Open-Core Decision Spike | v1.7 | Direct execution | Planned | - |

@@ -411,16 +411,20 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ### Continuous Regression Tracking (CONT) — Phase 27 (v1.7)
 
-- [ ] **CONT-01**: Each scheduled Asset fire diffs findings against that Asset's previous
+- [x] **CONT-01**: Each scheduled Asset fire diffs findings against that Asset's previous
       completed scan (matched by check name + finding title/path) and tags each finding
       `new` / `recurring` / `resolved` in the stored report.
-- [ ] **CONT-02**: Asset detail page renders a regression timeline across the Asset's scan
+      *(Implementation note: matching key is (case-folded check name-or-category, exact title) — titles carry the path for path-scoped findings, so title equality is path-aware. Asset-linked scans only (`asset_id` set): manual wizard scans stay untagged, their cross-scan story remains /compare. Same-type predecessor only; no baseline → untagged with no fabricated "new". Tags live in the stored report blob: per-finding `regression` + top-level `report["regression"]`.)*
+- [x] **CONT-02**: Asset detail page renders a regression timeline across the Asset's scan
       history, not just the latest report.
-- [ ] **CONT-03**: A `finding.regressed` webhook event fires via Phase 19's existing signed-
+      *(Implementation note: per-scan entries with new/recurring/resolved counts and new-finding titles; renders once scan history exists — brand-new Assets keep the existing "hasn't been scanned yet" card instead of a second empty state.)*
+- [x] **CONT-03**: A `finding.regressed` webhook event fires via Phase 19's existing signed-
       delivery machinery when a new High/Critical finding appears since the last scan — no
       second notification path built.
-- [ ] **CONT-04**: The diff function is pure/deterministic (two report dicts in, tagged
+      *(Implementation note: same receiver fan-out as scan.completed, distinct X-Glassbox-Event header, signature/delivery rows identical; fires only when `alertable_new()` finds regression=="new" AND severity in {high, critical}.)*
+- [x] **CONT-04**: The diff function is pure/deterministic (two report dicts in, tagged
       findings out) and unit-tested with no network calls.
+      *(Implementation note: `webvulnscanner/regressions.py` imports neither Flask nor db; resolved snapshots sorted by (check_name, title) so identical inputs produce byte-equal output — locked by a determinism test.)
 
 ### Check Extensibility / Plugin Architecture (PLUG) — Phase 28 (v1.7)
 
@@ -464,7 +468,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INTG-01..04 | Phase 25 | Planned |
 | SSO-01..05 | Phase 26 | Planned |
 | UXFT-01..04 | Phase 21.1 | Complete |
-| CONT-01..04 | Phase 27 | Planned |
+| CONT-01..04 | Phase 27 | Complete (2026-08-24, staging v14) |
 | PLUG-01..05 | Phase 28 | Planned |
 | SARIF-01..03 | Phase 29 | Planned |
 | OSSD-01 | Phase 30 | Planned |
