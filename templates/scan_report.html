@@ -14,6 +14,14 @@
   .readiness-verdict .coverage-note { margin-left: 8px; color: var(--muted); font-size: 12px; }
   .readiness-reasons { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
   .readiness-reasons li { margin-bottom: 2px; }
+  /* Phase 21 detection verification, folded into the scan flow (2026-08-24
+     redesign): a quiet trust signal beside the score - "the engine that
+     produced this report provably detects what it claims to", verified
+     against Glassbox's own internal loopback target, never the user's site.
+     Reuses .pill severity classes; no new color family. */
+  .engine-verified { margin: 0 0 12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .engine-verified .pill { display:inline-flex; align-items:center; gap:6px; }
+  .engine-verified-note { color: var(--muted); font-size: 12px; }
 
   details { background: var(--panel); border:1px solid var(--border); border-radius: 12px; margin-bottom: 8px; overflow:hidden; }
   summary { padding: 13px 16px; cursor: pointer; font-weight: 600; font-size: 14px; list-style: none; display:flex; justify-content: space-between; align-items:center; }
@@ -171,6 +179,23 @@
         <ul class="readiness-reasons">
           {% for reason in r.readiness_reasons %}<li>{{ reason }}</li>{% endfor %}
         </ul>
+        {% endif %}
+      </div>
+      {% endif %}
+      {% if r.get('detection_verified') %}
+      {% set dv = r.detection_verified %}
+      <div class="engine-verified">
+        {% if dv.passed %}
+        <span class="pill pass" title="During this scan, Glassbox verified its own detection engine against an internal target with known vulnerabilities: every planted detection fired and every clean surface stayed silent.">
+          <svg class="icon" style="width:12px;height:12px;" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+          Engine verified &middot; {{ dv.confirmed }}/{{ dv.total }} detections confirmed
+        </span>
+        <span class="engine-verified-note">Verified against Glassbox's internal check target &mdash; not your site.</span>
+        {% else %}
+        <span class="pill medium" title="The engine's built-in verification did not fully pass while this scan ran. Results are still shown; contact support if this persists across scans.">
+          <svg class="icon" style="width:12px;height:12px;" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+          Engine check flagged drift &middot; {{ dv.failed|join(', ') }}
+        </span>
         {% endif %}
       </div>
       {% endif %}

@@ -701,7 +701,7 @@ not a failure to ship.
 | 24. Report PDF Export | v1.6 | Direct execution | Planned | - |
 | 25. Pipeline Integrations (GitHub/SIEM) | v1.6 | Direct execution | Planned | - |
 | 26. SSO / SAML | v1.6 | Direct execution | Planned | - |
-| 21.1. Detection-Verification UX Fold-In (INSERTED) | v1.5 | Direct execution | In progress | - |
+| 21.1. Detection-Verification UX Fold-In (INSERTED) | v1.5 | Direct execution | Complete | 2026-08-24 |
 | 27. Continuous Regression Tracking | v1.7 | Direct execution | Planned | - |
 | 28. Check Extensibility (Plugin Architecture) | v1.7 | Direct execution | Planned | - |
 | 29. SARIF Export | v1.7 | Direct execution | Planned | - |

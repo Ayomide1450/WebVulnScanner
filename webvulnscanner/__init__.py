@@ -198,10 +198,6 @@ def create_app(config_class=Config):
 
     app.register_blueprint(assessment_blueprint)
 
-    from webvulnscanner.selftest_routes import selftest as selftest_blueprint
-
-    app.register_blueprint(selftest_blueprint)
-
     from webvulnscanner.docs_route import docs_bp as docs_blueprint
 
     app.register_blueprint(docs_blueprint)

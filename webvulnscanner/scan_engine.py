@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, allowed_checks
+from webvulnscanner.selftest import verification_summary
 from webvulnscanner.checks import (
     REQUEST_TIMEOUT,
     REPORTS_DIR,  # noqa: F401  (re-exported for callers that import it from here)
@@ -580,7 +581,15 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         all_findings, locked_count=len(locked), total_check_count=total_job_count + 3,
     )
 
-    return {
+    # Detection verification (Phase 21 engine, 2026-08-24 surface redesign):
+    # proof that the ten intrusive checks actually fire, gathered against
+    # Glassbox's internal loopback lure - never against this scan's target -
+    # cached once per worker process. Attached at the END of the pipeline so
+    # the live progress feed isn't delayed on a worker's first scan; a
+    # verification error degrades to an absent badge, never a failed scan.
+    detection_verified = verification_summary()
+
+    report = {
         "target": base_url,
         "resolved_ip": resolved_ip,
         "scanned_at": datetime.now(timezone.utc).isoformat(),
@@ -631,6 +640,9 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         "crawl": {"discovered_urls": param_urls, "forms": forms},
         "locked_checks": locked,
     }
+    if detection_verified:
+        report["detection_verified"] = detection_verified
+    return report
 
 
 def save_report(report, prefix, hostname):

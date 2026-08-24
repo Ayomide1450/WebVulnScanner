@@ -538,9 +538,11 @@ _EXPECTED_SAFE_NEXT_CALL_SITES = {
 # CSRFError handler) - currently exactly one call site. Line moved 303 -> 307
 # when Phase 19 registered the webhooks blueprint above it, then 307 -> 311
 # when Phase 21 registered the selftest blueprint, then 311 -> 315 when
-# Phase 22 registered the api_docs blueprint.
+# Phase 22 registered the api_docs blueprint, then back to 311 when the
+# selftest blueprint was removed entirely (2026-08-24 redesign: no standalone
+# /selftest page; the verification engine now feeds scan reports directly).
 _EXPECTED_SAFE_REFERRER_CALL_SITES = {
-    ("__init__.py", 315),
+    ("__init__.py", 311),
 }
 
 

@@ -1,4 +1,5 @@
-"""Built-in detection self-test (Phase 21 / ST-01..06).
+"""Built-in detection verification engine (Phase 21 / ST-01..06; user-facing
+surface redesigned 2026-08-24 per user direction).
 
 Spins up an ephemeral, loopback-only HTTP listener hosting deliberately
 vulnerable endpoints ("the lure"), runs the ten Phase-20 intrusive checks
@@ -19,12 +20,24 @@ The traversal lure serves a DECOY passwd file when the probe escapes to
 `etc/passwd`, so detection verifies identically on every OS (on POSIX hosts
 a real read would return the same marker lines; the decoy simply makes the
 ground truth deterministic everywhere).
+
+User-facing surface (2026-08-24 decision): there is deliberately NO standalone
+/selftest page or dashboard button anymore - users read a separate pass/fail
+matrix page as "another scanner: which domain does THIS one hit?", exactly the
+confusion the loopback design exists to avoid. Instead, `run_scan()` calls
+`verification_summary()` at the end of its pipeline and attaches the result to
+the report as `detection_verified`, which scan_report.html renders as an
+"Engine verified" badge next to the risk score. The relationship is now
+unambiguous: the lure proves the engine works; the user's own domain is what
+the engine's verdicts are about. The matrix itself is cached once per worker
+process (deploy lifetime) so scans don't pay the lure's runtime on every run.
 """
 
 import base64
 import hashlib
 import hmac
 import json
+import logging
 import os
 import tempfile
 import threading
@@ -289,3 +302,62 @@ def run_selftest():
     return {"passed": passed,
             "duration_ms": int((time.monotonic() - started) * 1000),
             "results": results}
+
+
+# ---------------------------------------------------------------------------
+# Per-process cache + report badge summary (2026-08-24 redesign)
+#
+# run_scan() ends every base scan by attaching verification_summary()'s
+# result as report["detection_verified"]. The full matrix runs at most once
+# per worker process (a gunicorn worker lives for one deploy), so a scan
+# never pays the lure's startup + ten-check runtime more than the first
+# time; every later scan reads the cache. A raised exception is NOT cached -
+# the next scan retries, and the current scan simply omits the badge rather
+# than failing (same degrade-gracefully convention as every check_*).
+# ---------------------------------------------------------------------------
+
+_verification_cache = None
+_verification_lock = threading.Lock()
+
+
+def detection_verification(force_refresh=False):
+    """The full matrix report ({passed, duration_ms, results}), computed once
+    per process and cached; None if this attempt errored (uncached - retried
+    on a later scan)."""
+    global _verification_cache
+    if _verification_cache is not None and not force_refresh:
+        return _verification_cache
+    with _verification_lock:
+        if _verification_cache is None or force_refresh:
+            try:
+                _verification_cache = run_selftest()
+            except Exception as exc:  # noqa: BLE001 - never fail a real scan
+                logging.warning(
+                    "detection verification unavailable this scan (will retry "
+                    "on the next): %s: %s", type(exc).__name__, exc,
+                )
+                return None
+    return _verification_cache
+
+
+def reset_detection_verification_cache():
+    """Test hook - drops the cache so a test can observe a fresh compute."""
+    global _verification_cache
+    with _verification_lock:
+        _verification_cache = None
+
+
+def verification_summary(force_refresh=False):
+    """The compact dict run_scan() embeds in reports, or None when
+    verification couldn't run. Shape:
+    {passed, confirmed, total, duration_ms, failed: [check names]}."""
+    matrix = detection_verification(force_refresh=force_refresh)
+    if matrix is None:
+        return None
+    return {
+        "passed": matrix["passed"],
+        "confirmed": sum(1 for row in matrix["results"] if row["matched"]),
+        "total": len(matrix["results"]),
+        "duration_ms": matrix["duration_ms"],
+        "failed": [row["name"] for row in matrix["results"] if not row["matched"]],
+    }

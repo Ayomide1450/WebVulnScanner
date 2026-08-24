@@ -385,14 +385,29 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ### Detection-Verification UX Fold-In (UXFT) — Phase 21.1 (v1.5, INSERTED)
 
-- [ ] **UXFT-01**: `/selftest` route, nav link, and dashboard button removed entirely.
-- [ ] **UXFT-02**: `run_scan()` attaches a `detection_verified` summary to every base-scan
+- [x] **UXFT-01**: `/selftest` route, nav link, and dashboard button removed entirely.
+      *(Implemented: `selftest_routes.py` + `selftest.html` deleted; blueprint registration
+      and dashboard button removed; `/selftest` now 404s — regression-locked by
+      `test_route_requires_login_removed_with_the_route`.)*
+- [x] **UXFT-02**: `run_scan()` attaches a `detection_verified` summary to every base-scan
       report, computed once per worker process (never re-run per scan request).
-- [ ] **UXFT-03**: `scan_report.html` shows an "Engine verified · N/10 detections confirmed"
+      *(Implemented: `selftest.detection_verification()` caches the matrix behind a
+      threading.Lock once per process; `verification_summary()` produces the compact
+      {passed, confirmed, total, duration_ms, failed[]} dict; `run_scan()` attaches it at
+      the END of the pipeline so the live feed isn't delayed on a worker's first scan.
+      Errors are NOT cached — the next scan retries.)*
+- [x] **UXFT-03**: `scan_report.html` shows an "Engine verified · N/10 detections confirmed"
       pill near the score, with copy explicit that it checked Glassbox's own internal target,
       not the user's site.
-- [ ] **UXFT-04**: A verification failure/exception degrades to an absent badge — never fails
+      *(Implemented: `.pill.pass` beside the score with the muted caption "Verified against
+      Glassbox's internal check target — not your site."; drift degrades to a medium pill
+      naming failed checks; reuses existing severity classes, no new color family.)*
+- [x] **UXFT-04**: A verification failure/exception degrades to an absent badge — never fails
       or delays the real scan.
+      *(Implemented: key omitted when verification unavailable; template guards with
+      `{% if r.get('detection_verified') %}`; locked by test_verification_error_is_not_cached,
+      test_verification_summary_none_when_engine_unavailable, and the run_scan ordering
+      source-parse lock.)*
 
 ### Continuous Regression Tracking (CONT) — Phase 27 (v1.7)
 
@@ -448,7 +463,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PDFX-01..05 | Phase 24 | Planned |
 | INTG-01..04 | Phase 25 | Planned |
 | SSO-01..05 | Phase 26 | Planned |
-| UXFT-01..04 | Phase 21.1 | Planned (in progress uncommitted 2026-08-24) |
+| UXFT-01..04 | Phase 21.1 | Complete |
 | CONT-01..04 | Phase 27 | Planned |
 | PLUG-01..05 | Phase 28 | Planned |
 | SARIF-01..03 | Phase 29 | Planned |
