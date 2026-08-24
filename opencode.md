@@ -73,28 +73,27 @@ deployable, tested (pytest on every push), and safe by design.
   at 5 attempts; secrets redacted in reports; marker-only stored-XSS proof.
 - AI summary prompt keeps findings framed as data-to-summarize (injection bound).
 
-## State snapshot (last updated: 2026-08-24)
+## State snapshot (last updated: 2026-08-24, post Phase 21.1 + 22 ship)
 
-- Branch `develop`, HEAD 57d090e "docs: scope v1.6 - phases 22-26" + UNCOMMITTED
-  Phase 22 build (api_docs.py / docs_route.py / api_docs.html / tests) AND
-  UNCOMMITTED Phase 21 surface redesign (selftest route/page/button REMOVED;
-  engine folded into run_scan() → report["detection_verified"] → "Engine
-  verified" badge on scan_report.html; suite green — see entries under
-  "Done since audit") — includes
-  Phase 20 (c2727f9 + 3ee435c) and Phase 21 (2886b1e), **all deployed to
-  staging and verified there** (see their entries under "Done since audit")
-  and pushed to origin. Re-checked 2026-08-24: /healthz 200 (note: /selftest
-  is now 404 by design after the redesign; staging still runs the old release
-  until next deploy).
-  NOT yet promoted to production — awaiting user's staging verification
-  per the STAGING-FIRST POLICY (covers Phases 17–21 alike).
-- **v1.6 scoped 2026-08-24**: Phases 22–26 (API docs / audit log / PDF export
-  / GitHub+SIEM integrations / SSO-SAML) drafted in .planning/ ROADMAP +
-  REQUIREMENTS — see "What's next" item 5. Lure app `glassbox-lure` confirmed
-  destroyed (fly apps list). Phase 22 built same day; selftest surface redesign
-  same day (both uncommitted, share the working tree).
+- Branch `develop`, HEAD d124485 "feat(21.1): fold detection verification
+  into scan reports (UXFT-01..04)". Clean tree. Recent history:
+  3621023 = Claude-side scoping commit (v1.7 roadmap, operating model,
+  failure log) — note: Claude Code commits can land CONCURRENTLY with
+  opencode sessions; check `git log` before assuming HEAD.
+- **Phase 22 SHIPPED TO STAGING** (5314b0c) and **Phase 21.1 SHIPPED TO
+  STAGING** (d124485) — staging release **v13**, live-fire verified
+  2026-08-24: /healthz 200, /selftest → **404** (route dead as designed),
+  /docs/api → 302 auth gate. Full suite 1016 passed / 0 failed on the final
+  tree before deploy.
+- Phases 20/21 (c2727f9 + 3ee435c + 2886b1e) deployed earlier; v11→v13 all
+  healthy. NOT yet promoted to production — awaiting user's staging
+  verification per the STAGING-FIRST POLICY (now covers 17–22 + 21.1).
+- **v1.7 order set by user/Claude**: Phase 27 (Continuous Regression
+  Tracking) → 29 (SARIF Export) → 28 (Check Extensibility) → 30 (Open-Core
+  Decision Spike). NEXT UP: Phase 27 — build exactly to its ROADMAP success
+  criteria (CONT-01..04).
 - Tests run via `pytest` (fresh Flask app per test, SQLite under tmp_path).
-  Full suite is ~11–18 min / ~1015 tests; use targeted runs during development.
+  Full suite is ~18–19 min / 1016 tests; use targeted runs during development.
 
 ### Done (recent history)
 
@@ -379,6 +378,18 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    (302 unauthenticated, no 404). Production promotion pending per the
    STAGING-FIRST POLICY.
 
+- **Phase 22 SHIPPED TO STAGING (2026-08-24, commit 5314b0c)** — split into
+  its own commit from the shared working tree (intermediate post-22 snapshot
+  reconstructed for __init__.py + test_auth_flows.py tripwire 315; verified
+  boot-clean in a throwaway `git worktree` at that exact tree, 56 passed).
+- **Phase 21.1 Detection-Verification UX Fold-In SHIPPED TO STAGING
+  (2026-08-24, commit d124485)** — UXFT-01..04 all [x] with implementation
+  notes in REQUIREMENTS.md; ROADMAP row Complete 2026-08-24. Full suite
+  **1016 passed / 0 failed** (18:38) on the final tree; fly deploy → staging
+  release v13; live-fire: /healthz 200, /selftest 404 (dead route confirmed),
+  /docs/api 302 auth gate. Badge-on-report rendering is suite-verified only
+  (needs an authenticated scan to see live). Production promotion still
+  user-gated.
 - **Phase 22 In-Product API Documentation BUILT (2026-08-24, v1.6 first
   phase)** — why: Phases 2/18/19 shipped a full token-authed REST surface +
   CLI + signed webhooks discoverable only by reading source; /docs/api makes
@@ -499,18 +510,16 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    explicit NO-GO escape hatch). Start at Phase 22 whenever user says go.
 
    **v1.7 SCOPED (2026-08-24, from the "what makes this world-class" strategic review)**:
-   Phase 21.1 (INSERTED, currently IN PROGRESS UNCOMMITTED in this working tree — finish and
-   commit this one first, it's already mid-flight: fold `/selftest` into the real scan report
-   as a badge, remove the standalone page/nav/dashboard button) → then Phase 27 (Continuous
+   ~~Phase 21.1~~ → **DONE + SHIPPED TO STAGING (d124485, see Done)**. User-set build
+   order for the rest: Phase 27 (Continuous
    Regression Tracking — diff findings across an Asset's scheduled scans, tag new/recurring/
    resolved, fire a `finding.regressed` webhook) → Phase 28 (Check Extensibility — a narrow
    YAML-based community-check loader, HTTP pattern-match only, same tier-gating as built-ins)
-   → Phase 29 (SARIF export — reuses report.csv's guard pattern, targets GitHub's Security
-   tab) → Phase 30 (self-hostable/open-core decision spike — doc only, GO or NO-GO both valid).
-   **Recommended order once 21.1 lands: 27 and 29 before 28/30** — regression tracking and
-   SARIF export are near-term user-facing wins with low build risk; extensibility and the
-   open-core decision are bigger, slower-burn bets worth sequencing after some v1.7 momentum
-   is visible. This overrides the raw phase-number order if you'd otherwise default to it.
+   and Phase 29 (SARIF export, targets GitHub's Security tab) → Phase 30 (self-hostable/open-core
+   decision spike — doc only, GO or NO-GO both valid).
+   **USER-SET ORDER (2026-08-24 instruction): 27 → 29 → 28 → 30** — matches the earlier
+   recommendation (27 and 29 before 28/30); build exactly to each phase's ROADMAP success
+   criteria, no added or dropped scope.
 6. Housekeeping: `dev-server-*.log` files and `instance/` are untracked
    clutter candidates (check .gitignore covers them). Also: staging DB still
    has a dangling DomainVerification row for glassbox-lure.fly.dev (lure app
