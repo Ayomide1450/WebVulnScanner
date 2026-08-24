@@ -73,32 +73,39 @@ deployable, tested (pytest on every push), and safe by design.
   at 5 attempts; secrets redacted in reports; marker-only stored-XSS proof.
 - AI summary prompt keeps findings framed as data-to-summarize (injection bound).
 
-## State snapshot (last updated: 2026-08-24, post Phase 27 ship)
+## State snapshot (last updated: 2026-08-24, post Phase 29 ship)
 
-- Branch `develop`, HEAD 4e5947e "feat(27): continuous regression tracking
-  for scheduled asset scans" (+ docs commit on top). Clean tree. Recent
-  history: 3621023 = Claude-side scoping commit (v1.7 roadmap, operating
-  model, failure log) — note: Claude Code commits can land CONCURRENTLY
-  with opencode sessions; check `git log` before assuming HEAD.
-- **Phase 27 SHIPPED TO STAGING** (4e5947e) — staging release **v14**,
-  live-fire: /healthz 200 (app boots clean with regressions.py in the
-  import graph). The regression timeline itself is SUITE-verified, not
-  live-walked (needs an authenticated account with an Asset that has run
-  two scheduled scans on staging — user-side walkthrough pending).
-  Phases 21.1/22 remain v13-live-fire-verified (/selftest 404, /docs/api
-  auth gate). Full suite **1033 passed / 0 failed** before deploy.
-- Phases 20/21 (c2727f9 + 3ee435c + 2886b1e) deployed earlier; v11–v14 all
-  healthy. NOT yet promoted to production — awaiting user's staging
-  verification per the STAGING-FIRST POLICY (now covers 17–22 + 21.1 + 27).
-- **v1.7 order set by user/Claude**: Phase 27 DONE → NEXT UP: Phase 29
-  (SARIF Export) → then 28 (Check Extensibility) → 30 (Open-Core Decision
-  Spike).
+- Branch `develop`, HEAD **d6981c3** "feat(29): SARIF 2.1.0 export (SARIF-01,
+  SARIF-02)", pushed to origin. NOTE: this commit landed CONCURRENTLY with the
+  opencode session (authored user/Claude-side while live-fire was running) — it
+  contains exactly the tree the session had verified; staging release v15 runs
+  these bytes. Check `git log` before assuming HEAD (this bit twice now).
+- **Phase 29 SHIPPED TO STAGING** (d6981c3) — staging release **v15**, full suite
+  **1049 passed / 0 failed** pre-deploy. Live-fire confirmed via fresh process:
+  /healthz 200; token-authed /api/v1/scans/8/report.sarif served valid SARIF
+  2.1.0 (5 rules / 24 results, levels error×19/warning×2/note×3, ruleIndex↔rules
+  consistent); unauth API → 401 JSON; unauth session route → 302 login.
+  **SARIF-03 (real upload-sarif run against a scratch GitHub repo) is PENDING
+  USER ACTION** — needs Actions, billing-blocked until next month.
+- Phases 21.1/22/27 remain v13/v14-live-fire-verified. NOT yet promoted to
+  production — awaiting user's staging verification per the STAGING-FIRST POLICY
+  (now covers 17–22 + 21.1 + 27 + 29).
+- **v1.7 order set by user/Claude**: Phase 27 DONE → 29 DONE → NEXT UP: Phase 28
+  (Check Extensibility) → then 30 (Open-Core Decision Spike). Phase 27.1
+  (chart legibility fix) is scoped in ROADMAP/REQUIREMENTS but unbuilt.
 - Tests run via `pytest` (fresh Flask app per test, SQLite under tmp_path).
-  Full suite is ~19 min / **1033 tests**; use targeted runs during
-  development.
+  Full suite is ~20 min / **1049 tests**; use targeted runs during development.
 
 ### Done (recent history)
 
+- Phase 29 — SARIF 2.1.0 export (`feat(29)` d6981c3, staging v15):
+  `webvulnscanner/sarif.py` shared writer behind BOTH surfaces (session-web
+  /scan/<id>/report.sarif + token-authed /api/v1 twin, byte-identical, same
+  ownership guards as CSV — IDOR REGISTRY += both); severity→level mapping
+  lives once in checks.severity_to_sarif_level(); vendored official SARIF
+  schema + jsonschema (dev-only) for fixture-based validation; "Export SARIF"
+  link on the report page; api_docs entry (url_map drift lock updated itself).
+  SARIF-03 = user-side upload-sarif run, pending (Actions billing).
 - Phase 27 — Continuous regression tracking for asset scans (`feat(27)`
   4e5947e): `regressions.py` pure deterministic diff; background-tail
   tagging of stored reports (asset-linked scans only); finding.regressed
@@ -529,6 +536,10 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    **USER-SET ORDER (2026-08-24 instruction): 27 → 29 → 28 → 30** — matches the earlier
    recommendation (27 and 29 before 28/30); build exactly to each phase's ROADMAP success
    criteria, no added or dropped scope.
+   ~~Phase 27~~ DONE, ~~Phase 29~~ DONE (d6981c3, staging v15; SARIF-03 upload-sarif
+   verification pending user-side). **NEXT: Phase 28 (Check Extensibility)** — then 30.
+   Also scoped-but-unbuilt: Phase 27.1 chart legibility (CHARTUX-01..04; needs the
+   `dataviz` skill per its own criterion 5) — slot it whenever the user says go.
 6. Housekeeping: `dev-server-*.log` files and `instance/` are untracked
    clutter candidates (check .gitignore covers them). Also: staging DB still
    has a dangling DomainVerification row for glassbox-lure.fly.dev (lure app

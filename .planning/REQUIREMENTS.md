@@ -458,15 +458,29 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ### SARIF Export (SARIF) — Phase 29 (v1.7)
 
-- [ ] **SARIF-01**: `GET /scan/<id>/report.sarif` (session-authed) plus a token-authed
+- [x] **SARIF-01**: `GET /scan/<id>/report.sarif` (session-authed) plus a token-authed
       `/api/v1` twin, both behind the same ownership guard as report.csv, registered in the
       IDOR REGISTRY.
-- [ ] **SARIF-02**: Output validates against the SARIF 2.1.0 JSON schema (fixture-based test);
+      *(Implementation note: both surfaces render through sarif.build_sarif_report()/
+      sarif_text() - byte-identical output locked by test; API twin clones
+      fetch_report_csv's ownership branches verbatim incl. the soft-deleted-Asset 404;
+      "Export SARIF" link on scan_report.html beside Export CSV.)*
+- [x] **SARIF-02**: Output validates against the SARIF 2.1.0 JSON schema (fixture-based test);
       severity maps to SARIF `level` via one shared mapping function, not duplicated per
       exporter.
+      *(Implementation note: validation is against the vendored official schemastore
+      2.1.0 schema via jsonschema (dev-only dep); checks.severity_to_sarif_level() is the
+      single mapping - critical/high→error, medium→warning, low/info→note, pass→none,
+      junk degrades to note; CWE ids ride rule tags where Phase 12 populated them.)*
 - [ ] **SARIF-03**: Verified once for real — a fixture scan's SARIF output uploaded to a
       scratch GitHub repo via `codeql-action/upload-sarif`, confirmed to render PR
       annotations, not just schema-valid in isolation.
+      *(PENDING USER ACTION: needs a scratch GitHub repo + working Actions - blocked by
+      the Actions billing outage until next month. Everything short of the upload IS
+      verified live: staging release v15 served a real scan's SARIF (5 rules / 24
+      results, levels error×19/warning×2/note×3, ruleIndex↔rules consistency, valid
+      against the official schema), unauth API → 401 JSON, unauth session route → 302
+      login.)*
 
 ### Self-Hostable / Open-Core Decision Spike (OSSD) — Phase 30 (v1.7)
 
@@ -485,7 +499,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UXFT-01..04 | Phase 21.1 | Complete |
 | CONT-01..04 | Phase 27 | Complete (2026-08-24, staging v14) |
 | PLUG-01..05 | Phase 28 | Planned |
-| SARIF-01..03 | Phase 29 | Planned |
+| SARIF-01..03 | Phase 29 | Complete 2026-08-24 (SARIF-03 pending user-side GitHub upload) |
 | OSSD-01 | Phase 30 | Planned |
 
 **Coverage:** 105/105 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for

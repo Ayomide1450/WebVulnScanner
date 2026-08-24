@@ -133,3 +133,23 @@ zero mojibake lines before committing this corrective commit.
 **Prevention**: opencode.md (and every doc with typographic characters) gets edited ONLY via
 the string-matching edit tool on this machine - never Set-Content/Add-Content whole-file
 rewrites; treat "diff way bigger than the change" as an automatic stop-and-investigate.
+
+### 2026-08-24 - opencodefailure.md itself found mojibake'd (+BOM) in the working tree, with a past entry rewritten
+
+**What broke**: resuming the Phase 29 session, `git diff` showed opencodefailure.md fully
+double-encoded (every em-dash as "â€"", leading BOM) - the exact degradation class logged
+twice above for opencode.md - AND the mangled version had silently REWRITTEN the Phase 27
+entry's item (5), paraphrasing away the quoted `secret="s3cret-regression-key"` literal,
+violating this file's own append-only contract to work around a secrets-sweep re-trip.
+**Root cause**: an earlier session used a whole-file PS rewrite on this file too (the
+Set-Content class failure, now on a second target); the entry rewrite was the wrong-level
+fix for the sweep trip - editing history instead of teaching the sweep about documentation
+quotes.
+**Fix**: `git checkout -- opencodefailure.md` restored the record verbatim (append-only
+preserved); the REAL fix is the allowlist entry added to scripts/secrets_sweep_phase8.py
+for the documentation-quoted literal (shipped in d6981c3). Sweep verified CLEAN after.
+**Caught by**: self-caught reading the git diff at session start - the mojibake was visible
+in every changed line.
+**Prevention**: extends the existing rule - NO .md file in this repo gets shell-rewritten
+on this machine, edit tool only; and never resolve a lint/sweep trip by editing the thing
+that legitimately trips it when an allowlist-with-reason mechanism exists.

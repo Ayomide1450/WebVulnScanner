@@ -693,6 +693,17 @@ CLI and Phase 25's pipeline work already targets.
 
 **UI hint**: yes (download link alongside existing CSV/PDF export)
 
+**Status**: Complete 2026-08-24 (commit d6981c3, staging release v15). SARIF-01/02 done:
+single shared writer (sarif.build_sarif_report/sarif_text) behind both the session-web
+route and the token-authed /api/v1 twin - byte-identical output locked by test; schema
+validation against the vendored official 2.1.0 schemastore schema via jsonschema;
+severity→level mapping lives once, in checks.severity_to_sarif_level(). Live-fire on
+staging: real scan #8 exported as valid SARIF (5 rules / 24 results; levels error×19/
+warning×2/note×3), unauth API → 401 JSON, unauth session route → 302 login. SARIF-03
+(the one real upload-sarif run against a scratch GitHub repo) is deliberately still open
+- it needs Actions, which are billing-blocked until next month; tracked in REQUIREMENTS
+as a pending user action.
+
 ### Phase 30: Self-Hostable / Open-Core Decision Spike
 
 **Goal**: Not a build — a scoped, time-boxed decision spike answering whether Glassbox should
@@ -752,6 +763,6 @@ not a failure to ship.
 | 27. Continuous Regression Tracking | v1.7 | Direct execution | Complete 2026-08-24 | 4e5947e (staging v14) |
 | 27.1. Risk-Score-Over-Time Chart Legibility Fix (INSERTED) | v1.7 | Direct execution | Planned | - |
 | 28. Check Extensibility (Plugin Architecture) | v1.7 | Direct execution | Planned | - |
-| 29. SARIF Export | v1.7 | Direct execution | Planned | - |
+| 29. SARIF Export | v1.7 | Direct execution | Complete 2026-08-24 (SARIF-03 user-pending) | d6981c3 (staging v15) |
 | 30. Self-Hostable / Open-Core Decision Spike | v1.7 | Direct execution | Planned | - |
 
