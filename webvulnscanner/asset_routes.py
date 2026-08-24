@@ -312,12 +312,57 @@ def compliance_coverage(asset):
     }
 
 
+def regression_timeline(asset, limit=10):
+    """Phase 27 (CONT-02): per-scan regression summaries across the Asset's
+    completed-scan history, newest first - the data behind the detail page's
+    regression timeline. Only scans that actually carry a stored
+    report["regression"] block (i.e. asset-linked fires whose predecessor
+    existed at run time) produce entries; baseline scans and manual wizard
+    scans simply don't appear, which IS the honest rendering of "nothing was
+    diffed here".
+
+    Performs NO authorization of its own - queries strictly by asset.id,
+    same contract as compliance_coverage() above. Callers MUST call
+    _check_asset_access(asset) first."""
+    scans = (
+        Scan.query.filter_by(asset_id=asset.id)
+        .filter(Scan.status == ScanStatus.COMPLETED)
+        .order_by(Scan.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    entries = []
+    for s in scans:
+        if s.report is None:
+            continue
+        data = s.report.data
+        if data is None:
+            data = read_report_file(s.report.json_path)
+        reg = (data or {}).get("regression")
+        if not reg:
+            continue
+        entries.append({
+            "scan": s,
+            "regression": reg,
+            # Pre-extracted so the template never re-reads report data
+            # itself - `data` may have come from the on-disk fallback, in
+            # which case s.report.data is None and a template-side
+            # e.scan.report.data.findings would render None.findings.
+            "new_findings": [
+                f for f in ((data or {}).get("findings") or [])
+                if f.get("regression") == "new"
+            ],
+        })
+    return entries
+
+
 def _render_asset_detail(a, **extra):
     scans = Scan.query.filter_by(asset_id=a.id).order_by(Scan.created_at.desc()).all()
     tier = effective_tier_for_org(a.organization)
     coverage = compliance_coverage(a)
     return render_template(
         "asset_detail.html", asset=a, scans=scans, tier=tier, coverage=coverage,
+        reg_timeline=regression_timeline(a),
         FEATURE_REQUIREMENTS=FEATURE_REQUIREMENTS,
         TIER_LABELS=TIER_LABELS,
         CADENCE_CHOICES=CADENCE_CHOICES,

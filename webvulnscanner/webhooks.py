@@ -51,6 +51,7 @@ import requests
 
 from webvulnscanner.checks import is_ssrf_safe_hostname
 from webvulnscanner.models import OutboundWebhook, WebhookDelivery
+from webvulnscanner.regressions import alertable_new
 from webvulnscanner.security_gate import DEFAULT_FAIL_ON, evaluate_gate
 
 # Bounded worst case per receiver - a webhook must never stall the scan
@@ -61,6 +62,10 @@ WEBHOOK_TIMEOUT_SECONDS = 5
 # report stays in Glassbox (and behind its auth); a channel needs the
 # headline, not the whole evidence dump.
 MAX_TOP_FINDINGS = 5
+
+# Phase 27 (CONT-03): distinct event header for regression alerts. Same
+# receivers, same signed-delivery machinery - only X-Glassbox-Event differs.
+REGRESSION_EVENT = "finding.regressed"
 
 _SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
@@ -108,10 +113,13 @@ def _load_report(scan):
     return read_report_file(scan.report.json_path)
 
 
-def build_scan_payload(scan, report):
+def build_scan_payload(scan, report, event="scan.completed"):
     """The POST body dict for a completed scan. Never raises even with a
     missing/unreadable report: the text line and scan block are built from
-    the Scan row itself; findings/gate sections simply degrade to empty."""
+    the Scan row itself; findings/gate sections simply degrade to empty.
+    `event` defaults to the original Phase 19 event; Phase 27's regression
+    alert passes its own event string through `build_regression_payload`
+    (below) rather than building a second delivery path."""
     score = scan.risk_score
     grade = (report or {}).get("risk_grade") or "?"
     findings = (report or {}).get("findings") or []
@@ -140,15 +148,8 @@ def build_scan_payload(scan, report):
 
     return {
         "text": text,
-        "event": "scan.completed",
-        "scan": {
-            "id": scan.id,
-            "target_url": scan.target_url,
-            "scan_type": scan.scan_type,
-            "status": scan.status.value,
-            "risk_score": score,
-            "risk_grade": grade,
-        },
+        "event": event,
+        "scan": _scan_block(scan, risk_grade=grade),
         "gate": {
             "fail_on": DEFAULT_FAIL_ON,
             "passed": gate["passed"],
@@ -156,6 +157,52 @@ def build_scan_payload(scan, report):
         },
         "top_findings": [
             {"severity": f.get("severity"), "title": f.get("title")} for f in top
+        ],
+    }
+
+
+def _scan_block(scan, risk_grade=None):
+    """The shared per-scan block of every webhook payload - one definition
+    so scan.completed and finding.regressed payloads can't drift apart.
+    `risk_grade` overrides the stored report's grade when the caller already
+    has it in hand (build_scan_payload's `report` argument is authoritative
+    for its own payload - it may be a freshly-built dict that isn't what's
+    persisted)."""
+    grade = risk_grade
+    if grade is None and scan.report is not None and isinstance(scan.report.data, dict):
+        grade = scan.report.data.get("risk_grade")
+    return {
+        "id": scan.id,
+        "target_url": scan.target_url,
+        "scan_type": scan.scan_type,
+        "status": scan.status.value,
+        "risk_score": scan.risk_score,
+        "risk_grade": grade or "?",
+        "asset_id": scan.asset_id,
+    }
+
+
+def build_regression_payload(scan, regressed_findings):
+    """Phase 27 (CONT-03): the POST body for a `finding.regressed` alert.
+    `regressed_findings` is the already-filtered list of NEW High/Critical
+    findings (regressions.alertable_new's output) from the scan's stored
+    report - this function never re-derives severity policy."""
+    host = urlparse(scan.target_url).hostname or scan.target_url
+    text = (
+        f"Glassbox regression on {host}: {len(regressed_findings)} new "
+        f"High/Critical finding(s) since the previous scheduled scan."
+    )
+    return {
+        "text": text,
+        "event": REGRESSION_EVENT,
+        "scan": _scan_block(scan),
+        "regressed_findings": [
+            {
+                "severity": f.get("severity"),
+                "title": f.get("title"),
+                "check_name": f.get("check_name"),
+            }
+            for f in regressed_findings
         ],
     }
 
@@ -191,9 +238,12 @@ def _post_payload(webhook, payload):
         return "failed", None, f"delivery error: {exc}"
 
 
-def deliver(webhook, scan_id):
+def deliver(webhook, scan_id, payload=None):
     """One signed POST to `webhook.url` describing scan `scan_id`, plus the
-    WebhookDelivery row recording how it went. Never raises."""
+    WebhookDelivery row recording how it went. Never raises. `payload`
+    overrides the default scan.completed body - fire_regression_webhooks
+    passes its finding.regressed payload through this same delivery path so
+    signing, headers, timeouts, and delivery logging stay single-sourced."""
     from webvulnscanner.extensions import db
     from webvulnscanner.models import Scan
 
@@ -201,7 +251,8 @@ def deliver(webhook, scan_id):
         scan = db.session.get(Scan, scan_id)
         if scan is None:
             raise ValueError(f"scan {scan_id} no longer exists")
-        payload = build_scan_payload(scan, _load_report(scan))
+        if payload is None:
+            payload = build_scan_payload(scan, _load_report(scan))
         status, code, error = _post_payload(webhook, payload)
     except Exception as exc:  # noqa: BLE001 - a webhook must never break its scan
         status, code, error = "failed", None, f"unexpected delivery error: {exc}"
@@ -268,3 +319,42 @@ def fire_scan_webhooks(scan_id):
             deliver(webhook, scan_id)
     except Exception:  # noqa: BLE001 - notifications must never break a finished scan
         logging.exception("webhook fan-out failed for scan %s", scan_id)
+
+
+def fire_regression_webhooks(scan_id):
+    """Phase 27 (CONT-03): deliver a `finding.regressed` alert to every
+    matching ACTIVE webhook when the scan's stored report contains at least
+    one NEW High/Critical finding since its Asset's previous scan. Reuses
+    Phase 19's machinery end to end - same receiver scoping as
+    fire_scan_webhooks, same signed `deliver()` (timeout, HMAC header,
+    WebhookDelivery row) - so there is exactly ONE notification path with a
+    different event string, never a second delivery implementation.
+
+    Self-guarding: silently does nothing for scans without regression tags
+    (manual wizard scans), scans whose only new findings are below High, or
+    missing/unreadable reports. Never raises."""
+    from webvulnscanner.extensions import db
+    from webvulnscanner.models import Scan
+
+    try:
+        s = db.session.get(Scan, scan_id)
+        if s is None:
+            return
+        report = _load_report(s)
+        findings = (report or {}).get("findings") or []
+        regressed = alertable_new(findings)
+        if not regressed:
+            return
+        payload = build_regression_payload(s, regressed)
+        query = OutboundWebhook.query.filter_by(is_active=True)
+        if s.org_id is not None:
+            query = query.filter(OutboundWebhook.org_id == s.org_id)
+        else:
+            query = query.filter(
+                OutboundWebhook.org_id.is_(None),
+                OutboundWebhook.created_by_user_id == s.user_id,
+            )
+        for webhook in query.all():
+            deliver(webhook, scan_id, payload=payload)
+    except Exception:  # noqa: BLE001 - notifications must never break a finished scan
+        logging.exception("regression webhook fan-out failed for scan %s", scan_id)

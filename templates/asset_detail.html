@@ -25,6 +25,18 @@
   .compliance-card td { vertical-align: top; }
   .compliance-card .upgrade-hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
 
+  /* Phase 27 (CONT-02): regression timeline. Reuses .pill severity classes
+     and .hint - the only new rules are layout spacing for per-scan entries,
+     no new color family (same discipline as scan_report.html's
+     .engine-verified block). */
+  .reg-entry { padding: var(--space-4) 0; border-top: 1px solid var(--border); }
+  .reg-entry:first-of-type { border-top: none; padding-top: 0; }
+  .reg-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .reg-date { color: var(--muted); font-size:12px; font-family:"Fira Code",monospace; }
+  .reg-list { margin: 8px 0 0; padding-left: 18px; color: var(--text); font-size: 13px; }
+  .reg-list li { margin-bottom: 3px; }
+  .reg-resolved { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; }
+
   .schedule-form label { display:block; margin-top: var(--space-4); font-weight:600; font-size:13px; color: var(--text); }
   .schedule-form label:first-child { margin-top: 0; }
   .schedule-form select {
@@ -212,6 +224,47 @@
       minutes &mdash; refresh this page to check.
     </p>
   </div>
+  {% endif %}
+
+  {% if scans %}
+  <h2 class="section">Regression timeline</h2>
+  {% if reg_timeline %}
+  <div class="card">
+    <p class="hint">
+      What changed between consecutive scans of this Asset, matched by
+      check name and finding title &mdash; the same issue turning up again counts as
+      recurring, not new. Resolved means it was present in the previous scan and gone from this one.
+    </p>
+    {% for e in reg_timeline %}
+    <div class="reg-entry">
+      <div class="reg-head">
+        <span class="pill compliance">{{ e.scan.scan_type }}</span>
+        <span class="reg-date">{{ e.scan.completed_at.strftime('%Y-%m-%d %H:%M') if e.scan.completed_at else 'in progress' }}</span>
+        {% if e.regression.new %}<span class="pill critical">{{ e.regression.new }} new</span>{% endif %}
+        {% if e.regression.recurring %}<span class="pill medium">{{ e.regression.recurring }} recurring</span>{% endif %}
+        {% if e.regression.resolved %}<span class="pill pass">{{ e.regression.resolved|length }} resolved</span>{% endif %}
+      </div>
+      {% if e.new_findings %}
+      <ul class="reg-list">
+        {% for f in e.new_findings %}
+        <li><span class="{{ f.severity }}">{{ f.severity }}</span> &mdash; {{ f.title }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if e.regression.resolved %}
+      <p class="reg-resolved">Resolved: {{ e.regression.resolved|map(attribute='title')|join(', ') }}</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card">
+    <p class="hint" style="margin:0;">
+      No regressions tracked yet. Once this Asset has run two scheduled scans,
+      each scan shows what appeared, persisted, or went away compared to the one before it.
+    </p>
+  </div>
+  {% endif %}
   {% endif %}
 
   <h2 class="section">Schedule</h2>

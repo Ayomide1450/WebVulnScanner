@@ -42,6 +42,7 @@ enough not to warrant its own module.
 import csv
 import io
 import json
+import logging
 import re
 import threading
 import time
@@ -73,7 +74,8 @@ from webvulnscanner.scan_engine import (
     run_scan,
     save_report,
 )
-from webvulnscanner.webhooks import fire_scan_webhooks
+from webvulnscanner.webhooks import fire_scan_webhooks, fire_regression_webhooks
+from webvulnscanner.regressions import classify_regressions
 
 scan = Blueprint("scan", __name__)
 
@@ -245,6 +247,22 @@ def _run_scan_in_background(app, scan_id, scan_type, **kwargs):
                     report, current_app.config["GROQ_API_KEY"], current_app.config["GROQ_MODEL"],
                 )
 
+            # Phase 27 (CONT-01): asset-linked scans (scheduler fires and
+            # API-triggered asset scans - everything that arrives here with
+            # asset_id set) diff their findings against that Asset's
+            # previous completed scan of the same type, and the tags land IN
+            # the stored report blob: each finding gains regression:
+            # "new"|"recurring", and report["regression"] carries counts +
+            # resolved-finding snapshots. Manual wizard scans have
+            # asset_id=None and skip this entirely - their cross-scan story
+            # stays the existing /compare view. Never raises past this
+            # block: a diff failure degrades to an untagged report, never a
+            # failed scan (same convention as every tail below).
+            try:
+                _attach_regression_tags(scan_id, report)
+            except Exception:  # noqa: BLE001 - observability, not correctness
+                logging.exception("regression tagging failed for scan %s", scan_id)
+
             fname = save_report(report, prefix, hostname)
             db.session.add(Report(scan_id=scan_id, json_path=fname, data=report))
             s = Scan.query.get(scan_id)
@@ -268,6 +286,15 @@ def _run_scan_in_background(app, scan_id, scan_type, **kwargs):
             try:
                 fire_scan_webhooks(scan_id)
             except Exception:  # noqa: BLE001 - same degrade-gracefully contract
+                pass
+            # Phase 27 (CONT-03): a distinct `finding.regressed` event to the
+            # SAME active org webhooks, reusing Phase 19's signed-delivery
+            # machinery end to end - no second notification path. Self-guards:
+            # reads the just-committed report and returns silently unless a
+            # NEW High/Critical finding exists since the asset's previous scan.
+            try:
+                fire_regression_webhooks(scan_id)
+            except Exception:  # noqa: BLE001 - notifications must never un-complete a scan
                 pass
         except Exception as e:  # noqa: BLE001 - a failed scan must not leave the row stuck RUNNING
             s = Scan.query.get(scan_id)
@@ -1271,6 +1298,54 @@ def _load_report_json(scan_row):
     if scan_row.report.data is not None:
         return scan_row.report.data
     return read_report_file(scan_row.report.json_path)
+
+
+def _attach_regression_tags(scan_id, report):
+    """Phase 27 (CONT-01): tags `report`'s findings new/recurring against
+    the Asset's previous completed scan and stores resolved-finding
+    snapshots under report["regression"]. Runs inside
+    `_run_scan_in_background` BEFORE the Report row is inserted, so the
+    stored blob itself carries the tags (CONT-01's "in the stored report").
+
+    Scope: only scans linked to an Asset (asset_id set - scheduler fires and
+    API-triggered asset scans) and only against the SAME ASSET's previous
+    COMPLETED scan of the same scan_type, newest first. This is deliberately
+    NOT _previous_completed_scan(): that helper is ownership-scoped via
+    current_user, which doesn't exist on a background thread - here the
+    asset_id linkage IS the authorization boundary, exactly as everywhere
+    else asset-scoped queries run (compliance_coverage's precedent).
+
+    No baseline (first fire for this asset/type, or the predecessor's report
+    is missing/unreadable) leaves the report untouched - no fabricated "new"
+    tags on a scan that had nothing to diff against."""
+    s = Scan.query.get(scan_id)
+    if s is None or s.asset_id is None:
+        return
+    prev = (Scan.query.filter(
+                Scan.asset_id == s.asset_id,
+                Scan.scan_type == s.scan_type,
+                Scan.status == ScanStatus.COMPLETED,
+                Scan.id != s.id,
+                Scan.created_at < s.created_at)
+            .order_by(Scan.created_at.desc())
+            .first())
+    if prev is None or prev.report is None:
+        return
+    prev_report = prev.report.data
+    if prev_report is None:
+        prev_report = read_report_file(prev.report.json_path)
+    if prev_report is None:
+        return
+
+    tagged, summary = classify_regressions(prev_report, report)
+    if summary is None:
+        return
+    report["findings"] = tagged
+    report["regression"] = {
+        "new": summary["new"],
+        "recurring": summary["recurring"],
+        "resolved": summary["resolved"],
+    }
 
 
 def _previous_completed_scan(s):
