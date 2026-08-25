@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Glassbox Security Report — {{ hostname }} (Scan #{{ scan_id }})</title>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 16mm 20mm 16mm;
+    @bottom-center {
+      content: "Glassbox — Page " counter(page) " of " counter(pages);
+      font-size: 9px;
+      color: #999;
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #1a1a1a;
+    background: #fff;
+  }
+
+  .cover {
+    text-align: center;
+    padding: 60px 20px 40px;
+    border-bottom: 3px solid #00b4d8;
+    margin-bottom: 30px;
+  }
+  .cover h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: #0d1117;
+  }
+  .cover .subtitle {
+    font-size: 13px;
+    color: #555;
+    margin-bottom: 20px;
+  }
+
+  .meta-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 24px;
+  }
+  .meta-table td {
+    padding: 5px 10px;
+    border: 1px solid #ddd;
+    font-size: 11px;
+  }
+  .meta-table td:first-child {
+    font-weight: 600;
+    width: 160px;
+    background: #f6f8fa;
+  }
+
+  .score-row {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .score-box {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 14px 18px;
+    text-align: center;
+    min-width: 100px;
+  }
+  .score-box .value {
+    font-size: 28px;
+    font-weight: 700;
+    display: block;
+  }
+  .score-box .label {
+    font-size: 10px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .severity-critical { color: #dc2626; }
+  .severity-high     { color: #ea580c; }
+  .severity-medium   { color: #ca8a04; }
+  .severity-low      { color: #2563eb; }
+  .severity-info     { color: #6b7280; }
+  .severity-pass     { color: #16a34a; }
+
+  h2 {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 28px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #0d1117;
+  }
+
+  .summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+  }
+  .summary-table td, .summary-table th {
+    padding: 5px 8px;
+    border: 1px solid #ddd;
+    font-size: 11px;
+    text-align: left;
+  }
+  .summary-table th {
+    background: #f6f8fa;
+    font-weight: 600;
+  }
+
+  .finding-card {
+    border: 1px solid #e1e4e8;
+    border-radius: 6px;
+    margin-bottom: 14px;
+    page-break-inside: avoid;
+    overflow: hidden;
+  }
+  .finding-header {
+    padding: 8px 12px;
+    background: #f6f8fa;
+    border-bottom: 1px solid #e1e4e8;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .finding-header .title {
+    font-weight: 600;
+    font-size: 12px;
+  }
+  .finding-header .sev {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 3px;
+    color: #fff;
+  }
+  .sev-critical { background: #dc2626; }
+  .sev-high     { background: #ea580c; }
+  .sev-medium   { background: #ca8a04; }
+  .sev-low      { background: #2563eb; }
+  .sev-info     { background: #6b7280; }
+  .sev-pass     { background: #16a34a; }
+
+  .finding-body {
+    padding: 10px 12px;
+  }
+  .finding-body .row {
+    margin-bottom: 6px;
+  }
+  .finding-body .row-label {
+    font-weight: 600;
+    color: #555;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .finding-body .row-value {
+    font-size: 11px;
+    color: #1a1a1a;
+    margin-top: 1px;
+  }
+
+  .no-findings {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6b7280;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>Glassbox Security Report</h1>
+  <div class="subtitle">{{ hostname }}</div>
+
+  <table class="meta-table">
+    <tr><td>Target URL</td><td>{{ target }}</td></tr>
+    <tr><td>Hostname</td><td>{{ hostname }}</td></tr>
+    <tr><td>Scan ID</td><td>{{ scan_id }}</td></tr>
+    <tr><td>Total Findings</td><td>{{ total_findings }}</td></tr>
+  </table>
+</div>
+
+<div class="score-row">
+  <div class="score-box">
+    <span class="value">{{ score }}</span>
+    <span class="label">Risk Score</span>
+  </div>
+  <div class="score-box">
+    <span class="value">{{ risk_grade }}</span>
+    <span class="label">Grade</span>
+  </div>
+  {% for sev in ["critical", "high", "medium", "low", "info", "pass"] %}
+  {% if severity_counts.get(sev) %}
+  <div class="score-box">
+    <span class="value severity-{{ sev }}">{{ severity_counts[sev] }}</span>
+    <span class="label">{{ sev|capitalize }}</span>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<h2>Severity Summary</h2>
+<table class="summary-table">
+  <thead>
+    <tr><th>Severity</th><th>Count</th></tr>
+  </thead>
+  <tbody>
+  {% for sev in ["critical", "high", "medium", "low", "info", "pass"] %}
+    {% if severity_counts.get(sev) %}
+    <tr>
+      <td class="severity-{{ sev }}">{{ sev|capitalize }}</td>
+      <td>{{ severity_counts[sev] }}</td>
+    </tr>
+    {% endif %}
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Findings ({{ total_findings }})</h2>
+
+{% if findings %}
+{% for f in findings %}
+<div class="finding-card">
+  <div class="finding-header">
+    <span class="title">{{ f.label or f.category or "Finding" }}</span>
+    <span class="sev sev-{{ f.severity }}">{{ f.severity|upper }}</span>
+  </div>
+  <div class="finding-body">
+    <div class="row">
+      <div class="row-label">Title</div>
+      <div class="row-value">{{ f.title }}</div>
+    </div>
+    {% if f.category %}
+    <div class="row">
+      <div class="row-label">Category</div>
+      <div class="row-value">{{ f.category }}</div>
+    </div>
+    {% endif %}
+    {% if f.detail %}
+    <div class="row">
+      <div class="row-label">Detail</div>
+      <div class="row-value">{{ f.detail }}</div>
+    </div>
+    {% endif %}
+    {% if f.recommendation %}
+    <div class="row">
+      <div class="row-label">Recommendation</div>
+      <div class="row-value">{{ f.recommendation }}</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="no-findings">No findings in this report.</div>
+{% endif %}
+
+</body>
+</html>

@@ -76,6 +76,7 @@ from webvulnscanner.scan_engine import (
 )
 from webvulnscanner.webhooks import fire_scan_webhooks, fire_regression_webhooks
 from webvulnscanner.regressions import classify_regressions
+from webvulnscanner.pdf_report import build_pdf_report, PDF_MIMETYPE
 from webvulnscanner.sarif import build_sarif_report, sarif_text
 
 scan = Blueprint("scan", __name__)
@@ -96,6 +97,9 @@ GROUPING_MODES = ("severity", "compliance", "domain")
 # this plan's scope (09-03-PLAN.md's explicit prohibition), deferred to a
 # future phase.
 FINDINGS_PER_PAGE = 20
+
+
+from webvulnscanner.utils import safe_filename  # noqa: E402 — after blueprint consts
 
 
 # --------------------------------------------------------------------------
@@ -1476,7 +1480,7 @@ def findings_csv_document(report, scan_id):
         ])
 
     hostname = report.get("hostname") or urlparse(report.get("target", "")).netloc or "scan"
-    filename = f"{hostname.replace(':', '_')}_scan{scan_id}_findings.csv"
+    filename = safe_filename(f"{hostname.replace(':', '_')}_scan{scan_id}_findings.csv")
     return buf.getvalue(), filename
 
 
@@ -1530,6 +1534,32 @@ def scan_report_sarif(scan_id):
     return Response(
         sarif_text(doc),
         mimetype="application/sarif+json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@scan.route("/scan/<int:scan_id>/report.pdf")
+@login_required
+def scan_report_pdf(scan_id):
+    """Phase 24 (PDFX-01): PDF export of a single report's findings.
+    Same ownership guard as scan_report/scan_report_csv/scan_report_sarif
+    (404, not 403) — an alternate rendering of the same already-authorized
+    report, not a new access path. The PDF body comes from
+    pdf_report.build_pdf_report's single shared writer, so the browser
+    download and the /api/v1 token-authed twin can never drift."""
+    s = Scan.query.get_or_404(scan_id)
+    _check_ownership(s)
+    if s.report is None:
+        abort(404)
+
+    report = _load_report_json(s)
+    if report is None:
+        abort(404)
+
+    pdf_bytes, filename = build_pdf_report(report, scan_id)
+    return Response(
+        pdf_bytes,
+        mimetype=PDF_MIMETYPE,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 

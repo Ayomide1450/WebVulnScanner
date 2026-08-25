@@ -458,29 +458,48 @@ compliance story, and gives every later feature (SSO included) a standard place 
 
 ### Phase 24: Report PDF Export
 
-**Goal**: A finished scan exports as a professional PDF alongside JSON and CSV — the
+**Goal**: A finished scan exports as a professional PDF alongside JSON, CSV, and SARIF — the
 deliverable non-engineer stakeholders attach to tickets and exec summaries. Closes audit
 gap #2 and completes the "professional output" positioning.
 **Depends on**: Phase 12 finding schema (confidence/CWE columns exist to render)
-**Requirements**: PDFX-01..PDFX-05 (see REQUIREMENTS.md)
+**Requirements**: PDFX-01..PDFX-08 (see REQUIREMENTS.md)
 **Success Criteria**:
 
    1. GET /scan/<id>/report.pdf (session-authed) plus a token-authed /api/v1 twin, both
       behind the same ownership guard as report.csv, registered in the IDOR REGISTRY.
-   2. Rendering dependency chosen deliberately for the Fly image (pure-python wheels
-      preferred over system-library heavyweights); the decision and the image-size delta
-      are recorded in the phase notes.
+   2. WeasyPrint chosen as the rendering dependency (>=68,<70 — v68 minimum for SSRF fix
+      CVE-2025-68616 + `allowed_protocols` parameter). Alpine runtime deps: pango, harfbuzz,
+      harfbuzz-subset, fontconfig, font-noto (for non-ASCII/CJK text). Image size delta
+      ~20MB. Decision and deps recorded in phase notes.
    3. Content sourced from the SAME report dict `save_report()` writes — score/grade,
       severity tally, per-check tables including confidence/CWE where present, AI summary
-      when present; no parallel formatting logic over raw findings.
-   4. Output validates as a parseable PDF (magic bytes + parser round-trip) containing the
-      key report strings; deterministic given identical report input.
+      when present; no parallel formatting logic over raw findings. Template renders ONLY
+      `report["findings"]` — never `report["sensitive_paths"]` or other raw check data
+      blobs (which may contain unredacted fragments per the `check_sensitive_paths` data
+      flow analysis).
+   4. Output validates as a parseable PDF (magic bytes + pypdf round-trip) containing the
+      key report strings. Semantic equivalence test (text extraction comparison), NOT
+      byte-identical comparison — WeasyPrint output varies across platforms/versions even
+      with `SOURCE_DATE_EPOCH=0`. Determinism within the same version is a bonus, not a
+      contract.
    5. Redaction invariant holds end-to-end: `_redact_secret`-ed values appear redacted in
-      the PDF too — the export must not become a second leak of any credential.
+      the PDF too — the export must not become a second leak of any credential. Dedicated
+      test creates a report dict with a raw secret pattern and asserts the extracted PDF
+      text contains only the redacted form.
+   6. SSRF protection: WeasyPrint configured with `url_fetcher=URLFetcher(allowed_protocols=[])`
+      to block all external resource loading (images, fonts, stylesheets from untrusted
+      URLs). `presentational_hints=False` to prevent attribute-value CSS leakage
+      (GHSA-jhhc-3hcp-qhm5). Finding detail text is Jinja2-autoescaped (never `| safe`).
+   7. Filename sanitization: shared `safe_filename()` helper using allowlist
+      `[A-Za-z0-9._-]` applied to all three exporters (CSV, SARIF, PDF) — retroactive
+      hardening of the existing CSV/SARIF filename pattern.
+   8. CJK smoke test: a finding with Japanese/Chinese characters renders correctly in the
+      PDF (text extraction contains the original characters, not replacement boxes) —
+      validates that font-noto is installed in the deploy image.
 
 **Plans**: Direct execution, single commit.
 
-**UI hint**: yes (download button on scan-report page)
+**UI hint**: yes (download link on scan-report page, alongside existing CSV/SARIF export links)
 
 ### Phase 25: Pipeline Integrations (GitHub Actions / SIEM)
 
@@ -756,7 +775,7 @@ not a failure to ship.
 | 21. Built-in Detection Self-Test | v1.5 | Direct execution | Complete | 2026-08-23 |
 | 22. In-Product API Documentation | v1.6 | Direct execution | Complete | 2026-08-24 |
 | 23. Audit Log | v1.6 | Direct execution | Planned | - |
-| 24. Report PDF Export | v1.6 | Direct execution | Planned | - |
+| 24. Report PDF Export | v1.6 | Direct execution | Complete | 2026-08-25 |
 | 25. Pipeline Integrations (GitHub/SIEM) | v1.6 | Direct execution | Planned | - |
 | 26. SSO / SAML | v1.6 | Direct execution | Planned | - |
 | 21.1. Detection-Verification UX Fold-In (INSERTED) | v1.5 | Direct execution | Complete | 2026-08-24 |

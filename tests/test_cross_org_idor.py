@@ -169,6 +169,10 @@ REGISTRY = {
     # of the SARIF suite.
     "api.fetch_report_sarif": "tests/test_sarif_export.py::test_report_sarif_different_org_gets_404",
     "scan.scan_report_sarif": "tests/test_sarif_export.py::test_scan_report_sarif_cross_org_is_404_and_leaks_no_finding_text",
+    # fetch_report_pdf (Phase 24) clones the same ownership branches;
+    # denial tests live alongside the rest of the PDF suite.
+    "api.fetch_report_pdf": "tests/test_pdf_export.py::test_report_pdf_different_org_gets_404",
+    "scan.scan_report_pdf": "tests/test_pdf_export.py::test_scan_report_pdf_cross_org_is_404_and_leaks_no_finding_text",
     "scan.scan_status": "tests/test_scan_status.py::test_status_different_org_gets_404",
 }
 

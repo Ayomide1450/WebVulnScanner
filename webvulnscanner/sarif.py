@@ -125,7 +125,8 @@ def build_sarif_report(report, scan_id):
         or _urlparse_netloc(target)
         or "scan"
     )
-    filename = f"{str(hostname).replace(':', '_')}_scan{scan_id}.sarif"
+    from webvulnscanner.utils import safe_filename
+    filename = safe_filename(f"{str(hostname).replace(':', '_')}_scan{scan_id}.sarif")
     return doc, filename
 
 

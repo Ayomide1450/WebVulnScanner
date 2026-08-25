@@ -30,6 +30,7 @@ from webvulnscanner.scan_routes import (
     findings_csv_document,
 )
 from webvulnscanner.scheduler import _fire
+from webvulnscanner.pdf_report import build_pdf_report, PDF_MIMETYPE
 from webvulnscanner.sarif import build_sarif_report, sarif_text
 from webvulnscanner.security_gate import DEFAULT_FAIL_ON, GATE_SEVERITIES, evaluate_gate
 
@@ -288,6 +289,44 @@ def fetch_report_sarif(scan_id):
     return Response(
         sarif_text(doc),
         mimetype="application/sarif+json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@api.route("/scans/<int:scan_id>/report.pdf")
+@api_login_required
+@limiter.limit("60 per minute", key_func=_api_rate_limit_key)
+def fetch_report_pdf(scan_id):
+    """Phase 24 (PDFX-01): token-authed PDF export - the exact same bytes
+    the session-web /scan/<id>/report.pdf route serves, via
+    pdf_report.build_pdf_report's single shared writer, so curl-with-a-token
+    and the browser download can never drift into different formats.
+
+    Ownership branches and error semantics are identical to fetch_report /
+    fetch_report_csv / fetch_report_sarif above on purpose: same
+    Asset-linked-vs-manual split (Pitfall-1 fix), same WR-01 soft-delete
+    guard, no Report row yet -> 404 JSON, Report row whose blob/file is
+    unreadable -> 500 JSON (WR-02 - cli/wvs.py's
+    _raise_for_error_response always expects a JSON body)."""
+    s = Scan.query.get_or_404(scan_id)
+    if s.asset_id is not None:
+        if s.asset.deleted_at is not None:
+            abort(404)
+        _check_asset_access(s.asset)
+    else:
+        _check_ownership(s)
+
+    if s.report is None:
+        return jsonify(error="report not available"), 404
+
+    report = _load_report_json(s)
+    if report is None:
+        return jsonify(error="report file is unavailable"), 500
+
+    pdf_bytes, filename = build_pdf_report(report, scan_id)
+    return Response(
+        pdf_bytes,
+        mimetype=PDF_MIMETYPE,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 

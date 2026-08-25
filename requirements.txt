@@ -16,3 +16,4 @@ gunicorn
 click
 redis
 pyyaml
+weasyprint>=68,<70

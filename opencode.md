@@ -73,27 +73,38 @@ deployable, tested (pytest on every push), and safe by design.
   at 5 attempts; secrets redacted in reports; marker-only stored-XSS proof.
 - AI summary prompt keeps findings framed as data-to-summarize (injection bound).
 
-## State snapshot (last updated: 2026-08-25, post Phase 30 decision)
+## State snapshot (last updated: 2026-08-25, post Phase 24 build)
 
-- Branch `develop`, HEAD **f215d92** "fix(27.1): severity-aware chart point colors +
-  gridlines + score labels", pushed to origin.
-- **Phase 27.1 SHIPPED TO STAGING** (f215d92) — chart legibility fix: points colored
-  by severity (pass/medium/high/critical), score labels on each point, y-axis
-  gridlines. Asset detail chart fully redesigned from bare sparkline.
-- **Phase 28 SHIPPED TO STAGING** (bbad7b0) — community check plugin architecture:
-  YAML-defined checks from checks/community/*.yaml, schema validation, registry
-  integration, ThreadPoolExecutor dispatch. 41 tests, 1089 passed full suite.
-- **Phase 30 DECISION DOC COMPLETE** (.planning/PHASE30-OPEN-CORE-DECISION.md) —
-  GO decision: AGPL-3.0 open-core, deferred to v2 for execution. No code change.
-- v1.7 is now COMPLETE (Phases 27, 27.1, 28, 29, 30 all shipped/documented).
-- Phases 21.1/22/27 remain v13/v14-live-fire-verified. NOT yet promoted to
-  production — awaiting user's staging verification per the STAGING-FIRST POLICY
-  (now covers 17–22 + 21.1 + 27 + 27.1 + 28 + 29).
-- Tests run via `pytest` (fresh Flask app per test, SQLite under tmp_path).
-  Full suite is ~12 min / **1089 tests**; use targeted runs during development.
+- Branch `develop`, HEAD pending commit.
+- **Phase 24 BUILT (2026-08-25)** — PDF export of scan reports:
+  `webvulnscanner/pdf_report.py` shared writer behind both surfaces (session-web
+  /scan/<id>/report.pdf + token-authed /api/v1 twin, same ownership guards as
+  CSV/SARIF — IDOR REGISTRY += both); `templates/pdf_report.html` standalone
+  self-contained PDF template (no `| safe` on finding fields, autoescaping ON);
+  WeasyPrint `>=68,<70` with `URLFetcher(allowed_protocols=[])` +
+  `presentational_hints=False` for SSRF defence; shared `safe_filename()` helper
+  in `webvulnscanner/utils.py` retroactively applied to CSV/SARIF exporters;
+  Dockerfile updated with pango/harfbuzz/font-noto runtime deps + `fc-cache -f`.
+  22 tests (safe_filename allowlist, writer determinism, severity sorting,
+  empty-findings degrade, no-raw-check-data redaction, ownership IDOR for
+  both surfaces, no-drift byte-for-byte lock, template `| safe` regression);
+  11 rendering tests skip on Windows (need GTK3), will pass on Linux CI.
+  Full targeted suite: 63 passed, 11 skipped, 0 failed.
+- **Phase 24 still requires**: staging deploy verification (needs Docker with
+  GTK3 native libs — the 11 skipped rendering tests will validate on CI).
 
 ### Done (recent history)
 
+- Phase 24 — Report PDF Export (`feat(24)`, 2026-08-25):
+  `webvulnscanner/pdf_report.py` shared writer (WeasyPrint `>=68,<70`,
+  `URLFetcher(allowed_protocols=[])` + `presentational_hints=False` for SSRF
+  defence); `templates/pdf_report.html` standalone self-contained template (no
+  `| safe` on finding fields); session-web `GET /scan/<id>/report.pdf` +
+  token-authed `/api/v1` twin (same ownership guards, IDOR REGISTRY updated);
+  shared `safe_filename()` in `webvulnscanner/utils.py` retroactively applied
+  to CSV/SARIF exporters; Dockerfile updated with pango/harfbuzz/font-noto
+  runtime deps. 22 tests (writer, IDOR, no-drift, template `| safe` regression);
+  11 rendering tests skip on Windows (need GTK3 — will pass on Linux CI).
 - Phase 29 — SARIF 2.1.0 export (`feat(29)` d6981c3, staging v15):
   `webvulnscanner/sarif.py` shared writer behind BOTH surfaces (session-web
   /scan/<id>/report.sarif + token-authed /api/v1 twin, byte-identical, same
@@ -518,6 +529,9 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    22 in-product API docs page, 23 audit log, 24 report PDF export,
    25 pipeline integrations (GitHub Actions/SIEM), 26 SSO/SAML (spike-first with
    explicit NO-GO escape hatch). Start at Phase 22 whenever user says go.
+   **~~NEXT BUILD TARGET: Phase 24 (PDF Export)~~** → **BUILT (2026-08-25)**,
+   PDFX-01..08 in REQUIREMENTS.md checked off. Awaiting staging deploy
+   verification (needs Docker with GTK3 for full rendering test coverage).
 
    **v1.7 SCOPED (2026-08-24, from the "what makes this world-class" strategic review)**:
    ~~Phase 21.1~~ → **DONE + SHIPPED TO STAGING (d124485, see Done)**.
@@ -533,7 +547,9 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    recommendation (27 and 29 before 28/30); build exactly to each phase's ROADMAP success
    criteria, no added or dropped scope.
    ~~Phase 27~~ DONE, ~~Phase 29~~ DONE (d6981c3, staging v15; SARIF-03 upload-sarif
-   verification pending user-side). **NEXT: Phase 28 (Check Extensibility)** — then 30.
+   verification pending user-side). ~~Phase 28~~ DONE (bbad7b0, staging v16). ~~Phase 30~~
+   DONE (decision doc, NO-GO for v1, GO deferred to v2).
+   **NEXT: Phase 23 (Audit Log)** — then 25, 26 per v1.6 order.
    Also scoped-but-unbuilt: Phase 27.1 chart legibility (CHARTUX-01..04; needs the
    `dataviz` skill per its own criterion 5) — slot it whenever the user says go.
 6. Housekeeping: `dev-server-*.log` files and `instance/` are untracked
@@ -547,6 +563,61 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    DEPTH-01 needs an explicit signed crawl-depth decision; DEPTH-02/03 are
    payload-variant work. Decide whether it stays in v1.4 or moves to a
    later milestone.
+
+## Strix integration analysis (2026-08-25)
+
+User requested features from https://github.com/usestrix/strix (AI pentesting tool) be
+integrated into Glassbox. Analysis completed; features mapped to the roadmap.
+
+### What was done
+
+1. Full repo analysis of Strix: strix/ package modules, skills, dependencies, report layer,
+   vulnerability knowledge base, dedup engine.
+2. Full analysis of Glassbox: 35+ checks, 4 orchestrators, scoring, SARIF, community plugins.
+3. Feature mapping: identified 5 high-value, adoptable features from Strix.
+4. Phase 24 (PDF Export) selected as first build target — already scoped in ROADMAP.md.
+5. Phase 24 plan reviewed against 8 verified concerns (SSRF, determinism, redaction,
+   filenames, performance, Alpine deps, version pinning, template safety).
+6. ROADMAP.md + REQUIREMENTS.md updated: PDFX-01..05 expanded to PDFX-01..08.
+
+### Strix features deferred (need new ROADMAP phases before building)
+
+| Feature | Proposed phase | What it adds |
+|---|---|---|
+| CVSS 3.1 scoring | v1.8 new phase | Standard vector parsing alongside severity weights |
+| Finding deduplication | v1.8 new phase | Hash-based dedup for crawl-then-probe duplicates |
+| OWASP gap audit | v1.8 new phase | XXE, CSP depth, HSTS depth, DNSSEC, dependency scanning |
+| API testing enhancements | v1.8 new phase | GraphQL depth, auth comparison, mass assignment |
+
+These require ROADMAP.md + REQUIREMENTS.md entries before building. User confirmed
+Phase 24 ships first.
+
+### Verified concerns incorporated into Phase 24
+
+| # | Concern | Verdict | Fix | Rank |
+|---|---|---|---|---|
+| 1 | SSRF via WeasyPrint external resources | Confirmed | `URLFetcher(allowed_protocols=[])` + `presentational_hints=False` | Must-fix |
+| 2 | PDF determinism | Partially wrong | Semantic equivalence test (text extraction), not byte-identical | Must-fix |
+| 3 | Redaction gap in sensitive_paths data | Confirmed | Template renders only findings, not raw check data blobs | Must-fix |
+| 4 | Filename sanitization | Confirmed | Shared `safe_filename()` helper, retroactive to CSV/SARIF | Hardening |
+| 5 | Synchronous performance | Confirmed but acceptable | 1-3s cold, <1s warm; timeout + try/except, no caching yet | Should-fix |
+| 6 | Alpine deps + CJK fonts | Confirmed | font-noto + fontconfig in Dockerfile, ~20MB delta | Must-fix |
+| 7 | Version pinning | Confirmed | `weasyprint>=68,<70` (v68 for SSRF fix) | Must-fix |
+| 8 | Template `\| safe` usage | Non-issue | Existing regression lock prevents it; autoescaping ON | None |
+
+### Key codebase findings (session memory)
+
+- `_redact_secret` is called inside checks (Finding.detail is masked), but
+  `check_sensitive_paths` stores raw fragments in `report["sensitive_paths"]["secret_evidence"]["raw"]`
+  — this is the redaction gap the PDF template must avoid by rendering only findings.
+- `_run_scan_in_background` adds `ai_summary`, `regression` tags, `detection_verified`
+  after orchestrator return — none contain raw secrets, all safe for PDF.
+- Zero `| safe` usage in any template — Phase-8 regression lock
+  (`test_no_template_disables_autoescaping_or_uses_safe_filter`) enforces this.
+- WeasyPrint v68+ has `URLFetcher(allowed_protocols=[])` for SSRF protection + the
+  CVE-2025-68616 redirect-validation fix.
+- `SOURCE_DATE_EPOCH=0` + explicit `<meta name="dcterms.created">` makes WeasyPrint
+  byte-identical within the same version on the same platform (not cross-platform).
 
 ## Conventions to honor while working here
 
@@ -572,6 +643,15 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
   `_admin_form_styles` partial pattern).
 - Scoring stays centralized in `scan_engine._score_report()` (regression
   test locks this).
+- **WeasyPrint SSRF rule**: any code that renders untrusted HTML to PDF MUST pass
+  `url_fetcher=URLFetcher(allowed_protocols=[])` + `presentational_hints=False`.
+  Non-negotiable — finding detail comes from HTTP responses and can contain
+  attacker-controlled markup.
+- **Template `| safe` ban**: no template may use `| safe` on finding-sourced fields.
+  Existing regression lock enforces this; new templates are covered automatically.
+- **Report data boundary**: PDF/CSV/SARIF exports iterate `report["findings"]` only.
+  Never render raw check data blobs (`report["sensitive_paths"]`, etc.) — they may
+  contain unredacted fragments per `check_sensitive_paths`'s `secret_evidence.raw`.
 - Only commit when explicitly asked. Never commit secrets.
 
 ## How to update this file

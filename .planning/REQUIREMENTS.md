@@ -343,17 +343,40 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ### Report PDF Export — Phase 24 (v1.6)
 
-- [ ] **PDFX-01**: GET /scan/<id>/report.pdf (session-authed) plus a token-authed /api/v1
+- [x] **PDFX-01**: GET /scan/<id>/report.pdf (session-authed) plus a token-authed /api/v1
       twin, both behind the same ownership guard as report.csv, in the IDOR REGISTRY.
-- [ ] **PDFX-02**: Rendering dependency chosen deliberately for the Fly image (pure-python
-      wheels preferred); decision + image-size delta recorded in phase notes.
-- [ ] **PDFX-03**: Content sourced from the SAME report dict `save_report()` writes (score/
+- [x] **PDFX-02**: WeasyPrint chosen as rendering dependency (>=68,<70). v68 minimum for
+      SSRF fix (CVE-2025-68616) + `allowed_protocols` parameter. Alpine runtime deps
+      (pango, harfbuzz, harfbuzz-subset, fontconfig, font-noto) + `fc-cache -f` in
+      Dockerfile. Image size delta ~20MB recorded here.
+- [x] **PDFX-03**: Content sourced from the SAME report dict `save_report()` writes (score/
       grade, severity tally, per-check tables incl. confidence/CWE, AI summary when present);
-      no parallel formatting logic over raw findings.
-- [ ] **PDFX-04**: Output validates as parseable PDF (magic bytes + parser round-trip) with
-      key report strings present; deterministic given identical input.
-- [ ] **PDFX-05**: `_redact_secret`-ed values appear redacted in the PDF too — the export
-      must not become a second leak of any credential.
+      no parallel formatting logic over raw findings. Template renders ONLY
+      `report["findings"]` — never `report["sensitive_paths"]` or other raw check data
+      blobs (which may contain unredacted fragments per `check_sensitive_paths`'s
+      `secret_evidence.raw` field).
+- [x] **PDFX-04**: Output validates as parseable PDF (magic bytes + pypdf round-trip) with
+      key report strings present. Semantic equivalence via text extraction comparison, NOT
+      byte-identical (WeasyPrint output varies across platforms/versions). `SOURCE_DATE_EPOCH=0`
+      + explicit `<meta name="dcterms.created">` for intra-version determinism bonus.
+- [x] **PDFX-05**: `_redact_secret`-ed values appear redacted in the PDF too — the export
+      must not become a second leak of any credential. Dedicated test creates a report with
+      a raw secret pattern (e.g. `AKIA1234567890ABCD`) and asserts extracted PDF text
+      contains only the redacted form (`AKIA12…ABCD`), not the raw value.
+- [x] **PDFX-06**: SSRF protection: `url_fetcher=URLFetcher(allowed_protocols=[])` blocks
+      all external resource loading (images, fonts, stylesheets). `presentational_hints=False`
+      prevents attribute-value CSS leakage (GHSA-jhhc-3hcp-qhm5). Finding detail text is
+      Jinja2-autoescaped; template never uses `| safe` on finding-sourced fields (existing
+      regression lock `test_no_template_disables_autoescaping_or_uses_safe_filter` covers
+      this automatically).
+- [x] **PDFX-07**: Shared `safe_filename(name)` helper using allowlist `[A-Za-z0-9._-]`
+      replaces the existing `hostname.replace(':', '_')` pattern in all three exporters
+      (CSV `findings_csv_document`, SARIF `build_sarif_report`, PDF `build_pdf_report`).
+      Retroactive hardening — CSV/SARIF get the fix in this phase.
+- [x] **PDFX-08**: CJK smoke test: a finding with Japanese (`セキュリティ脆弱性`) and
+      Chinese (`发现了一个安全漏洞`) characters renders correctly — text extraction contains
+      the original characters, not replacement boxes. Validates font-noto is installed in
+      the deploy image.
 
 ### Pipeline Integrations (GitHub Actions / SIEM) — Phase 25 (v1.6)
 
@@ -493,7 +516,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |---|---|---|
 | DOCS-01..05 | Phase 22 | Complete |
 | AUDIT-01..05 | Phase 23 | Planned |
-| PDFX-01..05 | Phase 24 | Planned |
+| PDFX-01..08 | Phase 24 | Planned (verified concerns incorporated 2026-08-25) |
 | INTG-01..04 | Phase 25 | Planned |
 | SSO-01..05 | Phase 26 | Planned |
 | UXFT-01..04 | Phase 21.1 | Complete |

@@ -7,9 +7,15 @@ WORKDIR /app
 
 # psycopg2-binary and Pillow (already in requirements.txt) need these at
 # import/runtime; kept minimal rather than pulling the full build-essential set.
+# WeasyPrint (Phase 24) needs pango/harfbuzz for text layout and font-noto for
+# non-ASCII/CJK glyph coverage; fontconfig caches fonts at build time.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 libjpeg62-turbo zlib1g \
-    && rm -rf /var/lib/apt/lists/*
+    pango1.0-tools libpango-1.0-0 libpangocairo-1.0-0 \
+    libharfbuzz0b libharfbuzz-subset0 \
+    libfontconfig1 fonts-noto-cjk \
+    && rm -rf /var/lib/apt/lists/* \
+    && fc-cache -f
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
