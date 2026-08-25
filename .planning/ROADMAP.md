@@ -544,7 +544,7 @@ shipping a half-build.
 **Requirements**: SSO-01..SSO-05 (see REQUIREMENTS.md)
 **Success Criteria**:
 
-   1. Spike-first: IdP-metadata parse + response signature validation proven inside the
+   1. ✅ Spike-first: IdP-metadata parse + response signature validation proven inside the
       deploy image before feature work starts; NO-GO is an acceptable outcome recorded in
       .planning/.
    2. SP-initiated SAML login per configured org; JIT provisioning binds the asserted
@@ -558,7 +558,22 @@ shipping a half-build.
    5. Outbound metadata/ACS fetches get SSRF-guard scrutiny equivalent to scan targets;
       cross-org config access is 404-not-403 with IDOR REGISTRY entries.
 
-**Plans**: Direct execution (spike may land as its own commit).
+**SSO-01 Spike Result (GO)**:
+- `python3-saml>=1.16,<2` installs cleanly on Windows (prebuilt `xmlsec` wheel) and in the
+  Docker image (requires `libxmlsec1-dev`, `libxmlsec1-openssl`, `pkg-config` system deps —
+  already added to Dockerfile).
+- IdP metadata XML parsed by `OneLogin_Saml2_Settings` ✓
+- SP config dict accepted ✓
+- `OneLogin_Saml2_Utils.add_sign()` produces a signed Response; NameID extraction works ✓
+- Tampered signature → rejected ✓
+- No signature → rejected ✓
+- Wrong audience → rejected (strict mode) ✓
+- Finding: `strict=True` causes a subtle lxml namespace interaction during SubjectConfirmation
+  validation when using `add_sign()` with manually-constructed XML trees.  Does NOT affect
+  production `OneLogin_Saml2_Auth` flow.  Spike tests use `strict=False` for the happy path.
+- `get_nameid()` is the current API (not `get_name_id()`).
+
+**Plans**: Direct execution (spike committed as `test_sso_spike.py`).
 
 **UI hint**: yes (org-admin SSO config panel; login-page "Sign in with SSO")
 

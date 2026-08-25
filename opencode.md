@@ -73,34 +73,33 @@ deployable, tested (pytest on every push), and safe by design.
   at 5 attempts; secrets redacted in reports; marker-only stored-XSS proof.
 - AI summary prompt keeps findings framed as data-to-summarize (injection bound).
 
-## State snapshot (last updated: 2026-08-25, post Phase 25 build)
+## State snapshot (last updated: 2026-08-25, post Phase 25 push + Phase 26 spike GO)
 
-- Branch `develop`, HEAD **7960fd1** "feat(24): PDF export of scan reports (PDFX-01..08)",
-  pushed to origin.
-- **Phase 24 SHIPPED TO STAGING** (7960fd1) — PDF export of scan reports:
-  `webvulnscanner/pdf_report.py` shared writer behind both surfaces (session-web
-  /scan/<id>/report.pdf + token-authed /api/v1 twin, same ownership guards as
-  CSV/SARIF — IDOR REGISTRY += both); `templates/pdf_report.html` standalone
-  self-contained PDF template (no `| safe` on finding fields, autoescaping ON);
-  WeasyPrint `>=68,<70` with `URLFetcher(allowed_protocols=[])` +
-  `presentational_hints=False` for SSRF defence; shared `safe_filename()` helper
-  in `webvulnscanner/utils.py` retroactively applied to CSV/SARIF exporters;
-  Dockerfile updated with pango/harfbuzz/font-noto runtime deps + `fc-cache -f`.
-  22 tests (safe_filename allowlist, writer determinism, severity sorting,
-  empty-findings degrade, no-raw-check-data redaction, ownership IDOR for
-  both surfaces, no-drift byte-for-byte lock, template `| safe` regression);
-  11 rendering tests skip on Windows (need GTK3), will pass on Linux CI.
-  Full targeted suite: 63 passed, 11 skipped, 0 failed.
-- **Phase 23 READY TO COMMIT** — audit log: `audit.py` consolidated helpers,
-  15 org event types + 4 platform types, emission sites wired (api_tokens,
-  webhooks, billing), paginated `audit_log.html`, IDOR registry entry,
-  retention trim-on-insert (`MAX_AUDIT_EVENTS_PER_ORG = 10_000`),
-  12 tests all passing. Also fixed api_docs.py PDF endpoint documentation.
-- **Phase 24 still requires**: staging deploy verification (needs Docker with
-  GTK3 native libs — the 11 skipped rendering tests will validate on CI).
+- Branch `develop`, HEAD **b4822b5** "feat(25): pipeline integrations — NDJSON export, Splunk HEC webhook, retry loop", pushed to origin.
+- **Phase 25 SHIPPED TO STAGING** (b4822b5) — pipeline integrations: NDJSON
+  report writer, session-web + token-authed API endpoint, Splunk HEC payload
+  builder with format dispatch, exponential backoff retry (3 attempts,
+  1/2/4s delays), `WebhookDelivery.attempt_number` column, audit.py
+  solo-user early-return bugfix, form dropdown for payload format, template
+  pill badge. 140 passed, 11 skipped (WeasyPrint/GTK3), 0 failed.
+- **Phase 26 SSO-01 Spike: GO** — `python3-saml>=1.16,<2` installs cleanly,
+  IdP metadata parse ✓, signed SAML Response validation ✓, tampered/no-signature/
+  wrong-audience all rejected ✓. Spike tests committed as `tests/test_sso_spike.py`.
+  Dockerfile updated with `libxmlsec1-dev`/`libxmlsec1-openssl`/`pkg-config`.
+  Ready to build SSOConfiguration model + migration + ACS callback + JIT provisioning.
 
 ### Done (recent history)
 
+- Phase 25 — Pipeline Integrations (`feat(25)`, b4822b5, 2026-08-25):
+  `webvulnscanner/ndjson_report.py` NDJSON writer; session-web
+  `/scan/<id>/findings.ndjson` + token-authed API twin (IDOR registry += both,
+  api_docs entry); `webvulnscanner/webhooks.py` Splunk HEC payload builder +
+  format dispatch (`Splunk`/`Generic`/`NDJSON`); exponential backoff retry
+  (3 attempts, `[1, 2, 4]`s delays); `WebhookDelivery.attempt_number` column;
+  `audit.py` solo-user early-return bugfix; form payload_format dropdown in
+  `webhook_routes.py`; template pill badge in `webhooks.html`. 140 passed,
+  11 skipped (WeasyPrint/GTK3), 0 failed. INTG-04 (GitHub Actions recipe)
+  deferred.
 - Phase 23 — Audit Log (2026-08-25): `webvulnscanner/audit.py` shared helpers
   (consolidated from `org_routes._log_org_event` / `admin_routes._log_platform_event`),
   `ORG_AUDIT_EVENT_LABELS` for 15 event types, `log_platform_event` for 4 platform
@@ -570,8 +569,11 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    DONE (decision doc, NO-GO for v1, GO deferred to v2). ~~Phase 23~~ DONE
    (audit log — test_audit_log.py 12 tests, audit.py consolidated helpers,
    emission sites wired, paginated /org/audit, IDOR registry, retention trim).
-    **NEXT: Phase 25 (Pipeline Integrations)** — then 26 per v1.6 order.
-    INTG-04 (GitHub Actions recipe) DEFERRED — user confirmed GitHub Actions can't be used now.
+    **NEXT: Phase 26 (SSO/SAML) — SSO-01 spike GO**. Build SSOConfiguration model
+    + migration (User.password_hash nullable, User.auth_method, Fernet encryption for
+    IdP secrets), ACS callback, SSO login initiation, JIT user provisioning, org admin
+    SSO config panel, password-disable toggle, audit events, SSRF guard on IdP
+    metadata/ACS fetches, IDOR registry entries.
     Also scoped-but-unbuilt: Phase 27.1 chart legibility (CHARTUX-01..04; needs the
    `dataviz` skill per its own criterion 5) — slot it whenever the user says go.
 6. Housekeeping: `dev-server-*.log` files and `instance/` are untracked

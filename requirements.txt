@@ -17,3 +17,4 @@ click
 redis
 pyyaml
 weasyprint>=68,<70
+python3-saml>=1.16,<2

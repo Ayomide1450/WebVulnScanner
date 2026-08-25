@@ -9,11 +9,14 @@ WORKDIR /app
 # import/runtime; kept minimal rather than pulling the full build-essential set.
 # WeasyPrint (Phase 24) needs pango/harfbuzz for text layout and font-noto for
 # non-ASCII/CJK glyph coverage; fontconfig caches fonts at build time.
+# python3-saml (Phase 26) needs libxmlsec1 for SAML Response signature validation;
+# libxmlsec1-dev + pkg-config needed at build time for the C extension.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 libjpeg62-turbo zlib1g \
     pango1.0-tools libpango-1.0-0 libpangocairo-1.0-0 \
     libharfbuzz0b libharfbuzz-subset0 \
     libfontconfig1 fonts-noto-cjk \
+    libxml2 libxmlsec1 libxmlsec1-dev pkg-config \
     && rm -rf /var/lib/apt/lists/* \
     && fc-cache -f
 
