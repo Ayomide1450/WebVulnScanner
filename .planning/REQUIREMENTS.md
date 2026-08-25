@@ -392,7 +392,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ### SSO / SAML — Phase 26 (v1.6)
 
-- [ ] **SSO-01**: Spike-first: IdP-metadata parse + response signature validation proven
+- [x] **SSO-01**: Spike-first: IdP-metadata parse + response signature validation proven
       inside the deploy image BEFORE feature build; NO-GO recorded in .planning/ is an
       acceptable outcome instead of a half-build.
 - [x] **SSO-02**: SP-initiated SAML login per configured org; JIT provisioning binds the
@@ -516,9 +516,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 |---|---|---|
 | DOCS-01..05 | Phase 22 | Complete |
 | AUDIT-01..05 | Phase 23 | Complete (2026-08-25) |
-| PDFX-01..08 | Phase 24 | Planned (verified concerns incorporated 2026-08-25) |
-| INTG-01..04 | Phase 25 | Planned |
-| SSO-01..05 | Phase 26 | Planned |
+| PDFX-01..08 | Phase 24 | Complete (2026-08-25) |
+| INTG-01..04 | Phase 25 | Complete (INTG-04 deferred to CI availability) |
+| SSO-01..05 | Phase 26 | Complete (2026-08-25) |
 | UXFT-01..04 | Phase 21.1 | Complete |
 | CONT-01..04 | Phase 27 | Complete (2026-08-24, staging v14) |
 | PLUG-01..05 | Phase 28 | Complete (2026-08-25, staging v16) |
