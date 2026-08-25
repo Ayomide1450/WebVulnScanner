@@ -428,32 +428,32 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ### Risk-Score-Over-Time Chart Legibility Fix (CHARTUX) — Phase 27.1 (v1.7, INSERTED)
 
-- [ ] **CHARTUX-01**: Each point on the "Risk score over time" line is colored by that scan's
+- [x] **CHARTUX-01**: Each point on the "Risk score over time" line is colored by that scan's
       own grade/severity (reusing `base.html`'s existing severity/grade color tokens), not a
       single fixed `--accent` green regardless of score — a 0/100 Grade-F point must not render
       in the same color the design system uses to mean "passing" everywhere else.
-- [ ] **CHARTUX-02**: Each point's risk score value is visible directly on/near the mark
+- [x] **CHARTUX-02**: Each point's risk score value is visible directly on/near the mark
       (static label and/or hover tooltip) — never requires re-reading the caption sentence
       above the chart to know a given point's value.
-- [ ] **CHARTUX-03**: A light axis/gridline reference (at minimum 0/50/100 y-axis ticks) gives
+- [x] **CHARTUX-03**: A light axis/gridline reference (at minimum 0/50/100 y-axis ticks) gives
       the chart a frame of reference instead of a line floating in empty space.
-- [ ] **CHARTUX-04**: The pre-existing `n==1` single-point special case (flat 2-point reference
+- [x] **CHARTUX-04**: The pre-existing `n==1` single-point special case (flat 2-point reference
       line + text label) still renders correctly on both the dashboard's per-target sparkline
       and the Asset detail page's chart — this fix must not regress that already-solved case.
 
 ### Check Extensibility / Plugin Architecture (PLUG) — Phase 28 (v1.7)
 
-- [ ] **PLUG-01**: A declarative (YAML-based, HTTP request/response pattern-match only)
+- [x] **PLUG-01**: A declarative (YAML-based, HTTP request/response pattern-match only)
       community-check format loads from a `checks/community/*.yaml` directory at startup.
-- [ ] **PLUG-02**: A loaded community check runs through the identical `(data, findings)`
+- [x] **PLUG-02**: A loaded community check runs through the identical `(data, findings)`
       contract, jobs-dict wiring, and `FEATURE_REQUIREMENTS` tier-gating as a built-in check —
       defaulting to the most restrictive tier, never FREE, unless explicitly configured.
-- [ ] **PLUG-03**: Malformed or unsafe check definitions (non-GET methods, off-target hosts,
+- [x] **PLUG-03**: Malformed or unsafe check definitions (non-GET methods, off-target hosts,
       missing required fields) fail closed at load time with a clear error — never silently
       skipped, never executed with unsafe defaults.
-- [ ] **PLUG-04**: A schema doc plus 2-3 example community checks ship in-repo as the
+- [x] **PLUG-04**: A schema doc plus 2-3 example community checks ship in-repo as the
       contributor reference.
-- [ ] **PLUG-05**: Load-time validation is covered by tests, including one deliberately
+- [x] **PLUG-05**: Load-time validation is covered by tests, including one deliberately
       malformed fixture per rejection reason.
 
 ### SARIF Export (SARIF) — Phase 29 (v1.7)
@@ -498,9 +498,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SSO-01..05 | Phase 26 | Planned |
 | UXFT-01..04 | Phase 21.1 | Complete |
 | CONT-01..04 | Phase 27 | Complete (2026-08-24, staging v14) |
-| PLUG-01..05 | Phase 28 | Planned |
+| PLUG-01..05 | Phase 28 | Complete (2026-08-25, staging v16) |
 | SARIF-01..03 | Phase 29 | Complete 2026-08-24 (SARIF-03 pending user-side GitHub upload) |
-| OSSD-01 | Phase 30 | Planned |
+| OSSD-01 | Phase 30 | Complete (2026-08-25, decision doc — GO, deferred to v2) |
 
 **Coverage:** 105/105 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for
 v1.3 across 5 phases, 17 new for v1.4 across 4 phases, 16 for v1.5 across 2 phases - all

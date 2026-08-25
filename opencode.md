@@ -73,28 +73,24 @@ deployable, tested (pytest on every push), and safe by design.
   at 5 attempts; secrets redacted in reports; marker-only stored-XSS proof.
 - AI summary prompt keeps findings framed as data-to-summarize (injection bound).
 
-## State snapshot (last updated: 2026-08-24, post Phase 29 ship)
+## State snapshot (last updated: 2026-08-25, post Phase 30 decision)
 
-- Branch `develop`, HEAD **d6981c3** "feat(29): SARIF 2.1.0 export (SARIF-01,
-  SARIF-02)", pushed to origin. NOTE: this commit landed CONCURRENTLY with the
-  opencode session (authored user/Claude-side while live-fire was running) — it
-  contains exactly the tree the session had verified; staging release v15 runs
-  these bytes. Check `git log` before assuming HEAD (this bit twice now).
-- **Phase 29 SHIPPED TO STAGING** (d6981c3) — staging release **v15**, full suite
-  **1049 passed / 0 failed** pre-deploy. Live-fire confirmed via fresh process:
-  /healthz 200; token-authed /api/v1/scans/8/report.sarif served valid SARIF
-  2.1.0 (5 rules / 24 results, levels error×19/warning×2/note×3, ruleIndex↔rules
-  consistent); unauth API → 401 JSON; unauth session route → 302 login.
-  **SARIF-03 (real upload-sarif run against a scratch GitHub repo) is PENDING
-  USER ACTION** — needs Actions, billing-blocked until next month.
+- Branch `develop`, HEAD **f215d92** "fix(27.1): severity-aware chart point colors +
+  gridlines + score labels", pushed to origin.
+- **Phase 27.1 SHIPPED TO STAGING** (f215d92) — chart legibility fix: points colored
+  by severity (pass/medium/high/critical), score labels on each point, y-axis
+  gridlines. Asset detail chart fully redesigned from bare sparkline.
+- **Phase 28 SHIPPED TO STAGING** (bbad7b0) — community check plugin architecture:
+  YAML-defined checks from checks/community/*.yaml, schema validation, registry
+  integration, ThreadPoolExecutor dispatch. 41 tests, 1089 passed full suite.
+- **Phase 30 DECISION DOC COMPLETE** (.planning/PHASE30-OPEN-CORE-DECISION.md) —
+  GO decision: AGPL-3.0 open-core, deferred to v2 for execution. No code change.
+- v1.7 is now COMPLETE (Phases 27, 27.1, 28, 29, 30 all shipped/documented).
 - Phases 21.1/22/27 remain v13/v14-live-fire-verified. NOT yet promoted to
   production — awaiting user's staging verification per the STAGING-FIRST POLICY
-  (now covers 17–22 + 21.1 + 27 + 29).
-- **v1.7 order set by user/Claude**: Phase 27 DONE → 29 DONE → NEXT UP: Phase 28
-  (Check Extensibility) → then 30 (Open-Core Decision Spike). Phase 27.1
-  (chart legibility fix) is scoped in ROADMAP/REQUIREMENTS but unbuilt.
+  (now covers 17–22 + 21.1 + 27 + 27.1 + 28 + 29).
 - Tests run via `pytest` (fresh Flask app per test, SQLite under tmp_path).
-  Full suite is ~20 min / **1049 tests**; use targeted runs during development.
+  Full suite is ~12 min / **1089 tests**; use targeted runs during development.
 
 ### Done (recent history)
 

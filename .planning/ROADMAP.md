@@ -761,8 +761,8 @@ not a failure to ship.
 | 26. SSO / SAML | v1.6 | Direct execution | Planned | - |
 | 21.1. Detection-Verification UX Fold-In (INSERTED) | v1.5 | Direct execution | Complete | 2026-08-24 |
 | 27. Continuous Regression Tracking | v1.7 | Direct execution | Complete 2026-08-24 | 4e5947e (staging v14) |
-| 27.1. Risk-Score-Over-Time Chart Legibility Fix (INSERTED) | v1.7 | Direct execution | Planned | - |
-| 28. Check Extensibility (Plugin Architecture) | v1.7 | Direct execution | Planned | - |
+| 27.1. Risk-Score-Over-Time Chart Legibility Fix (INSERTED) | v1.7 | Direct execution | Complete 2026-08-25 | f215d92 (staging v16) |
+| 28. Check Extensibility (Plugin Architecture) | v1.7 | Direct execution | Complete 2026-08-25 | bbad7b0 (staging v16) |
 | 29. SARIF Export | v1.7 | Direct execution | Complete 2026-08-24 (SARIF-03 user-pending) | d6981c3 (staging v15) |
-| 30. Self-Hostable / Open-Core Decision Spike | v1.7 | Direct execution | Planned | - |
+| 30. Self-Hostable / Open-Core Decision Spike | v1.7 | Direct execution | Complete 2026-08-25 | Decision doc (NO code change) |
 
