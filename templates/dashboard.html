@@ -263,7 +263,8 @@
       <polygon points="{{ pts|join(' ') }} {{ (pad_l + plot_w)|string }},{{ (pad_t + plot_h)|string }} {{ pad_l|string }},{{ (pad_t + plot_h)|string }}" fill="url(#scoreFill)"></polygon>
       <polyline points="{{ pts|join(' ') }}" fill="none" stroke="var(--accent)" stroke-width="2"></polyline>
       {% if n == 1 %}
-      <circle cx="{{ pad_l + plot_w / 2 }}" cy="{{ only_y }}" r="4" fill="var(--accent2)" stroke="var(--bg)" stroke-width="2">
+      {% set only_sev = 'pass' if chronological[0].risk_score >= 90 else ('medium' if chronological[0].risk_score >= 60 else ('high' if chronological[0].risk_score >= 40 else 'critical')) %}
+      <circle cx="{{ pad_l + plot_w / 2 }}" cy="{{ only_y }}" r="4" fill="var(--{{ only_sev }})" stroke="var(--bg)" stroke-width="2">
         <title>{{ chronological[0].created_at.strftime('%b %d, %Y') }} &middot; Score {{ chronological[0].risk_score }} &middot; {{ scan_type_labels.get(chronological[0].scan_type, chronological[0].scan_type|title) }}</title>
       </circle>
       <text class="chart-point-label" x="{{ pad_l + plot_w / 2 + 10 }}" y="{{ only_y - 8 }}">{{ chronological[0].risk_score }} (only scan so far)</text>
@@ -272,7 +273,8 @@
       {% for s in chronological %}
         {% set x = (pad_l + (loop.index0 / (n - 1)) * plot_w)|round(1) %}
         {% set y = (pad_t + plot_h - (s.risk_score / 100 * plot_h))|round(1) %}
-        <circle cx="{{ x }}" cy="{{ y }}" r="3.5" fill="var(--accent2)" stroke="var(--bg)" stroke-width="1.5">
+        {% set sev = 'pass' if s.risk_score >= 90 else ('medium' if s.risk_score >= 60 else ('high' if s.risk_score >= 40 else 'critical')) %}
+        <circle cx="{{ x }}" cy="{{ y }}" r="3.5" fill="var(--{{ sev }})" stroke="var(--bg)" stroke-width="1.5">
           <title>{{ s.created_at.strftime('%b %d, %Y') }} &middot; Score {{ s.risk_score }} &middot; {{ scan_type_labels.get(s.scan_type, s.scan_type|title) }}</title>
         </circle>
         <text class="chart-point-label" x="{{ x }}" y="{{ y - 9 }}" text-anchor="middle">{{ s.risk_score }}</text>

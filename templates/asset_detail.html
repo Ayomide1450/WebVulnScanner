@@ -16,6 +16,9 @@
   .meta { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
   .latest-score { font-size:36px; font-weight:600; }
   .sparkline-card .hint, .compliance-card .hint { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+  .chart-point-label { font-family:"Fira Code",monospace; font-size:10px; fill: var(--text); }
+  .chart-axis-label { font-family:"Fira Code",monospace; font-size:10px; fill: var(--muted); }
+  .chart-date-label { font-family:"Fira Code",monospace; font-size:9.5px; fill: var(--muted); }
 
   /* COMP-03's coverage-summary "not_checked" status badge reuses
      scan_report.html's .finding.locked-card treatment (opacity .65 + the
@@ -140,31 +143,50 @@
       {% set n = scored|length %}
       {% if n > 0 %}
       <p class="hint">{{ n }} completed scan(s) with a risk score, oldest to newest.</p>
-      {% set sw = 560 %}{% set sh = 70 %}
+      {% set pad_l = 34 %}{% set pad_r = 20 %}{% set pad_t = 18 %}{% set pad_b = 26 %}
+      {% set sw = pad_l + (90 * ([n, 6]|max)) + pad_r %}{% set sh = pad_t + 130 + pad_b %}
+      {% set plot_h = 130 %}{% set plot_w = sw - pad_l - pad_r %}
+      {% set chronological = scored|reverse|list %}
       {% if n == 1 %}
-        {% set only_y = (sh - (scored[0].risk_score / 100 * sh))|round(1) %}
-        {% set pts = ['0,' + only_y|string, sw|string + ',' + only_y|string] %}
+        {% set only_y = (pad_t + plot_h - (chronological[0].risk_score / 100 * plot_h))|round(1) %}
+        {% set only_sev = 'pass' if chronological[0].risk_score >= 90 else ('medium' if chronological[0].risk_score >= 60 else ('high' if chronological[0].risk_score >= 40 else 'critical')) %}
+        {% set pts = [(pad_l|string) + ',' + (only_y|string), (pad_l + plot_w)|string + ',' + (only_y|string)] %}
       {% else %}
         {% set pts = [] %}
-        {% for s in scored|reverse %}
-          {% set x = ((loop.index0 / (n - 1)) * sw)|round(1) %}
-          {% set y = (sh - (s.risk_score / 100 * sh))|round(1) %}
+        {% for s in chronological %}
+          {% set x = (pad_l + (loop.index0 / (n - 1)) * plot_w)|round(1) %}
+          {% set y = (pad_t + plot_h - (s.risk_score / 100 * plot_h))|round(1) %}
           {% set _ = pts.append(x|string + ',' + y|string) %}
         {% endfor %}
       {% endif %}
-      <svg width="100%" height="{{ sh + 10 }}" viewBox="0 0 {{ sw }} {{ sh + 10 }}" preserveAspectRatio="none" style="overflow:visible;">
+      <div class="chart-scroll">
+      <svg width="100%" height="{{ sh }}" viewBox="0 0 {{ sw }} {{ sh }}" preserveAspectRatio="none" style="overflow:visible;">
+        {% for gv in [0, 50, 100] %}
+          {% set gy = (pad_t + plot_h - (gv / 100 * plot_h))|round(1) %}
+          <line x1="{{ pad_l }}" y1="{{ gy }}" x2="{{ pad_l + plot_w }}" y2="{{ gy }}" stroke="var(--border)" stroke-width="1"></line>
+          <text class="chart-axis-label" x="{{ pad_l - 8 }}" y="{{ gy + 3 }}" text-anchor="end">{{ gv }}</text>
+        {% endfor %}
         <polyline points="{{ pts|join(' ') }}" fill="none" stroke="var(--accent)" stroke-width="2"></polyline>
         {% if n == 1 %}
-        <circle cx="{{ sw / 2 }}" cy="{{ only_y }}" r="3" fill="var(--accent2)"></circle>
-        <text x="{{ (sw / 2) + 8 }}" y="{{ only_y - 8 }}" fill="var(--muted)" font-family="Fira Code, monospace" font-size="11">{{ scored[0].risk_score }} (only scan so far)</text>
+        <circle cx="{{ pad_l + plot_w / 2 }}" cy="{{ only_y }}" r="4" fill="var(--{{ only_sev }})" stroke="var(--bg)" stroke-width="2">
+          <title>{{ chronological[0].created_at.strftime('%b %d, %Y') }} &middot; Score {{ chronological[0].risk_score }}</title>
+        </circle>
+        <text class="chart-point-label" x="{{ pad_l + plot_w / 2 + 10 }}" y="{{ only_y - 8 }}">{{ chronological[0].risk_score }} (only scan so far)</text>
+        <text class="chart-date-label" x="{{ pad_l + plot_w / 2 }}" y="{{ pad_t + plot_h + 18 }}" text-anchor="middle">{{ chronological[0].created_at.strftime('%b %d') }}</text>
         {% else %}
-        {% for s in scored|reverse %}
-          {% set x = ((loop.index0 / (n - 1)) * sw)|round(1) %}
-          {% set y = (sh - (s.risk_score / 100 * sh))|round(1) %}
-          <circle cx="{{ x }}" cy="{{ y }}" r="3" fill="var(--accent2)"></circle>
+        {% for s in chronological %}
+          {% set x = (pad_l + (loop.index0 / (n - 1)) * plot_w)|round(1) %}
+          {% set y = (pad_t + plot_h - (s.risk_score / 100 * plot_h))|round(1) %}
+          {% set sev = 'pass' if s.risk_score >= 90 else ('medium' if s.risk_score >= 60 else ('high' if s.risk_score >= 40 else 'critical')) %}
+          <circle cx="{{ x }}" cy="{{ y }}" r="3.5" fill="var(--{{ sev }})" stroke="var(--bg)" stroke-width="1.5">
+            <title>{{ s.created_at.strftime('%b %d, %Y') }} &middot; Score {{ s.risk_score }}</title>
+          </circle>
+          <text class="chart-point-label" x="{{ x }}" y="{{ y - 9 }}" text-anchor="middle">{{ s.risk_score }}</text>
+          <text class="chart-date-label" x="{{ x }}" y="{{ pad_t + plot_h + 18 }}" text-anchor="middle">{{ s.created_at.strftime('%b %d') }}</text>
         {% endfor %}
         {% endif %}
       </svg>
+      </div>
       {% else %}
       <p class="hint" style="margin:0;">Not enough completed scans yet for a trend line.</p>
       {% endif %}
