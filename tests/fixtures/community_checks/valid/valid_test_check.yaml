@@ -1,0 +1,25 @@
+# Valid community check for happy-path testing
+name: test_valid_check
+display_label: Valid test check
+description: A valid community check used in tests.
+owasp_category: A05:2021 - Security Misconfiguration
+security_domain: Configuration
+tier: free
+icon_category: lock
+
+requests:
+  - path: /test
+    method: GET
+    param_name: q
+    payload: hello
+    match:
+      status_code: 200
+      body_contains: "expected_content"
+
+finding:
+  title: "Test finding"
+  severity: low
+  description: This is a test finding for validation.
+  recommendation: Fix the thing.
+  confidence: Confirmed
+  cwe: "CWE-200"

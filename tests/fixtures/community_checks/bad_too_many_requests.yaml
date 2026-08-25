@@ -1,0 +1,23 @@
+# Too many requests (>10)
+name: too_many
+display_label: Too many
+description: Test
+owasp_category: A05:2021
+security_domain: Configuration
+tier: free
+requests:
+  - {path: /1, match: {status_code: 200}}
+  - {path: /2, match: {status_code: 200}}
+  - {path: /3, match: {status_code: 200}}
+  - {path: /4, match: {status_code: 200}}
+  - {path: /5, match: {status_code: 200}}
+  - {path: /6, match: {status_code: 200}}
+  - {path: /7, match: {status_code: 200}}
+  - {path: /8, match: {status_code: 200}}
+  - {path: /9, match: {status_code: 200}}
+  - {path: /10, match: {status_code: 200}}
+  - {path: /11, match: {status_code: 200}}
+finding:
+  title: Test
+  severity: low
+  description: Test

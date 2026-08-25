@@ -1,0 +1,38 @@
+# Example community check: Missing X-Content-Type-Options header
+#
+# Detects when a server does not send the X-Content-Type-Options header,
+# which browsers use to prevent MIME-type sniffing.  A single GET to the
+# homepage; fires when the header is absent.
+#
+# Tier: FREE (passive header check, no probing)
+# Category: Configuration
+# OWASP: A05:2021 - Security Misconfiguration
+
+name: missing_x_content_type
+display_label: Missing X-Content-Type-Options header
+description: >
+  The X-Content-Type-Options header prevents browsers from MIME-sniffing
+  a response away from the declared content type.  Without it, an attacker
+  may be able to trick a browser into executing a downloaded file as a
+  different type than intended.
+owasp_category: A05:2021 - Security Misconfiguration
+security_domain: Configuration
+tier: free
+icon_category: lock
+
+requests:
+  - path: /
+    method: GET
+    match:
+      forbidden_headers:
+        - X-Content-Type-Options
+
+finding:
+  title: "Missing X-Content-Type-Options header"
+  severity: low
+  description: >
+    The server does not send X-Content-Type-Options on its homepage.  Add
+    'X-Content-Type-Options: nosniff' to prevent MIME-type sniffing attacks.
+  recommendation: Add the header 'X-Content-Type-Options: nosniff' to all HTTP responses.
+  confidence: Confirmed
+  cwe: "CWE-693"

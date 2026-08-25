@@ -1,0 +1,15 @@
+# Invalid security_domain
+name: bad_domain
+display_label: Bad domain
+description: Test
+owasp_category: A05:2021
+security_domain: NotARealDomain
+tier: free
+requests:
+  - path: /
+    match:
+      status_code: 200
+finding:
+  title: Test
+  severity: low
+  description: Test

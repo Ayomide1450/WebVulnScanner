@@ -19,6 +19,7 @@ territory. This asymmetry with run_scan/run_advanced_scan is intentional,
 not an oversight.
 """
 import json
+import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
@@ -27,6 +28,12 @@ from urllib.parse import urlparse
 
 from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, allowed_checks
 from webvulnscanner.selftest import verification_summary
+from webvulnscanner.community_checks import (
+    load_community_checks,
+    register_community_checks,
+    build_community_jobs,
+    CommunityCheckError,
+)
 from webvulnscanner.checks import (
     REQUEST_TIMEOUT,
     REPORTS_DIR,  # noqa: F401  (re-exported for callers that import it from here)
@@ -79,6 +86,8 @@ from webvulnscanner.checks import (
     check_api_wordlist,
     check_api_js_discovery,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _score_report(findings):
@@ -480,6 +489,20 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         "jwt_active": lambda: check_jwt_active(session, base_url, home_html),
         "graphql_deep": lambda: check_graphql_deep(base_url, session),
     }
+
+    # Community checks (Phase 28): load YAML-defined checks from
+    # checks/community/*.yaml, register them in the global registries, and
+    # merge into the jobs dict so they go through the same allowed_checks /
+    # ThreadPoolExecutor dispatch as built-in checks.  Errors at load time
+    # are logged and skipped — community checks must never break a scan.
+    try:
+        _community_specs = load_community_checks()
+        if _community_specs:
+            register_community_checks(_community_specs)
+            _community_jobs = build_community_jobs(_community_specs, base_url, session)
+            jobs.update(_community_jobs)
+    except CommunityCheckError as e:
+        logger.warning("Community checks disabled: %s", e)
 
     # Captured before `jobs` is filtered down to `allowed` below - the base
     # denominator for SCORE-01's coverage_pct is every check that could

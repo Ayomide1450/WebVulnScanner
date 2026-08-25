@@ -1,0 +1,15 @@
+# Invalid tier value
+name: bad_tier
+display_label: Bad tier
+description: Test
+owasp_category: A05:2021
+security_domain: Configuration
+tier: enterprise
+requests:
+  - path: /
+    match:
+      status_code: 200
+finding:
+  title: Test
+  severity: low
+  description: Test

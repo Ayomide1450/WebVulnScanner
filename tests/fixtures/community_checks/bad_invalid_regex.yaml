@@ -1,0 +1,15 @@
+# Invalid regex in body_regex
+name: bad_regex
+display_label: Bad regex
+description: Test
+owasp_category: A05:2021
+security_domain: Configuration
+tier: free
+requests:
+  - path: /
+    match:
+      body_regex: '(?unclosed'
+finding:
+  title: Test
+  severity: low
+  description: Test

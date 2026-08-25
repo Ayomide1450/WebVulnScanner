@@ -1,0 +1,16 @@
+# Non-GET method (rejected)
+name: bad_method
+display_label: Bad method
+description: Test
+owasp_category: A05:2021
+security_domain: Configuration
+tier: free
+requests:
+  - path: /submit
+    method: POST
+    match:
+      status_code: 200
+finding:
+  title: Test
+  severity: low
+  description: Test

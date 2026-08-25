@@ -1,0 +1,16 @@
+# Invalid confidence value
+name: bad_confidence
+display_label: Bad confidence
+description: Test
+owasp_category: A05:2021
+security_domain: Configuration
+tier: free
+requests:
+  - path: /
+    match:
+      status_code: 200
+finding:
+  title: Test
+  severity: low
+  description: Test
+  confidence: Absolutely Certain

@@ -1,0 +1,54 @@
+# Example community check: Exposed admin panels
+#
+# Probes common admin-panel paths and checks for a 200 response that
+# contains login-form indicators.  Fires at MEDIUM severity because an
+# exposed admin login is not itself a vulnerability, but it expands the
+# attack surface for brute-force and credential-stuffing attacks.
+#
+# Tier: PAID (probes multiple paths, active check)
+# Category: Attack Surface
+# OWASP: A01:2021 - Broken Access Control
+
+name: exposed_admin_panels
+display_label: Exposed admin panels
+description: >
+  Commonly used administrative login panels (e.g. /admin, /wp-admin,
+  /phpmyadmin) return a 200 status with a login form, indicating they
+  are publicly reachable.  This expands the attack surface for brute-force
+  and credential-stuffing attacks.
+owasp_category: A01:2021 - Broken Access Control
+security_domain: Attack Surface
+tier: paid
+icon_category: folder
+
+requests:
+  - path: /admin
+    method: GET
+    match:
+      status_code: 200
+      body_regex: '(?i)(login|sign.?in|password|username|log.?in)'
+  - path: /wp-admin
+    method: GET
+    match:
+      status_code: 200
+      body_regex: '(?i)(login|sign.?in|password|username|log.?in)'
+  - path: /phpmyadmin
+    method: GET
+    match:
+      status_code: 200
+      body_regex: '(?i)(login|sign.?in|password|username|log.?in)'
+
+finding:
+  title: "Publicly reachable admin panel detected"
+  severity: medium
+  description: >
+    An administrative login panel was found accessible from the public
+    internet.  While the panel itself requires authentication, its
+    exposure increases the attack surface for brute-force and
+    credential-stuffing attacks.
+  recommendation: >
+    Restrict access to administrative panels via IP allowlisting,
+    VPN, or network segmentation.  If public access is required,
+    enforce rate limiting and multi-factor authentication.
+  confidence: Strong Evidence
+  cwe: "CWE-284"

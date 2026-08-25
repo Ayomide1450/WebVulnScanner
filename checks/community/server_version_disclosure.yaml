@@ -1,0 +1,46 @@
+# Example community check: Server version disclosure
+#
+# Detects when the Server or X-Powered-By header reveals software version
+# information.  Attackers use version data to target known CVEs.  Fires
+# when the header value contains a version-like pattern (e.g. "Apache/2.4").
+#
+# Tier: FREE (passive header check)
+# Category: Configuration
+# OWASP: A05:2021 - Security Misconfiguration
+
+name: server_version_disclosure
+display_label: Server version disclosure
+description: >
+  The Server or X-Powered-By header reveals software version information
+  that helps attackers identify known vulnerabilities for that specific
+  version.
+owasp_category: A05:2021 - Security Misconfiguration
+security_domain: Attack Surface
+tier: free
+icon_category: shield
+
+requests:
+  - path: /
+    method: GET
+    match:
+      required_headers:
+        - Server
+      body_regex: '(?i)(apache|nginx|iis|tomcat|gunicorn|uvicorn)/\d'
+  - path: /
+    method: GET
+    match:
+      required_headers:
+        - X-Powered-By
+
+finding:
+  title: "Software version information disclosed"
+  severity: low
+  description: >
+    The server reveals version information in its HTTP headers.  This
+    helps attackers identify specific software versions and target known CVEs.
+  recommendation: >
+    Remove or obfuscate version information from the Server and
+    X-Powered-By headers (e.g. 'ServerTokens Prod' for Apache,
+    'server_tokens off' for Nginx).
+  confidence: Confirmed
+  cwe: "CWE-200"

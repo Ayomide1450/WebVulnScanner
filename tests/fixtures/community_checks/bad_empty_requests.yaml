@@ -1,0 +1,12 @@
+# Empty requests list
+name: empty_requests
+display_label: Empty requests
+description: Test
+owasp_category: A05:2021
+security_domain: Configuration
+tier: free
+requests: []
+finding:
+  title: Test
+  severity: low
+  description: Test

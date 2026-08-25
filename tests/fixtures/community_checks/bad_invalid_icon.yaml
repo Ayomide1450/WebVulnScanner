@@ -1,0 +1,16 @@
+# Invalid icon_category
+name: bad_icon
+display_label: Bad icon
+description: Test
+owasp_category: A05:2021
+security_domain: Configuration
+tier: free
+icon_category: star
+requests:
+  - path: /
+    match:
+      status_code: 200
+finding:
+  title: Test
+  severity: low
+  description: Test

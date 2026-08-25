@@ -1,0 +1,15 @@
+# Invalid name format (has spaces and uppercase)
+name: Invalid Name!
+display_label: Bad name
+description: Test
+owasp_category: A05:2021
+security_domain: Configuration
+tier: free
+requests:
+  - path: /
+    match:
+      status_code: 200
+finding:
+  title: Test
+  severity: low
+  description: Test
