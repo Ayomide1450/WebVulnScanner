@@ -797,8 +797,8 @@ not a failure to ship.
 | 22. In-Product API Documentation | v1.6 | Direct execution | Complete | 2026-08-24 |
 | 23. Audit Log | v1.6 | Direct execution | Complete | 2026-08-25 |
 | 24. Report PDF Export | v1.6 | Direct execution | Complete | 2026-08-25 |
-| 25. Pipeline Integrations (GitHub/SIEM) | v1.6 | Direct execution | Planned | - |
-| 26. SSO / SAML | v1.6 | Direct execution | Planned | - |
+| 25. Pipeline Integrations (GitHub/SIEM) | v1.6 | Direct execution | Complete | 2026-08-25 |
+| 26. SSO / SAML | v1.6 | Direct execution | Complete | 2026-08-25 |
 | 21.1. Detection-Verification UX Fold-In (INSERTED) | v1.5 | Direct execution | Complete | 2026-08-24 |
 | 27. Continuous Regression Tracking | v1.7 | Direct execution | Complete 2026-08-24 | 4e5947e (staging v14) |
 | 27.1. Risk-Score-Over-Time Chart Legibility Fix (INSERTED) | v1.7 | Direct execution | Complete 2026-08-25 | f215d92 (staging v16) |
