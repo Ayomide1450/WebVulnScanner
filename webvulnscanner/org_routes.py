@@ -37,8 +37,8 @@ from flask_login import current_user, login_required
 from flask_wtf import FlaskForm
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from sqlalchemy.orm import joinedload
-from wtforms import SelectField, StringField
-from wtforms.validators import DataRequired, Email
+from wtforms import BooleanField, SelectField, StringField, TextAreaField
+from wtforms.validators import DataRequired, Email, Length, Optional, URL
 
 from webvulnscanner.decorators import org_admin_required, platform_admin_required
 from webvulnscanner.domain_verification import (
@@ -48,7 +48,7 @@ from webvulnscanner.domain_verification import (
     well_known_path_and_content,
 )
 from webvulnscanner.extensions import db
-from webvulnscanner.models import DomainVerification, Invitation, InvitationStatus, OrgAuditEvent, Role, Scan, User, VerifyMethod, _utcnow
+from webvulnscanner.models import DomainVerification, Invitation, InvitationStatus, OrgAuditEvent, Role, Scan, SSOConfiguration, User, VerifyMethod, _utcnow
 
 org = Blueprint("org", __name__, url_prefix="/org")
 
@@ -90,6 +90,20 @@ class InviteForm(FlaskForm):
         choices=[(r.value, r.value) for r in Role],
         validators=[DataRequired()],
     )
+
+
+class SSOConfigForm(FlaskForm):
+    idp_entity_id = StringField("IdP Entity ID", validators=[DataRequired(), Length(max=2048)])
+    idp_sso_url = StringField("IdP SSO URL", validators=[DataRequired(), URL(), Length(max=2048)])
+    idp_certificate = TextAreaField(
+        "IdP X.509 Certificate (PEM)",
+        validators=[DataRequired(), Length(max=16384)],
+    )
+    idp_metadata_url = StringField(
+        "IdP Metadata URL (optional)",
+        validators=[Optional(), URL(), Length(max=2048)],
+    )
+    allow_password_login = BooleanField("Allow password login alongside SSO", default=True)
 
 
 def _serializer():
@@ -254,6 +268,7 @@ def admin():
     )
     verified_domain_count = sum(1 for d in domains if d.verified_at)
     invite_form = InviteForm()
+    sso_config = SSOConfiguration.query.filter_by(org_id=org_obj.id).first() if org_obj else None
     return render_template(
         "org_admin.html",
         org=org_obj,
@@ -268,6 +283,7 @@ def admin():
         role_labels=ROLE_LABELS,
         scan_type_labels=SCAN_TYPE_LABELS,
         audit_event_labels=ORG_AUDIT_EVENT_LABELS,
+        sso_config=sso_config,
     )
 
 
@@ -477,3 +493,104 @@ def audit_log():
         audit_event_labels=ORG_AUDIT_EVENT_LABELS,
         is_platform_admin=current_user.is_platform_admin,
     )
+
+
+# --------------------------------------------------------------------------
+# SSO Configuration (Phase 26, SSO-03/04/05)
+# --------------------------------------------------------------------------
+
+def _ssrf_safe_hostname(hostname):
+    """SSRF guard for IdP metadata URL — blocks private/loopback/reserved."""
+    from webvulnscanner.checks import is_ssrf_safe_hostname
+    try:
+        return is_ssrf_safe_hostname(hostname)
+    except Exception:
+        return False
+
+
+@org.route("/admin/sso", methods=["GET", "POST"])
+@login_required
+@org_admin_required
+def admin_sso():
+    """SSO configuration panel — view/edit the org's SAML IdP settings."""
+    org_obj = current_user.organization
+    if not org_obj:
+        abort(404)
+
+    existing = SSOConfiguration.query.filter_by(org_id=org_obj.id).first()
+    form = SSOConfigForm(obj=existing)
+
+    if request.method == "POST" and form.validate_on_submit():
+        from urllib.parse import urlparse as _urlparse
+
+        # SSO-05: SSRF guard on IdP SSO URL
+        parsed_sso = _urlparse(form.idp_sso_url.data)
+        if parsed_sso.hostname and not _ssrf_safe_hostname(parsed_sso.hostname):
+            flash("The IdP SSO URL is not a valid public hostname.", "error")
+            return redirect(url_for("org.admin_sso"))
+
+        # SSO-05: SSRF guard on IdP metadata URL if provided
+        if form.idp_metadata_url.data:
+            parsed_meta = _urlparse(form.idp_metadata_url.data)
+            if parsed_meta.hostname and not _ssrf_safe_hostname(parsed_meta.hostname):
+                flash("The IdP metadata URL is not a valid public hostname.", "error")
+                return redirect(url_for("org.admin_sso"))
+
+        # Encrypt the certificate before storing
+        encrypted_cert = SSOConfiguration.encrypt_secret(form.idp_certificate.data)
+        sp_entity_id = f"https://glassbox.example.com/saml/metadata/{org_obj.id}"
+
+        if existing:
+            existing.idp_entity_id = form.idp_entity_id.data.strip()
+            existing.idp_sso_url = form.idp_sso_url.data.strip()
+            existing.idp_certificate = encrypted_cert
+            existing.idp_metadata_url = (form.idp_metadata_url.data or "").strip() or None
+            existing.allow_password_login = form.allow_password_login.data
+            existing.updated_at = _utcnow()
+        else:
+            existing = SSOConfiguration(
+                org_id=org_obj.id,
+                enabled=True,
+                idp_entity_id=form.idp_entity_id.data.strip(),
+                idp_sso_url=form.idp_sso_url.data.strip(),
+                idp_certificate=encrypted_cert,
+                idp_metadata_url=(form.idp_metadata_url.data or "").strip() or None,
+                allow_password_login=form.allow_password_login.data,
+                sp_entity_id=sp_entity_id,
+            )
+            db.session.add(existing)
+
+        _log_org_event("sso_config_saved", "SSO configuration updated")
+        db.session.commit()
+        flash("SSO configuration saved.", "info")
+        return redirect(url_for("org.admin"))
+
+    return render_template(
+        "org_sso.html",
+        org=org_obj,
+        form=form,
+        sso_config=existing,
+    )
+
+
+@org.route("/admin/sso/toggle", methods=["POST"])
+@login_required
+@org_admin_required
+def admin_sso_toggle():
+    """Enable or disable SSO for the org."""
+    org_obj = current_user.organization
+    if not org_obj:
+        abort(404)
+
+    existing = SSOConfiguration.query.filter_by(org_id=org_obj.id).first()
+    if not existing:
+        flash("SSO is not configured for this organization.", "error")
+        return redirect(url_for("org.admin"))
+
+    existing.enabled = not existing.enabled
+    event = "sso_config_saved" if existing.enabled else "sso_config_disabled"
+    _log_org_event(event, f"SSO {'enabled' if existing.enabled else 'disabled'}")
+    db.session.commit()
+
+    flash(f"SSO {'enabled' if existing.enabled else 'disabled'}.", "info")
+    return redirect(url_for("org.admin"))

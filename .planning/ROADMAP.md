@@ -547,15 +547,15 @@ shipping a half-build.
    1. ✅ Spike-first: IdP-metadata parse + response signature validation proven inside the
       deploy image before feature work starts; NO-GO is an acceptable outcome recorded in
       .planning/.
-   2. SP-initiated SAML login per configured org; JIT provisioning binds the asserted
+   2. ✅ SP-initiated SAML login per configured org; JIT provisioning binds the asserted
       email's domain to THAT org's verified domains — mismatch refuses with an
       anti-enumeration-neutral error.
-   3. Local password auth stays available unless the org explicitly disables it; disabling
+   3. ✅ Local password auth stays available unless the org explicitly disables it; disabling
       it is itself an audited event requiring fresh confirmation.
-   4. All SSO config changes and SSO logins emit Phase-23 AuditEvents; IdP metadata/cert
+   4. ✅ All SSO config changes and SSO logins emit Phase-23 AuditEvents; IdP metadata/cert
       secrets stored encrypted at rest (app-level Fernet keyed off SECRET_KEY or equivalent,
       decision recorded).
-   5. Outbound metadata/ACS fetches get SSRF-guard scrutiny equivalent to scan targets;
+   5. ✅ Outbound metadata/ACS fetches get SSRF-guard scrutiny equivalent to scan targets;
       cross-org config access is 404-not-403 with IDOR REGISTRY entries.
 
 **SSO-01 Spike Result (GO)**:

@@ -81,6 +81,8 @@ class Organization(db.Model):
     domain_verifications = db.relationship("DomainVerification", back_populates="organization")
     subscription = db.relationship("Subscription", back_populates="organization", uselist=False)
     crypto_invoices = db.relationship("CryptoInvoice", back_populates="organization")
+    sso_configuration = db.relationship("SSOConfiguration", back_populates="organization",
+                                        uselist=False)
 
 
 class User(UserMixin, db.Model):
@@ -88,7 +90,7 @@ class User(UserMixin, db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True, nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=True)
     org_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=True)
     role = db.Column(db.Enum(Role), nullable=False, default=Role.MEMBER)
     # Platform-staff privilege, orthogonal to `role` (which is org-scoped:
@@ -102,6 +104,10 @@ class User(UserMixin, db.Model):
     email_verified_at = db.Column(db.DateTime(timezone=True), nullable=True)
     verify_token = db.Column(db.String(64), unique=True, nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+    # Phase 26 (SSO): "password" for local auth, "sso" for SAML-provisioned.
+    # Controls whether password_reset forms are offered and whether the
+    # password field was populated at signup.
+    auth_method = db.Column(db.String(16), nullable=False, server_default="password")
 
     organization = db.relationship("Organization", back_populates="users")
     scans = db.relationship("Scan", back_populates="user")
@@ -602,3 +608,69 @@ class WebhookDelivery(db.Model):
 
     webhook = db.relationship("OutboundWebhook")
     scan = db.relationship("Scan")
+
+
+class SSOConfiguration(db.Model):
+    """Phase 26 (SSO-02): org-level SAML 2.0 identity-provider configuration.
+    One row per org (unique constraint on org_id); a NULL row means SSO is
+    not configured for that org.
+
+    IdP secrets (certificate, metadata URL) are encrypted at rest using
+    Fernet keyed off SECRET_KEY via Config._fernet_key(). The encrypted
+    values are base64-encoded strings stored in the DB; decrypt() is only
+    called when the config is actually used for authentication (not at
+    read time for the admin panel).
+
+    `idp_metadata_url` is optional — an org can paste their IdP metadata XML
+    directly via `idp_metadata_xml` instead. At least one must be provided.
+
+    `enabled` is a soft toggle: disabling SSO doesn't delete the config
+    (the encrypted secrets stay), it just means the ACS callback and the
+    "Sign in with SSO" button stop working until re-enabled.
+
+    `allow_password_login` controls whether users in this org can still
+    use local password auth alongside SSO — defaults True (SSO doesn't
+    replace passwords unless the org explicitly opts in)."""
+    __tablename__ = "sso_configurations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    org_id = db.Column(db.Integer, db.ForeignKey("organizations.id"),
+                       unique=True, nullable=False)
+    enabled = db.Column(db.Boolean, nullable=False, default=False)
+    allow_password_login = db.Column(db.Boolean, nullable=False, default=True)
+
+    # IdP metadata (at least one of metadata_url / metadata_xml required)
+    idp_entity_id = db.Column(db.String(2048), nullable=False)
+    idp_sso_url = db.Column(db.String(2048), nullable=False)
+    # Encrypted at rest — base64(Fernet-encrypted-bytes)
+    idp_certificate = db.Column(db.Text, nullable=False)
+    # Optional: URL to fetch IdP metadata XML (SSRF-guarded)
+    idp_metadata_url = db.Column(db.String(2048), nullable=True)
+    # Optional: raw IdP metadata XML (alternative to URL fetch)
+    idp_metadata_xml = db.Column(db.Text, nullable=True)
+
+    # SP entity ID (auto-derived, shown to the IdP admin)
+    sp_entity_id = db.Column(db.String(2048), nullable=False)
+
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow,
+                           onupdate=_utcnow)
+
+    organization = db.relationship("Organization")
+
+    @staticmethod
+    def encrypt_secret(plaintext):
+        """Encrypt a plaintext string for at-rest storage. Returns a
+        base64-encoded Fernet token string."""
+        from cryptography.fernet import Fernet
+        from webvulnscanner.config import Config
+        f = Fernet(Config._fernet_key())
+        return f.encrypt(plaintext.encode("utf-8")).decode("ascii")
+
+    @staticmethod
+    def decrypt_secret(ciphertext_b64):
+        """Decrypt a base64-encoded Fernet token back to plaintext."""
+        from cryptography.fernet import Fernet
+        from webvulnscanner.config import Config
+        f = Fernet(Config._fernet_key())
+        return f.decrypt(ciphertext_b64.encode("ascii")).decode("utf-8")

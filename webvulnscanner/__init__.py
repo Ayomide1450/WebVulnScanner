@@ -202,6 +202,10 @@ def create_app(config_class=Config):
 
     app.register_blueprint(docs_blueprint)
 
+    from webvulnscanner.sso_routes import sso as sso_blueprint
+
+    app.register_blueprint(sso_blueprint)
+
     # Idle-session timeout: a session-cookie-authenticated user is signed
     # out server-side after IDLE_TIMEOUT_MINUTES with no request, regardless
     # of "Remember me" - logout_user() clears the remember cookie too, so a

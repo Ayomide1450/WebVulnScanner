@@ -229,6 +229,36 @@
     {% endif %}
   </div>
 
+  <h2 class="section">SSO Configuration</h2>
+  <div class="card">
+    {% if sso_config %}
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+      <div>
+        <span class="pill {{ 'pass' if sso_config.enabled else 'medium' }}">
+          {% if sso_config.enabled %}&#10003; SSO Enabled{% else %}&#9679; SSO Disabled{% endif %}
+        </span>
+        <span style="color:var(--muted); font-size:13px; margin-left:8px;">
+          IdP: <code>{{ sso_config.idp_entity_id }}</code>
+        </span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <a class="btn secondary" href="{{ url_for('org.admin_sso') }}" style="width:auto; margin-top:0; padding:8px 16px;">Edit Configuration</a>
+        <form method="POST" action="{{ url_for('org.admin_sso_toggle') }}" style="display:inline-flex;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="verify-btn {{ 'danger' if sso_config.enabled else '' }}">
+            {{ 'Disable' if sso_config.enabled else 'Enable' }}
+          </button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    {% call empty_state('SSO is not configured.', 'Set up SAML single sign-on for your organization.') %}
+    <use href="#icon-lock"/>
+    {% endcall %}
+    <a class="btn primary" href="{{ url_for('org.admin_sso') }}" style="max-width:280px;">Configure SSO &rarr;</a>
+    {% endif %}
+  </div>
+
   <h2 class="section">Scan History <span style="text-transform:none; letter-spacing:normal; font-weight:400;">(who ran what, when, against what target)</span></h2>
   <div class="card hud-grid">
     {% if scans %}

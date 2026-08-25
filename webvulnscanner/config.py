@@ -206,3 +206,20 @@ class Config:
         "0", "false", "no",
     )
     SCHEDULER_POLL_INTERVAL_SECONDS = int(os.environ.get("SCHEDULER_POLL_INTERVAL_SECONDS", "60"))
+
+    # Fernet encryption key for SSO IdP secrets at rest (Phase 26).
+    # Derived deterministically from SECRET_KEY via SHA-256 so no additional
+    # env var is needed — rotates when SECRET_KEY rotates.
+    @staticmethod
+    def _fernet_key():
+        import hashlib
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+        derived = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=b"glassbox-sso-fernet-v1",
+            info=b"fernet-encryption-key",
+        ).derive(_secret_key.encode("utf-8"))
+        import base64
+        return base64.urlsafe_b64encode(derived)

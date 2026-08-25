@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}SSO Configuration - Glassbox{% endblock %}
+{% block head %}
+{% include "_admin_form_styles.html" %}
+<style>
+  .sso-info { font-size: 13px; color: var(--muted); margin-bottom: var(--space-4); line-height: 1.5; }
+  .sso-info code { font-family: "Fira Code", monospace; font-size: 12px; color: var(--accent); background: rgba(255,255,255,.05); padding: 2px 6px; border-radius: var(--radius-sm); }
+  .cert-area { min-height: 140px; font-family: "Fira Code", monospace; font-size: 12px; }
+  .back-link { font-size: 13px; color: var(--accent); text-decoration: none; margin-bottom: var(--space-4); display: inline-block; }
+  .back-link:hover { text-decoration: underline; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <a class="back-link" href="{{ url_for('org.admin') }}">&larr; Back to Organization</a>
+  <h1>SSO Configuration</h1>
+
+  <div class="card">
+    <div class="sso-info">
+      Configure SAML 2.0 single sign-on for your organization. Once enabled,
+      members can log in via your identity provider instead of using email and password.
+      {% if sso_config %}
+      <br>Your Service Provider Entity ID is: <code>{{ sso_config.sp_entity_id }}</code>
+      {% endif %}
+    </div>
+
+    <form method="POST" action="{{ url_for('org.admin_sso') }}">
+      {{ form.hidden_tag() }}
+
+      <label for="idp_entity_id">IdP Entity ID</label>
+      {{ form.idp_entity_id(id="idp_entity_id", type="text", placeholder="https://idp.example.com/metadata") }}
+      {% for err in form.idp_entity_id.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="idp_sso_url">IdP Single Sign-On URL</label>
+      {{ form.idp_sso_url(id="idp_sso_url", type="text", placeholder="https://idp.example.com/saml/sso") }}
+      {% for err in form.idp_sso_url.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="idp_certificate">IdP X.509 Certificate (PEM)</label>
+      {{ form.idp_certificate(id="idp_certificate", class="cert-area", placeholder="-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----") }}
+      {% for err in form.idp_certificate.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <label for="idp_metadata_url">IdP Metadata URL (optional)</label>
+      {{ form.idp_metadata_url(id="idp_metadata_url", type="text", placeholder="https://idp.example.com/metadata.xml") }}
+      {% for err in form.idp_metadata_url.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+
+      <div style="margin-top: var(--space-4);">
+        {{ form.allow_password_login() }}
+        {{ form.allow_password_login.label }}
+      </div>
+
+      <button type="submit" class="btn primary">Save SSO Configuration</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

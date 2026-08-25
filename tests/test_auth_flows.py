@@ -540,9 +540,10 @@ _EXPECTED_SAFE_NEXT_CALL_SITES = {
 # when Phase 21 registered the selftest blueprint, then 311 -> 315 when
 # Phase 22 registered the api_docs blueprint, then back to 311 when the
 # selftest blueprint was removed entirely (2026-08-24 redesign: no standalone
-# /selftest page; the verification engine now feeds scan reports directly).
+# /selftest page; the verification engine now feeds scan reports directly),
+# then 311 -> 315 when Phase 26 registered the SSO blueprint.
 _EXPECTED_SAFE_REFERRER_CALL_SITES = {
-    ("__init__.py", 311),
+    ("__init__.py", 315),
 }
 
 

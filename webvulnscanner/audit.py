@@ -49,6 +49,10 @@ ORG_AUDIT_EVENT_LABELS = {
     "webhook_toggled": "Webhook paused/resumed",
     "invoice_created": "Invoice created",
     "invoice_verified": "Payment verified — plan activated",
+    # Phase 26 — SSO
+    "sso_config_saved": "SSO configuration saved",
+    "sso_config_disabled": "SSO configuration disabled",
+    "sso_user_login": "SSO user login",
 }
 
 # --- Event-type labels (Platform) ----------------------------------------

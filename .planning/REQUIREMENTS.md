@@ -395,15 +395,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 - [ ] **SSO-01**: Spike-first: IdP-metadata parse + response signature validation proven
       inside the deploy image BEFORE feature build; NO-GO recorded in .planning/ is an
       acceptable outcome instead of a half-build.
-- [ ] **SSO-02**: SP-initiated SAML login per configured org; JIT provisioning binds the
+- [x] **SSO-02**: SP-initiated SAML login per configured org; JIT provisioning binds the
       asserted email's domain to THAT org's verified domains — mismatch refuses with an
       anti-enumeration-neutral error.
-- [ ] **SSO-03**: Local password auth stays available unless the org explicitly disables it;
+- [x] **SSO-03**: Local password auth stays available unless the org explicitly disables it;
       disabling it is an audited event requiring fresh confirmation.
-- [ ] **SSO-04**: All SSO config changes and logins emit Phase-23 AuditEvents; IdP secrets
+- [x] **SSO-04**: All SSO config changes and logins emit Phase-23 AuditEvents; IdP secrets
       stored encrypted at rest (app-level Fernet off SECRET_KEY or equivalent, decision
       recorded).
-- [ ] **SSO-05**: Outbound metadata/ACS fetches get SSRF-guard scrutiny equivalent to scan
+- [x] **SSO-05**: Outbound metadata/ACS fetches get SSRF-guard scrutiny equivalent to scan
       targets; cross-org config access is 404-not-403 with IDOR REGISTRY entries.
 
 ### Detection-Verification UX Fold-In (UXFT) — Phase 21.1 (v1.5, INSERTED)
