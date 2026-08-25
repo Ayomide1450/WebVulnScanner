@@ -78,6 +78,42 @@ def _ssrf_safe_url(url):
 
 # --- SSO login initiation -----------------------------------------------
 
+@sso.route("/login/sso", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
+def login_sso_discover():
+    """Lightweight email discovery: the user enters their work email, we
+    match the domain against verified org domains that have SSO enabled,
+    then redirect to ``/login/saml?org=<id>``.  No information leak —
+    the same generic message is returned for missing / disabled / no-match."""
+    if request.method == "POST":
+        email = (request.form.get("email") or "").strip().lower()
+        if not email or "@" not in email:
+            flash("Please enter a valid email address.", "error")
+            return render_template("sso_discover.html"), 400
+
+        domain = email.rsplit("@", 1)[-1]
+        hit = (
+            DomainVerification.query
+            .join(SSOConfiguration, SSOConfiguration.org_id == DomainVerification.org_id)
+            .filter(
+                SSOConfiguration.enabled.is_(True),
+                DomainVerification.domain == domain,
+                DomainVerification.verified_at.isnot(None),
+            )
+            .first()
+        )
+        if hit is None:
+            flash(
+                "No SSO configuration was found for that email domain. "
+                "Contact your administrator.",
+                "error",
+            )
+            return render_template("sso_discover.html"), 400
+
+        return redirect(url_for("sso.login_saml", org=hit.org_id))
+
+    return render_template("sso_discover.html")
+
 @sso.route("/login/saml")
 @limiter.limit("30 per minute")
 def login_saml():

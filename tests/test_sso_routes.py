@@ -509,3 +509,73 @@ class TestAdminSSOConfig:
         assert resp.status_code == 200
         assert b"SSO Enabled" in resp.data
         assert b"idp.example.com" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# GET/POST /login/sso — email discovery
+# ---------------------------------------------------------------------------
+
+class TestSSODiscover:
+    def test_get_renders_form(self, client, db):
+        db.session.commit()
+        resp = client.get("/login/sso")
+        assert resp.status_code == 200
+        assert b"Sign in with SSO" in resp.data
+        assert b"sso-email" in resp.data
+
+    def test_post_matching_domain_redirects_to_login_saml(self, client, db):
+        org = make_org()
+        _make_sso_config(org, enabled=True)
+        _make_verified_domain(org, domain="acme.com")
+        db.session.commit()
+        resp = client.post("/login/sso", data={"email": "user@acme.com"})
+        assert resp.status_code == 302
+        assert f"/login/saml?org={org.id}" in resp.headers["Location"]
+
+    def test_post_email_without_at_returns_400(self, client, db):
+        db.session.commit()
+        resp = client.post("/login/sso", data={"email": "not-an-email"})
+        assert resp.status_code == 400
+        assert b"valid email" in resp.data
+
+    def test_post_empty_email_returns_400(self, client, db):
+        db.session.commit()
+        resp = client.post("/login/sso", data={"email": ""})
+        assert resp.status_code == 400
+
+    def test_post_unknown_domain_returns_400(self, client, db):
+        org = make_org()
+        _make_sso_config(org, enabled=True)
+        _make_verified_domain(org, domain="acme.com")
+        db.session.commit()
+        resp = client.post("/login/sso", data={"email": "user@unknown.com"})
+        assert resp.status_code == 400
+        assert b"SSO" in resp.data  # still says SSO in the error
+
+    def test_post_sso_disabled_org_returns_400(self, client, db):
+        org = make_org()
+        _make_sso_config(org, enabled=False)
+        _make_verified_domain(org, domain="acme.com")
+        db.session.commit()
+        resp = client.post("/login/sso", data={"email": "user@acme.com"})
+        assert resp.status_code == 400
+
+    def test_post_unverified_domain_returns_400(self, client, db):
+        org = make_org()
+        _make_sso_config(org, enabled=True)
+        # Domain exists but verified_at is None
+        dv = DomainVerification(
+            org_id=org.id, domain="acme.com",
+            method=VerifyMethod.DNS_TXT, token="tok",
+        )
+        db.session.add(dv)
+        db.session.commit()
+        resp = client.post("/login/sso", data={"email": "user@acme.com"})
+        assert resp.status_code == 400
+
+    def test_login_page_has_sso_button(self, client, db):
+        db.session.commit()
+        resp = client.get("/login")
+        assert resp.status_code == 200
+        assert b"Sign in with SSO" in resp.data
+        assert b"icon-sso" in resp.data

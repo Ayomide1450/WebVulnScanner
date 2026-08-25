@@ -11,6 +11,11 @@
   .resend-box { margin-top:14px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; color:var(--muted); }
   .resend-box summary { cursor:pointer; color:var(--text); }
   .resend-btn { margin-top:8px; background:none; border:none; color:var(--accent); font-size:13px; font-weight:600; cursor:pointer; padding:0; text-decoration:underline; }
+  .sso-divider { display:flex; align-items:center; gap:12px; margin-top:22px; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em; }
+  .sso-divider::before, .sso-divider::after { content:''; flex:1; height:1px; background:var(--border); }
+  .sso-btn { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:14px; width:100%; padding:12px 22px; background:transparent; border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:14px; font-weight:600; text-decoration:none; cursor:pointer; transition:border-color .15s, background .15s; }
+  .sso-btn:hover { border-color:var(--accent); background:rgba(255,255,255,.03); }
+  .sso-btn .icon { width:18px; height:18px; color:var(--accent); }
 </style>
 {% if config.TURNSTILE_SITE_KEY %}
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
@@ -49,6 +54,11 @@
 
       <button type="submit" id="loginSubmit">Log in</button>
     </form>
+    <div class="sso-divider"><span>or</span></div>
+    <a class="sso-btn" href="{{ url_for('sso.login_sso_discover') }}">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sso"/></svg>
+      Sign in with SSO
+    </a>
     {% if resend_email %}
     <details class="resend-box">
       <summary>Didn't get the verification email?</summary>
