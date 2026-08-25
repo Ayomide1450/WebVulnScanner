@@ -62,7 +62,7 @@ API/CLI-first workflow — acknowledged in project history as future direction, 
 
 ## Brand Commitments
 
-- Name: WebVulnScanner.
+- Name: Glassbox.
 - Existing dark OLED design system already implemented in `templates/base.html`:
   `--bg:#020617`, `--accent:#22c55e` (green), Fira Sans/Code typography. Marketing hero uses a
   terminal-boot animation + typewriter headline with deliberately honest copy (no inflated
