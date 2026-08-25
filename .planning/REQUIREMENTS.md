@@ -380,15 +380,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ### Pipeline Integrations (GitHub Actions / SIEM) — Phase 25 (v1.6)
 
-- [ ] **INTG-01**: GET /api/v1/scans/<id>/findings.ndjson — one finding per line,
+- [x] **INTG-01**: GET /api/v1/scans/<id>/findings.ndjson — one finding per line,
       token-authed, same ownership guard; NDJSON shape validated line-by-line in tests.
-- [ ] **INTG-02**: Per-webhook payload_format gains `splunk_hec` (event-keyed body Splunk HEC
+- [x] **INTG-02**: Per-webhook payload_format gains `splunk_hec` (event-keyed body Splunk HEC
       accepts); slack/generic behavior byte-unchanged — existing payload tests unmodified.
-- [ ] **INTG-03**: Failed deliveries gain bounded retry with backoff recorded as additional
+- [x] **INTG-03**: Failed deliveries gain bounded retry with backoff recorded as additional
       WebhookDelivery attempts (cap = named MAX_* constant; retry never delays the scan tail).
-- [ ] **INTG-04**: GitHub Actions recipe (checkout → glassbox init → glassbox gate → step
-      summary) published on the docs page AND executed once against staging with a real
-      token before sign-off.
+- [ ] **INTG-04**: ~~GitHub Actions recipe~~ **DEFERRED** — user confirmed GitHub Actions
+      cannot be used for now. Recipe (checkout → glassbox init → glassbox gate → step
+      summary) to be published on docs page and executed against staging when CI is available.
 
 ### SSO / SAML — Phase 26 (v1.6)
 

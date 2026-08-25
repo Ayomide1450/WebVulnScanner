@@ -72,32 +72,36 @@ def log_org_event(event_type, detail=None, org_id=None):
     platform admin who may not belong to the org, so those call sites
     pass the domain's actual ``org_id`` explicitly.
 
+    Solo users (org_id None) are silently skipped — there is no org
+    audit log for a personal account.
+
     Retention: after the insert, if the org's event count exceeds
     ``MAX_AUDIT_EVENTS_PER_ORG``, the oldest events are trimmed so the
     total stays at the limit.  The trim is part of the same transaction.
     """
+    effective_org_id = org_id if org_id is not None else current_user.org_id
+    if effective_org_id is None:
+        return  # solo user — no org audit log
     try:
         db.session.add(OrgAuditEvent(
-            org_id=org_id if org_id is not None else current_user.org_id,
+            org_id=effective_org_id,
             actor_id=current_user.id,
             event_type=event_type,
             detail=detail,
         ))
         db.session.flush()
 
-        org = org_id if org_id is not None else current_user.org_id
-        if org is not None:
-            count = OrgAuditEvent.query.filter_by(org_id=org).count()
-            if count > MAX_AUDIT_EVENTS_PER_ORG:
-                excess = count - MAX_AUDIT_EVENTS_PER_ORG
-                oldest = (
-                    OrgAuditEvent.query.filter_by(org_id=org)
-                    .order_by(OrgAuditEvent.created_at.asc())
-                    .limit(excess)
-                    .all()
-                )
-                for ev in oldest:
-                    db.session.delete(ev)
+        count = OrgAuditEvent.query.filter_by(org_id=effective_org_id).count()
+        if count > MAX_AUDIT_EVENTS_PER_ORG:
+            excess = count - MAX_AUDIT_EVENTS_PER_ORG
+            oldest = (
+                OrgAuditEvent.query.filter_by(org_id=effective_org_id)
+                .order_by(OrgAuditEvent.created_at.asc())
+                .limit(excess)
+                .all()
+            )
+            for ev in oldest:
+                db.session.delete(ev)
     except Exception:
         current_app.logger.exception("Failed to write org audit event: %s", event_type)
 

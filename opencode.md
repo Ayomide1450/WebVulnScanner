@@ -73,7 +73,7 @@ deployable, tested (pytest on every push), and safe by design.
   at 5 attempts; secrets redacted in reports; marker-only stored-XSS proof.
 - AI summary prompt keeps findings framed as data-to-summarize (injection bound).
 
-## State snapshot (last updated: 2026-08-25, post Phase 23 build)
+## State snapshot (last updated: 2026-08-25, post Phase 25 build)
 
 - Branch `develop`, HEAD **7960fd1** "feat(24): PDF export of scan reports (PDFX-01..08)",
   pushed to origin.
@@ -570,8 +570,9 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    DONE (decision doc, NO-GO for v1, GO deferred to v2). ~~Phase 23~~ DONE
    (audit log — test_audit_log.py 12 tests, audit.py consolidated helpers,
    emission sites wired, paginated /org/audit, IDOR registry, retention trim).
-   **NEXT: Phase 25 (Pipeline Integrations)** — then 26 per v1.6 order.
-   Also scoped-but-unbuilt: Phase 27.1 chart legibility (CHARTUX-01..04; needs the
+    **NEXT: Phase 25 (Pipeline Integrations)** — then 26 per v1.6 order.
+    INTG-04 (GitHub Actions recipe) DEFERRED — user confirmed GitHub Actions can't be used now.
+    Also scoped-but-unbuilt: Phase 27.1 chart legibility (CHARTUX-01..04; needs the
    `dataviz` skill per its own criterion 5) — slot it whenever the user says go.
 6. Housekeeping: `dev-server-*.log` files and `instance/` are untracked
    clutter candidates (check .gitignore covers them). Also: staging DB still

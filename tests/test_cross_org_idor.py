@@ -173,6 +173,10 @@ REGISTRY = {
     # denial tests live alongside the rest of the PDF suite.
     "api.fetch_report_pdf": "tests/test_pdf_export.py::test_report_pdf_different_org_gets_404",
     "scan.scan_report_pdf": "tests/test_pdf_export.py::test_scan_report_pdf_cross_org_is_404_and_leaks_no_finding_text",
+    # fetch_report_ndjson (Phase 25) clones the same ownership branches;
+    # denial tests live alongside the rest of the NDJSON suite.
+    "api.fetch_report_ndjson": "tests/test_ndjson_export.py::test_report_ndjson_different_org_gets_404",
+    "scan.scan_report_ndjson": "tests/test_ndjson_export.py::test_scan_report_ndjson_cross_org_is_404_and_leaks_no_finding_text",
     "org.audit_log": "tests/test_audit_log.py::test_audit_log_cross_org_is_404",
     "scan.scan_status": "tests/test_scan_status.py::test_status_different_org_gets_404",
 }

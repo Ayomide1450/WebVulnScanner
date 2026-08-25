@@ -24,7 +24,7 @@ import secrets
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from flask_wtf import FlaskForm
-from wtforms import StringField
+from wtforms import SelectField, StringField
 from wtforms.validators import DataRequired, Length, Optional
 
 from webvulnscanner.audit import log_org_event
@@ -42,6 +42,13 @@ webhooks_bp = Blueprint("webhooks", __name__)
 class AddWebhookForm(FlaskForm):
     label = StringField("Label", validators=[DataRequired(), Length(max=120)])
     url = StringField("Webhook URL", validators=[Optional(), Length(max=2048)])
+    # Phase 25 (INTG-02): payload wrapping format — "default" (raw Glassbox
+    # JSON, works for Slack/generic receivers) or "splunk_hec" (wraps in
+    # {"event": ..., "sourcetype": "glassbox:scan"} for Splunk HEC ingestion).
+    payload_format = SelectField("Payload Format", choices=[
+        ("default", "Glassbox JSON (default)"),
+        ("splunk_hec", "Splunk HEC"),
+    ], default="default")
 
 
 def _scoped_webhook_or_404(webhook_id):
@@ -133,6 +140,7 @@ def add():
         label=(form.label.data or "").strip(),
         url=(form.url.data or "").strip(),
         secret=secrets.token_hex(32),
+        payload_format=form.payload_format.data or "default",
     )
     db.session.add(w)
     log_org_event("webhook_created", detail=f"Webhook \"{w.label}\" created")

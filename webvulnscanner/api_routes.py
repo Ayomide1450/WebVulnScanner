@@ -32,6 +32,7 @@ from webvulnscanner.scan_routes import (
 from webvulnscanner.scheduler import _fire
 from webvulnscanner.pdf_report import build_pdf_report, PDF_MIMETYPE
 from webvulnscanner.sarif import build_sarif_report, sarif_text
+from webvulnscanner.ndjson_report import findings_ndjson
 from webvulnscanner.security_gate import DEFAULT_FAIL_ON, GATE_SEVERITIES, evaluate_gate
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
@@ -327,6 +328,38 @@ def fetch_report_pdf(scan_id):
     return Response(
         pdf_bytes,
         mimetype=PDF_MIMETYPE,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@api.route("/scans/<int:scan_id>/findings.ndjson")
+@api_login_required
+@limiter.limit("60 per minute", key_func=_api_rate_limit_key)
+def fetch_report_ndjson(scan_id):
+    """Phase 25 (INTG-01): token-authed NDJSON export — one JSON finding
+    per line, ingestible by SIEMs, log aggregators, and CLI pipelines.
+    Same ownership branches and error semantics as every other report
+    endpoint: Asset-linked-vs-manual split (Pitfall-1 fix), WR-01
+    soft-delete guard, no Report row -> 404 JSON, unreadable -> 500 JSON."""
+    s = Scan.query.get_or_404(scan_id)
+    if s.asset_id is not None:
+        if s.asset.deleted_at is not None:
+            abort(404)
+        _check_asset_access(s.asset)
+    else:
+        _check_ownership(s)
+
+    if s.report is None:
+        return jsonify(error="report not available"), 404
+
+    report = _load_report_json(s)
+    if report is None:
+        return jsonify(error="report file is unavailable"), 500
+
+    ndjson_text, filename = findings_ndjson(report, scan_id)
+    return Response(
+        ndjson_text,
+        mimetype="application/x-ndjson",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 

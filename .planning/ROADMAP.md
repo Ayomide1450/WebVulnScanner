@@ -526,9 +526,8 @@ machinery rather than adding a second notification path.
    3. Failed deliveries gain bounded retry with backoff recorded as additional
       WebhookDelivery attempts (attempt cap is a named MAX_* constant; retry never delays
       `_run_scan_in_background`'s tail).
-   4. A GitHub Actions recipe (checkout → glassbox init → glassbox gate → step summary)
-      published on the docs page AND executed once against staging with a real token
-      before sign-off — docs examples must be run, not assumed.
+   4. ~~A GitHub Actions recipe~~ **DEFERRED** (INTG-04) — user confirmed GitHub Actions
+      cannot be used for now; deferred to a future phase.
 
 **Plans**: Direct execution, single commit.
 

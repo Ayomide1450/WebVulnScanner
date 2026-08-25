@@ -45,6 +45,7 @@ import hashlib
 import hmac
 import json
 import logging
+import time
 from urllib.parse import urlparse
 
 import requests
@@ -57,6 +58,14 @@ from webvulnscanner.security_gate import DEFAULT_FAIL_ON, evaluate_gate
 # Bounded worst case per receiver - a webhook must never stall the scan
 # thread that's delivering from it (WR-03's reasoning, applied server-side).
 WEBHOOK_TIMEOUT_SECONDS = 5
+
+# Phase 25 (INTG-03): bounded retry — each attempt creates its own
+# WebhookDelivery row so the full trail is visible in the UI.
+MAX_DELIVERY_ATTEMPTS = 3
+
+# Phase 25 (INTG-03): delay between retry attempts (seconds).  Each
+# successive attempt sleeps longer: 1 s, 2 s, 4 s (exponential backoff).
+_RETRY_DELAY_SECONDS = [1, 2, 4]
 
 # How many of the most severe findings ride along in the payload. The full
 # report stays in Glassbox (and behind its auth); a channel needs the
@@ -207,6 +216,20 @@ def build_regression_payload(scan, regressed_findings):
     }
 
 
+def build_splunk_hec_payload(inner_payload):
+    """Phase 25 (INTG-02): wrap a Glassbox scan payload in the Splunk HEC
+    event envelope.  The receiver's `sourcetype` field lets Splunk auto-
+    discover the JSON schema; the `event` key carries the original payload
+    verbatim so no Glassbox-specific logic is lost.
+
+    Reference: https://docs.splunk.com/en/SplunkCloud/DataSubmission/HTTPHEC/SubmitdatatoHEC
+    """
+    return {
+        "event": inner_payload,
+        "sourcetype": "glassbox:scan",
+    }
+
+
 def sign_payload(secret, body_bytes):
     """HMAC-SHA256 signature header value over the exact bytes sent."""
     digest = hmac.new(secret.encode("utf-8"), body_bytes, hashlib.sha256).hexdigest()
@@ -238,12 +261,42 @@ def _post_payload(webhook, payload):
         return "failed", None, f"delivery error: {exc}"
 
 
+def _log_delivery(webhook_id, scan_id, status, code, error, attempt=1):
+    """Write one WebhookDelivery row — the single place delivery outcomes
+    are recorded so every call site (deliver, send_test_ping) stays in sync.
+    Never raises: a failed observability write is logged and swallowed."""
+    from webvulnscanner.extensions import db
+
+    try:
+        db.session.add(WebhookDelivery(
+            webhook_id=webhook_id, scan_id=scan_id,
+            status=status, response_code=code, error_message=error,
+            attempt_number=attempt,
+        ))
+        db.session.commit()
+    except Exception:  # noqa: BLE001 - observability write, best-effort by design
+        db.session.rollback()
+        logging.warning("webhook delivery log write failed for webhook %s", webhook_id)
+
+
 def deliver(webhook, scan_id, payload=None):
-    """One signed POST to `webhook.url` describing scan `scan_id`, plus the
-    WebhookDelivery row recording how it went. Never raises. `payload`
-    overrides the default scan.completed body - fire_regression_webhooks
-    passes its finding.regressed payload through this same delivery path so
-    signing, headers, timeouts, and delivery logging stay single-sourced."""
+    """Phase 25 (INTG-03): bounded retry loop — up to MAX_DELIVERY_ATTEMPTS
+    signed POSTs, each creating its own WebhookDelivery row so the full
+    trail is visible in the UI.  Stops on first "delivered" (2xx) or when
+    the attempt budget is exhausted.  Between attempts the thread sleeps
+    (_RETRY_DELAY_SECONDS — exponential backoff, 1 s / 2 s / 4 s); this
+    runs inside a ThreadPoolExecutor so it never stalls the scan tail.
+
+    INTG-02: when ``webhook.payload_format == "splunk_hec"`` the outgoing
+    body is wrapped in the Splunk HEC envelope before signing — the
+    receiver's ``sourcetype`` field lets Splunk auto-discover the schema.
+
+    `payload` overrides the default scan.completed body —
+    fire_regression_webhooks passes its finding.regressed payload through
+    this same delivery path so signing, headers, timeouts, and delivery
+    logging stay single-sourced.
+
+    Never raises (degrade-gracefully convention inherited from Phase 19)."""
     from webvulnscanner.extensions import db
     from webvulnscanner.models import Scan
 
@@ -253,19 +306,37 @@ def deliver(webhook, scan_id, payload=None):
             raise ValueError(f"scan {scan_id} no longer exists")
         if payload is None:
             payload = build_scan_payload(scan, _load_report(scan))
-        status, code, error = _post_payload(webhook, payload)
     except Exception as exc:  # noqa: BLE001 - a webhook must never break its scan
-        status, code, error = "failed", None, f"unexpected delivery error: {exc}"
+        _log_delivery(webhook.id, scan_id, "failed", None,
+                       f"unexpected delivery error: {exc}", attempt=1)
+        return
 
-    try:
-        db.session.add(WebhookDelivery(
-            webhook_id=webhook.id, scan_id=scan_id,
-            status=status, response_code=code, error_message=error,
-        ))
-        db.session.commit()
-    except Exception:  # noqa: BLE001 - observability write, best-effort by design
-        db.session.rollback()
-        logging.warning("webhook delivery log write failed for webhook %s", webhook.id)
+    final_status = "failed"
+    final_code = None
+    final_error = None
+
+    for attempt in range(1, MAX_DELIVERY_ATTEMPTS + 1):
+        if attempt > 1:
+            delay_idx = min(attempt - 2, len(_RETRY_DELAY_SECONDS) - 1)
+            time.sleep(_RETRY_DELAY_SECONDS[delay_idx])
+
+        # INTG-02: wrap payload for Splunk HEC if configured
+        if getattr(webhook, "payload_format", None) == "splunk_hec":
+            wrapped = build_splunk_hec_payload(payload)
+        else:
+            wrapped = payload
+
+        status, code, error = _post_payload(webhook, wrapped)
+        _log_delivery(webhook.id, scan_id, status, code, error, attempt=attempt)
+
+        if status == "delivered":
+            return  # success — stop retrying
+
+        final_status = status
+        final_code = code
+        final_error = error
+
+    # Exhausted all attempts — the last _log_delivery call already recorded it.
 
 
 def send_test_ping(webhook):
@@ -280,14 +351,7 @@ def send_test_ping(webhook):
         "event": "ping",
     }
     status, code, error = _post_payload(webhook, payload)
-    try:
-        db.session.add(WebhookDelivery(
-            webhook_id=webhook.id, scan_id=None,
-            status=status, response_code=code, error_message=error,
-        ))
-        db.session.commit()
-    except Exception:  # noqa: BLE001
-        db.session.rollback()
+    _log_delivery(webhook.id, None, status, code, error, attempt=1)
     return status == "delivered", error
 
 

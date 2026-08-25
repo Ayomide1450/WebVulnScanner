@@ -564,6 +564,10 @@ class OutboundWebhook(db.Model):
     url = db.Column(db.String(2048), nullable=False)
     secret = db.Column(db.String(64), nullable=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    # Phase 25 (INTG-02): payload wrapping format for the POST body.
+    # "default" = raw Glassbox JSON; "splunk_hec" = wraps in
+    # {"event": <default_payload>, "sourcetype": "glassbox:scan"}.
+    payload_format = db.Column(db.String(32), nullable=False, server_default="default")
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
 
     organization = db.relationship("Organization")
@@ -589,7 +593,11 @@ class WebhookDelivery(db.Model):
     scan_id = db.Column(db.Integer, db.ForeignKey("scans.id"), nullable=True)
     status = db.Column(db.String(16), nullable=False)  # "delivered" | "failed"
     response_code = db.Column(db.Integer, nullable=True)
-    error_message = db.Column(db.Text, nullable=True)
+    error_message = db.Column(db.Text(), nullable=True)
+    # Phase 25 (INTG-03): which attempt of the bounded retry this row represents.
+    # 1 on first attempt, up to MAX_DELIVERY_ATTEMPTS (3). Each attempt gets
+    # its own WebhookDelivery row so the retry trail is visible in the UI.
+    attempt_number = db.Column(db.Integer, nullable=False, server_default="1")
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utcnow)
 
     webhook = db.relationship("OutboundWebhook")

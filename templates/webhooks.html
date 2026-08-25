@@ -21,6 +21,12 @@
     background: rgba(255,255,255,.03); color: var(--text);
   }
   .create-webhook-form input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,197,94,.18); outline: none; }
+  .create-webhook-form select {
+    width: 100%; max-width: 520px; padding: var(--space-3) var(--space-4); margin-top: var(--space-2);
+    border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px;
+    background: rgba(255,255,255,.03); color: var(--text); appearance: auto;
+  }
+  .create-webhook-form select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,197,94,.18); outline: none; }
   .create-webhook-form .btn { margin-top: var(--space-4); }
   .form-hint { color: var(--muted); font-size: 12.5px; margin-top: var(--space-1); max-width: 620px; line-height: 1.45; }
 
@@ -97,6 +103,15 @@
       Must be HTTPS and reachable from the public internet &mdash; private/internal addresses are rejected
       by the same SSRF guard that protects scan targets. For Slack: create an incoming webhook, then paste its URL here.
     </p>
+    <label for="webhook-format">Payload Format</label>
+    <select id="webhook-format" name="payload_format">
+      <option value="default" selected>Glassbox JSON (default &mdash; works with Slack, generic receivers)</option>
+      <option value="splunk_hec">Splunk HEC (wraps payload in HEC event envelope)</option>
+    </select>
+    <p class="form-hint">
+      Splunk HEC mode wraps the scan payload in <code>{"event": ..., "sourcetype": "glassbox:scan"}</code>
+      for direct ingestion into a Splunk HTTP Event Collector endpoint.
+    </p>
     <button type="submit" class="btn primary">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-network"/></svg>
       Add Webhook
@@ -113,7 +128,12 @@
       <tbody>
       {% for w in webhooks %}
       <tr>
-        <td class="webhook-label">{{ w.label }}</td>
+        <td class="webhook-label">
+          {{ w.label }}
+          {% if w.payload_format and w.payload_format != 'default' %}
+          <span class="pill info" style="margin-left:6px;font-size:11px;">{{ w.payload_format }}</span>
+          {% endif %}
+        </td>
         <td class="webhook-url" title="{{ redact(w.url) }}">{{ redact(w.url) }}</td>
         <td>
           {% if w.is_active %}
@@ -149,7 +169,12 @@
       {% for w in webhooks %}
       <li class="card record-card">
         <div class="record-card-top">
-          <span class="record-card-id webhook-label">{{ w.label }}</span>
+          <span class="record-card-id webhook-label">
+            {{ w.label }}
+            {% if w.payload_format and w.payload_format != 'default' %}
+            <span class="pill info" style="font-size:11px;margin-left:6px;">{{ w.payload_format }}</span>
+            {% endif %}
+          </span>
           {% if w.is_active %}
           <span class="pill pass">Active</span>
           {% else %}

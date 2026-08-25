@@ -189,11 +189,16 @@ def test_deliver_dead_receiver_records_failure_and_does_not_raise(app, db, monke
             raise requests_lib.exceptions.ConnectionError("refused")
 
         monkeypatch.setattr(webhook_engine.requests, "post", boom)
+        monkeypatch.setattr(webhook_engine, "time", type("FakeTime", (), {"sleep": staticmethod(lambda s: None)})())
         webhook_engine.deliver(w, s.id)  # must not raise
 
-        row = WebhookDelivery.query.one()
-        assert row.status == "failed" and row.response_code is None
-        assert "delivery error" in row.error_message
+        # INTG-03: bounded retry — 3 attempts, each creating a WebhookDelivery row
+        rows = WebhookDelivery.query.filter_by(webhook_id=w.id).all()
+        assert len(rows) == 3
+        assert all(r.status == "failed" for r in rows)
+        assert all(r.response_code is None for r in rows)
+        assert all("delivery error" in (r.error_message or "") for r in rows)
+        assert [r.attempt_number for r in rows] == [1, 2, 3]
 
 
 def test_deliver_non_2xx_counts_as_failed(app, db, monkeypatch):
@@ -205,10 +210,13 @@ def test_deliver_non_2xx_counts_as_failed(app, db, monkeypatch):
 
         monkeypatch.setattr(webhook_engine.requests, "post",
                             lambda *a, **k: _FakeResponse(410))
+        monkeypatch.setattr(webhook_engine, "time", type("FakeTime", (), {"sleep": staticmethod(lambda s: None)})())
         webhook_engine.deliver(w, s.id)
 
-        row = WebhookDelivery.query.one()
-        assert row.status == "failed" and row.response_code == 410
+        # INTG-03: 3 attempts on persistent 410
+        rows = WebhookDelivery.query.filter_by(webhook_id=w.id).all()
+        assert len(rows) == 3
+        assert all(r.status == "failed" and r.response_code == 410 for r in rows)
 
 
 def test_send_test_ping_records_scanless_delivery(app, db, monkeypatch):
@@ -446,3 +454,213 @@ def test_org_member_cannot_manage_their_own_orgs_webhook(db, client):
 
     assert client.post(f"/webhooks/{w.id}/delete").status_code == 404
     assert client.post(f"/webhooks/{w.id}/toggle").status_code == 404
+
+
+# --------------------------------------------------------------------------
+# INTG-02: Splunk HEC payload format
+# --------------------------------------------------------------------------
+
+def test_build_splunk_hec_payload_wraps_inner_payload():
+    inner = {"text": "scan done", "event": "scan.completed", "scan": {"id": 1}}
+    wrapped = webhook_engine.build_splunk_hec_payload(inner)
+    assert wrapped == {
+        "event": inner,
+        "sourcetype": "glassbox:scan",
+    }
+    # inner payload is untouched
+    assert wrapped["event"]["text"] == "scan done"
+
+
+def test_splunk_hec_webhook_sends_wrapped_payload(app, db, monkeypatch):
+    with app.app_context():
+        u = make_user("splunk@example.com")
+        s = make_scan(u, status=ScanStatus.COMPLETED)
+        w = _make_webhook(u.id, label="Splunk", url="https://splunk.example.com:8088/endpoint")
+        w.payload_format = "splunk_hec"
+        _db.session.commit()
+
+        captured = {}
+
+        def fake_post(url, data=None, headers=None, timeout=None):
+            captured["body"] = json.loads(data.decode("utf-8"))
+            return _FakeResponse(200)
+
+        monkeypatch.setattr(webhook_engine.requests, "post", fake_post)
+        webhook_engine.deliver(w, s.id)
+
+        body = captured["body"]
+        assert "event" in body and "sourcetype" in body
+        assert body["sourcetype"] == "glassbox:scan"
+        # The inner event is the standard scan payload
+        assert body["event"]["event"] == "scan.completed"
+        assert body["event"]["scan"]["id"] == s.id
+
+        row = WebhookDelivery.query.filter_by(webhook_id=w.id).one()
+        assert row.status == "delivered"
+
+
+def test_splunk_hec_regression_payload_wraps_correctly(app, db, monkeypatch):
+    with app.app_context():
+        u = make_user("splunk-reg@example.com")
+        s = make_scan(u, status=ScanStatus.COMPLETED)
+        w = _make_webhook(u.id, label="Splunk Reg", url="https://splunk.example.com:8088/endpoint")
+        w.payload_format = "splunk_hec"
+        _db.session.commit()
+
+        inner_payload = {
+            "text": "regression alert",
+            "event": "finding.regressed",
+            "scan": {"id": s.id},
+            "regressed_findings": [{"severity": "high", "title": "New XSS"}],
+        }
+
+        captured = {}
+
+        def fake_post(url, data=None, headers=None, timeout=None):
+            captured["body"] = json.loads(data.decode("utf-8"))
+            return _FakeResponse(200)
+
+        monkeypatch.setattr(webhook_engine.requests, "post", fake_post)
+        webhook_engine.deliver(w, s.id, payload=inner_payload)
+
+        body = captured["body"]
+        assert body["sourcetype"] == "glassbox:scan"
+        assert body["event"]["event"] == "finding.regressed"
+        assert body["event"]["regressed_findings"][0]["title"] == "New XSS"
+
+
+def test_default_payload_format_not_wrapped(app, db, monkeypatch):
+    with app.app_context():
+        u = make_user("default@example.com")
+        s = make_scan(u, status=ScanStatus.COMPLETED)
+        w = _make_webhook(u.id, label="Default", url="https://r.example/default")
+        # payload_format stays at default (server_default)
+        _db.session.commit()
+
+        captured = {}
+
+        def fake_post(url, data=None, headers=None, timeout=None):
+            captured["body"] = json.loads(data.decode("utf-8"))
+            return _FakeResponse(200)
+
+        monkeypatch.setattr(webhook_engine.requests, "post", fake_post)
+        webhook_engine.deliver(w, s.id)
+
+        body = captured["body"]
+        # No splunk envelope
+        assert "sourcetype" not in body
+        assert body["event"] == "scan.completed"
+
+
+# --------------------------------------------------------------------------
+# INTG-03: Bounded retry
+# --------------------------------------------------------------------------
+
+def test_retry_stops_on_first_success(app, db, monkeypatch):
+    """First attempt succeeds → only 1 delivery row, no retries."""
+    with app.app_context():
+        u = make_user("retry-ok@example.com")
+        s = make_scan(u, status=ScanStatus.COMPLETED)
+        w = _make_webhook(u.id, label="OK", url="https://r.example/ok")
+        _db.session.commit()
+
+        attempt_count = [0]
+
+        def fake_post(url, data=None, headers=None, timeout=None):
+            attempt_count[0] += 1
+            return _FakeResponse(200)
+
+        monkeypatch.setattr(webhook_engine.requests, "post", fake_post)
+        monkeypatch.setattr(webhook_engine, "time", type("FakeTime", (), {"sleep": staticmethod(lambda s: None)})())
+        webhook_engine.deliver(w, s.id)
+
+        assert attempt_count[0] == 1
+        rows = WebhookDelivery.query.filter_by(webhook_id=w.id).all()
+        assert len(rows) == 1
+        assert rows[0].attempt_number == 1
+
+
+def test_retry_succeeds_on_second_attempt(app, db, monkeypatch):
+    """First attempt fails (500), second succeeds (200) → 2 rows, last is delivered."""
+    with app.app_context():
+        u = make_user("retry-2nd@example.com")
+        s = make_scan(u, status=ScanStatus.COMPLETED)
+        w = _make_webhook(u.id, label="Retry2", url="https://r.example/retry2")
+        _db.session.commit()
+
+        attempt_count = [0]
+
+        def fake_post(url, data=None, headers=None, timeout=None):
+            attempt_count[0] += 1
+            if attempt_count[0] == 1:
+                return _FakeResponse(500)
+            return _FakeResponse(200)
+
+        monkeypatch.setattr(webhook_engine.requests, "post", fake_post)
+        monkeypatch.setattr(webhook_engine, "time", type("FakeTime", (), {"sleep": staticmethod(lambda s: None)})())
+        webhook_engine.deliver(w, s.id)
+
+        assert attempt_count[0] == 2
+        rows = WebhookDelivery.query.filter_by(webhook_id=w.id).order_by(WebhookDelivery.id).all()
+        assert len(rows) == 2
+        assert rows[0].status == "failed" and rows[0].attempt_number == 1
+        assert rows[1].status == "delivered" and rows[1].attempt_number == 2
+
+
+def test_retry_exhausted_creates_three_rows(app, db, monkeypatch):
+    """All 3 attempts fail → 3 rows, all failed, attempt_number 1/2/3."""
+    with app.app_context():
+        u = make_user("retry-exhaust@example.com")
+        s = make_scan(u, status=ScanStatus.COMPLETED)
+        w = _make_webhook(u.id, label="Exhaust", url="https://r.example/exhaust")
+        _db.session.commit()
+
+        def boom(url, data=None, headers=None, timeout=None):
+            return _FakeResponse(503)
+
+        monkeypatch.setattr(webhook_engine.requests, "post", boom)
+        monkeypatch.setattr(webhook_engine, "time", type("FakeTime", (), {"sleep": staticmethod(lambda s: None)})())
+        webhook_engine.deliver(w, s.id)
+
+        rows = WebhookDelivery.query.filter_by(webhook_id=w.id).order_by(WebhookDelivery.id).all()
+        assert len(rows) == 3
+        assert all(r.status == "failed" for r in rows)
+        assert [r.attempt_number for r in rows] == [1, 2, 3]
+
+
+def test_retry_delays_are_exponential(monkeypatch):
+    """Verify _RETRY_DELAY_SECONDS is [1, 2, 4] — exponential backoff."""
+    assert webhook_engine._RETRY_DELAY_SECONDS == [1, 2, 4]
+    assert webhook_engine.MAX_DELIVERY_ATTEMPTS == 3
+
+
+# --------------------------------------------------------------------------
+# INTG-02: Form route saves payload_format
+# --------------------------------------------------------------------------
+
+def test_add_webhook_route_persists_payload_format(solo_client, db, monkeypatch):
+    monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo_public)
+    resp = solo_client.post("/webhooks/add", follow_redirects=False,
+                            data={"label": "Splunk HEC", "url": "https://r.example/splunk",
+                                  "payload_format": "splunk_hec"})
+    assert resp.status_code == 302
+    w = OutboundWebhook.query.one()
+    assert w.payload_format == "splunk_hec"
+
+
+def test_add_webhook_route_defaults_to_default_format(solo_client, db, monkeypatch):
+    monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo_public)
+    resp = solo_client.post("/webhooks/add", follow_redirects=False,
+                            data={"label": "Default Hook", "url": "https://r.example/default"})
+    assert resp.status_code == 302
+    w = OutboundWebhook.query.one()
+    assert w.payload_format == "default"
+
+
+def test_webhook_table_shows_splunk_format_pill(solo_client, db, monkeypatch):
+    monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo_public)
+    solo_client.post("/webhooks/add", follow_redirects=False,
+                     data={"label": "Splunk", "url": "https://r.example/splunk",
+                           "payload_format": "splunk_hec"})
+    html = solo_client.get("/webhooks").data
+    assert b"splunk_hec" in html

@@ -78,6 +78,7 @@ from webvulnscanner.webhooks import fire_scan_webhooks, fire_regression_webhooks
 from webvulnscanner.regressions import classify_regressions
 from webvulnscanner.pdf_report import build_pdf_report, PDF_MIMETYPE
 from webvulnscanner.sarif import build_sarif_report, sarif_text
+from webvulnscanner.ndjson_report import findings_ndjson
 
 scan = Blueprint("scan", __name__)
 
@@ -1560,6 +1561,31 @@ def scan_report_pdf(scan_id):
     return Response(
         pdf_bytes,
         mimetype=PDF_MIMETYPE,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@scan.route("/scan/<int:scan_id>/findings.ndjson")
+@login_required
+def scan_report_ndjson(scan_id):
+    """Phase 25 (INTG-01): NDJSON export — one JSON finding per line,
+    ingestible by SIEMs, log aggregators, and CLI pipelines (jq, etc.).
+    Same ownership guard as every other report rendering: 404-not-403 for
+    a scan the caller can't see.  The NDJSON body comes from
+    ndjson_report.findings_ndjson's single shared writer."""
+    s = Scan.query.get_or_404(scan_id)
+    _check_ownership(s)
+    if s.report is None:
+        abort(404)
+
+    report = _load_report_json(s)
+    if report is None:
+        abort(404)
+
+    ndjson_text, filename = findings_ndjson(report, scan_id)
+    return Response(
+        ndjson_text,
+        mimetype="application/x-ndjson",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 

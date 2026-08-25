@@ -175,6 +175,23 @@ API_ENDPOINTS = [
         "response_example": "(binary PDF octet-stream)",
     },
     {
+        "path": "/api/v1/scans/<int:scan_id>/findings.ndjson",
+        "methods": ["GET"],
+        "group": "Reports",
+        "summary": "The same findings as NDJSON (newline-delimited JSON) — one JSON object "
+        "per line, ingestible by SIEMs, log aggregators, and CLI pipelines (jq, Splunk HEC "
+        "raw mode, etc.). Same ownership guard as every other report endpoint. Served as an "
+        "attachment.",
+        "auth": _API_TOKEN_AUTH,
+        "rate_limit": "60/minute",
+        "request_example": None,
+        "response_example": (
+            '{"category":"headers","title":"Strict-Transport-Security missing",'
+            '"severity":"medium","confidence":"Potential","cwe":null,'
+            '"owasp_category":"A05:2021","detail":"...","recommendation":"..."}\n'
+        ),
+    },
+    {
         "path": "/api/v1/scans/<int:scan_id>/compare/<int:other_id>",
         "methods": ["GET"],
         "group": "Reports",
