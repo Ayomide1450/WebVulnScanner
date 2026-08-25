@@ -35,16 +35,7 @@ from webvulnscanner.models import (
 admin = Blueprint("admin", __name__, url_prefix="/platform-admin")
 
 
-def _log_platform_event(target_type, target_id, event_type, detail=None):
-    """PlatformAuditEvent's one write path - see its docstring in
-    models.py for why this is a separate table from OrgAuditEvent."""
-    db.session.add(PlatformAuditEvent(
-        actor_id=current_user.id,
-        target_type=target_type,
-        target_id=target_id,
-        event_type=event_type,
-        detail=detail,
-    ))
+from webvulnscanner.audit import log_platform_event as _log_platform_event
 
 
 @admin.route("")

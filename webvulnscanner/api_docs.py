@@ -163,6 +163,18 @@ API_ENDPOINTS = [
         ),
     },
     {
+        "path": "/api/v1/scans/<int:scan_id>/report.pdf",
+        "methods": ["GET"],
+        "group": "Reports",
+        "summary": "The same report as a typeset PDF - byte-identical to the web UI's "
+        "PDF download (one shared writer behind both). Multi-page with cover section, "
+        "severity-tally header, and branded footer. Served as an attachment.",
+        "auth": _API_TOKEN_AUTH,
+        "rate_limit": "60/minute",
+        "request_example": None,
+        "response_example": "(binary PDF octet-stream)",
+    },
+    {
         "path": "/api/v1/scans/<int:scan_id>/compare/<int:other_id>",
         "methods": ["GET"],
         "group": "Reports",

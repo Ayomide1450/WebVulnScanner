@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
+from webvulnscanner.audit import log_org_event
 from webvulnscanner.extensions import db
 from webvulnscanner.models import ApiToken
 
@@ -55,6 +56,7 @@ def create_token():
     token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
     t = ApiToken(user_id=current_user.id, name=name, token_hash=token_hash)
     db.session.add(t)
+    log_org_event("api_token_created", detail=f"Token \"{name}\" created")
     db.session.commit()
 
     return render_template(
@@ -75,5 +77,6 @@ def revoke_token(token_id):
         # someone who doesn't own it.
         abort(404)
     t.revoked_at = datetime.now(timezone.utc)
+    log_org_event("api_token_revoked", detail=f"Token \"{t.name}\" revoked")
     db.session.commit()
     return redirect(url_for("api_tokens.list_tokens"))

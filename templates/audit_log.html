@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Audit Log - Glassbox{% endblock %}
+{% block head %}
+{% include "_empty_state.html" %}
+{% include "_pagination.html" %}
+<style>
+  .audit-header { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:var(--space-4); }
+  .audit-header h1 { margin:0; }
+  .audit-back { font-size:13px; }
+  .audit-table { width:100%; border-collapse:collapse; }
+  .audit-table th, .audit-table td { padding:8px 12px; text-align:left; border-bottom:1px solid var(--border); font-size:13px; }
+  .audit-table th { font-weight:600; color:var(--muted); text-transform:uppercase; font-size:11px; letter-spacing:0.5px; background:var(--panel); }
+  .audit-table tr:last-child td { border-bottom:none; }
+  .audit-table .when { color:var(--muted); font-family:"Fira Code",monospace; font-size:11px; white-space:nowrap; }
+  .audit-table .who { color:var(--muted); }
+  .audit-table .event-type { font-weight:600; }
+  .audit-table .org-name { color:var(--muted); font-size:12px; }
+  /* Dual-markup: mobile record cards */
+  .mobile-audit-cards { display:none; }
+  @media (max-width:430px) {
+    .audit-table-wrap { display:none; }
+    .mobile-audit-cards { display:block; }
+    .audit-card { padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; }
+    .audit-card:last-child { border-bottom:none; }
+    .audit-card .when { display:block; color:var(--muted); font-family:"Fira Code",monospace; font-size:11px; margin-bottom:4px; }
+    .audit-card .who { display:block; color:var(--muted); font-size:11px; margin-top:4px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% from "_empty_state.html" import empty_state %}
+<div class="container">
+  <div class="audit-header">
+    <h1>Audit Log</h1>
+    <a class="back audit-back" href="{{ url_for('org.admin') }}">&larr; Back to org admin</a>
+  </div>
+
+  {% if pagination.total == 0 %}
+  {% call empty_state('No audit events recorded yet.', '') %}
+  <use href="#icon-radar"/>
+  {% endcall %}
+
+  {% else %}
+  <div class="card audit-table-wrap">
+    <table class="audit-table">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Event</th>
+          <th>Detail</th>
+          <th>Actor</th>
+          {% if is_platform_admin %}<th>Org</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in events %}
+        <tr>
+          <td class="when">{{ ev.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td class="event-type">{{ audit_event_labels.get(ev.event_type, ev.event_type|replace('_', ' ')|title) }}</td>
+          <td>{{ ev.detail or '' }}</td>
+          <td class="who">{{ ev.actor.email if ev.actor else '(system)' }}</td>
+          {% if is_platform_admin %}
+          <td class="org-name">{{ ev.organization.name if ev.organization else '(no org)' }}</td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="mobile-audit-cards">
+    {% for ev in events %}
+    <div class="audit-card card">
+      <span class="when">{{ ev.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+      <b>{{ audit_event_labels.get(ev.event_type, ev.event_type|replace('_', ' ')|title) }}</b>
+      {% if ev.detail %} &mdash; {{ ev.detail }}{% endif %}
+      <span class="who">{{ ev.actor.email if ev.actor else '(system)' }}{% if is_platform_admin and ev.organization %} &middot; {{ ev.organization.name }}{% endif %}</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% from "_pagination.html" import pagination_nav %}
+  {{ pagination_nav(pagination.page, pagination.pages) }}
+  {% endif %}
+</div>
+{% endblock %}

@@ -282,7 +282,7 @@
     {% endif %}
   </div>
 
-  <h2 class="section">Audit Log</h2>
+  <h2 class="section">Audit Log <a class="back" href="{{ url_for('org.audit_log') }}" style="font-size:13px;font-weight:400;">View all &rarr;</a></h2>
   <div class="card audit-log">
     {% if audit_events %}
       {% for ev in audit_events %}

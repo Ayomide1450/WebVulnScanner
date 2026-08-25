@@ -329,17 +329,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ### Audit Log — Phase 23 (v1.6)
 
-- [ ] **AUDIT-01**: `AuditEvent` model + Alembic migration; append-only in practice — no
+- [x] **AUDIT-01**: `AuditEvent` model + Alembic migration; append-only in practice — no
       update/delete routes exist, proven by a test asserting their absence.
-- [ ] **AUDIT-02**: Emission sites cover the enumerated mutation set (invites, role/join
+- [x] **AUDIT-02**: Emission sites cover the enumerated mutation set (invites, role/join
       changes, domain lifecycle, token create/revoke, webhook lifecycle, invoice verify /
       plan activation, platform-admin actions); registry-driven test fails if a listed route
       stops emitting.
-- [ ] **AUDIT-03**: ORG_ADMIN sees own-org events paginated at /org/audit; platform admins
+- [x] **AUDIT-03**: ORG_ADMIN sees own-org events paginated at /org/audit; platform admins
       see all; everyone else 404-not-403, registered in the IDOR REGISTRY.
-- [ ] **AUDIT-04**: Retention strategy decided and documented at build time (per-org trim on
+- [x] **AUDIT-04**: Retention strategy decided and documented at build time (per-org trim on
       insert vs. cleanup command), bounded by a named constant either way.
-- [ ] **AUDIT-05**: Events render actor/action/target/timestamp/detail in dual markup.
+- [x] **AUDIT-05**: Events render actor/action/target/timestamp/detail in dual markup.
 
 ### Report PDF Export — Phase 24 (v1.6)
 
@@ -515,7 +515,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ID(s) | Phase | Status |
 |---|---|---|
 | DOCS-01..05 | Phase 22 | Complete |
-| AUDIT-01..05 | Phase 23 | Planned |
+| AUDIT-01..05 | Phase 23 | Complete (2026-08-25) |
 | PDFX-01..08 | Phase 24 | Planned (verified concerns incorporated 2026-08-25) |
 | INTG-01..04 | Phase 25 | Planned |
 | SSO-01..05 | Phase 26 | Planned |

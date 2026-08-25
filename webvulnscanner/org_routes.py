@@ -71,42 +71,7 @@ SCAN_TYPE_LABELS = {
     "media": "Media Scan",
     "api": "API Scan",
 }
-ORG_AUDIT_EVENT_LABELS = {
-    "domain_added": "Domain added",
-    "domain_verified": "Domain verified",
-    "domain_deletion_requested": "Domain deletion requested",
-    "domain_deletion_approved": "Domain deletion approved",
-    "domain_deletion_rejected": "Domain deletion rejected",
-    "member_invited": "Member invited",
-    "invitation_revoked": "Invitation revoked",
-    "invitation_resent": "Invitation resent",
-    "role_changed": "Role changed",
-}
-
-
-def _log_org_event(event_type, detail=None, org_id=None):
-    """Records one row in the org-management audit log (separate from the
-    Scan-history audit trail org_admin.html already shows). Best-effort:
-    never raises past the caller, since a failed audit-log write must not
-    block the action it's logging (same degrade-gracefully convention as
-    every check_* function in checks.py) - but it does run in the same
-    transaction as the action itself when possible, so a commit failure
-    still rolls both back together.
-
-    `org_id` defaults to the acting user's own org - correct for every
-    org-scoped action (add/verify a domain, invite a member) where the
-    actor is necessarily a member of that org. Domain-deletion
-    approve/reject are the one exception: the actor is a platform admin
-    who may not belong to the org whose domain is being resolved, so
-    those call sites pass the domain's actual org_id explicitly instead
-    of silently mis-attributing the event to the platform admin's own
-    org (or crashing on a null org_id if they have none)."""
-    db.session.add(OrgAuditEvent(
-        org_id=org_id if org_id is not None else current_user.org_id,
-        actor_id=current_user.id,
-        event_type=event_type,
-        detail=detail,
-    ))
+from webvulnscanner.audit import ORG_AUDIT_EVENT_LABELS, log_org_event as _log_org_event  # noqa: E402
 
 
 class AddDomainForm(FlaskForm):
@@ -460,3 +425,55 @@ def reject_domain_deletion(domain_id):
     db.session.commit()
     flash(f"Deletion request for {dv.domain} rejected. The domain remains active.", "info")
     return redirect(url_for("admin.platform_dashboard"))
+
+
+# --------------------------------------------------------------------------
+# Audit log (Phase 23 / AUDIT-03)
+# --------------------------------------------------------------------------
+
+AUDIT_PER_PAGE = 20
+
+
+@org.route("/audit")
+@login_required
+@org_admin_required
+def audit_log():
+    """Paginated view of the org's audit events (AUDIT-03).  ORG_ADMINs
+    see their own org's events; platform admins see all orgs.  Everyone
+    else gets 404 (the @org_admin_required decorator handles that).
+
+    Events are rendered with actor email, event type label, detail, and
+    timestamp — the dual-markup contract (AUDIT-05) reuses the same
+    rendering pattern as org_admin.html's inline audit section but with
+    full pagination and a link back from the org admin page."""
+    from webvulnscanner.audit import ORG_AUDIT_EVENT_LABELS
+    from webvulnscanner.models import Organization
+
+    page = request.args.get("page", 1, type=int)
+
+    if current_user.is_platform_admin:
+        # Platform admins see all orgs' events, newest first
+        query = (
+            OrgAuditEvent.query
+            .options(joinedload(OrgAuditEvent.actor), joinedload(OrgAuditEvent.organization))
+            .order_by(OrgAuditEvent.created_at.desc())
+        )
+    else:
+        org_id = current_user.org_id
+        if not org_id:
+            abort(404)
+        query = (
+            OrgAuditEvent.query.filter_by(org_id=org_id)
+            .options(joinedload(OrgAuditEvent.actor))
+            .order_by(OrgAuditEvent.created_at.desc())
+        )
+
+    pagination = query.paginate(page=page, per_page=AUDIT_PER_PAGE, error_out=False)
+
+    return render_template(
+        "audit_log.html",
+        events=pagination.items,
+        pagination=pagination,
+        audit_event_labels=ORG_AUDIT_EVENT_LABELS,
+        is_platform_admin=current_user.is_platform_admin,
+    )

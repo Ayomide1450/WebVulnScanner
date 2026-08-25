@@ -73,10 +73,11 @@ deployable, tested (pytest on every push), and safe by design.
   at 5 attempts; secrets redacted in reports; marker-only stored-XSS proof.
 - AI summary prompt keeps findings framed as data-to-summarize (injection bound).
 
-## State snapshot (last updated: 2026-08-25, post Phase 24 build)
+## State snapshot (last updated: 2026-08-25, post Phase 23 build)
 
-- Branch `develop`, HEAD pending commit.
-- **Phase 24 BUILT (2026-08-25)** — PDF export of scan reports:
+- Branch `develop`, HEAD **7960fd1** "feat(24): PDF export of scan reports (PDFX-01..08)",
+  pushed to origin.
+- **Phase 24 SHIPPED TO STAGING** (7960fd1) — PDF export of scan reports:
   `webvulnscanner/pdf_report.py` shared writer behind both surfaces (session-web
   /scan/<id>/report.pdf + token-authed /api/v1 twin, same ownership guards as
   CSV/SARIF — IDOR REGISTRY += both); `templates/pdf_report.html` standalone
@@ -90,11 +91,29 @@ deployable, tested (pytest on every push), and safe by design.
   both surfaces, no-drift byte-for-byte lock, template `| safe` regression);
   11 rendering tests skip on Windows (need GTK3), will pass on Linux CI.
   Full targeted suite: 63 passed, 11 skipped, 0 failed.
+- **Phase 23 READY TO COMMIT** — audit log: `audit.py` consolidated helpers,
+  15 org event types + 4 platform types, emission sites wired (api_tokens,
+  webhooks, billing), paginated `audit_log.html`, IDOR registry entry,
+  retention trim-on-insert (`MAX_AUDIT_EVENTS_PER_ORG = 10_000`),
+  12 tests all passing. Also fixed api_docs.py PDF endpoint documentation.
 - **Phase 24 still requires**: staging deploy verification (needs Docker with
   GTK3 native libs — the 11 skipped rendering tests will validate on CI).
 
 ### Done (recent history)
 
+- Phase 23 — Audit Log (2026-08-25): `webvulnscanner/audit.py` shared helpers
+  (consolidated from `org_routes._log_org_event` / `admin_routes._log_platform_event`),
+  `ORG_AUDIT_EVENT_LABELS` for 15 event types, `log_platform_event` for 4 platform
+  types; emission sites wired in `api_tokens_routes.py` (create/revoke),
+  `webhook_routes.py` (add/delete/toggle), `billing_routes.py` (create_invoice/verify);
+  `templates/audit_log.html` paginated template (dual-markup, 20/page);
+  `GET /org/audit` route (ORG_ADMIN + platform-admin views); IDOR registry entry
+  with `test_audit_log_cross_org_is_404`; retention trim-on-insert
+  (`MAX_AUDIT_EVENTS_PER_ORG = 10_000`); 12 tests in `test_audit_log.py`
+  (AUDIT-01..05: no mutating routes, emission-site labels, own-org view,
+  cross-org no-leak, member 403, pagination, retention trim, event rendering).
+  Also fixed Phase 24 gap: `api_docs.py` now documents
+  `/api/v1/scans/<int:scan_id>/report.pdf`.
 - Phase 24 — Report PDF Export (`feat(24)`, 2026-08-25):
   `webvulnscanner/pdf_report.py` shared writer (WeasyPrint `>=68,<70`,
   `URLFetcher(allowed_protocols=[])` + `presentational_hints=False` for SSRF
@@ -526,7 +545,7 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    user verifies staging, then production promotion.
 5. ~~Sophistication roadmap candidates~~ → **v1.6 SCOPED (2026-08-24)**: Phases 22–26
    in .planning/ROADMAP.md + REQUIREMENTS.md (24 requirements, all Planned):
-   22 in-product API docs page, 23 audit log, 24 report PDF export,
+       22 in-product API docs page, 23 audit log (Complete), 24 report PDF export (Complete),
    25 pipeline integrations (GitHub Actions/SIEM), 26 SSO/SAML (spike-first with
    explicit NO-GO escape hatch). Start at Phase 22 whenever user says go.
    **~~NEXT BUILD TARGET: Phase 24 (PDF Export)~~** → **BUILT (2026-08-25)**,
@@ -548,8 +567,10 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    criteria, no added or dropped scope.
    ~~Phase 27~~ DONE, ~~Phase 29~~ DONE (d6981c3, staging v15; SARIF-03 upload-sarif
    verification pending user-side). ~~Phase 28~~ DONE (bbad7b0, staging v16). ~~Phase 30~~
-   DONE (decision doc, NO-GO for v1, GO deferred to v2).
-   **NEXT: Phase 23 (Audit Log)** — then 25, 26 per v1.6 order.
+   DONE (decision doc, NO-GO for v1, GO deferred to v2). ~~Phase 23~~ DONE
+   (audit log — test_audit_log.py 12 tests, audit.py consolidated helpers,
+   emission sites wired, paginated /org/audit, IDOR registry, retention trim).
+   **NEXT: Phase 25 (Pipeline Integrations)** — then 26 per v1.6 order.
    Also scoped-but-unbuilt: Phase 27.1 chart legibility (CHARTUX-01..04; needs the
    `dataviz` skill per its own criterion 5) — slot it whenever the user says go.
 6. Housekeeping: `dev-server-*.log` files and `instance/` are untracked

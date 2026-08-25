@@ -27,6 +27,7 @@ from flask_wtf import FlaskForm
 from wtforms import StringField
 from wtforms.validators import DataRequired, Length, Optional
 
+from webvulnscanner.audit import log_org_event
 from webvulnscanner.extensions import db, limiter
 from webvulnscanner.models import OutboundWebhook, Role, WebhookDelivery
 from webvulnscanner.webhooks import (
@@ -134,6 +135,7 @@ def add():
         secret=secrets.token_hex(32),
     )
     db.session.add(w)
+    log_org_event("webhook_created", detail=f"Webhook \"{w.label}\" created")
     db.session.commit()
     return redirect(url_for("webhooks.index", created=w.id))
 
@@ -146,6 +148,8 @@ def delete_webhook(webhook_id):
     OrgAuditEvent outlives its DomainVerification); they simply stop
     appearing once their webhook_id no longer resolves to a listed row."""
     w = _scoped_webhook_or_404(webhook_id)
+    label = w.label
+    log_org_event("webhook_deleted", detail=f"Webhook \"{label}\" deleted")
     db.session.delete(w)
     db.session.commit()
     flash(f"Webhook \"{w.label}\" deleted.", "info")
@@ -159,6 +163,8 @@ def toggle_webhook(webhook_id):
     noisy channel shouldn't force re-registering (and re-verifying) it."""
     w = _scoped_webhook_or_404(webhook_id)
     w.is_active = not w.is_active
+    action = "resumed" if w.is_active else "paused"
+    log_org_event("webhook_toggled", detail=f"Webhook \"{w.label}\" {action}")
     db.session.commit()
     flash(
         f"Webhook \"{w.label}\" {'resumed' if w.is_active else 'paused'}.",

@@ -10,6 +10,7 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 from flask_login import current_user, login_required
 
 from webvulnscanner import billing
+from webvulnscanner.audit import log_org_event
 from webvulnscanner.decorators import org_admin_required
 from webvulnscanner.extensions import limiter
 from webvulnscanner.models import CryptoInvoice, InvoiceStatus, Plan
@@ -87,6 +88,7 @@ def create_invoice():
         flash(str(e), "error")
         return redirect(url_for("billing.view"))
 
+    log_org_event("invoice_created", detail=f"{target_plan.value} plan invoice ({billing_cycle})")
     flash(
         f"Invoice created ({billing_cycle} billing): send exactly {inv.expected_amount} {inv.token_symbol} "
         f"to {inv.receiving_address} before it expires.",
@@ -108,6 +110,7 @@ def verify_invoice_route(invoice_id):
 
     paid = billing.verify_invoice(inv)
     if paid:
+        log_org_event("invoice_verified", detail=f"Payment for {inv.target_plan.value} plan confirmed")
         flash(f"Payment confirmed - {inv.target_plan.value} plan is now active.", "info")
     else:
         flash("Payment not found yet (or invoice expired). Try again once the transfer confirms.", "error")

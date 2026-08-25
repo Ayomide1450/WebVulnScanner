@@ -452,6 +452,13 @@ compliance story, and gives every later feature (SSO included) a standard place 
       cleanup command), bounded by a named constant either way.
    5. Events render actor/action/target/timestamp/detail in dual markup.
 
+**Status**: Complete — `test_audit_log.py` (12 tests), `audit.py` consolidated from
+`org_routes._log_org_event` / `admin_routes._log_platform_event`, emission sites
+wired in api_tokens/webhooks/billing, `audit_log.html` paginated template, IDOR
+registry entry with `test_audit_log_cross_org_is_404`, retention trim-on-insert
+proven by `test_trim_on_insert_when_exceeding_limit`. Also fixed Phase 24 gap:
+`api_docs.py` now documents `/api/v1/scans/<int:scan_id>/report.pdf`.
+
 **Plans**: Direct execution, single commit.
 
 **UI hint**: yes (/org/audit page)
@@ -774,7 +781,7 @@ not a failure to ship.
 | 20. Intrusive Coverage Expansion | v1.5 | Direct execution | Complete | 2026-08-23 |
 | 21. Built-in Detection Self-Test | v1.5 | Direct execution | Complete | 2026-08-23 |
 | 22. In-Product API Documentation | v1.6 | Direct execution | Complete | 2026-08-24 |
-| 23. Audit Log | v1.6 | Direct execution | Planned | - |
+| 23. Audit Log | v1.6 | Direct execution | Complete | 2026-08-25 |
 | 24. Report PDF Export | v1.6 | Direct execution | Complete | 2026-08-25 |
 | 25. Pipeline Integrations (GitHub/SIEM) | v1.6 | Direct execution | Planned | - |
 | 26. SSO / SAML | v1.6 | Direct execution | Planned | - |
