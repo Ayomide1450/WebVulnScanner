@@ -3977,11 +3977,29 @@ def check_graphql_depth(base_url, session):
 
 
 def check_auth_comparison(base_url, session):
-    """APIT-02: Compare authenticated vs unauthenticated API responses.
+    """APIT-02: Unauthenticated-exposure probe on auth-sounding API paths.
 
-    Discovers API endpoints via common paths and sends each request with
-    and without an Authorization header. Differences in status code or
-    response size may indicate authorization gaps."""
+    False-positive fix (caught in review): the original implementation
+    called `session.get(url)` twice with identical arguments and labeled
+    the guaranteed-identical result an "authenticated vs unauthenticated"
+    comparison - it wasn't comparing anything, and reported a "Confirmed"
+    high-severity Auth Bypass on any 2xx response from any of its 11
+    hardcoded paths. Every pipeline this check is wired into (run_scan's
+    base-scan session) uses a plain, never-logged-in `requests.Session` -
+    there is no authenticated leg available here to compare against at
+    all. A real authenticated-vs-unauthenticated diff needs actual
+    test-account credentials threaded through (see check_idor's
+    cookie_a/cookie_b pattern) - that's a real feature this check doesn't
+    have yet, not something to fake with a duplicate request.
+
+    Reframed as what this can actually and honestly test with zero
+    credentials: does a path whose *name* implies it should require
+    authentication (users/admin/settings/config/...) return real API data
+    - not an SPA's catch-all index.html (see _looks_like_api_response,
+    the same guard check_api_wordlist already relies on). Always
+    confidence="Potential", never "Confirmed" - a public settings/config
+    endpoint can be entirely intentional, so this needs human review, not
+    an automatic bypass claim."""
     findings = []
     rows = []
 
@@ -3993,47 +4011,22 @@ def check_auth_comparison(base_url, session):
 
     for path in API_PATHS:
         url = base_url + path
-        unauth_status = None
-        auth_status = None
-        unauth_size = 0
-        auth_size = 0
-
-        # Unauthenticated request
         try:
             r = session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=False)
-            unauth_status = r.status_code
-            unauth_size = len(r.content)
         except requests.RequestException:
             continue
 
-        # Authenticated request (reuse existing session cookies)
-        try:
-            r = session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=False)
-            auth_status = r.status_code
-            auth_size = len(r.content)
-        except requests.RequestException:
-            continue
+        rows.append({"endpoint": path, "status": r.status_code, "size": len(r.content)})
 
-        rows.append({
-            "endpoint": path,
-            "unauth_status": unauth_status,
-            "auth_status": auth_status,
-            "unauth_size": unauth_size,
-            "auth_size": auth_size,
-        })
-
-        # Flag endpoints where unauthenticated request succeeds (2xx)
-        # and the response differs from authenticated — potential auth bypass
-        if unauth_status and 200 <= unauth_status < 300:
-            size_diff = abs(auth_size - unauth_size) if auth_size else 0
-            if auth_status and unauth_status == auth_status and size_diff < 100:
-                findings.append(Finding(
-                    "Auth Bypass", f"API endpoint {path} accessible without authentication", "high",
-                    f"GET {path} returned HTTP {unauth_status} without any authentication "
-                    "token, and the response is similar to the authenticated request.",
-                    "Ensure all sensitive API endpoints require authentication.",
-                    confidence="Confirmed",
-                    cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"))
+        if r.status_code == 200 and _looks_like_api_response(r):
+            findings.append(Finding(
+                "Auth Bypass", f"API endpoint {path} returns data with no authentication", "medium",
+                f"GET {path} returned HTTP 200 with an API-shaped body (JSON/XML) and zero "
+                "credentials. This may be an intentionally public endpoint or a missing "
+                "auth check - not confirmed as exploitable either way without human review.",
+                "Confirm this endpoint is meant to be public; otherwise require authentication.",
+                confidence="Potential",
+                cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"))
 
     return {"endpoints_tested": len(rows), "rows": rows}, findings
 
@@ -4041,9 +4034,22 @@ def check_auth_comparison(base_url, session):
 def check_mass_assignment(base_url, session):
     """APIT-03: Detect mass assignment by sending extra fields to API endpoints.
 
-    For discovered API endpoints, sends POST requests with extra fields
-    (role, is_admin, etc.) and checks if the server reflects them back
-    or accepts them without stripping."""
+    Two fixes from review:
+    1. Dropped /register-style endpoints from the probe list. POSTing
+       fabricated data to a real account-creation endpoint on someone's
+       live target can actually create a junk account there - a
+       non-destructive-design violation (checks.py's own convention:
+       forms are enumerated but never auto-submitted; inventing an
+       account-creation POST is the same class of harm). Kept to
+       existing-resource-shaped paths (users/profile) only.
+    2. The original scan for e.g. "role" as a raw substring anywhere in
+       the response text matches ordinary HTML constantly (role="button"
+       and similar ARIA attributes appear on a large fraction of real
+       webpages) - guaranteed false positives, not a mass-assignment
+       signal. Now parses the response as JSON and only counts a field as
+       accepted if it round-trips as an exact key/value match against
+       what was actually submitted - a non-JSON or non-matching response
+       produces no finding rather than a text-substring guess."""
     findings = []
     rows = []
 
@@ -4054,10 +4060,7 @@ def check_mass_assignment(base_url, session):
         "privilege": "superuser",
     }
 
-    API_PATHS = [
-        "/api/v1/users", "/api/users", "/api/v1/register",
-        "/api/register", "/api/v1/profile", "/api/profile",
-    ]
+    API_PATHS = ["/api/v1/users", "/api/users", "/api/v1/profile", "/api/profile"]
 
     for path in API_PATHS:
         url = base_url + path
@@ -4066,26 +4069,30 @@ def check_mass_assignment(base_url, session):
             r = session.post(url, json=payload,
                              headers={"Content-Type": "application/json"},
                              timeout=REQUEST_TIMEOUT, allow_redirects=False)
-            row = {"endpoint": path, "status": r.status_code, "accepted_fields": []}
-
-            # Check if any extra fields appear in the response
-            resp_text = r.text.lower()
-            for field in EXTRA_FIELDS:
-                if field in resp_text:
-                    row["accepted_fields"].append(field)
-
-            rows.append(row)
-
-            if row["accepted_fields"]:
-                findings.append(Finding(
-                    "Mass Assignment", f"API endpoint {path} may accept privileged fields", "high",
-                    f"POST {path} accepted extra fields: {', '.join(row['accepted_fields'])}. "
-                    "The server may be allowing mass assignment of privileged attributes.",
-                    "Use allow-lists for accepted fields; never bind request data directly to models.",
-                    confidence="Confirmed",
-                    cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N"))
-
         except requests.RequestException:
             continue
+
+        row = {"endpoint": path, "status": r.status_code, "accepted_fields": []}
+        try:
+            resp_json = r.json()
+        except ValueError:
+            resp_json = None
+
+        if isinstance(resp_json, dict):
+            for field, sent_value in EXTRA_FIELDS.items():
+                if field in resp_json and resp_json[field] == sent_value:
+                    row["accepted_fields"].append(field)
+
+        rows.append(row)
+
+        if row["accepted_fields"]:
+            findings.append(Finding(
+                "Mass Assignment", f"API endpoint {path} accepted privileged fields", "high",
+                f"POST {path} echoed back the exact submitted value for: "
+                f"{', '.join(row['accepted_fields'])}. The server appears to bind request "
+                "data directly onto a model without an allow-list.",
+                "Use allow-lists for accepted fields; never bind request data directly to models.",
+                confidence="Confirmed",
+                cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N"))
 
     return {"endpoints_tested": len(rows), "rows": rows}, findings
