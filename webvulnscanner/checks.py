@@ -3530,13 +3530,58 @@ def check_xss_stored(session, submit_url, field, view_url, cookie):
     return {"rows": rows, "status": "not_confirmed"}, []
 
 
+def _idor_looks_like_baseline(resp, baseline):
+    """True iff `resp` is indistinguishable from the "definitely bogus
+    resource id" baseline for the same session - same status code and a
+    near-identical body length (within 5% or 32 bytes, whichever is
+    larger). Used to catch the same false-positive class fixed in
+    check_http_methods: an app that answers every id (real or bogus) with
+    the same 200 soft-page proves nothing about that specific id being
+    genuinely readable."""
+    if baseline is None or resp.status_code != baseline["status"]:
+        return False
+    len_a, len_b = len(resp.text), baseline["length"]
+    tolerance = max(32, int(len_b * 0.05))
+    return abs(len_a - len_b) <= tolerance
+
+
+def _idor_fingerprint(resp):
+    return {"status": resp.status_code, "length": len(resp.text)}
+
+
 def check_idor(session, url_template, ids, cookie_a, cookie_b):
     """For each resource ID owned by test account A, checks it three ways:
     with account B's session (cross-account access), and with no auth at
     all (fully public exposure) - two distinct severities, since a page
     that's public-by-design isn't the same bug as one that leaks across
-    accounts. Both accounts must be ones you created and control."""
+    accounts. Both accounts must be ones you created and control.
+
+    False-positive fix (same class as check_http_methods): a bare
+    `status_code == 200` doesn't prove account B (or an anonymous caller)
+    actually read account A's data - an app that soft-200s every id,
+    real or not, would trip this on every single probe. A baseline probe
+    against an obviously-bogus id is fetched once per session type up
+    front; a per-id 200 only stays confidence="Confirmed" if it's
+    distinguishable from that baseline (different status, or a
+    meaningfully different body length) - otherwise it's downgraded to
+    "Potential" rather than reported as confirmed exposure.
+    """
     headers_b = {"Cookie": cookie_b}
+    bogus_id = f"wvscan-nonexistent-{os.urandom(6).hex()}"
+    bogus_url = url_template.format(id=bogus_id)
+
+    anon_baseline = None
+    try:
+        anon_baseline = _idor_fingerprint(session.get(bogus_url, timeout=REQUEST_TIMEOUT))
+    except requests.RequestException:
+        pass
+
+    b_baseline = None
+    try:
+        b_baseline = _idor_fingerprint(session.get(bogus_url, headers=headers_b, timeout=REQUEST_TIMEOUT))
+    except requests.RequestException:
+        pass
+
     rows, findings = [], []
     for rid in ids:
         url = url_template.format(id=rid)
@@ -3555,21 +3600,40 @@ def check_idor(session, url_template, ids, cookie_a, cookie_b):
             r_anon = session.get(url, timeout=REQUEST_TIMEOUT)
             row["anonymous_code"] = r_anon.status_code
         except requests.RequestException:
+            r_anon = None
             row["anonymous_code"] = None
 
         if row.get("anonymous_code") == 200:
             row["status"] = "PUBLIC"
-            findings.append(Finding("IDOR", f"Resource id={rid} is readable with no authentication at all", "high",
-                                     "An unauthenticated request returned HTTP 200 for a resource that presumably "
-                                     "belongs to a specific account.",
-                                     "Require authentication for this route, or confirm the resource is meant to be public.", confidence="Confirmed"))
+            if _idor_looks_like_baseline(r_anon, anon_baseline):
+                findings.append(Finding("IDOR", f"Resource id={rid} answered 200 with no authentication (unconfirmed)", "medium",
+                                         "An unauthenticated request returned HTTP 200, but the response is "
+                                         "indistinguishable from a probe against a deliberately bogus id on the "
+                                         "same route - this route may soft-200 every id rather than genuinely "
+                                         "exposing this one.",
+                                         "Confirm manually whether this route returns real per-account data before treating it as exposed.", confidence="Potential"))
+            else:
+                findings.append(Finding("IDOR", f"Resource id={rid} is readable with no authentication at all", "high",
+                                         "An unauthenticated request returned HTTP 200 for a resource that presumably "
+                                         "belongs to a specific account, and the response is distinguishable from a "
+                                         "bogus-id baseline on the same route.",
+                                         "Require authentication for this route, or confirm the resource is meant to be public.", confidence="Confirmed"))
         elif r_b.status_code == 200:
             row["status"] = "EXPOSED"
-            findings.append(Finding("IDOR", f"Account B accessed resource id={rid} owned by account A", "high",
-                                     f"HTTP {r_b.status_code} returned when account B's session requested a "
-                                     "resource created by account A.",
-                                     "Enforce ownership/role checks server-side on every resource lookup, "
-                                     "not just in the UI.", confidence="Confirmed"))
+            if _idor_looks_like_baseline(r_b, b_baseline):
+                findings.append(Finding("IDOR", f"Account B received 200 for resource id={rid} (unconfirmed)", "medium",
+                                         f"HTTP {r_b.status_code} returned when account B's session requested a "
+                                         "resource created by account A, but the response is indistinguishable "
+                                         "from account B's response to a deliberately bogus id on the same route - "
+                                         "this route may soft-200 every id rather than genuinely leaking this one.",
+                                         "Confirm manually whether this route returns account-A-specific data to account B before treating it as confirmed IDOR.", confidence="Potential"))
+            else:
+                findings.append(Finding("IDOR", f"Account B accessed resource id={rid} owned by account A", "high",
+                                         f"HTTP {r_b.status_code} returned when account B's session requested a "
+                                         "resource created by account A, distinguishable from account B's response "
+                                         "to a bogus id on the same route.",
+                                         "Enforce ownership/role checks server-side on every resource lookup, "
+                                         "not just in the UI.", confidence="Confirmed"))
         elif r_b.status_code in (401, 403, 404):
             row["status"] = "denied"
         else:
