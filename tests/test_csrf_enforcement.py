@@ -381,8 +381,9 @@ def test_advanced_detect_without_csrf_token_returns_400(csrf_client, csrf_db):
 
 
 # --------------------------------------------------------------------------
-# Task 3a: csrf.exempt() scope lock - exactly one call site, in
-# api_routes.py, applied to the `api` blueprint. Same source-parsing
+# Task 3a: csrf.exempt() scope lock — exactly two known call sites:
+# api_routes.py (Bearer-token /api/v1 blueprint) and sso_routes.py (SAML
+# ACS callback from IdP, no browser CSRF token). Same source-parsing
 # regression-lock shape as tests/test_scan_engine.py's
 # test_no_orchestrator_carries_an_inline_scoring_block and
 # tests/test_scheduler.py's test_fire_dispatches_only_on_base_media_api_no_advanced_branch.
@@ -407,21 +408,35 @@ def _find_csrf_exempt_call_sites():
     return hits
 
 
-def test_csrf_exempt_applied_to_exactly_one_blueprint():
+KNOWN_CSRF_EXEMPT_SITES = {
+    "api_routes.py": "Bearer-token /api/v1 blueprint (no browser session cookie)",
+    "sso_routes.py": "SAML ACS callback (POST from IdP, no browser CSRF token)",
+}
+
+
+def test_csrf_exempt_applied_to_exactly_two_blueprints():
     hits = _find_csrf_exempt_call_sites()
-    assert len(hits) == 1, (
-        f"expected exactly one csrf.exempt() call site (webvulnscanner/api_routes.py's "
-        f"Bearer-token blueprint), found {len(hits)}: "
+    assert len(hits) == len(KNOWN_CSRF_EXEMPT_SITES), (
+        f"expected exactly {len(KNOWN_CSRF_EXEMPT_SITES)} csrf.exempt() call sites "
+        f"{list(KNOWN_CSRF_EXEMPT_SITES.keys())}, found {len(hits)}: "
         f"{[(str(p.relative_to(REPO_ROOT)), n, line) for p, n, line in hits]}"
     )
-    path, _lineno, line = hits[0]
-    assert path.name == "api_routes.py", (
-        f"the sole csrf.exempt() call site moved out of api_routes.py into {path.name} - "
-        f"the Bearer-token API surface is no longer where CSRF exemption is scoped"
+    found_names = {path.name for path, _lineno, _line in hits}
+    unexpected = found_names - set(KNOWN_CSRF_EXEMPT_SITES)
+    assert not unexpected, (
+        f"unexpected csrf.exempt() in {unexpected} — add it to "
+        f"KNOWN_CSRF_EXEMPT_SITES with a justification or remove the exemption"
     )
-    assert "csrf.exempt(api)" in line, (
-        f"api_routes.py's exempt call no longer reads 'csrf.exempt(api)' - found: {line!r}"
-    )
+    for path, _lineno, line in hits:
+        assert path.name in KNOWN_CSRF_EXEMPT_SITES, (
+            f"csrf.exempt() call site moved out of expected files into {path.name} - "
+            f"{KNOWN_CSRF_EXEMPT_SITES}"
+        )
+        expected_blueprint = "api" if path.name == "api_routes.py" else "sso"
+        assert f"csrf.exempt({expected_blueprint})" in line, (
+            f"{path.name}'s exempt call no longer reads 'csrf.exempt({expected_blueprint})' "
+            f"- found: {line!r}"
+        )
 
 
 # Negative control performed manually while writing this test (not itself

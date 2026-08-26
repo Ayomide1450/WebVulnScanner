@@ -4,8 +4,7 @@
 {% include "_empty_state.html" %}
 {% include "_pagination.html" %}
 <style>
-  /* h1/h2.section/.card/table/th/td live in base.html - see its comments.
-     Everything below is additive, dashboard-only layout. */
+  /* Dashboard-specific layout - 3-section distill */
   h1 { margin-top: 20px; }
   h2.section { margin-top: 26px; }
   a.row-link { color: var(--accent); text-decoration:none; }
@@ -14,8 +13,7 @@
   .dash-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }
   .dash-header .sub { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
 
-  /* Item 2: four compact summary cards, item 8: less wasted vertical space
-     than the old single oversized score card. */
+  /* Summary cards - compact 4-column grid */
   .summary-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:14px; margin-top:20px; }
   .summary-card { padding:16px 18px; }
   .summary-card .label { display:flex; align-items:center; gap:7px; color: var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
@@ -26,15 +24,13 @@
   @media (max-width: 860px) { .summary-grid { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 460px) { .summary-grid { grid-template-columns: 1fr 1fr; gap:10px; } .summary-card { padding:13px 14px; } .summary-card .value { font-size:21px; } }
 
-  /* Item 3: latest-scan card */
+  /* Section 2: Latest scan + findings combined */
   .latest-card { display:flex; gap:var(--space-5); align-items:center; flex-wrap:wrap; }
   .latest-meta { flex:1; min-width:240px; }
   .latest-meta dl { display:grid; grid-template-columns: max-content 1fr; gap:6px 16px; margin:12px 0 0; font-size:13px; }
   .latest-meta dt { color: var(--muted); }
   .latest-meta dd { margin:0; }
   .latest-target { font-size:15px; font-weight:600; word-break:break-all; }
-
-  /* Item 5: recent findings */
   .sev-summary { display:flex; gap:10px; flex-wrap:wrap; margin: 4px 0 16px; }
   .sev-summary .stat { display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; }
   .sev-summary .stat .dot { width:8px; height:8px; border-radius:50%; background:currentColor; }
@@ -43,18 +39,36 @@
   .finding .view-link:hover { text-decoration:underline; }
   .findings-more { text-align:center; padding-top:4px; }
 
-  /* Item 4: score-history chart */
+  /* Section 3: Collapsible history & trends */
+  .history-section details { background: var(--panel); border:1px solid var(--border); border-radius: var(--radius-md); margin-bottom:18px; overflow:hidden; }
+  .history-section summary { padding:16px 22px; cursor:pointer; font-weight:600; font-size:14px; list-style:none; display:flex; justify-content:space-between; align-items:center; }
+  .history-section summary::-webkit-details-marker { display:none; }
+  .history-section summary .arrow { transition:transform .15s; color:var(--muted); }
+  .history-section details[open] summary .arrow { transform:rotate(90deg); }
+  .history-section .details-body { padding:0 22px 22px; }
+
+  /* Score chart */
   .chart-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
   .chart-scroll svg { display:block; }
   .chart-point-label { font-family:"Fira Code",monospace; font-size:10px; fill: var(--text); }
   .chart-axis-label { font-family:"Fira Code",monospace; font-size:10px; fill: var(--muted); }
   .chart-date-label { font-family:"Fira Code",monospace; font-size:9.5px; fill: var(--muted); }
 
-  /* Trend-by-target rows, kept from the prior design */
+  /* Trend-by-target rows */
   .target-row { display:flex; align-items:center; gap:14px; padding:8px 0; border-bottom:1px solid var(--border); flex-wrap:wrap; }
   .target-row:last-child { border-bottom:none; }
   .target-row code { flex-shrink:0; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .target-row svg { flex-shrink:0; }
+
+  /* Skeleton loading */
+  @keyframes shimmer { 0%, 100% { opacity: .4; } 50% { opacity: .7; } }
+  .skeleton { background: var(--panel2); border-radius: 6px; }
+  .skeleton-line { height: 14px; margin-bottom: 8px; }
+  .skeleton-value { height: 32px; width: 80px; margin-top: 8px; }
+  .skeleton-card { padding:16px 18px; }
+  .skeleton-card .label { height: 12px; width: 100px; margin-bottom: 8px; }
+  @media (prefers-reduced-motion: no-preference) { .skeleton { animation: shimmer 1.5s ease-in-out infinite; } }
+  @media (prefers-reduced-motion: reduce) { .skeleton { opacity: .5; } }
 </style>
 {% endblock %}
 {% block content %}
@@ -138,10 +152,10 @@
     </div>
   </div>
 
+  {# ---- Section 2: Latest scan + findings combined ---- #}
   {% if latest %}
-  {# ---- Item 3: Latest scan card -------------------------------------- #}
   <h2 class="section">Latest Scan</h2>
-  <div class="card hud-grid">
+  <div class="card">
     <div class="latest-card">
       {% if latest.risk_score is not none %}
         {% set score = latest.risk_score %}
@@ -171,14 +185,11 @@
         </div>
       </div>
     </div>
-  </div>
 
-  {# ---- Item 5: Recent findings ---------------------------------------- #}
-  <h2 class="section">Recent Findings</h2>
-  <div class="card">
+    {# ---- Recent findings inline ---- #}
     {% if latest_report %}
       {% set sc = latest_report.severity_counts or {} %}
-      <div class="sev-summary">
+      <div class="sev-summary" style="margin-top:20px;">
         <span class="stat text-critical"><span class="dot"></span>Critical &mdash; {{ sc.get('critical', 0) }}</span>
         <span class="stat text-high"><span class="dot"></span>High &mdash; {{ sc.get('high', 0) }}</span>
         <span class="stat text-medium"><span class="dot"></span>Medium &mdash; {{ sc.get('medium', 0) }}</span>
@@ -186,44 +197,38 @@
       </div>
       {% set actionable = latest_report.findings|rejectattr('severity', 'equalto', 'pass')|list %}
       {% if actionable %}
-        {% for f in actionable[:6] %}
+        {% for f in actionable[:4] %}
         <div class="finding {{ f.severity }}">
           <span class="badge {{ f.severity }}">{{ f.severity }}</span>
           <div class="body">
             <span class="cat">{{ f.category }}</span>
             <b>{{ f.title }}</b>
             <div class="detail">{{ f.detail }}</div>
-            {% if f.recommendation %}<div class="rec"><b>Fix:</b> {{ f.recommendation }}</div>{% endif %}
             <a class="view-link" href="{{ url_for('scan.scan_report', scan_id=latest.id) }}">View finding &rarr;</a>
           </div>
         </div>
         {% endfor %}
-        {% if actionable|length > 6 %}
+        {% if actionable|length > 4 %}
         <div class="findings-more"><a class="row-link" href="{{ url_for('scan.scan_report', scan_id=latest.id) }}">View all {{ actionable|length }} findings &rarr;</a></div>
         {% endif %}
       {% else %}
-      {% call empty_state('No security issues found', 'Your latest scan did not detect any actionable vulnerabilities.') %}
-      <g style="color:var(--accent)"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></g>
-      {% endcall %}
+      <p style="color: var(--muted); font-size: 13px; margin: 12px 0 0;">No actionable vulnerabilities found.</p>
       {% endif %}
     {% else %}
-    {# Out of this plan's migration scope (a scan-status transitional
-       message, not a first-run/no-data state) - left as its own local
-       markup, not the empty_state() macro. The inline style below
-       preserves this block's pre-existing color/font-size now that
-       _empty_state.html's shared .empty-state rule no longer carries
-       them (those moved to .empty-state-title/.empty-state-body, which
-       this plain-text block doesn't use). #}
-    <div class="empty-state" style="color: var(--muted); font-size: 13px;">
-      Your latest scan {{ 'is still running' if latest.status.value in ('queued','running') else 'did not produce a report' }} &mdash;
-      findings will show here once it completes.
-    </div>
+    <p style="color: var(--muted); font-size: 13px; margin: 12px 0 0;">
+      {{ 'Scan still running — findings will appear here once it completes.' if latest.status.value in ('queued','running') else 'No report generated for this scan.' }}
+    </p>
     {% endif %}
   </div>
   {% endif %}
 
-  {# ---- Item 4: Security score over time -------------------------------- #}
-  <h2 class="section">Security Score Over Time</h2>
+  {# ---- Section 3: Collapsible history & trends ---- #}
+  <div class="history-section">
+    <details>
+      <summary>History & Trends <span class="arrow">&rsaquo;</span></summary>
+      <div class="details-body">
+
+  <h2 class="section" style="margin-top:16px;">Security Score Over Time</h2>
   <div class="card">
     {% set scored = [] %}
     {% for s in scans %}
@@ -363,6 +368,9 @@
     <use href="#icon-radar"/>
     {% endcall %}
     {% endif %}
-  </div>
+
+      </div>{# close .details-body #}
+    </details>
+  </div>{# close .history-section #}
 </div>
 {% endblock %}

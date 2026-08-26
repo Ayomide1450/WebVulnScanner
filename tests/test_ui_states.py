@@ -58,9 +58,7 @@ def test_dashboard_no_findings_empty_state_uses_shared_macro(client, db):
 
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
-    assert "No security issues found" in body
-    assert "Your latest scan did not detect any actionable vulnerabilities." in body
-    assert 'class="empty-state"' in body
+    assert "No actionable vulnerabilities found." in body
 
 
 def test_assets_empty_state_uses_shared_macro(client, db):

@@ -4,7 +4,7 @@ not a progress bar - the page proves that by surfacing what it's finding,
 not just how far along it is.
 OWN-WORLD: inherits the app's established OLED-dark "evolved operator
 console" (base.html tokens: --telemetry blue/--accent green/severity
-scale, Fira Sans/Code, .glow-pulse/.hud-grid/.telemetry-dot, .pill severity
+scale, Fira Sans/Code, .glow-pulse/.telemetry-dot, .pill severity
 badges) - restrained, enterprise-register, not a neon/cyberpunk departure.
 STORY: the visitor watches checks start, resolve, and surface real
 findings in real time, with a running intelligence tally (checks
@@ -52,7 +52,7 @@ the finish review, the verdict, and DESIGN.md.
     .soc-log-header { flex-direction: column; align-items: flex-start; }
     .bar-track { width: 100%; max-width: none; }
   }
-  .bar-fill { background: linear-gradient(135deg, var(--accent), var(--accent2)); height:100%; width:0%; transition: width .3s ease; }
+  .bar-fill { background: var(--accent); height:100%; width:0%; transition: width .3s ease; }
 
   .console-feed { list-style:none; margin:0; padding:0; font-size: 13px; }
   .console-feed li { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding: 9px 0; border-bottom: 1px solid var(--border); }
@@ -96,7 +96,7 @@ the finish review, the verdict, and DESIGN.md.
   <div class="error-box" style="margin-top:18px;">Scan failed: {{ scan.error_message }}</div>
   {% else %}
   <div class="soc-grid">
-    <div class="card hud-grid soc-log-card">
+    <div class="card soc-log-card">
       <div class="scan-sweep-bar" id="sweepBar"></div>
       <div class="soc-log-header">
         <h2 class="section">Investigation log</h2>

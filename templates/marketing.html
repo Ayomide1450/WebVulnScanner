@@ -33,9 +33,9 @@
   .eyebrow { display:inline-flex; align-items:center; gap:7px; font-family:"Fira Code",monospace; font-size:11px; color: var(--accent); background: var(--accent-dim); border:1px solid rgba(34,197,94,.3); padding:6px 14px; border-radius:999px; margin-bottom:28px; }
   .eyebrow .dot { width:6px; height:6px; border-radius:50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 
-  .terminal { max-width: 480px; margin: 0 auto 22px; text-align:left; background: var(--panel); border:1px solid var(--border); border-radius: 10px; padding: 16px 18px; height: 202px; overflow: hidden; transition: height 320ms ease, margin-bottom 320ms ease, padding 320ms ease, opacity 220ms ease; }
-  .terminal.collapsing { height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; opacity: 0; }
-  @media (prefers-reduced-motion: reduce) { .terminal { height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; opacity: 0; overflow: hidden; } }
+  .terminal { max-width: 480px; margin: 0 auto 22px; text-align:left; background: var(--panel); border:1px solid var(--border); border-radius: 10px; padding: 16px 18px; min-height: 202px; overflow: hidden; transition: opacity 280ms ease, transform 280ms ease; }
+  .terminal.collapsing { opacity: 0; transform: scaleY(0); transform-origin: top; }
+  @media (prefers-reduced-motion: reduce) { .terminal { display: none; } }
   .terminal pre { margin:0; font-family:"Fira Code",monospace; font-size:12.5px; line-height:1.7; color: var(--muted); white-space:pre-wrap; min-height: 1.7em; }
   .terminal .cursor { display:inline-block; width:7px; height:13px; background: var(--accent); margin-left:2px; vertical-align:-2px; animation: blink 1s step-end infinite; }
   @keyframes blink { 50% { opacity: 0; } }
@@ -147,13 +147,13 @@
   .final-cta h2 { font-size: clamp(28px, 3vw, 36px); margin: 0 0 14px; letter-spacing:-0.01em; }
   .final-cta p { color: var(--muted); font-size: 15px; margin: 0 0 30px; }
   .cta-row { display:flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
-  .cta { text-decoration:none; padding: 15px 28px; border-radius: 10px; font-weight:600; font-size:15px; transition: filter 150ms ease, transform 150ms ease; }
+  .cta { text-decoration:none; padding: 15px 28px; border-radius: 10px; font-weight:600; font-size:15px; transition: filter 150ms ease, transform 150ms ease; display:inline-flex; align-items:center; gap:8px; }
   .cta:hover { filter: brightness(1.08); }
   .cta:active { transform: translateY(1px); }
-  .cta.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color:#04150a; }
+  .cta.primary { background: var(--accent); color:#041007; }
   .cta.secondary { border:1px solid var(--border); color: var(--text); background: var(--panel); }
 </style>
-<noscript><style>.terminal { height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; opacity: 0; overflow: hidden; }</style></noscript>
+<noscript><style>.terminal { display: none; }</style></noscript>
 {% endblock %}
 {% block content %}
 
@@ -340,22 +340,18 @@
   <div class="mkt-wrap">
     <div class="steps">
       <div class="step">
-        <div class="step-num">01</div>
         <h3>Enter your domain</h3>
         <p>Give Glassbox a URL and confirm you own or are authorized to test it.</p>
       </div>
       <div class="step">
-        <div class="step-num">02</div>
         <h3>We verify ownership</h3>
         <p>Intrusive checks require a DNS TXT record or a /.well-known/ file tied to your org - not just a checkbox.</p>
       </div>
       <div class="step">
-        <div class="step-num">03</div>
         <h3>Checks run live</h3>
         <p>Watch each check start, complete, and surface findings in real time as the scan progresses.</p>
       </div>
       <div class="step">
-        <div class="step-num">04</div>
         <h3>Get a scored report</h3>
         <p>A graded, prioritized report with plain-English remediation steps for every finding.</p>
       </div>

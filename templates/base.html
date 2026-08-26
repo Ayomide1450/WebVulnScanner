@@ -20,9 +20,9 @@
   @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
 
   :root {
-    --bg: #020617; --panel: #0b1220; --panel2: #0f172a; --border: #1e293b;
-    --text: #f8fafc; --muted: #8b96ad; --accent: #22c55e; --accent2: #16a34a; --accent-dim: rgba(34,197,94,.14);
-    --primary: #0f172a; --ring: #22c55e;
+    --bg: #010308; --panel: #080d16; --panel2: #0c1220; --border: #182030;
+    --text: #f0f4f8; --muted: #7a869a; --accent: #22c55e; --accent2: #16a34a; --accent-dim: rgba(34,197,94,.12);
+    --primary: #0c1220; --ring: #22c55e;
     --critical:#f87171; --high:#fb923c; --medium:#fbbf24; --low:#60a5fa; --info:#8b96ad; --pass:#22c55e;
     /* "Operator console" telemetry accent - blue family, distinct from
        --accent (reserved for pass/complete) and --low (a different,
@@ -65,8 +65,8 @@
     font-family: "Fira Sans", -apple-system, "Segoe UI", Arial, sans-serif;
     font-size: 15px; line-height: 1.6;
     background:
-      radial-gradient(900px 480px at 85% -8%, rgba(34,197,94,.10), transparent 60%),
-      radial-gradient(700px 420px at 0% 0%, rgba(59,130,246,.06), transparent 55%),
+      radial-gradient(900px 480px at 85% -8%, rgba(34,197,94,.06), transparent 60%),
+      radial-gradient(700px 420px at 0% 0%, rgba(59,130,246,.04), transparent 55%),
       var(--bg);
     color: var(--text);
     -webkit-font-smoothing: antialiased;
@@ -133,13 +133,8 @@
   td.info, span.info, .text-info { color: var(--info); }
   td.pass, span.pass, .text-pass { color: var(--pass); }
 
-  /* Findings list */
-  .finding { display:flex; gap:14px; background: var(--panel); border:1px solid var(--border); border-left: 3px solid var(--muted); border-radius: var(--radius); padding: var(--space-4) var(--space-4); margin-bottom: var(--space-2); }
-  .finding.critical { border-left-color: var(--critical); }
-  .finding.high { border-left-color: var(--high); }
-  .finding.medium { border-left-color: var(--medium); }
-  .finding.low { border-left-color: var(--low); }
-  .finding.info { border-left-color: var(--info); }
+  /* Findings list - clean card style, no side-tab borders */
+  .finding { display:flex; gap:14px; background: var(--panel); border:1px solid var(--border); border-radius: var(--radius); padding: var(--space-4) var(--space-4); margin-bottom: var(--space-2); }
   .finding .badge { flex-shrink:0; font-size:11px; font-weight:600; padding: 3px 9px; border-radius: 6px; text-transform: uppercase; letter-spacing:.04em; height: fit-content; }
   /* .finding is a flex row, so any direct-child span without its own
      height override stretches to the row's full height (flex default
@@ -159,7 +154,7 @@
   .gauge-wrap { position:relative; width:110px; height:110px; flex-shrink:0; }
   .gauge-wrap svg { transform: rotate(-90deg); }
   .gauge-bg { fill:none; stroke: rgba(255,255,255,.06); stroke-width: 10; }
-  .gauge-fg { fill:none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 1s ease; filter: drop-shadow(0 0 6px currentColor); }
+  .gauge-fg { fill:none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 1s ease; }
   /* Token-based SVG stroke rules, additive to the base .gauge-fg rule above -
      let _gauge.html emit a class instead of a raw hex stroke="" attribute.
      Defined here (rather than in the plan that consumes them) so base.html,
@@ -248,110 +243,73 @@
     .mobile-record-cards { display: flex; flex-direction: column; gap: var(--space-3); }
   }
 
-  /* Operator-console motion language. .glow-pulse generalizes the
-     currentColor drop-shadow glow _gauge.html's .gauge-fg already proved;
-     scan-sweep is reserved for future use (a sweeping highlight across a
-     panel). Both are named/reusable rather than one-off inline styles. */
-  @keyframes glow-pulse { 0%, 100% { filter: drop-shadow(0 0 4px currentColor); } 50% { filter: drop-shadow(0 0 10px currentColor); } }
+  /* Operator-console motion language - subtle opacity pulse for "in progress" states. */
+  @keyframes glow-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
   @keyframes scan-sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
   @media (prefers-reduced-motion: no-preference) {
     .glow-pulse { animation: glow-pulse 2.2s ease-in-out infinite; }
   }
   @media (prefers-reduced-motion: reduce) {
-    /* Still visibly distinct from .done/.failed (steady glow, no pulse)
-       rather than losing the "in progress" signal entirely. */
-    .glow-pulse { filter: drop-shadow(0 0 6px currentColor); }
+    .glow-pulse { opacity: .7; }
   }
 
-  /* CSS-only ambient circuit/grid texture - static by default (no motion,
-     so no prefers-reduced-motion gate needed on its own; an *animated*
-     drift variant, if ever added, must be its own modifier class gated by
-     @media (prefers-reduced-motion: no-preference), matching the
-     discipline marketing.html's typewriter hero already established). */
-  .hud-grid {
-    background-image:
-      linear-gradient(rgba(56,189,248,.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(56,189,248,.05) 1px, transparent 1px);
-    background-size: 28px 28px;
-  }
-
-  /* Live-feed state dot: blue+pulsing while a check is in flight, swapped
-     to green+static on completion - see scan_progress.html. */
-  .telemetry-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; background: var(--telemetry); box-shadow: 0 0 6px var(--telemetry); color: var(--telemetry); }
-  .telemetry-dot.done { background: var(--accent); box-shadow: 0 0 6px var(--accent); color: var(--accent); animation: none; }
-  .telemetry-dot.failed { background: var(--critical); box-shadow: 0 0 6px var(--critical); color: var(--critical); animation: none; }
+  /* Live-feed state dot: solid color while a check is in flight, swapped
+     to green on completion - see scan_progress.html. No glow shadows. */
+  .telemetry-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; background: var(--telemetry); color: var(--telemetry); }
+  .telemetry-dot.done { background: var(--accent); color: var(--accent); animation: none; }
+  .telemetry-dot.failed { background: var(--critical); color: var(--critical); animation: none; }
 
   a.back { color: var(--accent); text-decoration:none; font-size: 13px; font-weight:600; }
   a.back:hover { text-decoration:underline; }
 
-  /* Top nav */
-  /* justify-content:space-between is kept as the baseline so brand and
-     nav occupy opposite ends of the row (and so the row still behaves
-     sensibly if flex-wrap ever puts more than these two items in play);
-     the actual desktop brand-to-menu distance is guaranteed by
-     .nav-links' own margin-left:auto below - gap here only governs the
-     wrapped/narrow case (see the max-width:640px override below). */
-  /* width:100% is load-bearing, not decorative: .topnav/.wrap are direct
-     flex children of the page's body element (display:flex; flex-
-     direction:column, for the sticky footer). A flex item's cross-axis
-     auto margins (margin:0 auto
-     here) disable stretch alignment per spec, so without an explicit
-     width the item falls back to shrink-to-fit sizing - it settles at its
-     own content's width instead of filling up to max-width, then
-     centering. For short content (this header's brand + 2-6 nav links)
-     that content width is far below --container-app, so the header
-     rendered narrow and left-clustered no matter what --container-app or
-     the gutter were set to - the real bug the visible "no separation"
-     symptom traced back to, confirmed via computed-style inspection of
-     the live Fly deployment (getBoundingClientRect() width << max-width).
-     width:100% forces the flex item to fill the cross axis first, so
-     max-width caps it and margin:auto centers it as intended. */
+  /* Skip-to-content link for keyboard/screen-reader users */
+  .skip-link { position:absolute; top:-100%; left:16px; z-index:1000; padding:12px 20px; background:var(--accent); color:#041007; font-weight:600; font-size:14px; border-radius:0 0 var(--radius-sm) var(--radius-sm); text-decoration:none; }
+  .skip-link:focus { top:0; }
+
+  /* ---- Sidebar navigation (authenticated pages) ---- */
+  .app-shell { display:flex; min-height:100vh; }
+  .sidebar { width:240px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--border); padding:24px 0; display:flex; flex-direction:column; position:fixed; top:0; left:0; bottom:0; z-index:100; overflow-y:auto; }
+  .sidebar-brand { display:flex; align-items:center; gap:10px; padding:0 24px 24px; border-bottom:1px solid var(--border); text-decoration:none; color:var(--text); font-weight:600; font-size:16px; }
+  .sidebar-brand .icon { color:var(--accent); width:22px; height:22px; }
+  .sidebar-nav { flex:1; padding:16px 12px; display:flex; flex-direction:column; gap:2px; }
+  .sidebar-section { font-size:10px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; padding:16px 12px 6px; }
+  .sidebar-nav a { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:var(--radius-sm); color:var(--muted); text-decoration:none; font-size:13px; font-weight:500; transition: background 150ms ease, color 150ms ease; }
+  .sidebar-nav a:hover { background:rgba(255,255,255,.04); color:var(--text); }
+  .sidebar-nav a.active { background:var(--accent-dim); color:var(--accent); }
+  .sidebar-nav a .icon { width:16px; height:16px; }
+  .sidebar-footer { padding:16px 12px; border-top:1px solid var(--border); }
+  .sidebar-footer a { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:var(--radius-sm); color:var(--muted); text-decoration:none; font-size:13px; font-weight:500; transition: background 150ms ease, color 150ms ease; }
+  .sidebar-footer a:hover { background:rgba(255,255,255,.04); color:var(--text); }
+  .sidebar-footer a .icon { width:16px; height:16px; }
+  .app-content { flex:1; margin-left:240px; min-width:0; }
+
+  /* ---- Top nav (anonymous pages only) ---- */
   .topnav { width: 100%; max-width: var(--container-app); margin: 0 auto; padding: 20px var(--gutter-app) 0; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
   .topnav .brand-link { color: var(--text); text-decoration:none; font-weight:600; font-size:16px; display:flex; align-items:center; gap:9px; }
   .topnav .brand-link .icon { color: var(--accent); width:22px; height:22px; }
-  /* margin-left:auto claims all remaining row space for the gap in front
-     of .nav-links (stronger than a fixed floor) - justify-content:
-     space-between alone wasn't reliable: with many nav items the row
-     nears full width and "space between" can collapse toward the bare
-     16px flex `gap`, tighter than the 22px between individual links, so
-     the brand read as part of the menu rather than a separate element.
-     Also the fix for the same drift on the anonymous Login/Sign up pair,
-     which otherwise sat close enough to the brand to read as attached to
-     it instead of as a distinct authentication block. */
   .topnav .nav-links { display:flex; gap:22px; align-items:center; flex-wrap:wrap; margin-left: auto; }
   .topnav .nav-links a { color: var(--muted); text-decoration:none; font-size: 13px; font-weight:600; transition: color 150ms ease; }
   .topnav .nav-links a:hover { color: var(--text); }
   .topnav .nav-links a.cta-link { color: var(--accent); }
-  /* Logout is functionally distinct from the primary nav (destructive/
-     account action, not a place to browse to) - a left border/indent sets
-     it apart without a hard visual break like a second nav bar. */
-  .topnav .nav-links a.nav-logout { padding-left: 18px; border-left: 1px solid var(--border); }
-
-  /* Anonymous Login/Sign up (Phase 10 live-verification feedback, 08-20/21):
-     these read as too small at plain 13px, and on mobile the whole nav
-     collapsed to a column that put them under the brand on the left
-     instead of staying right-aligned like desktop. First tried as full
-     .btn instances (a boxed button) - reverted per explicit follow-up
-     feedback (08-21): still plain text links, just larger, not boxed.
-     .topnav-anon is still exempted from the column-stacking media query
-     below - the anonymous nav is only ever these two items, which always
-     fit in a row even at 320px, unlike the 7+-item authenticated nav the
-     stacking rule exists for. */
   .topnav .nav-links a.nav-auth-link { font-size: 16px; }
 
-  /* Below ~640px the (authenticated) nav-links row wraps under the brand
-     with only the flex `gap`, which reads as the site name crowding
-     straight into the menu with no deliberate spacing. Stack them
-     explicitly with real margin instead of leaning on wrap+gap for the
-     narrow case. */
-  @media (max-width: 640px) {
-    .topnav:not(.topnav-anon) { flex-direction: column; align-items: flex-start; }
-    .topnav:not(.topnav-anon) .nav-links { margin-left: 0; margin-top: 6px; }
+  @media (max-width: 768px) {
+    .sidebar { display:none; }
+    .app-content { margin-left:0; }
+    .mobile-topbar { display:flex !important; }
   }
+  .mobile-topbar { display:none; width:100%; padding:12px var(--gutter-app); background:var(--panel); border-bottom:1px solid var(--border); align-items:center; justify-content:space-between; }
+  .mobile-topbar .brand-link { color:var(--text); text-decoration:none; font-weight:600; font-size:15px; display:flex; align-items:center; gap:8px; }
+  .mobile-topbar .brand-link .icon { color:var(--accent); width:20px; height:20px; }
+  .mobile-topbar .nav-links { display:flex; gap:16px; align-items:center; }
+  .mobile-topbar .nav-links a { color:var(--muted); text-decoration:none; font-size:13px; font-weight:600; }
+  .mobile-topbar .nav-links a:hover { color:var(--text); }
 
   /* width:100% - same shrink-to-fit fix as .topnav above (direct flex
-     child of body with auto side-margins). */
+     child of body with auto side-margins). For sidebar pages, .wrap is
+     inside .app-content which already handles the flex layout. */
   .wrap { width: 100%; max-width: var(--container-app); margin: 0 auto; padding: var(--space-6) var(--gutter-app) calc(var(--space-7) * 2); }
+  .sidebar-page .wrap { max-width: 100%; padding-left: clamp(24px, 4vw, 48px); padding-right: clamp(24px, 4vw, 48px); }
 
   .site-footer { border-top: 1px solid var(--border); margin-top: auto; }
   .footer-inner { max-width: var(--container-app); margin: 0 auto; padding: 20px var(--gutter-app); display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; color: var(--muted); font-size: 13px; }
@@ -384,35 +342,97 @@
     <symbol id="icon-warning" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3.5 21.5 20h-19L12 3.5Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v4"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 17h.01"/></symbol>
     <symbol id="icon-check" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></symbol>
     <symbol id="icon-sso" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline stroke-linecap="round" stroke-linejoin="round" points="10,17 15,12 10,7"/><line stroke-linecap="round" stroke-linejoin="round" x1="15" y1="12" x2="3" y2="12"/></symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18"/><path stroke-linecap="round" stroke-linejoin="round" d="m7 16 4-8 4 4 4-6"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></symbol>
   </svg>
 
-  <div class="topnav{{ ' topnav-anon' if not current_user.is_authenticated }}">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  {% if current_user.is_authenticated %}
+  {# ---- Sidebar for authenticated pages ---- #}
+  <div class="app-shell sidebar-page">
+    <aside class="sidebar">
+      <a class="sidebar-brand" href="/">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>
+        Glassbox
+      </a>
+      <nav class="sidebar-nav" aria-label="Main navigation">
+        <div class="sidebar-section">Scan</div>
+        <a href="/dashboard" class="{{ 'active' if request.path == '/dashboard' else '' }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18"/><path stroke-linecap="round" stroke-linejoin="round" d="m7 16 4-8 4 4 4-6"/></svg>
+          Dashboard
+        </a>
+        <a href="/scan/new" class="{{ 'active' if '/scan' in request.path and '/scan/' not in request.path else '' }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
+          New Scan
+        </a>
+        <a href="{{ url_for('asset.list_assets') }}" class="{{ 'active' if '/asset' in request.path else '' }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z"/></svg>
+          Assets
+        </a>
+        <div class="sidebar-section">Account</div>
+        <a href="/account/billing" class="{{ 'active' if '/billing' in request.path else '' }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M2 10h20"/></svg>
+          Billing
+        </a>
+        <a href="{{ url_for('api_tokens.list_tokens') }}" class="{{ 'active' if '/api-tokens' in request.path or '/api_tokens' in request.path else '' }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M11 12 20 3m0 0h-4m4 0v4m-8.5 4.5L15 8"/></svg>
+          API Tokens
+        </a>
+        <a href="{{ url_for('webhooks.index') }}" class="{{ 'active' if '/webhook' in request.path else '' }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>
+          Webhooks
+        </a>
+        <a href="{{ url_for('api_docs.api_reference') }}" class="{{ 'active' if '/api-docs' in request.path or '/api_docs' in request.path else '' }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+          API Docs
+        </a>
+        {% if current_user.role == Role.ORG_ADMIN %}
+        <a href="/org/admin" class="{{ 'active' if '/org' in request.path else '' }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="4" y="14" width="16" height="6" rx="1" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" d="M8 7h.01M8 17h.01"/></svg>
+          Organization
+        </a>
+        {% endif %}
+        {% if current_user.is_platform_admin %}
+        <a href="{{ url_for('admin.platform_dashboard') }}" class="{{ 'active' if '/admin' in request.path else '' }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          Platform Admin
+        </a>
+        {% endif %}
+      </nav>
+      <div class="sidebar-footer">
+        <a href="{{ url_for('auth.logout') }}">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline stroke-linecap="round" stroke-linejoin="round" points="16,17 21,12 16,7"/><line stroke-linecap="round" stroke-linejoin="round" x1="21" y1="12" x2="9" y2="12"/></svg>
+          Logout
+        </a>
+      </div>
+    </aside>
+    <div class="app-content">
+      <div class="mobile-topbar">
+        <a class="brand-link" href="/">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>
+          Glassbox
+        </a>
+        <div class="nav-links">
+          <a href="/dashboard">Dashboard</a>
+          <a href="/scan/new">New Scan</a>
+          <a href="{{ url_for('auth.logout') }}">Logout</a>
+        </div>
+      </div>
+
+  {% else %}
+  {# ---- Top nav for anonymous pages ---- #}
+  <div class="topnav topnav-anon">
     <a class="brand-link" href="/">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/></svg>
       Glassbox
     </a>
     <div class="nav-links">
-      {% if current_user.is_authenticated %}
-        <a href="/dashboard">Dashboard</a>
-        <a href="{{ url_for('asset.list_assets') }}">Assets</a>
-        <a href="/scan/new">New Scan</a>
-        <a href="/account/billing">Billing</a>
-        <a href="{{ url_for('api_tokens.list_tokens') }}">API Tokens</a>
-        <a href="{{ url_for('webhooks.index') }}">Webhooks</a>
-        <a href="{{ url_for('api_docs.api_reference') }}">API Docs</a>
-        {% if current_user.role == Role.ORG_ADMIN %}
-        <a href="/org/admin">Organization</a>
-        {% endif %}
-        {% if current_user.is_platform_admin %}
-        <a href="{{ url_for('admin.platform_dashboard') }}">Platform Admin</a>
-        {% endif %}
-        <a href="{{ url_for('auth.logout') }}" class="nav-logout">Logout</a>
-      {% else %}
-        <a href="{{ url_for('auth.login') }}" class="nav-auth-link">Login</a>
-        <a href="{{ url_for('auth.signup') }}" class="nav-auth-link cta-link">Sign up</a>
-      {% endif %}
+      <a href="{{ url_for('auth.login') }}" class="nav-auth-link">Login</a>
+      <a href="{{ url_for('auth.signup') }}" class="nav-auth-link cta-link">Sign up</a>
     </div>
   </div>
+  {% endif %}
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -424,7 +444,14 @@
     {% endif %}
   {% endwith %}
 
+  <div id="main-content">
   {% block content %}{% endblock %}
+  </div>
+
+  {% if current_user.is_authenticated %}
+    </div>{# close .app-content #}
+  </div>{# close .app-shell #}
+  {% endif %}
 
   <footer class="site-footer">
     <div class="footer-inner">

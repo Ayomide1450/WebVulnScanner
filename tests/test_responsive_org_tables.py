@@ -179,13 +179,13 @@ def test_org_admin_zero_records_shows_no_cards_and_single_empty_messages(client,
     assert body.count("No scans recorded for this org yet.") == 1
 
 
-def test_org_admin_hud_grid_anchor_preserved(client, db):
+def test_org_admin_card_present(client, db):
     _seed_full_org_admin(db)
     login(client, "admin@example.com")
     resp = client.get("/org/admin")
     body = resp.get_data(as_text=True)
 
-    assert body.count('class="card hud-grid"') == 1
+    assert 'class="card"' in body
 
 
 # --------------------------------------------------------------------------

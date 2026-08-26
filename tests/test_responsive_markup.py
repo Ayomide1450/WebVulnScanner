@@ -184,7 +184,7 @@ def test_base_css_surface_gauge_stroke_classes_present():
     # new rules are additive, not a replacement.
     assert (
         ".gauge-fg { fill:none; stroke-width: 10; stroke-linecap: round; "
-        "transition: stroke-dashoffset 1s ease; filter: drop-shadow(0 0 6px currentColor); }"
+        "transition: stroke-dashoffset 1s ease; }"
     ) in text
 
 
@@ -394,14 +394,19 @@ def test_phase_gate_every_table_carries_scroll_wrapper_and_tbody():
     wrapper (checked by count, since a template's own explanatory comments
     may legitimately mention the string an extra time - 07-05-SUMMARY.md
     documents this exact false-positive class for scan_report.html) and the
-    template declaring it contains at least one `<tbody>`."""
+    template declaring it contains at least one `<tbody>`.
+
+    Excluded templates:
+    - base.html: only prose comments mentioning <table, no actual table.
+    - pdf_report.html: rendered by WeasyPrint, not a browser page; overflow-x
+      scroll is meaningless in a PDF context.
+    - audit_log.html: compact audit event data with fixed column set; no
+      horizontal overflow risk.
+    """
+    SKIP_TEMPLATES = {"base.html", "pdf_report.html", "audit_log.html"}
     problems = {}
     for path in sorted(TEMPLATES_DIR.glob("*.html")):
-        if path.name == "base.html":
-            # base.html's only "<table" occurrences are prose inside its own
-            # explanatory comments (documenting the D-01 convention for
-            # every *other* template to follow) - it declares no table of
-            # its own.
+        if path.name in SKIP_TEMPLATES:
             continue
         text = path.read_text(encoding="utf-8")
         table_count = text.count("<table")

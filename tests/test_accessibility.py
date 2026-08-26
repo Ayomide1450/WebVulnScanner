@@ -62,6 +62,8 @@ EXCLUDED_ENDPOINTS = {
     "static": "Flask's built-in static-file server - serves assets, not an HTML page.",
     "public.healthz": "Render's health-check path - returns a bare 200 with no HTML body to assert against.",
     "auth.logout": "Clears the session and 302-redirects to '/' - no template of its own to render.",
+    "sso.saml_logout": "Clears SAML session state and 302-redirects to '/' - no template of its own to render.",
+    "sso.login_saml": "Always redirects to the IdP (302) - no HTML template to assert heading/label structure against.",
 }
 EXCLUDED_BLUEPRINT_PREFIXES = (
     "api.",  # webvulnscanner/api_routes.py - a JSON API blueprint (/api/v1/*). Every

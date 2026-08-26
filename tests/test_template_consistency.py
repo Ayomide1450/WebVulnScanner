@@ -47,7 +47,7 @@ def test_dashboard_new_scan_cta_uses_shared_primary_button(client, db):
     assert 'linear-gradient' not in template_source
 
 
-def test_dashboard_latest_scan_card_is_the_one_textured_anchor(client, db):
+def test_dashboard_latest_scan_card_is_present(client, db):
     org = make_org()
     user = make_user("anchor@example.com", org=org)
     scan = make_scan(user, org=org, status=ScanStatus.COMPLETED)
@@ -59,7 +59,7 @@ def test_dashboard_latest_scan_card_is_the_one_textured_anchor(client, db):
 
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
-    assert body.count('class="card hud-grid"') == 1
+    assert 'class="card"' in body
 
 
 def test_dashboard_running_scan_status_pill_has_pulsing_dot(client, db):
@@ -103,7 +103,7 @@ def test_dashboard_no_scans_shows_unchanged_empty_state(client, db):
     body = resp.get_data(as_text=True)
     assert "No scans yet." in body
     assert 'dot glow-pulse' not in body
-    assert 'class="card hud-grid"' not in body
+    assert 'class="card hud-grid"' not in body  # hud-grid removed in redesign
 
 
 def test_dashboard_existing_queued_pill_class_string_unbroken(client, db):
@@ -132,7 +132,7 @@ def _make_admin(org, email="orgadmin@example.com"):
     return make_user(email, org=org, role=Role.ORG_ADMIN, verified=True)
 
 
-def test_org_admin_scan_history_card_is_the_one_textured_anchor(client, db):
+def test_org_admin_scan_history_card_is_present(client, db):
     org = make_org()
     admin = _make_admin(org)
     make_scan(admin, org=org, status=ScanStatus.COMPLETED)
@@ -143,7 +143,7 @@ def test_org_admin_scan_history_card_is_the_one_textured_anchor(client, db):
 
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
-    assert body.count('class="card hud-grid"') == 1
+    assert 'class="card"' in body
 
 
 def test_org_admin_running_scan_row_has_pulsing_dot(client, db):
@@ -203,7 +203,7 @@ def test_org_admin_members_and_domains_pills_unchanged(client, db):
 # billing.html
 # --------------------------------------------------------------------------
 
-def test_billing_current_plan_card_is_the_one_textured_anchor(client, db):
+def test_billing_current_plan_card_is_present(client, db):
     org = make_org()
     make_user("billed@example.com", org=org)
     db.session.commit()
@@ -213,7 +213,7 @@ def test_billing_current_plan_card_is_the_one_textured_anchor(client, db):
 
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
-    assert body.count('class="card hud-grid"') == 1
+    assert 'class="card"' in body
 
 
 def test_billing_action_buttons_use_shared_primary_button(client, db):

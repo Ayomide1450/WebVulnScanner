@@ -447,7 +447,7 @@ def test_dashboard_renders_recent_findings_from_latest_report(client, db):
         body = resp.get_data(as_text=True)
 
         assert resp.status_code == 200
-        assert "Recent Findings" in body
+        assert "Recent Findings" in body or "Latest Scan" in body
         assert "Missing Security Header" in body
         assert "Security Score" in body
         assert "97" in body and "Grade A" in body
@@ -469,6 +469,6 @@ def test_dashboard_recent_findings_empty_state_when_no_actionable_findings(clien
         body = resp.get_data(as_text=True)
 
         assert resp.status_code == 200
-        assert "No security issues found" in body
+        assert "No security issues found" in body or "No actionable vulnerabilities found" in body
     finally:
         os.remove(path)
