@@ -86,6 +86,11 @@ from webvulnscanner.checks import (
     check_api_schema_exposure,
     check_api_wordlist,
     check_api_js_discovery,
+    check_xxe,
+    check_csp_depth,
+    check_hsts_depth,
+    check_dnssec,
+    check_dependency_audit,
 )
 
 logger = logging.getLogger(__name__)
@@ -492,6 +497,12 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         "rate_limit": lambda: check_rate_limit_posture(base_url, session),
         "jwt_active": lambda: check_jwt_active(session, base_url, home_html),
         "graphql_deep": lambda: check_graphql_deep(base_url, session),
+        # Phase 33 (OWGAP-01..05)
+        "xxe": lambda: check_xxe(param_urls, session),
+        "csp_depth": lambda: check_csp_depth(home_html),
+        "hsts_depth": lambda: check_hsts_depth(dict(home_resp.headers)),
+        "dnssec": lambda: check_dnssec(hostname),
+        "dep_audit": lambda: check_dependency_audit(home_html),
     }
 
     # Community checks (Phase 28): load YAML-defined checks from

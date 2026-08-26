@@ -61,6 +61,9 @@ FEATURE_REQUIREMENTS = {
     # introspection query) with no injection payloads, so PAID not
     # ORG_VERIFIED.
     "api": Tier.PAID,
+    # Phase 33 (OWGAP-01..05) — passive/read-only checks
+    "xxe": Tier.PAID, "csp_depth": Tier.FREE, "hsts_depth": Tier.FREE,
+    "dnssec": Tier.PAID, "dep_audit": Tier.PAID,
 }
 
 

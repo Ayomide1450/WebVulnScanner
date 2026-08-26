@@ -31,6 +31,8 @@ FREE_TIER_JOBS = {
     "mixed_content", "dns_email", "vulnerable_js", "secrets", "sri", "jwt",
     # v1.3 Phase 14 net-new checks - all FREE tier (passive/read-only)
     "file_upload", "privacy_exposure", "caching_sensitive",
+    # Phase 33 (OWGAP-02/03) - passive/free tier
+    "csp_depth", "hsts_depth",
 }
 
 
@@ -107,13 +109,18 @@ def _stub_all_checks(monkeypatch):
         "check_ssti", "check_host_header", "check_cache_deception", "check_crlf_injection",
         "check_csrf_posture", "check_subdomain_takeover", "check_path_traversal",
         "check_rate_limit_posture", "check_jwt_active", "check_graphql_deep",
+        # Phase 33 (OWGAP-01..05)
+        "check_xxe", "check_csp_depth", "check_hsts_depth", "check_dnssec",
+        "check_dependency_audit",
     ]
     for name in plain_stub_names:
         monkeypatch.setattr(scan_engine, name, lambda *a, **k: ({}, []))
     monkeypatch.setattr(scan_engine, "check_headers", lambda *a, **k: ({"grade": "A"}, []))
     monkeypatch.setattr(scan_engine, "check_open_ports", lambda *a, **k: ([], "1.2.3.4", []))
 
-    fake_session = SimpleNamespace(get=lambda *a, **k: SimpleNamespace(text="<html></html>"))
+    fake_session = SimpleNamespace(
+        get=lambda *a, **k: SimpleNamespace(text="<html></html>", headers={}),
+    )
     monkeypatch.setattr(scan_engine, "_mk_session", lambda: fake_session)
 
 

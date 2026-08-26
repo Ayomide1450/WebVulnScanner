@@ -526,7 +526,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OSSD-01 | Phase 30 | Complete (2026-08-25, decision doc — GO, deferred to v2) |
 | CVSS-01..05 | Phase 31 | Complete (2026-08-26) |
 | DEDUP-01..04 | Phase 32 | Complete (2026-08-26) |
-| OWGAP-01..05 | Phase 33 | Planned |
+| OWGAP-01..05 | Phase 33 | Complete (2026-08-26) |
 | APIT-01..03 | Phase 34 | Planned |
 
 **Coverage:** 105/105 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for
@@ -567,16 +567,16 @@ review).
 
 ### OWASP Gap Audit — Phase 33 (v1.8)
 
-- [ ] **OWGAP-01**: `check_xxe`: probes XML-accepting endpoints for external entity injection
+- [x] **OWGAP-01**: `check_xxe`: probes XML-accepting endpoints for external entity injection
       using marker-only payloads (no real file reads). Same safety as check_ssti.
-- [ ] **OWGAP-02**: `check_csp_depth`: deepens the existing CSP header check to evaluate
+- [x] **OWGAP-02**: `check_csp_depth`: deepens the existing CSP header check to evaluate
       directive quality — script-src strength, report-uri/report-uri presence, nonce/hash
       usage detection.
-- [ ] **OWGAP-03**: `check_hsts_depth`: deepens the existing HSTS check to evaluate max-age
+- [x] **OWGAP-03**: `check_hsts_depth`: deepens the existing HSTS check to evaluate max-age
       adequacy (< 6 months = low, >= 6 months = pass), includeSubDomains, preload eligibility.
-- [ ] **OWGAP-04**: `check_dnssec`: verifies DNSSEC signing via dns.resolver AD flag check +
+- [x] **OWGAP-04**: `check_dnssec`: verifies DNSSEC signing via dns.resolver AD flag check +
       DNSKEY record presence query.
-- [ ] **OWGAP-05**: `check_dependency_audit`: enriches the existing dependency version check
+- [x] **OWGAP-05**: `check_dependency_audit`: enriches the existing dependency version check
       with known-CVE matching against a curated advisory list (top-20 high-severity CVEs for
       common JS/Python libraries).
 

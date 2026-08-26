@@ -515,6 +515,8 @@ A05_BASE_CHECK_NAMES = [
     # "whole category locked" fixture has to lock them too or summarize_
     # compliance correctly reports A05 as partially covered.
     "host_header", "cache_deception", "subdomain_takeover",
+    # Phase 33 (OWGAP-01..04): new A05-mapped checks
+    "xxe", "csp_depth", "hsts_depth", "dnssec",
 ]
 
 
