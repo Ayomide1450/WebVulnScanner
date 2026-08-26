@@ -285,6 +285,108 @@ def test_login_with_wrong_password_is_rejected(client, db):
 
 
 # --------------------------------------------------------------------------
+# SSO enforcement gaps found in review: password_hash=None crashed instead
+# of the generic invalid-credentials response, and allow_password_login was
+# saved/shown in the admin UI but never actually enforced on /login.
+# --------------------------------------------------------------------------
+
+def test_login_with_sso_provisioned_password_less_account_does_not_crash(client, db):
+    """A JIT-provisioned SSO user (sso_routes.py sets password_hash=None)
+    attempting the password form must get the same generic error as any
+    other bad-credentials case, not a 500 - both for reliability and
+    because a crash-vs-flash distinction is itself a user-enumeration leak
+    (reveals "this email is a password-less account" for free)."""
+    org = make_org()
+    user = make_user("sso-user@example.com", org=org)
+    user.password_hash = None
+    db.session.commit()
+
+    resp = client.post(
+        "/login", data={"email": "sso-user@example.com", "password": "anything"}, follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Invalid email or password" in resp.data
+
+
+def test_login_blocked_when_org_requires_sso(client, db):
+    """allow_password_login=False on an enabled SSOConfiguration must
+    actually block password login - before this fix the flag was saved by
+    org_routes.py's admin panel and displayed in the UI, but /login never
+    read it, so password auth kept working regardless of the setting."""
+    from webvulnscanner.models import SSOConfiguration
+
+    org = make_org()
+    make_user("member@example.com", org=org, password="password123")
+    cfg = SSOConfiguration(
+        org_id=org.id, enabled=True, allow_password_login=False,
+        idp_entity_id="https://idp.example.com/metadata",
+        idp_sso_url="https://idp.example.com/saml/sso",
+        idp_certificate=SSOConfiguration.encrypt_secret("FAKE-CERT"),
+        sp_entity_id=f"https://glassbox.example.com/saml/metadata/{org.id}",
+    )
+    db.session.add(cfg)
+    db.session.commit()
+
+    resp = client.post(
+        "/login", data={"email": "member@example.com", "password": "password123"}, follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"requires signing in via SSO" in resp.data
+    # current_user must genuinely not be logged in, not just an odd flash
+    resp2 = client.get("/dashboard", follow_redirects=False)
+    assert resp2.status_code in (302, 401)
+
+
+def test_login_still_works_when_sso_allows_password_login(client, db):
+    """Default/explicit allow_password_login=True must not regress -
+    SSO being configured for an org doesn't itself lock out passwords."""
+    from webvulnscanner.models import SSOConfiguration
+
+    org = make_org()
+    make_user("member2@example.com", org=org, password="password123")
+    cfg = SSOConfiguration(
+        org_id=org.id, enabled=True, allow_password_login=True,
+        idp_entity_id="https://idp.example.com/metadata",
+        idp_sso_url="https://idp.example.com/saml/sso",
+        idp_certificate=SSOConfiguration.encrypt_secret("FAKE-CERT"),
+        sp_entity_id=f"https://glassbox.example.com/saml/metadata/{org.id}",
+    )
+    db.session.add(cfg)
+    db.session.commit()
+
+    resp = client.post(
+        "/login", data={"email": "member2@example.com", "password": "password123"}, follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith("/dashboard")
+
+
+def test_login_unaffected_by_disabled_sso_config_even_if_password_login_false(client, db):
+    """enabled=False must fully disarm allow_password_login too - a
+    disabled-but-not-deleted SSOConfiguration (models.py's documented
+    "soft toggle") must not still block password login."""
+    from webvulnscanner.models import SSOConfiguration
+
+    org = make_org()
+    make_user("member3@example.com", org=org, password="password123")
+    cfg = SSOConfiguration(
+        org_id=org.id, enabled=False, allow_password_login=False,
+        idp_entity_id="https://idp.example.com/metadata",
+        idp_sso_url="https://idp.example.com/saml/sso",
+        idp_certificate=SSOConfiguration.encrypt_secret("FAKE-CERT"),
+        sp_entity_id=f"https://glassbox.example.com/saml/metadata/{org.id}",
+    )
+    db.session.add(cfg)
+    db.session.commit()
+
+    resp = client.post(
+        "/login", data={"email": "member3@example.com", "password": "password123"}, follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith("/dashboard")
+
+
+# --------------------------------------------------------------------------
 # Email-verification gate on login (reversed from the old documented
 # decision that unverified email does not block login)
 # --------------------------------------------------------------------------
@@ -531,8 +633,11 @@ _REDIRECT_CALL_RE = re.compile(r"(?<![\w.])redirect\(")
 _EXPECTED_SAFE_NEXT_CALL_SITES = {
     ("auth_routes.py", 165),
     ("auth_routes.py", 311),
-    ("auth_routes.py", 354),
+    ("auth_routes.py", 382),
 }
+# 354 -> 382: login() grew a password_hash-is-None guard and an
+# allow_password_login SSO-enforcement branch ahead of this redirect
+# (see auth_routes.py's login() docstring-adjacent comments).
 
 # Same closed-set treatment for _safe_referrer() (webvulnscanner/__init__.py's
 # CSRFError handler) - currently exactly one call site. Line moved 303 -> 307

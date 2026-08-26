@@ -23,7 +23,7 @@ from wtforms import BooleanField, PasswordField, StringField
 from wtforms.validators import DataRequired, Email, EqualTo, Length, Optional
 
 from webvulnscanner.extensions import db, limiter
-from webvulnscanner.models import Organization, PasswordReset, Plan, Role, User
+from webvulnscanner.models import Organization, PasswordReset, Plan, Role, SSOConfiguration, User
 
 auth = Blueprint("auth", __name__)
 
@@ -317,9 +317,37 @@ def login():
         # every login is friction with no matching payoff.
         email = form.email.data.strip().lower()
         user = User.query.filter_by(email=email).first()
-        if user is None or not check_password_hash(user.password_hash, form.password.data):
+        # user.password_hash is None for SSO-JIT-provisioned accounts
+        # (sso_routes.py sets it explicitly on creation) - calling
+        # check_password_hash(None, ...) crashes (werkzeug expects a real
+        # hash string), which 500s the request instead of the same generic
+        # "Invalid email or password" every other bad-credentials case
+        # gets. Left un-crashed, that crash was itself a user-enumeration
+        # side channel: a 500 vs. a 200+flash told an unauthenticated
+        # caller "this email belongs to a password-less account" for free.
+        if user is None or user.password_hash is None or not check_password_hash(user.password_hash, form.password.data):
             flash("Invalid email or password.", "error")
             return render_template("login.html", form=form)
+
+        # SSO-required orgs: the password IS correct at this point, so
+        # naming the real reason isn't a new enumeration leak (same
+        # reasoning as the suspension/unverified branches below) - it's
+        # also the only way `allow_password_login=False` (org_routes.py's
+        # SSO config panel) does anything at all. Before this check, the
+        # toggle was saved to the DB and shown in the admin UI but never
+        # read anywhere - password login kept working regardless of what
+        # an org admin set it to.
+        if user.org_id is not None:
+            sso_required = SSOConfiguration.query.filter_by(
+                org_id=user.org_id, enabled=True, allow_password_login=False,
+            ).first()
+            if sso_required is not None:
+                flash(
+                    "Your organization requires signing in via SSO. Password login is "
+                    "disabled for this account.",
+                    "error",
+                )
+                return render_template("login.html", form=form)
 
         # Email verification is required before login (reversed from the
         # old documented decision that it wasn't): an unverified account
