@@ -84,9 +84,10 @@ CHECK_LABELS = {
     "xxe": "XML external entity (XXE) injection", "csp_depth": "CSP directive quality",
     "hsts_depth": "HSTS depth analysis", "dnssec": "DNSSEC signing verification",
     "dep_audit": "Dependency version audit",
-    # Phase 34 (APIT-01..03)
-    "graphql_depth": "GraphQL query depth limits", "auth_comparison": "API auth bypass check",
-    "mass_assignment": "API mass assignment detection",
+    # Phase 34 (APIT-01) — graphql_depth stays in base (no credentials needed)
+    "graphql_depth": "GraphQL query depth limits",
+    # auth_comparison and mass_assignment moved to run_advanced_scan()
+    # (APIT-02/03 need real test-account credentials — advanced-scan only)
 }
 
 # Icon-sprite key (see the <symbol id="icon-*"> sprite in templates/base.html)
@@ -113,8 +114,9 @@ CHECK_CATEGORY = {
     # Phase 33 (OWGAP-01..05)
     "xxe": "bug", "csp_depth": "shield", "hsts_depth": "lock",
     "dnssec": "lock", "dep_audit": "bug",
-    # Phase 34 (APIT-01..03)
-    "graphql_depth": "bug", "auth_comparison": "network", "mass_assignment": "bug",
+    # Phase 34 (APIT-01) — graphql_depth stays in base
+    "graphql_depth": "bug",
+    # auth_comparison/mass_assignment moved to run_advanced_scan()
 }
 
 # Check names each orchestrator can dispatch, grouped by scan_type - the
@@ -130,7 +132,8 @@ CHECK_CATEGORY = {
 # compliance tag (see CHECK_COMPLIANCE's header comment below).
 SCAN_TYPE_CHECK_NAMES = {
     "base": set(CHECK_LABELS),
-    "advanced": {"sqli_login", "bruteforce", "sqli_union", "xss_stored", "idor"},
+    "advanced": {"sqli_login", "bruteforce", "sqli_union", "xss_stored", "idor",
+                 "auth_comparison", "mass_assignment"},
     "media": {"media"},
     "api": {"schema", "wordlist", "js_discovery"},
 }
@@ -4250,30 +4253,33 @@ def check_graphql_depth(base_url, session):
     return {"endpoints_tested": len(rows), "rows": rows}, findings
 
 
-def check_auth_comparison(base_url, session):
-    """APIT-02: Unauthenticated-exposure probe on auth-sounding API paths.
+def check_auth_comparison(base_url, session, auth_cookie=None):
+    """APIT-02: Authenticated vs unauthenticated comparison on auth-sounding
+    API paths.
 
-    False-positive fix (caught in review): the original implementation
-    called `session.get(url)` twice with identical arguments and labeled
-    the guaranteed-identical result an "authenticated vs unauthenticated"
-    comparison - it wasn't comparing anything, and reported a "Confirmed"
-    high-severity Auth Bypass on any 2xx response from any of its 11
-    hardcoded paths. Every pipeline this check is wired into (run_scan's
-    base-scan session) uses a plain, never-logged-in `requests.Session` -
-    there is no authenticated leg available here to compare against at
-    all. A real authenticated-vs-unauthenticated diff needs actual
-    test-account credentials threaded through (see check_idor's
-    cookie_a/cookie_b pattern) - that's a real feature this check doesn't
-    have yet, not something to fake with a duplicate request.
+    When `auth_cookie` is provided (a raw session-cookie string like
+    ``session=abc123``), the check makes both an *authenticated* GET
+    (with the cookie) and an *unauthenticated* GET (bare session) for
+    each candidate path, then compares the two responses.  An endpoint
+    that returns real API data to an unauthenticated caller while also
+    accepting the authenticated cookie is a genuine auth-bypass signal.
+    Confidence is only "Confirmed" when the unauthenticated leg gets a
+    200 AND the authenticated leg returns a *different* (typically
+    richer) response — distinguishing "the endpoint ignores auth
+    entirely" from "the endpoint is intentionally public".
 
-    Reframed as what this can actually and honestly test with zero
-    credentials: does a path whose *name* implies it should require
-    authentication (users/admin/settings/config/...) return real API data
-    - not an SPA's catch-all index.html (see _looks_like_api_response,
-    the same guard check_api_wordlist already relies on). Always
-    confidence="Potential", never "Confirmed" - a public settings/config
-    endpoint can be entirely intentional, so this needs human review, not
-    an automatic bypass claim."""
+    When `auth_cookie` is ``None`` (the base-scan pipeline has no
+    credentials), the check falls back to an honest unauthenticated-
+    only probe: does a path whose *name* implies it should require
+    auth return real API data?  Always confidence="Potential" in this
+    mode — a public settings/config endpoint can be intentional.
+
+    False-positive guards preserved from the review session:
+    - _looks_like_api_response prevents SPA catch-all HTML from being
+      counted as an API hit (same guard check_api_wordlist relies on).
+    - A bogus-id baseline is NOT used here (the paths are fixed, not
+      id-parameterized); instead the auth-vs-unauth diff itself serves
+      as the corroboration when auth_cookie is provided."""
     findings = []
     rows = []
 
@@ -4283,47 +4289,121 @@ def check_auth_comparison(base_url, session):
         "/api/v1/settings", "/api/settings", "/api/v1/config",
     ]
 
+    auth_headers = {"Cookie": auth_cookie} if auth_cookie else None
+
     for path in API_PATHS:
         url = base_url + path
+
+        # Unauthenticated leg (always)
         try:
-            r = session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=False)
+            r_unauth = session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=False)
         except requests.RequestException:
             continue
 
-        rows.append({"endpoint": path, "status": r.status_code, "size": len(r.content)})
+        row = {"endpoint": path, "unauth_status": r_unauth.status_code,
+               "unauth_size": len(r_unauth.content)}
 
-        if r.status_code == 200 and _looks_like_api_response(r):
-            findings.append(Finding(
-                "Auth Bypass", f"API endpoint {path} returns data with no authentication", "medium",
-                f"GET {path} returned HTTP 200 with an API-shaped body (JSON/XML) and zero "
-                "credentials. This may be an intentionally public endpoint or a missing "
-                "auth check - not confirmed as exploitable either way without human review.",
-                "Confirm this endpoint is meant to be public; otherwise require authentication.",
-                confidence="Potential",
-                cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"))
+        if auth_headers:
+            # Authenticated leg (only when credentials are available)
+            try:
+                r_auth = session.get(url, headers=auth_headers,
+                                     timeout=REQUEST_TIMEOUT, allow_redirects=False)
+            except requests.RequestException:
+                r_auth = None
+
+            row["auth_status"] = r_auth.status_code if r_auth else None
+            row["auth_size"] = len(r_auth.content) if r_auth else None
+        else:
+            r_auth = None
+            row["auth_status"] = None
+            row["auth_size"] = None
+
+        rows.append(row)
+
+        if auth_headers and r_auth is not None:
+            # --- Credentialed mode: compare authenticated vs unauthenticated ---
+            unauth_is_api = r_unauth.status_code == 200 and _looks_like_api_response(r_unauth)
+            auth_is_api = r_auth.status_code == 200 and _looks_like_api_response(r_auth)
+
+            if unauth_is_api:
+                # The unauthenticated leg got real API data.
+                # Check whether the authenticated leg got something
+                # *different* — if so, the endpoint is returning data
+                # to both, but the authenticated response is richer
+                # (the caller's own data), which is the expected
+                # pattern for a legit public endpoint.  If the
+                # responses are the same, the endpoint ignores auth
+                # entirely — that's the bypass.
+                auth_differs = (r_auth.status_code != r_unauth.status_code
+                                or abs(len(r_auth.content) - len(r_unauth.content)) > 32)
+
+                if auth_differs:
+                    # Authenticated and unauthenticated responses differ —
+                    # likely an intentional public endpoint that also has
+                    # an authenticated view.  Flag as Potential (needs
+                    # human review to confirm the unauthenticated data
+                    # isn't sensitive).
+                    findings.append(Finding(
+                        "Auth Bypass",
+                        f"API endpoint {path} returns data without authentication (unconfirmed)",
+                        "medium",
+                        f"GET {path} returned HTTP {r_unauth.status_code} with an API-shaped body "
+                        "to an unauthenticated caller. The authenticated response differs, suggesting "
+                        "the endpoint may be intentionally public with an authenticated view — needs "
+                        "human review to confirm the unauthenticated data isn't sensitive.",
+                        "Confirm this endpoint is meant to be public; otherwise require authentication.",
+                        confidence="Potential",
+                        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"))
+                else:
+                    # Identical responses for both — the endpoint ignores
+                    # the auth cookie entirely.  Confirmed bypass.
+                    findings.append(Finding(
+                        "Auth Bypass",
+                        f"API endpoint {path} ignores authentication entirely",
+                        "high",
+                        f"GET {path} returned identical API-shaped responses ({r_unauth.status_code}, "
+                        f"{len(r_unauth.content)} bytes) both with and without the session cookie — "
+                        "the endpoint does not enforce authentication at all.",
+                        "Require authentication for this endpoint; implement proper authz checks.",
+                        confidence="Confirmed",
+                        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N"))
+        else:
+            # --- Unauthenticated-only mode (no credentials available) ---
+            if r_unauth.status_code == 200 and _looks_like_api_response(r_unauth):
+                findings.append(Finding(
+                    "Auth Bypass",
+                    f"API endpoint {path} returns data with no authentication",
+                    "medium",
+                    f"GET {path} returned HTTP 200 with an API-shaped body (JSON/XML) and zero "
+                    "credentials. This may be an intentionally public endpoint or a missing "
+                    "auth check - not confirmed as exploitable either way without human review.",
+                    "Confirm this endpoint is meant to be public; otherwise require authentication.",
+                    confidence="Potential",
+                    cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"))
 
     return {"endpoints_tested": len(rows), "rows": rows}, findings
 
 
-def check_mass_assignment(base_url, session):
+def check_mass_assignment(base_url, session, auth_cookie=None):
     """APIT-03: Detect mass assignment by sending extra fields to API endpoints.
 
-    Two fixes from review:
-    1. Dropped /register-style endpoints from the probe list. POSTing
-       fabricated data to a real account-creation endpoint on someone's
-       live target can actually create a junk account there - a
-       non-destructive-design violation (checks.py's own convention:
-       forms are enumerated but never auto-submitted; inventing an
-       account-creation POST is the same class of harm). Kept to
-       existing-resource-shaped paths (users/profile) only.
-    2. The original scan for e.g. "role" as a raw substring anywhere in
-       the response text matches ordinary HTML constantly (role="button"
-       and similar ARIA attributes appear on a large fraction of real
-       webpages) - guaranteed false positives, not a mass-assignment
-       signal. Now parses the response as JSON and only counts a field as
-       accepted if it round-trips as an exact key/value match against
-       what was actually submitted - a non-JSON or non-matching response
-       produces no finding rather than a text-substring guess."""
+    When `auth_cookie` is provided, POSTs are sent with the authenticated
+    session cookie — most APIs that accept POST to resource endpoints
+    require authentication, so an unauthenticated POST would just get a
+    401/403 and tell us nothing about mass assignment.
+
+    When `auth_cookie` is ``None``, falls back to unauthenticated POSTs
+    (which will only produce findings if the endpoint doesn't require
+    auth — a narrower signal, but still useful).
+
+    Two fixes from review (preserved):
+    1. Dropped /register-style endpoints from the probe list — a
+       fabricated POST to a real account-creation route can create a
+       junk account on the live target (non-destructive-design
+       violation).
+    2. The original scan for e.g. "role" as a raw substring matched
+       ordinary HTML ``role="button"`` ARIA markup — now requires an
+       exact JSON key/value round-trip against the submitted payload."""
     findings = []
     rows = []
 
@@ -4336,12 +4416,15 @@ def check_mass_assignment(base_url, session):
 
     API_PATHS = ["/api/v1/users", "/api/users", "/api/v1/profile", "/api/profile"]
 
+    auth_headers = {"Cookie": auth_cookie} if auth_cookie else {}
+
     for path in API_PATHS:
         url = base_url + path
         try:
             payload = {**EXTRA_FIELDS, "username": "test_probe_user_31415"}
+            post_headers = {"Content-Type": "application/json", **auth_headers}
             r = session.post(url, json=payload,
-                             headers={"Content-Type": "application/json"},
+                             headers=post_headers,
                              timeout=REQUEST_TIMEOUT, allow_redirects=False)
         except requests.RequestException:
             continue

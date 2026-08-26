@@ -177,6 +177,28 @@
         </div>
       </details>
 
+      <details class="adv-group">
+        <summary>
+          <div class="adv-group-title">
+            <h2>Does the API enforce authentication on sensitive endpoints?</h2>
+            <span class="adv-group-blurb">Compares authenticated vs unauthenticated responses on API paths, and tests whether POST endpoints accept mass-assigned privileged fields.</span>
+          </div>
+          <svg class="icon adv-chevron" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6"/></svg>
+        </summary>
+        <div class="adv-group-body">
+          <label for="api_target">API base URL</label>
+          <input type="text" id="api_target" name="api_target" placeholder="https://www.example.com" value="{{ request.form.get('api_target', '') }}">
+          <label for="api_auth_cookie">Test account's session cookie</label>
+          <input type="text" id="api_auth_cookie" name="api_auth_cookie" placeholder="session=abc123" value="{{ request.form.get('api_auth_cookie', '') }}">
+          <div class="adv-field-help">
+            Log in as a test account and copy the session cookie (Dev Tools &rarr;
+            Application/Storage &rarr; Cookies). The scan compares what the same API
+            endpoints return with and without this cookie, and tests whether POST
+            endpoints accept extra privileged fields (mass assignment).
+          </div>
+        </div>
+      </details>
+
       <div class="hint" style="margin-top:14px;">Fill in only the sections you have information for - one
       completed section is enough to start a scan.</div>
 

@@ -78,10 +78,10 @@ deployable, tested (pytest on every push), and safe by design.
 - Branch `develop`, HEAD **7d5c4e3** "feat(media): extend metadata leak detection to documents and video".
   (Previous snapshot's HEAD `643299a` was stale by 15 commits — verify with `git log --oneline -1`
   before trusting this line next time too; it drifts every session.)
-- **Deployed to staging, release v20** (`fly deploy -a glassboxsec-staging --config fly.staging.toml`),
-  live-verified by Claude directly: `/healthz` 200, `/login` 200, `/login/sso` 200, both machines'
-  boot logs read to confirm a genuinely fresh process (not just trusting exit code 0).
-- Full suite at deploy time: **1324 passed, 11 skipped (GTK3-only), 0 failed**.
+- **Deployed to staging, release v21** — credentialed API auth-comparison (APIT-02/03) upgrade.
+  `check_auth_comparison` and `check_mass_assignment` moved from base scan to advanced scan,
+  wired through `auth_cookie` + `api_target` form fields (same pattern as check_idor's
+  `cookie_a`/`cookie_b`). Full suite: **1330 passed, 11 skipped, 0 failed**.
 - See "Claude review session (2026-08-26)" below for what changed since Phase 34 — three real
   false-positive bugs in the detection engine, an SSO enforcement gap, a media-scan feature, and
   a redesign extension. Read that section before starting the next phase.
@@ -639,11 +639,12 @@ v20. Control is handed back to you. In priority order:
    something you wrote, that's the lock doing its job — corroborate the finding (content match,
    baseline diff, reflected canary, explicit header) or downgrade to `"Potential"`, don't
    allowlist your way past it without a real justification.
-3. **If you pick up the deferred credentialed-API-auth-comparison feature**: it needs real
-   test-account credentials threaded through `check_auth_comparison`/`check_mass_assignment`,
-   the same pattern `check_idor` already uses (`cookie_a`/`cookie_b` params, ORG_VERIFIED +
-   domain-verification gated). Don't fake it with a second identical request again — that's
-   the exact bug that shipped and was fixed this session.
+3. ~~**Credentialed-API-auth-comparison feature**~~ — **DONE (2026-08-26, staged as v21)**.
+   `check_auth_comparison` and `check_mass_assignment` now accept an `auth_cookie` param
+   and have been moved to `run_advanced_scan()` (ORG_VERIFIED + domain-verification gated).
+   `check_auth_comparison` compares authenticated vs unauthenticated responses — identical
+   responses yield Confirmed bypass, different responses yield Potential. New form fields
+   in `scan_new_advanced.html`: `api_target` + `api_auth_cookie`. Full suite: 1330 passed.
 4. **User-reported items still open, not yet reproduced** — ask the user directly if you pick
    these up, don't guess: (a) a "paid org still shows Upgrade" bug — static review of the
    billing→entitlements path found nothing wrong, needs a live account/screenshot; (b) any

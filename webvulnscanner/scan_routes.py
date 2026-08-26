@@ -389,6 +389,8 @@ def _parse_advanced_form(f):
         "idor_ids": [i.strip() for i in f.get("idor_ids", "").split(",") if i.strip()],
         "idor_cookie_a": f.get("idor_cookie_a", "").strip(),
         "idor_cookie_b": f.get("idor_cookie_b", "").strip(),
+        "api_target": f.get("api_target", "").strip(),
+        "api_auth_cookie": f.get("api_auth_cookie", "").strip(),
     }
 
 
@@ -941,14 +943,19 @@ def new_scan_advanced():
         )
 
     advanced = _parse_advanced_form(request.form)
+    # Normalize api_target so check_auth_comparison/check_mass_assignment
+    # receive a full base URL (scheme + host) rather than a bare domain.
+    if advanced["api_target"]:
+        advanced["api_target"] = normalize_target(advanced["api_target"])
     has_login_group = advanced["login_url"] and advanced["user_field"] and advanced["pass_field"] and advanced["fail_text"]
     has_union_group = advanced["sqli_union_url"] and advanced["sqli_union_param"]
     has_xss_group = (advanced["stored_xss_submit_url"] and advanced["stored_xss_field"]
                       and advanced["stored_xss_view_url"] and advanced["stored_xss_cookie"])
     has_idor_group = (advanced["idor_url_template"] and advanced["idor_ids"]
                        and advanced["idor_cookie_a"] and advanced["idor_cookie_b"])
+    has_api_group = advanced["api_target"] and advanced["api_auth_cookie"]
 
-    if not (has_login_group or has_union_group or has_xss_group or has_idor_group):
+    if not (has_login_group or has_union_group or has_xss_group or has_idor_group or has_api_group):
         return render_template(
             "scan_new_advanced.html",
             error="Fill in at least one advanced check group before running advanced checks.",
@@ -962,7 +969,7 @@ def new_scan_advanced():
     # scan types before anything is spawned.
     for group_url in (advanced["login_url"], advanced["sqli_union_url"],
                        advanced["stored_xss_submit_url"], advanced["stored_xss_view_url"],
-                       advanced["idor_url_template"]):
+                       advanced["idor_url_template"], advanced["api_target"]):
         if not group_url:
             continue
         unsafe = _unsafe_target_error(group_url, org_id=current_user.org_id)
@@ -977,7 +984,8 @@ def new_scan_advanced():
     # in - a judgment call, since there's no single canonical "the"
     # target when multiple groups are filled in at once.
     domain_probe_url = (advanced["login_url"] or advanced["sqli_union_url"]
-                         or advanced["stored_xss_submit_url"] or advanced["idor_url_template"])
+                         or advanced["stored_xss_submit_url"] or advanced["idor_url_template"]
+                         or advanced["api_target"])
     org_verified = domain_is_org_verified(current_user.organization, domain_probe_url) if domain_probe_url else False
 
     existing = _find_running_scan(current_user.id, domain_probe_url or "advanced-scan", "advanced")

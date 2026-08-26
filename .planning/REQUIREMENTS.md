@@ -584,8 +584,14 @@ review).
 
 - [x] **APIT-01**: `check_graphql_depth`: sends nested queries to GraphQL endpoints
       (introspection-discovered or common paths) to test query depth limits and error handling.
-- [x] **APIT-02**: `check_auth_comparison`: for API endpoints, sends the same request with and
-      without authentication tokens, diffs response status/size to identify authorization gaps.
-- [x] **APIT-03**: `check_mass_assignment`: for discovered API endpoints, appends extra fields
-      to POST bodies and checks if the response reflects acceptance of those fields.
+- [x] **APIT-02**: `check_auth_comparison`: with real test-account credentials (auth_cookie),
+      compares authenticated vs unauthenticated GET responses on auth-sounding API paths.
+      Identical responses → Confirmed bypass (endpoint ignores auth). Different responses →
+      Potential (needs human review). Without credentials, falls back to unauthenticated-only
+      exposure probe (Potential only). Moved to run_advanced_scan() (ORG_VERIFIED + domain-
+      verification gated, same pattern as check_idor's cookie_a/cookie_b).
+- [x] **APIT-03**: `check_mass_assignment`: with real test-account credentials (auth_cookie),
+      sends POST with extra privileged fields to API endpoints while authenticated. Exact
+      JSON key/value round-trip → Confirmed. Without credentials, falls back to unauthenticated
+      POSTs (narrower signal). Moved to run_advanced_scan() alongside APIT-02.
 

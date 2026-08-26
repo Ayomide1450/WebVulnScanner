@@ -367,6 +367,28 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
             advanced.get("idor_cookie_a") and advanced.get("idor_cookie_b"):
         locked.append("idor")
 
+    # Phase 34 (APIT-02..03) — API auth-comparison and mass-assignment,
+    # both need real test-account credentials (auth_cookie from the form).
+    has_api_creds = bool(advanced.get("api_auth_cookie") and advanced.get("api_target"))
+    api_allowed = FEATURE_REQUIREMENTS["auth_comparison"] <= tier and org_verified_for_domain
+
+    if has_api_creds and api_allowed:
+        api_base = advanced["api_target"]
+        targets.append(api_base)
+        data, findings = check_auth_comparison(api_base, session, advanced["api_auth_cookie"])
+        for f in findings:
+            f.check_name = "auth_comparison"
+        results["auth_comparison"] = data
+        all_findings.extend(findings)
+
+        data, findings = check_mass_assignment(api_base, session, advanced["api_auth_cookie"])
+        for f in findings:
+            f.check_name = "mass_assignment"
+        results["mass_assignment"] = data
+        all_findings.extend(findings)
+    elif has_api_creds:
+        locked.extend(["auth_comparison", "mass_assignment"])
+
     all_findings = deduplicate_findings(all_findings)
     score, risk_grade, severity_counts, findings_sorted = _score_report(all_findings)
     hostname = urlparse(targets[0]).netloc if targets else "unspecified-target"
@@ -506,10 +528,10 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         "hsts_depth": lambda: check_hsts_depth(dict(home_resp.headers)),
         "dnssec": lambda: check_dnssec(hostname),
         "dep_audit": lambda: check_dependency_audit(home_html),
-        # Phase 34 (APIT-01..03)
+        # Phase 34 (APIT-01) — graphql_depth stays here (no credentials needed)
         "graphql_depth": lambda: check_graphql_depth(base_url, session),
-        "auth_comparison": lambda: check_auth_comparison(base_url, session),
-        "mass_assignment": lambda: check_mass_assignment(base_url, session),
+        # auth_comparison and mass_assignment moved to run_advanced_scan()
+        # (APIT-02/03 need real test-account credentials — see that function)
     }
 
     # Community checks (Phase 28): load YAML-defined checks from

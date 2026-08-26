@@ -499,6 +499,7 @@ def test_schedule_cross_org_is_404_and_does_not_mutate_cadence_or_scan_type(db, 
 A01 = "A01:2021-Broken Access Control"
 A02 = "A02:2021-Cryptographic Failures"
 A03 = "A03:2021-Injection"
+A04 = "A04:2021-Insecure Design"
 A05 = "A05:2021-Security Misconfiguration"
 A06 = "A06:2021-Vulnerable and Outdated Components"
 A07 = "A07:2021-Identification and Authentication Failures"
@@ -619,15 +620,17 @@ def test_summarize_compliance_no_finding_maps_to_uncategorized_omits_the_row():
 def test_summarize_compliance_only_present_scan_types_contribute_candidate_rows():
     rows = summarize_compliance({
         "advanced": {
-            "ran": ["sqli_login", "bruteforce", "sqli_union", "xss_stored", "idor"],
+            "ran": ["sqli_login", "bruteforce", "sqli_union", "xss_stored", "idor",
+                     "auth_comparison", "mass_assignment"],
             "locked_checks": [], "findings": [],
         },
     })
     owasp_values = {r["owasp"] for r in rows}
 
     # sqli_login/sqli_union/xss_stored all map to A03, bruteforce to A07,
-    # idor to A01 - three distinct categories, none of them base-only ones.
-    assert owasp_values == {A01, A03, A07}
+    # idor and auth_comparison to A01, mass_assignment to A04 — four
+    # distinct categories, none of them base-only ones.
+    assert owasp_values == {A01, A03, A04, A07}
     assert A05 not in owasp_values
     assert A06 not in owasp_values
     assert all(r["status"] == "passing" for r in rows)
