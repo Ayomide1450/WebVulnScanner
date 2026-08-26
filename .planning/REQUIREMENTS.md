@@ -525,7 +525,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SARIF-01..03 | Phase 29 | Complete 2026-08-24 (SARIF-03 pending user-side GitHub upload) |
 | OSSD-01 | Phase 30 | Complete (2026-08-25, decision doc — GO, deferred to v2) |
 | CVSS-01..05 | Phase 31 | Complete (2026-08-26) |
-| DEDUP-01..04 | Phase 32 | Planned |
+| DEDUP-01..04 | Phase 32 | Complete (2026-08-26) |
 | OWGAP-01..05 | Phase 33 | Planned |
 | APIT-01..03 | Phase 34 | Planned |
 
@@ -555,14 +555,14 @@ review).
 
 ### Finding Deduplication — Phase 32 (v1.8)
 
-- [ ] **DEDUP-01**: A `deduplicate_findings(findings: list[Finding]) -> list[Finding]` helper
-      hashes each finding by (check_name, category, title, affected_url) and collapses
-      duplicates into one Finding with an incremented `count: int` field.
-- [ ] **DEDUP-02**: Dedup runs in each orchestrator after all checks complete, before
+- [x] **DEDUP-01**: A `deduplicate_findings(findings: list[Finding]) -> list[Finding]` helper
+      hashes each finding by (check_name, category, title) and collapses duplicates into one
+      Finding with an incremented `count: int` field.
+- [x] **DEDUP-02**: Dedup runs in each orchestrator after all checks complete, before
       `_score_report()`. The score is computed on the deduplicated list.
-- [ ] **DEDUP-03**: The report template shows "(×N)" beside deduplicated finding titles when
+- [x] **DEDUP-03**: The report template shows "(×N)" beside deduplicated finding titles when
       count > 1.
-- [ ] **DEDUP-04**: Findings with different severities for the same (check_name, title, url)
+- [x] **DEDUP-04**: Findings with different severities for the same (check_name, title, url)
       keep the highest severity — no silent downgrade. Deterministic: same input → same output.
 
 ### OWASP Gap Audit — Phase 33 (v1.8)

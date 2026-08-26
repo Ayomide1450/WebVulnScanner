@@ -11,7 +11,7 @@
       content: "Glassbox — Page " counter(page) " of " counter(pages);
       font-size: 9px;
       color: #999;
-      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-family: "Fira Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
     }
   }
 
@@ -238,7 +238,7 @@
   <div class="finding-body">
     <div class="row">
       <div class="row-label">Title</div>
-      <div class="row-value">{{ f.title }}</div>
+      <div class="row-value">{{ f.title }}{% if f.get('count', 1) > 1 %} (&times;{{ f.count }}){% endif %}</div>
     </div>
     {% if f.category %}
     <div class="row">

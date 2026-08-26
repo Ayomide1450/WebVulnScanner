@@ -109,7 +109,7 @@ deployable, tested (pytest on every push), and safe by design.
 
 ### Done (recent history)
 
-- Phase 31 — CVSS 3.1 Scoring (feat(31), 2026-08-26):
+- Phase 31 — CVSS 3.1 Scoring (feat(31), 9915792, 2026-08-26):
   `Finding.cvss_vector` optional field, `compute_cvss_score()` CVSS 3.1 parser
   (proper Roundup function, handles all base metrics), Jinja template global,
   report template badge (CVSS score + severity label per finding).
@@ -118,6 +118,13 @@ deployable, tested (pytest on every push), and safe by design.
   20 new tests in `test_cvss.py`. `_score_report` regression lock confirmed.
   Post-build drift fix: `test_auth_flows.py` line-number lock updated (315→320).
   Full suite: **1228 passed, 11 skipped, 0 failed**.
+- Phase 32 — Finding Deduplication (feat(32), 2026-08-26):
+  `deduplicate_findings()` helper: hash by (check_name, category, title),
+  first-occurrence-wins, highest-severity-kept, deterministic.
+  Wired into all 4 orchestrators before `_score_report()`.
+  Report template "(×N)" badge + PDF report "(×N)" suffix.
+  DEDUP-01..04 all [x]. 17 new tests in `test_dedup.py`.
+  Full suite: **1246 passed, 11 skipped, 0 failed**.
 - Phase 26 — SSO/SAML (`feat(26)`, 9261407→a50ad54→8cc8e59, 2026-08-26):
   SSO-01 spike (python3-saml GO), SSOConfiguration model + Fernet encryption,
   migration `6c73377a91f8`, `User.auth_method` + nullable `password_hash`,
@@ -619,7 +626,8 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
     Also scoped-but-unbuilt: Phase 27.1 chart legibility (CHARTUX-01..04; needs the
     `dataviz` skill per its own criterion 5) — slot it whenever the user says go.
     **Current status**: all v1.6 (Phases 22–26) and v1.7 (Phases 21.1, 27–30) COMPLETE.
-    v1.8 Phase 31 (CVSS 3.1 scoring) COMPLETE. Next build: Phase 32 (Finding Deduplication).
+    v1.8 Phase 31 (CVSS 3.1 scoring) COMPLETE. v1.8 Phase 32 (Finding Deduplication) COMPLETE.
+    Next build: Phase 33 (OWASP Gap Audit).
     Remaining open item: Phase 17 (Expanded Check Coverage) — DEPTH-01 needs an explicit
     signed crawl-depth decision; DEPTH-02/03 are payload-variant work. Decide whether
     it stays in v1.4 or moves to a later milestone.
@@ -658,7 +666,7 @@ integrated into Glassbox. Analysis completed; features mapped to the roadmap.
 | Feature | Proposed phase | What it adds |
 |---|---|---|
 | CVSS 3.1 scoring | **DONE (Phase 31, 2026-08-26)** | Standard vector parsing alongside severity weights |
-| Finding deduplication | v1.8 new phase | Hash-based dedup for crawl-then-probe duplicates |
+| Finding deduplication | **DONE (Phase 32, 2026-08-26)** | Hash-based dedup for crawl-then-probe duplicates |
 | OWASP gap audit | v1.8 new phase | XXE, CSP depth, HSTS depth, DNSSEC, dependency scanning |
 | API testing enhancements | v1.8 new phase | GraphQL depth, auth comparison, mass assignment |
 

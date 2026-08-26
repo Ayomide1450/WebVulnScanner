@@ -141,7 +141,7 @@
     {% endif %}
   {% endif %}
   <div class="body">
-    <b>{{ f.title }}</b>
+    <b>{{ f.title }}{% if f.get('count', 1) > 1 %} <span class="pill compliance" title="Identical findings collapsed by deduplication">&times;{{ f.count }}</span>{% endif %}</b>
     <div class="detail">{{ f.detail }}</div>
     {% if f.recommendation %}<div class="rec"><b>Fix:</b> {{ f.recommendation }}</div>{% endif %}
   </div>

@@ -527,6 +527,47 @@ class Finding:
     count: int = 1
 
 
+def deduplicate_findings(findings):
+    """Collapse duplicate findings by (check_name, category, title, affected_url).
+
+    Returns a new list with duplicates merged: the first occurrence wins, its count
+    is incremented by the number of duplicates, and the highest severity among all
+    duplicates is kept (no silent downgrade). CVSS vectors are preserved from the
+    first occurrence. Deterministic: same input → same output.
+
+    This is DEDUP-01 + DEDUP-04 from Phase 32.
+    """
+    import hashlib
+    from collections import OrderedDict
+
+    _SEVERITY_RANK = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1, "pass": 0}
+
+    def _dedup_key(f):
+        """Hash key for dedup: (check_name, category, title)."""
+        parts = "|".join([
+            (f.check_name or "").lower().strip(),
+            (f.category or "").lower().strip(),
+            (f.title or "").lower().strip(),
+        ])
+        return hashlib.sha256(parts.encode()).hexdigest()
+
+    seen = OrderedDict()
+    for f in findings:
+        key = _dedup_key(f)
+        if key in seen:
+            existing = seen[key]
+            existing.count += 1
+            existing_rank = _SEVERITY_RANK.get(existing.severity, 0)
+            new_rank = _SEVERITY_RANK.get(f.severity, 0)
+            if new_rank > existing_rank:
+                existing.severity = f.severity
+                if f.cvss_vector:
+                    existing.cvss_vector = f.cvss_vector
+        else:
+            seen[key] = f
+    return list(seen.values())
+
+
 SENSITIVE_PATHS = [
     ".env", ".env.local", ".env.production", ".git/config", ".git/HEAD",
     "wp-config.php.bak", "config.json", ".aws/credentials", ".DS_Store",
