@@ -73,9 +73,18 @@ deployable, tested (pytest on every push), and safe by design.
   at 5 attempts; secrets redacted in reports; marker-only stored-XSS proof.
 - AI summary prompt keeps findings framed as data-to-summarize (injection bound).
 
-## State snapshot (last updated: 2026-08-26, post Phase 26 complete + test drift fixes)
+## State snapshot (last updated: 2026-08-26, post Claude review session — false-positive fixes, SSO enforcement gap, media metadata feature, staging v20)
 
-- Branch `develop`, HEAD **643299a** "restore: opencodefailure.md (not asked to remove)".
+- Branch `develop`, HEAD **7d5c4e3** "feat(media): extend metadata leak detection to documents and video".
+  (Previous snapshot's HEAD `643299a` was stale by 15 commits — verify with `git log --oneline -1`
+  before trusting this line next time too; it drifts every session.)
+- **Deployed to staging, release v20** (`fly deploy -a glassboxsec-staging --config fly.staging.toml`),
+  live-verified by Claude directly: `/healthz` 200, `/login` 200, `/login/sso` 200, both machines'
+  boot logs read to confirm a genuinely fresh process (not just trusting exit code 0).
+- Full suite at deploy time: **1324 passed, 11 skipped (GTK3-only), 0 failed**.
+- See "Claude review session (2026-08-26)" below for what changed since Phase 34 — three real
+  false-positive bugs in the detection engine, an SSO enforcement gap, a media-scan feature, and
+  a redesign extension. Read that section before starting the next phase.
 - **Phase 25 SHIPPED TO STAGING** (b4822b5) — pipeline integrations: NDJSON
   report writer, session-web + token-authed API endpoint, Splunk HEC payload
   builder with format dispatch, exponential backoff retry (3 attempts,
@@ -106,6 +115,58 @@ deployable, tested (pytest on every push), and safe by design.
     `pdf_report.html` (WeasyPrint) + `audit_log.html` (compact data); dashboard empty-state
     text assertion updated to match current template.
 - Full suite: **1209 passed, 11 skipped (WeasyPrint/GTK3), 0 failed**.
+
+### Claude review session (2026-08-26) — read this before starting the next phase
+
+Not a numbered roadmap phase — a live-review pass triggered by the user reporting the engine
+"makes false alarms" and asking for the SSO flow and media/API scans to be made solid. Nine
+commits on `develop`, `f2dc05a`..`7d5c4e3`, all test-verified before commit, deployed to staging
+as release v20. In order:
+
+- **Redesign extension**: adopted the user's reference mockup's darker palette (`base.html` token
+  *values* only, names unchanged — propagates everywhere for free), a decorative terminal-window
+  title bar on login/signup, colored stat-card accents on the dashboard, and turned scan_report's
+  cramped `&middot;`-separated 7-link export row into a real `.btn.ghost` pill row. **`CLAUDE.md`'s
+  "Frontend design system" section is now stale** against the earlier de-glow commit (`.hud-grid`/
+  glow removed) — that doc is user-owned per standing instruction, flag it to the user rather than
+  editing it yourself.
+- **Three real false-positive bugs in the detection engine** (the actual "false alarms" the user
+  meant): `check_http_methods` flagged any status code outside a small rejection set as "Confirmed"
+  for PUT/DELETE/TRACE/CONNECT — including a plain 200 from a method-agnostic router/CDN, extremely
+  common and harmless. `check_idor`'s cross-account/public-exposure branches had the identical bug
+  shape. `check_auth_comparison` called `session.get()` twice with *identical* arguments and called
+  the guaranteed-identical result a "Confirmed" auth bypass — it never had an authenticated leg to
+  compare against in any pipeline it's wired into. `check_mass_assignment` scanned for `"role"` as a
+  raw text substring, matching ordinary `role="button"` ARIA markup on most real pages, and probed
+  `/register`-style endpoints (a fabricated POST there could create a real account on a live target
+  — dropped from the probe list). **All four had zero or near-zero real behavioral test coverage
+  before this** — several existing tests used bare `MagicMock()`, whose auto-mocked magic methods
+  default truthy and silently masked the bugs. New tests use explicit fake objects instead.
+- **New standing guardrail, not just a one-off fix**: `tests/test_confirmed_confidence_needs_corroboration.py`
+  is an AST-based lint that fails CI if any `Finding(confidence="Confirmed")` is gated by nothing
+  but a bare status-code comparison. It already caught the `check_idor` bug on the first run against
+  the fixed `check_http_methods`. **Keep this test passing — it's the mechanism the user explicitly
+  asked for so this bug class can't recur silently.**
+- **SSO enforcement gap**: `SSOConfiguration.allow_password_login` (the org-admin "require SSO"
+  toggle, SSO-03) was saved to the DB and shown in the UI but never read anywhere — password login
+  kept working for every org regardless of the setting, since Phase 26 shipped. Also, an SSO-JIT-
+  provisioned (`password_hash=None`) account attempting the password form crashed `/login` with a
+  500 — itself a user-enumeration side channel. Both fixed in `auth_routes.login()`.
+- **Media-scan feature** (user-approved scope): extended the existing image EXIF/GPS leak detection
+  to documents and video, zero new dependencies — PDF `/Info` dict via regex, DOCX/XLSX/PPTX
+  `docProps/core.xml` via stdlib `zipfile`+`ElementTree`, MP4/MOV GPS/device metadata via
+  QuickTime's plain-text user-data atoms. `crawl_media`/`_extract_media_urls` both gained a new
+  return value (`document_urls`) — if you touch either function, update all call sites.
+- **Deferred, explicitly scoped, not built**: wiring a *real* credentialed auth-vs-unauth
+  comparison into the API scan (needs test-account credentials threaded through, like
+  `check_idor`'s `cookie_a`/`cookie_b` pattern) — `check_auth_comparison` today is honest but
+  limited to unauthenticated-only probing. A structural sidebar-shell dashboard rebuild (user
+  showed a reference mockup) was also declined for this pass — flagged as its own decision, not
+  built opportunistically alongside bug fixes.
+
+Full diagnostic detail (root causes, before/after code, exact test names) is in `handoff.md`
+under the matching session heading if you need it — that file isn't committed, so read it locally
+rather than expecting it in `git log`.
 
 ### Done (recent history)
 
@@ -562,6 +623,34 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
   secrets_hygiene) = 38 passed. NOTE: full suite is slow (~64s/38 tests
   ≈ 20 min total) — the earlier full-run timeout was slowness, not a hang.
 
+### NEXT ACTION FOR OPENCODE (handed off 2026-08-26, read this first)
+
+Claude's review session (see the dedicated section above) is done and deployed to staging as
+v20. Control is handed back to you. In priority order:
+
+1. **Update `CLAUDE.md`'s "Frontend design system" section yourself, or flag it to the user** —
+   it still documents "reuse `.hud-grid`/`.glow-pulse`, don't invent new treatments," which the
+   de-glow commit (`934394d`) deliberately superseded. Claude cannot edit that file (user-owned,
+   off-limits per standing instruction) — you may be able to, or ask the user directly.
+2. **Keep `tests/test_confirmed_confidence_needs_corroboration.py` green on every future check
+   you write or touch.** It's an AST lint, not a runtime test — it will fail CI the moment a new
+   `Finding(confidence="Confirmed")` is gated by nothing but a bare status-code comparison, the
+   exact bug class fixed this session in `check_http_methods`/`check_idor`. If it ever fails on
+   something you wrote, that's the lock doing its job — corroborate the finding (content match,
+   baseline diff, reflected canary, explicit header) or downgrade to `"Potential"`, don't
+   allowlist your way past it without a real justification.
+3. **If you pick up the deferred credentialed-API-auth-comparison feature**: it needs real
+   test-account credentials threaded through `check_auth_comparison`/`check_mass_assignment`,
+   the same pattern `check_idor` already uses (`cookie_a`/`cookie_b` params, ORG_VERIFIED +
+   domain-verification gated). Don't fake it with a second identical request again — that's
+   the exact bug that shipped and was fixed this session.
+4. **User-reported items still open, not yet reproduced** — ask the user directly if you pick
+   these up, don't guess: (a) a "paid org still shows Upgrade" bug — static review of the
+   billing→entitlements path found nothing wrong, needs a live account/screenshot; (b) any
+   further "scan gives a false alarm" reports need the specific check/finding name to act on.
+5. **Otherwise**: resume the v1.8/v1.9 roadmap queue below as originally planned — nothing in
+   the review session changed phase priority, it was a bug-fix/hardening pass layered on top.
+
 ### What's next (candidate queue)
 
 0. ~~Turnstile on staging~~ → **FIXED (2026-08-22)**: user supplied their
@@ -632,8 +721,9 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
     Remaining open item: Phase 17 (Expanded Check Coverage) — DEPTH-01 needs an explicit
     signed crawl-depth decision; DEPTH-02/03 are payload-variant work. Decide whether
     it stays in v1.4 or moves to a later milestone.
-    **Staging deployment**: Phases 23–34 deployed to staging (2026-08-26, v17).
-    /healthz returns {"status":"ok"}.
+    **Staging deployment**: Phases 23–34 deployed to staging (2026-08-26, v17), then the Claude
+    review session's 9 commits deployed as **v20** (same day) — see the review-session section
+    above. /healthz returns {"status":"ok"} on v20 too, live-verified.
 6. Housekeeping: `dev-server-*.log` files and `instance/` are untracked
    clutter candidates (check .gitignore covers them). Also: staging DB still
    has a dangling DomainVerification row for glassbox-lure.fly.dev (lure app
