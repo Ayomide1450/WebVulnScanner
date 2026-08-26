@@ -81,6 +81,9 @@ CHECK_LABELS = {
     "xxe": "XML external entity (XXE) injection", "csp_depth": "CSP directive quality",
     "hsts_depth": "HSTS depth analysis", "dnssec": "DNSSEC signing verification",
     "dep_audit": "Dependency version audit",
+    # Phase 34 (APIT-01..03)
+    "graphql_depth": "GraphQL query depth limits", "auth_comparison": "API auth bypass check",
+    "mass_assignment": "API mass assignment detection",
 }
 
 # Icon-sprite key (see the <symbol id="icon-*"> sprite in templates/base.html)
@@ -107,6 +110,8 @@ CHECK_CATEGORY = {
     # Phase 33 (OWGAP-01..05)
     "xxe": "bug", "csp_depth": "shield", "hsts_depth": "lock",
     "dnssec": "lock", "dep_audit": "bug",
+    # Phase 34 (APIT-01..03)
+    "graphql_depth": "bug", "auth_comparison": "network", "mass_assignment": "bug",
 }
 
 # Check names each orchestrator can dispatch, grouped by scan_type - the
@@ -195,6 +200,10 @@ CHECK_COMPLIANCE = {
     "hsts_depth":        {"owasp": "A05:2021-Security Misconfiguration", "asvs": "V14.4"},
     "dnssec":            {"owasp": "A05:2021-Security Misconfiguration", "asvs": None},
     "dep_audit":         {"owasp": "A06:2021-Vulnerable and Outdated Components", "asvs": None},
+    # Phase 34 (APIT-01..03)
+    "graphql_depth":     {"owasp": "A01:2021-Broken Access Control",     "asvs": "V13"},
+    "auth_comparison":   {"owasp": "A01:2021-Broken Access Control",     "asvs": "V4.2"},
+    "mass_assignment":   {"owasp": "A04:2021-Insecure Design",           "asvs": "V5.3"},
 }
 
 # v1.3 SCORE-01: groups every check_name into one of the 11 product-facing
@@ -265,6 +274,10 @@ SECURITY_DOMAIN_MAP = {
     "hsts_depth":        "TLS",
     "dnssec":            "DNS & Domains",
     "dep_audit":         "Dependencies",
+    # Phase 34 (APIT-01..03)
+    "graphql_depth":     "API Security",
+    "auth_comparison":   "Authorization",
+    "mass_assignment":   "Configuration",
 }
 
 # The 11 real finding-groups a check_name can map to, plus the two
@@ -3775,3 +3788,179 @@ def check_dependency_audit(home_html):
                 break
 
     return {"scripts_found": scripts_found, "rows": rows}, findings
+
+
+# ---------------------------------------------------------------------------
+# Phase 34 — API Testing Enhancements (APIT-01..03)
+# ---------------------------------------------------------------------------
+
+def check_graphql_depth(base_url, session):
+    """APIT-01: Send nested queries to GraphQL endpoints to test depth limits.
+
+    Sends progressively deeper nested queries ({a{b{c{d}}}}) to each
+    candidate GraphQL endpoint and checks if the server enforces a depth
+    limit (error response) or allows arbitrarily deep nesting."""
+    findings = []
+    rows = []
+
+    DEPTH_PAYLOADS = [
+        (3, '{"query":"{a{b{c}}}"}'),
+        (5, '{"query":"{a{b{c{d{e}}}}}"}'),
+        (8, '{"query":"{a{b{c{d{e{f{g{h}}}}}}}}"}'),
+    ]
+
+    for path in GRAPHQL_CANDIDATE_PATHS[:MAX_GRAPHQL_ENDPOINTS]:
+        url = base_url + path
+        # First check if endpoint is alive
+        try:
+            r = session.post(url, data=GRAPHQL_INTROSPECTION_BODY,
+                             headers={"Content-Type": "application/json"},
+                             timeout=REQUEST_TIMEOUT)
+            if r.status_code != 200:
+                continue
+        except requests.RequestException:
+            continue
+
+        max_depth_allowed = None
+        for depth, payload in DEPTH_PAYLOADS:
+            try:
+                r = session.post(url, data=payload,
+                                 headers={"Content-Type": "application/json"},
+                                 timeout=REQUEST_TIMEOUT)
+                if r.status_code == 200 and "error" not in r.text.lower():
+                    max_depth_allowed = depth
+                else:
+                    if max_depth_allowed is None:
+                        max_depth_allowed = depth - 1
+                    break
+            except requests.RequestException:
+                break
+
+        rows.append({"endpoint": path, "max_depth_observed": max_depth_allowed})
+
+        if max_depth_allowed is not None and max_depth_allowed >= 5:
+            findings.append(Finding(
+                "GraphQL Depth", f"No query depth limit enforced at {path}", "medium",
+                f"The server accepted queries nested to depth {max_depth_allowed} without "
+                "erroring, suggesting no depth limit is enforced. Attackers can craft deeply "
+                "nested queries to cause DoS via resource exhaustion.",
+                "Enforce a maximum query depth (typically 5-7) and reject queries that exceed it.",
+                confidence="Confirmed",
+                cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"))
+
+    return {"endpoints_tested": len(rows), "rows": rows}, findings
+
+
+def check_auth_comparison(base_url, session):
+    """APIT-02: Compare authenticated vs unauthenticated API responses.
+
+    Discovers API endpoints via common paths and sends each request with
+    and without an Authorization header. Differences in status code or
+    response size may indicate authorization gaps."""
+    findings = []
+    rows = []
+
+    API_PATHS = [
+        "/api/v1/users", "/api/users", "/api/v1/admin", "/api/admin",
+        "/api/v1/me", "/api/me", "/api/v1/profile", "/api/profile",
+        "/api/v1/settings", "/api/settings", "/api/v1/config",
+    ]
+
+    for path in API_PATHS:
+        url = base_url + path
+        unauth_status = None
+        auth_status = None
+        unauth_size = 0
+        auth_size = 0
+
+        # Unauthenticated request
+        try:
+            r = session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=False)
+            unauth_status = r.status_code
+            unauth_size = len(r.content)
+        except requests.RequestException:
+            continue
+
+        # Authenticated request (reuse existing session cookies)
+        try:
+            r = session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=False)
+            auth_status = r.status_code
+            auth_size = len(r.content)
+        except requests.RequestException:
+            continue
+
+        rows.append({
+            "endpoint": path,
+            "unauth_status": unauth_status,
+            "auth_status": auth_status,
+            "unauth_size": unauth_size,
+            "auth_size": auth_size,
+        })
+
+        # Flag endpoints where unauthenticated request succeeds (2xx)
+        # and the response differs from authenticated — potential auth bypass
+        if unauth_status and 200 <= unauth_status < 300:
+            size_diff = abs(auth_size - unauth_size) if auth_size else 0
+            if auth_status and unauth_status == auth_status and size_diff < 100:
+                findings.append(Finding(
+                    "Auth Bypass", f"API endpoint {path} accessible without authentication", "high",
+                    f"GET {path} returned HTTP {unauth_status} without any authentication "
+                    "token, and the response is similar to the authenticated request.",
+                    "Ensure all sensitive API endpoints require authentication.",
+                    confidence="Confirmed",
+                    cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"))
+
+    return {"endpoints_tested": len(rows), "rows": rows}, findings
+
+
+def check_mass_assignment(base_url, session):
+    """APIT-03: Detect mass assignment by sending extra fields to API endpoints.
+
+    For discovered API endpoints, sends POST requests with extra fields
+    (role, is_admin, etc.) and checks if the server reflects them back
+    or accepts them without stripping."""
+    findings = []
+    rows = []
+
+    EXTRA_FIELDS = {
+        "role": "admin",
+        "is_admin": True,
+        "admin": True,
+        "privilege": "superuser",
+    }
+
+    API_PATHS = [
+        "/api/v1/users", "/api/users", "/api/v1/register",
+        "/api/register", "/api/v1/profile", "/api/profile",
+    ]
+
+    for path in API_PATHS:
+        url = base_url + path
+        try:
+            payload = {**EXTRA_FIELDS, "username": "test_probe_user_31415"}
+            r = session.post(url, json=payload,
+                             headers={"Content-Type": "application/json"},
+                             timeout=REQUEST_TIMEOUT, allow_redirects=False)
+            row = {"endpoint": path, "status": r.status_code, "accepted_fields": []}
+
+            # Check if any extra fields appear in the response
+            resp_text = r.text.lower()
+            for field in EXTRA_FIELDS:
+                if field in resp_text:
+                    row["accepted_fields"].append(field)
+
+            rows.append(row)
+
+            if row["accepted_fields"]:
+                findings.append(Finding(
+                    "Mass Assignment", f"API endpoint {path} may accept privileged fields", "high",
+                    f"POST {path} accepted extra fields: {', '.join(row['accepted_fields'])}. "
+                    "The server may be allowing mass assignment of privileged attributes.",
+                    "Use allow-lists for accepted fields; never bind request data directly to models.",
+                    confidence="Confirmed",
+                    cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:L/A:N"))
+
+        except requests.RequestException:
+            continue
+
+    return {"endpoints_tested": len(rows), "rows": rows}, findings

@@ -91,6 +91,9 @@ from webvulnscanner.checks import (
     check_hsts_depth,
     check_dnssec,
     check_dependency_audit,
+    check_graphql_depth,
+    check_auth_comparison,
+    check_mass_assignment,
 )
 
 logger = logging.getLogger(__name__)
@@ -503,6 +506,10 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
         "hsts_depth": lambda: check_hsts_depth(dict(home_resp.headers)),
         "dnssec": lambda: check_dnssec(hostname),
         "dep_audit": lambda: check_dependency_audit(home_html),
+        # Phase 34 (APIT-01..03)
+        "graphql_depth": lambda: check_graphql_depth(base_url, session),
+        "auth_comparison": lambda: check_auth_comparison(base_url, session),
+        "mass_assignment": lambda: check_mass_assignment(base_url, session),
     }
 
     # Community checks (Phase 28): load YAML-defined checks from

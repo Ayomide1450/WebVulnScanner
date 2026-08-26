@@ -64,6 +64,9 @@ FEATURE_REQUIREMENTS = {
     # Phase 33 (OWGAP-01..05) — passive/read-only checks
     "xxe": Tier.PAID, "csp_depth": Tier.FREE, "hsts_depth": Tier.FREE,
     "dnssec": Tier.PAID, "dep_audit": Tier.PAID,
+    # Phase 34 (APIT-01..03) — active API probing, ORG_VERIFIED
+    "graphql_depth": Tier.ORG_VERIFIED, "auth_comparison": Tier.ORG_VERIFIED,
+    "mass_assignment": Tier.ORG_VERIFIED,
 }
 
 

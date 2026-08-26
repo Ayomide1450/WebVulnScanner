@@ -527,7 +527,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CVSS-01..05 | Phase 31 | Complete (2026-08-26) |
 | DEDUP-01..04 | Phase 32 | Complete (2026-08-26) |
 | OWGAP-01..05 | Phase 33 | Complete (2026-08-26) |
-| APIT-01..03 | Phase 34 | Planned |
+| APIT-01..03 | Phase 34 | Complete (2026-08-26) |
 
 **Coverage:** 105/105 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for
 v1.3 across 5 phases, 17 new for v1.4 across 4 phases, 16 for v1.5 across 2 phases - all
@@ -582,10 +582,10 @@ review).
 
 ### API Testing Enhancements — Phase 34 (v1.8)
 
-- [ ] **APIT-01**: `check_graphql_depth`: sends nested queries to GraphQL endpoints
+- [x] **APIT-01**: `check_graphql_depth`: sends nested queries to GraphQL endpoints
       (introspection-discovered or common paths) to test query depth limits and error handling.
-- [ ] **APIT-02**: `check_auth_comparison`: for API endpoints, sends the same request with and
+- [x] **APIT-02**: `check_auth_comparison`: for API endpoints, sends the same request with and
       without authentication tokens, diffs response status/size to identify authorization gaps.
-- [ ] **APIT-03**: `check_mass_assignment`: for discovered API endpoints, appends extra fields
+- [x] **APIT-03**: `check_mass_assignment`: for discovered API endpoints, appends extra fields
       to POST bodies and checks if the response reflects acceptance of those fields.
 

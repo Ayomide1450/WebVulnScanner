@@ -112,6 +112,8 @@ def _stub_all_checks(monkeypatch):
         # Phase 33 (OWGAP-01..05)
         "check_xxe", "check_csp_depth", "check_hsts_depth", "check_dnssec",
         "check_dependency_audit",
+        # Phase 34 (APIT-01..03)
+        "check_graphql_depth", "check_auth_comparison", "check_mass_assignment",
     ]
     for name in plain_stub_names:
         monkeypatch.setattr(scan_engine, name, lambda *a, **k: ({}, []))
