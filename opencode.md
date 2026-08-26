@@ -632,8 +632,8 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
     Remaining open item: Phase 17 (Expanded Check Coverage) — DEPTH-01 needs an explicit
     signed crawl-depth decision; DEPTH-02/03 are payload-variant work. Decide whether
     it stays in v1.4 or moves to a later milestone.
-    **Staging deployment**: Phases 23–26 have been committed but not yet deployed to
-    staging. Deploy per the STAGING-FIRST POLICY once user says go.
+    **Staging deployment**: Phases 23–34 deployed to staging (2026-08-26, v17).
+    /healthz returns {"status":"ok"}.
 6. Housekeeping: `dev-server-*.log` files and `instance/` are untracked
    clutter candidates (check .gitignore covers them). Also: staging DB still
    has a dangling DomainVerification row for glassbox-lure.fly.dev (lure app
