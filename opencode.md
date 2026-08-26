@@ -627,7 +627,8 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
     `dataviz` skill per its own criterion 5) — slot it whenever the user says go.
     **Current status**: all v1.6 (Phases 22–26) and v1.7 (Phases 21.1, 27–30) COMPLETE.
     v1.8 Phase 31 (CVSS 3.1 scoring) COMPLETE. v1.8 Phase 32 (Finding Deduplication) COMPLETE.
-    Next build: Phase 33 (OWASP Gap Audit).
+    v1.8 Phase 33 (OWASP Gap Audit) COMPLETE. v1.8 Phase 34 (API Testing Enhancements) COMPLETE.
+    All v1.8 phases done. Full suite: 1282 passed, 11 skipped, 0 failed.
     Remaining open item: Phase 17 (Expanded Check Coverage) — DEPTH-01 needs an explicit
     signed crawl-depth decision; DEPTH-02/03 are payload-variant work. Decide whether
     it stays in v1.4 or moves to a later milestone.
@@ -667,8 +668,8 @@ integrated into Glassbox. Analysis completed; features mapped to the roadmap.
 |---|---|---|
 | CVSS 3.1 scoring | **DONE (Phase 31, 2026-08-26)** | Standard vector parsing alongside severity weights |
 | Finding deduplication | **DONE (Phase 32, 2026-08-26)** | Hash-based dedup for crawl-then-probe duplicates |
-| OWASP gap audit | v1.8 new phase | XXE, CSP depth, HSTS depth, DNSSEC, dependency scanning |
-| API testing enhancements | v1.8 new phase | GraphQL depth, auth comparison, mass assignment |
+| OWASP gap audit | **DONE (Phase 33, 2026-08-26)** | XXE, CSP depth, HSTS depth, DNSSEC, dependency scanning |
+| API testing enhancements | **DONE (Phase 34, 2026-08-26)** | GraphQL depth, auth comparison, mass assignment |
 
 These require ROADMAP.md + REQUIREMENTS.md entries before building. User confirmed
 Phase 24 ships first.
