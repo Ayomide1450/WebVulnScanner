@@ -4,7 +4,13 @@
 {% include "_pagination.html" %}
 <style>
   h1 { margin-top: 20px; }
-  .meta { color: var(--muted); font-size:13px; margin-bottom: 20px; }
+  .meta { color: var(--muted); font-size:13px; margin-bottom: 8px; }
+  /* Report actions: was a single cramped &middot;-separated text line
+     (7 links running together) - now a wrapping row of small pill buttons
+     with real gaps, so "Export CSV"/"Export SARIF"/"Export PDF" etc. are
+     each an obvious separate tap target instead of adjacent inline text. */
+  .report-actions { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:22px; }
+  .report-actions .btn { padding:7px 13px; font-size:12.5px; }
   .score-summary h2 { margin: 0 0 6px; }
   .sev-pills { display:flex; gap:8px; flex-wrap:wrap; }
   /* v1.3 SCORE-04: the production-readiness verdict, shown above the
@@ -151,17 +157,19 @@
   <h1>Scan report</h1>
   <div class="meta">
     Target: <code>{{ r.target or r.hostname }}</code> &middot; {{ r.scanned_at }}
-    &middot; <a class="back" href="{{ url_for('scan.dashboard') }}">&larr; Back to dashboard</a>
+  </div>
+  <div class="report-actions">
+    <a class="btn ghost" href="{{ url_for('scan.dashboard') }}">&larr; Back to dashboard</a>
     {% if scan.scan_type == 'base' %}
-    &middot; <a class="back" href="{{ url_for('scan.new_scan_base', target=scan.target_url) }}">&#8635; Re-scan website</a>
+    <a class="btn ghost" href="{{ url_for('scan.new_scan_base', target=scan.target_url) }}">&#8635; Re-scan website</a>
     {% endif %}
     {% if previous_scan %}
-    &middot; <a class="back" href="{{ url_for('scan.scan_compare', scan_id=previous_scan.id, other_id=scan.id) }}">Compare with previous scan</a>
+    <a class="btn ghost" href="{{ url_for('scan.scan_compare', scan_id=previous_scan.id, other_id=scan.id) }}">Compare with previous scan</a>
     {% endif %}
-    &middot; <a class="back" href="{{ url_for('scan.scan_report_csv', scan_id=scan.id) }}">Export CSV</a>
-    &middot; <a class="back" href="{{ url_for('scan.scan_report_sarif', scan_id=scan.id) }}">Export SARIF</a>
-    &middot; <a class="back" href="{{ url_for('scan.scan_report_pdf', scan_id=scan.id) }}">Export PDF</a>
-    &middot; <a class="back" href="{{ url_for('assessment.request_assessment') }}">Request Expert Assessment</a>
+    <a class="btn ghost" href="{{ url_for('scan.scan_report_csv', scan_id=scan.id) }}">Export CSV</a>
+    <a class="btn ghost" href="{{ url_for('scan.scan_report_sarif', scan_id=scan.id) }}">Export SARIF</a>
+    <a class="btn ghost" href="{{ url_for('scan.scan_report_pdf', scan_id=scan.id) }}">Export PDF</a>
+    <a class="btn ghost" href="{{ url_for('assessment.request_assessment') }}">Request Expert Assessment</a>
   </div>
 
   {% set score = r.score %}

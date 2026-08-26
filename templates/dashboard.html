@@ -15,7 +15,9 @@
 
   /* Summary cards - compact 4-column grid */
   .summary-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:14px; margin-top:20px; }
-  .summary-card { padding:16px 18px; }
+  .summary-card { padding:16px 18px; border-top: 2px solid var(--border); }
+  .summary-card.accent-score { border-top-color: var(--accent); }
+  .summary-card.accent-telemetry { border-top-color: var(--telemetry); }
   .summary-card .label { display:flex; align-items:center; gap:7px; color: var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
   .summary-card .label .icon { width:14px; height:14px; }
   .summary-card .value { font-size:26px; font-weight:600; font-family:"Fira Code",monospace; margin-top:8px; }
@@ -109,7 +111,7 @@
 
   {# ---- Item 1/2: Security Score + 3 supporting summary cards -------- #}
   <div class="summary-grid">
-    <div class="card summary-card">
+    <div class="card summary-card accent-score">
       <div class="label"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/></svg>Security Score</div>
       {% if latest and latest.risk_score is not none %}
         {% set score = latest.risk_score %}
@@ -140,7 +142,7 @@
       <div class="foot">{{ scans|length }} launched overall</div>
     </div>
 
-    <div class="card summary-card">
+    <div class="card summary-card accent-telemetry">
       <div class="label"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-linecap="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/></svg>Last Scan</div>
       {% if latest %}
         <div class="value" style="font-size:15px;">{{ latest.created_at.strftime('%b %d, %Y') }}</div>
