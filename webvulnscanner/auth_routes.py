@@ -311,10 +311,10 @@ def login():
         return redirect(_safe_next())
     form = LoginForm()
     if form.validate_on_submit():
-        if not _turnstile_passes(request.remote_addr):
-            flash("Bot check failed - please try again.", "error")
-            return render_template("login.html", form=form)
-
+        # Turnstile is signup-only (user decision, 2026-08-26): login is a
+        # repeat-visitor flow already gated by the 10/min rate limit above,
+        # not an abuse-sensitive account-creation endpoint - a bot check on
+        # every login is friction with no matching payoff.
         email = form.email.data.strip().lower()
         user = User.query.filter_by(email=email).first()
         if user is None or not check_password_hash(user.password_hash, form.password.data):

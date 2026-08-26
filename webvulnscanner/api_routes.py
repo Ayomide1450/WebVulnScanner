@@ -12,6 +12,7 @@ scan_routes._check_ownership() directly rather than re-implementing org/
 solo scoping, so a token can never see more than its creating user's
 session already could.
 """
+import logging
 from functools import wraps
 
 from flask import Blueprint, Response, abort, jsonify, request
@@ -324,7 +325,20 @@ def fetch_report_pdf(scan_id):
     if report is None:
         return jsonify(error="report file is unavailable"), 500
 
-    pdf_bytes, filename = build_pdf_report(report, scan_id)
+    try:
+        pdf_bytes, filename = build_pdf_report(report, scan_id)
+    except RuntimeError:
+        # WeasyPrint's native GTK3 libs are missing on this host - a
+        # config/deploy problem, not a caller error. 503 (not 500) so a
+        # scripted caller (cli/wvs.py, CI) can tell "retry later / use a
+        # different format" apart from "something is actually broken".
+        logging.getLogger(__name__).exception(
+            "PDF export failed for scan %d - WeasyPrint native libs unavailable", scan_id,
+        )
+        return jsonify(
+            error="PDF export is temporarily unavailable on this server - try CSV or SARIF export instead",
+        ), 503
+
     return Response(
         pdf_bytes,
         mimetype=PDF_MIMETYPE,

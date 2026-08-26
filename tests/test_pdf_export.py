@@ -234,6 +234,66 @@ def test_scan_report_pdf_cross_org_is_404_and_leaks_no_finding_text(client, scen
     assert PDF_LEAK_MARKER.encode() in resp2.data
 
 
+def test_scan_report_pdf_missing_weasyprint_flashes_and_redirects_not_500(client, db, monkeypatch):
+    """When WeasyPrint's native libs aren't available (this machine, or a
+    misconfigured deploy), the session-web route must degrade to a flash +
+    redirect back to the report - not a raw 500. Forces the failure via
+    monkeypatch so this runs identically with or without GTK3 installed."""
+    from webvulnscanner import scan_routes
+
+    org = make_org()
+    user = make_user("pdf-degrade@example.com", org=org)
+    scan = make_scan(user, org=org, status=ScanStatus.COMPLETED)
+    db.session.commit()
+    _attach_pdf_marker_report(scan)
+    db.session.commit()
+
+    def _boom(report, scan_id):
+        raise RuntimeError("WeasyPrint requires GTK3 native libraries")
+
+    monkeypatch.setattr(scan_routes, "build_pdf_report", _boom)
+
+    login(client, "pdf-degrade@example.com")
+    # follow_redirects=False: the fixture report dict here is minimal and
+    # doesn't carry every key scan_report.html needs to fully render - this
+    # test only needs to prove the PDF route itself redirects with a flash,
+    # not that an unrelated template renders a partial fixture cleanly.
+    resp = client.get(f"/scan/{scan.id}/report.pdf", follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith(f"/scan/{scan.id}/report")
+    with client.session_transaction() as sess:
+        flashes = dict(sess.get("_flashes", []))
+    assert "temporarily unavailable" in flashes.get("error", "")
+
+
+def test_fetch_report_pdf_missing_weasyprint_returns_503_json(client, db, monkeypatch):
+    """Token-authed API twin of the same degrade path: a scripted caller
+    (cli/wvs.py, CI) needs a parseable 503 + error message, not a bare 500,
+    so it can tell 'retry later / use another format' apart from a real
+    server error."""
+    from webvulnscanner import api_routes
+
+    org = make_org()
+    user = make_user("pdf-degrade-api@example.com", org=org)
+    scan = make_scan(user, org=org, status=ScanStatus.COMPLETED)
+    db.session.commit()
+    _attach_pdf_marker_report(scan)
+    db.session.commit()
+    _token_row, token = make_api_token(user)
+
+    def _boom(report, scan_id):
+        raise RuntimeError("WeasyPrint requires GTK3 native libraries")
+
+    monkeypatch.setattr(api_routes, "build_pdf_report", _boom)
+
+    resp = client.get(
+        f"/api/v1/scans/{scan.id}/report.pdf",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 503
+    assert "temporarily unavailable" in resp.get_json()["error"]
+
+
 def test_scan_report_pdf_no_report_row_is_404(client, db):
     org = make_org()
     user = make_user("no-report-pdf@example.com", org=org)

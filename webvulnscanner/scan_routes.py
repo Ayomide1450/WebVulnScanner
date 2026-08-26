@@ -1557,7 +1557,22 @@ def scan_report_pdf(scan_id):
     if report is None:
         abort(404)
 
-    pdf_bytes, filename = build_pdf_report(report, scan_id)
+    try:
+        pdf_bytes, filename = build_pdf_report(report, scan_id)
+    except RuntimeError:
+        # WeasyPrint's native GTK3 libs are missing on this host - a config/
+        # deploy problem, not something the user did wrong. Send them back
+        # to the report with a plain-English flash instead of a raw 500.
+        logging.getLogger(__name__).exception(
+            "PDF export failed for scan %d - WeasyPrint native libs unavailable", scan_id,
+        )
+        flash(
+            "PDF export is temporarily unavailable on this server. "
+            "Try CSV or SARIF export instead, or contact support if this persists.",
+            "error",
+        )
+        return redirect(url_for("scan.scan_report", scan_id=scan_id))
+
     return Response(
         pdf_bytes,
         mimetype=PDF_MIMETYPE,
