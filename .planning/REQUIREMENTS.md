@@ -524,10 +524,68 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PLUG-01..05 | Phase 28 | Complete (2026-08-25, staging v16) |
 | SARIF-01..03 | Phase 29 | Complete 2026-08-24 (SARIF-03 pending user-side GitHub upload) |
 | OSSD-01 | Phase 30 | Complete (2026-08-25, decision doc — GO, deferred to v2) |
+| CVSS-01..05 | Phase 31 | Complete (2026-08-26) |
+| DEDUP-01..04 | Phase 32 | Planned |
+| OWGAP-01..05 | Phase 33 | Planned |
+| APIT-01..03 | Phase 34 | Planned |
 
 **Coverage:** 105/105 requirements mapped (9 deferred from v1.2 now resumed, 23 shipped for
 v1.3 across 5 phases, 17 new for v1.4 across 4 phases, 16 for v1.5 across 2 phases - all
 complete; 24 planned for v1.6 across 5 phases; 4 for the Phase 21.1 UX fix; 12 planned for
 v1.7 across 4 phases, scoped 2026-08-24 from the strategic "what makes this world-class"
 review).
+
+### CVSS 3.1 Scoring — Phase 31 (v1.8)
+
+- [x] **CVSS-01**: Finding dataclass gains an optional `cvss_vector: str | None = None` field
+      that accepts a CVSS 3.1 vector string (e.g.
+      `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H`).
+- [x] **CVSS-02**: A `compute_cvss_score(vector: str) -> tuple[float, str]` helper in checks.py
+      parses the vector string and returns a base score (0.0–10.0) and severity label
+      (Critical/High/Medium/Low) per the CVSS 3.1 specification. Invalid vectors return
+      `(0.0, "None")` — never raise.
+- [x] **CVSS-03**: The scan report template renders a CVSS score column when present; findings
+      without a CVSS vector degrade gracefully (no score shown, no error, no layout break).
+- [x] **CVSS-04**: The existing `_score_report()` / risk grade / severity_counts pipeline is
+      untouched — CVSS scores are附加 metadata on the report and per-finding detail, not a
+      scoring replacement. A regression lock in test_scan_engine.py confirms _score_report
+      still uses SEVERITY_WEIGHT.
+- [x] **CVSS-05**: At least 5 existing check call sites (one per severity tier) supply a CVSS
+      vector, proving the plumbing works end-to-end. Checked via a source-parse test.
+
+### Finding Deduplication — Phase 32 (v1.8)
+
+- [ ] **DEDUP-01**: A `deduplicate_findings(findings: list[Finding]) -> list[Finding]` helper
+      hashes each finding by (check_name, category, title, affected_url) and collapses
+      duplicates into one Finding with an incremented `count: int` field.
+- [ ] **DEDUP-02**: Dedup runs in each orchestrator after all checks complete, before
+      `_score_report()`. The score is computed on the deduplicated list.
+- [ ] **DEDUP-03**: The report template shows "(×N)" beside deduplicated finding titles when
+      count > 1.
+- [ ] **DEDUP-04**: Findings with different severities for the same (check_name, title, url)
+      keep the highest severity — no silent downgrade. Deterministic: same input → same output.
+
+### OWASP Gap Audit — Phase 33 (v1.8)
+
+- [ ] **OWGAP-01**: `check_xxe`: probes XML-accepting endpoints for external entity injection
+      using marker-only payloads (no real file reads). Same safety as check_ssti.
+- [ ] **OWGAP-02**: `check_csp_depth`: deepens the existing CSP header check to evaluate
+      directive quality — script-src strength, report-uri/report-uri presence, nonce/hash
+      usage detection.
+- [ ] **OWGAP-03**: `check_hsts_depth`: deepens the existing HSTS check to evaluate max-age
+      adequacy (< 6 months = low, >= 6 months = pass), includeSubDomains, preload eligibility.
+- [ ] **OWGAP-04**: `check_dnssec`: verifies DNSSEC signing via dns.resolver AD flag check +
+      DNSKEY record presence query.
+- [ ] **OWGAP-05**: `check_dependency_audit`: enriches the existing dependency version check
+      with known-CVE matching against a curated advisory list (top-20 high-severity CVEs for
+      common JS/Python libraries).
+
+### API Testing Enhancements — Phase 34 (v1.8)
+
+- [ ] **APIT-01**: `check_graphql_depth`: sends nested queries to GraphQL endpoints
+      (introspection-discovered or common paths) to test query depth limits and error handling.
+- [ ] **APIT-02**: `check_auth_comparison`: for API endpoints, sends the same request with and
+      without authentication tokens, diffs response status/size to identify authorization gaps.
+- [ ] **APIT-03**: `check_mass_assignment`: for discovered API endpoints, appends extra fields
+      to POST bodies and checks if the response reflects acceptance of those fields.
 

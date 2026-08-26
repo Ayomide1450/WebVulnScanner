@@ -273,6 +273,11 @@ def create_app(config_class=Config):
             "idle_timeout_minutes": app.config.get("IDLE_TIMEOUT_MINUTES", 5),
         }
 
+    # v1.8 CVSS-02: expose compute_cvss_score to all Jinja templates so
+    # scan_report.html can render per-finding CVSS badges.
+    from webvulnscanner.checks import compute_cvss_score
+    app.jinja_env.globals["compute_cvss_score"] = compute_cvss_score
+
     # Custom error pages so 404/500 stay inside the app's own dark theme
     # (nav, back-to-dashboard link) instead of dropping a logged-in user
     # into Flask's raw unstyled default error page.

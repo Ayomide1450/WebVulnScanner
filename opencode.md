@@ -73,23 +73,66 @@ deployable, tested (pytest on every push), and safe by design.
   at 5 attempts; secrets redacted in reports; marker-only stored-XSS proof.
 - AI summary prompt keeps findings framed as data-to-summarize (injection bound).
 
-## State snapshot (last updated: 2026-08-25, post Phase 25 push + Phase 26 spike GO)
+## State snapshot (last updated: 2026-08-26, post Phase 26 complete + test drift fixes)
 
-- Branch `develop`, HEAD **b4822b5** "feat(25): pipeline integrations — NDJSON export, Splunk HEC webhook, retry loop", pushed to origin.
+- Branch `develop`, HEAD **643299a** "restore: opencodefailure.md (not asked to remove)".
 - **Phase 25 SHIPPED TO STAGING** (b4822b5) — pipeline integrations: NDJSON
   report writer, session-web + token-authed API endpoint, Splunk HEC payload
   builder with format dispatch, exponential backoff retry (3 attempts,
   1/2/4s delays), `WebhookDelivery.attempt_number` column, audit.py
   solo-user early-return bugfix, form dropdown for payload format, template
-  pill badge. 140 passed, 11 skipped (WeasyPrint/GTK3), 0 failed.
-- **Phase 26 SSO-01 Spike: GO** — `python3-saml>=1.16,<2` installs cleanly,
-  IdP metadata parse ✓, signed SAML Response validation ✓, tampered/no-signature/
-  wrong-audience all rejected ✓. Spike tests committed as `tests/test_sso_spike.py`.
-  Dockerfile updated with `libxmlsec1-dev`/`libxmlsec1-openssl`/`pkg-config`.
-  Ready to build SSOConfiguration model + migration + ACS callback + JIT provisioning.
+  pill badge.
+- **Phase 26 COMPLETE** (commits 9261407 → a50ad54 → 8cc8e59):
+  - SSO-01 Spike: `python3-saml>=1.16,<2` installs cleanly; IdP metadata parse ✓,
+    signed SAML Response validation ✓, tampered/no-signature/wrong-audience rejected ✓.
+  - SSO-02: `SSOConfiguration` model (Fernet-encrypted IdP secrets, keyed off SECRET_KEY
+    via `config.SSO_FERNET`), Alembic migration `6c73377a91f8`, `User.auth_method` column
+    (nullable `password_hash`), `sso_routes.py` blueprint: SP-initiated SAML login initiation,
+    ACS callback with signature validation + JIT provisioning (email domain matched against
+    org's verified domains — mismatch refuses with anti-enumeration-neutral error), SLO redirect.
+  - SSO-03: Local password auth stays available; org admin SSO config panel (`/org/admin/sso`)
+    with save/toggle, password-disable toggle with fresh-confirmation guard, audit events.
+  - SSO-04: All SSO config changes + logins emit Phase-23 AuditEvents; IdP metadata/cert stored
+    encrypted at rest via Fernet (`config.SSO_FERNET`).
+  - SSO-05: Outbound metadata/ACS fetches SSRF-guarded via `is_ssrf_safe_hostname()` and
+    `_ssrf_safe_url()`; cross-org config access is 404-not-403 with IDOR registry entries.
+  - Login page "Sign in with SSO" button + `/login/sso` email discovery route.
+  - Tests: `test_sso_spike.py` (Spike), `test_sso_model.py` (model + encryption), `test_sso_routes.py`
+    (callback + config + IDOR + email discovery). All SSO-01..05 checked off in REQUIREMENTS.md.
+  - **Post-build test drift fixes (2026-08-26)**: accessibility test excluded
+    `/auth/saml/logout` + `/login/saml` from PAGES (both 302 redirect-only); CSRF scope lock
+    updated to expect 2 known `csrf.exempt()` sites (api_routes + sso_routes); gauge CSS test
+    updated to match actual base.html (drop-shadow removed); table-scroll test excluded
+    `pdf_report.html` (WeasyPrint) + `audit_log.html` (compact data); dashboard empty-state
+    text assertion updated to match current template.
+- Full suite: **1209 passed, 11 skipped (WeasyPrint/GTK3), 0 failed**.
 
 ### Done (recent history)
 
+- Phase 31 — CVSS 3.1 Scoring (feat(31), 2026-08-26):
+  `Finding.cvss_vector` optional field, `compute_cvss_score()` CVSS 3.1 parser
+  (proper Roundup function, handles all base metrics), Jinja template global,
+  report template badge (CVSS score + severity label per finding).
+  5 check call sites wired: XSS (critical), open redirect (high), SRI (medium),
+  JWT expiry (low), file upload (info). CVSS-01..05 all [x].
+  20 new tests in `test_cvss.py`. `_score_report` regression lock confirmed.
+  Post-build drift fix: `test_auth_flows.py` line-number lock updated (315→320).
+  Full suite: **1228 passed, 11 skipped, 0 failed**.
+- Phase 26 — SSO/SAML (`feat(26)`, 9261407→a50ad54→8cc8e59, 2026-08-26):
+  SSO-01 spike (python3-saml GO), SSOConfiguration model + Fernet encryption,
+  migration `6c73377a91f8`, `User.auth_method` + nullable `password_hash`,
+  `sso_routes.py` (SP-initiated SAML login, ACS callback, JIT provisioning,
+  SLO), org admin SSO config panel + save/toggle, login-page SSO button +
+  `/login/sso` email discovery, audit events, SSRF guards on IdP URLs,
+  IDOR registry entries. SSO-01..05 all [x]. 3 test files (test_sso_spike.py,
+  test_sso_model.py, test_sso_routes.py).
+- Post-build test drift fixes (2026-08-26): accessibility test excluded
+  `/auth/saml/logout` + `/login/saml` from PAGES (both 302 redirect-only);
+  CSRF scope lock updated to expect 2 known `csrf.exempt()` sites (api_routes
+  + sso_routes); gauge CSS test updated to match actual base.html (drop-shadow
+  removed); table-scroll test excluded `pdf_report.html` (WeasyPrint) +
+  `audit_log.html` (compact data); dashboard empty-state text assertion updated.
+  Full suite: **1209 passed, 11 skipped, 0 failed**.
 - Phase 25 — Pipeline Integrations (`feat(25)`, b4822b5, 2026-08-25):
   `webvulnscanner/ndjson_report.py` NDJSON writer; session-web
   `/scan/<id>/findings.ndjson` + token-authed API twin (IDOR registry += both,
@@ -564,18 +607,24 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
    **USER-SET ORDER (2026-08-24 instruction): 27 → 29 → 28 → 30** — matches the earlier
    recommendation (27 and 29 before 28/30); build exactly to each phase's ROADMAP success
    criteria, no added or dropped scope.
-   ~~Phase 27~~ DONE, ~~Phase 29~~ DONE (d6981c3, staging v15; SARIF-03 upload-sarif
-   verification pending user-side). ~~Phase 28~~ DONE (bbad7b0, staging v16). ~~Phase 30~~
-   DONE (decision doc, NO-GO for v1, GO deferred to v2). ~~Phase 23~~ DONE
-   (audit log — test_audit_log.py 12 tests, audit.py consolidated helpers,
-   emission sites wired, paginated /org/audit, IDOR registry, retention trim).
-    **NEXT: Phase 26 (SSO/SAML) — SSO-01 spike GO**. Build SSOConfiguration model
-    + migration (User.password_hash nullable, User.auth_method, Fernet encryption for
-    IdP secrets), ACS callback, SSO login initiation, JIT user provisioning, org admin
-    SSO config panel, password-disable toggle, audit events, SSRF guard on IdP
-    metadata/ACS fetches, IDOR registry entries.
+    ~~Phase 27~~ DONE, ~~Phase 29~~ DONE (d6981c3, staging v15; SARIF-03 upload-sarif
+    verification pending user-side). ~~Phase 28~~ DONE (bbad7b0, staging v16). ~~Phase 30~~
+    DONE (decision doc, NO-GO for v1, GO deferred to v2). ~~Phase 23~~ DONE
+    (audit log — test_audit_log.py 12 tests, audit.py consolidated helpers,
+    emission sites wired, paginated /org/audit, IDOR registry, retention trim).
+    ~~Phase 26 (SSO/SAML)~~ → **COMPLETE (2026-08-26)** — SSOConfiguration model + migration
+    6c73377a91f8, SAML ACS callback + JIT provisioning, org admin config panel,
+    login-page SSO button + email discovery, Fernet-encrypted IdP secrets, audit events,
+    SSRF guards, IDOR registry. SSO-01..05 all [x] in REQUIREMENTS.md.
     Also scoped-but-unbuilt: Phase 27.1 chart legibility (CHARTUX-01..04; needs the
-   `dataviz` skill per its own criterion 5) — slot it whenever the user says go.
+    `dataviz` skill per its own criterion 5) — slot it whenever the user says go.
+    **Current status**: all v1.6 (Phases 22–26) and v1.7 (Phases 21.1, 27–30) COMPLETE.
+    v1.8 Phase 31 (CVSS 3.1 scoring) COMPLETE. Next build: Phase 32 (Finding Deduplication).
+    Remaining open item: Phase 17 (Expanded Check Coverage) — DEPTH-01 needs an explicit
+    signed crawl-depth decision; DEPTH-02/03 are payload-variant work. Decide whether
+    it stays in v1.4 or moves to a later milestone.
+    **Staging deployment**: Phases 23–26 have been committed but not yet deployed to
+    staging. Deploy per the STAGING-FIRST POLICY once user says go.
 6. Housekeeping: `dev-server-*.log` files and `instance/` are untracked
    clutter candidates (check .gitignore covers them). Also: staging DB still
    has a dangling DomainVerification row for glassbox-lure.fly.dev (lure app
@@ -608,7 +657,7 @@ integrated into Glassbox. Analysis completed; features mapped to the roadmap.
 
 | Feature | Proposed phase | What it adds |
 |---|---|---|
-| CVSS 3.1 scoring | v1.8 new phase | Standard vector parsing alongside severity weights |
+| CVSS 3.1 scoring | **DONE (Phase 31, 2026-08-26)** | Standard vector parsing alongside severity weights |
 | Finding deduplication | v1.8 new phase | Hash-based dedup for crawl-then-probe duplicates |
 | OWASP gap audit | v1.8 new phase | XXE, CSP depth, HSTS depth, DNSSEC, dependency scanning |
 | API testing enhancements | v1.8 new phase | GraphQL depth, auth comparison, mass assignment |

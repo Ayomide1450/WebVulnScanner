@@ -43,15 +43,12 @@
   .note { color: var(--muted); font-size: 13px; }
   .empty { color: var(--muted); font-size: 14px; padding: 18px 0; }
 
-  /* Locked-check card - dimmed/muted variant of .finding, same lock-emoji
-     convention as .warn-box uses elsewhere in the app. */
-  .finding.locked-card { opacity: .65; border-left-color: var(--border); }
+  /* Locked-check card - dimmed/muted variant of .finding */
+  .finding.locked-card { opacity: .65; }
   .finding.locked-card .badge { background: rgba(147,160,201,.15); color: var(--muted); }
 
-  /* AI-assisted remediation summary - a one-off violet accent, deliberately
-     distinct from --low (already blue for low-severity findings) so this
-     reads as "this specific section is AI-generated," not a severity cue. */
-  .ai-summary-card { border-left: 3px solid #8b5cf6; }
+  /* AI-assisted remediation summary - subtle top accent, not a side-tab */
+  .ai-summary-card { border-top: 2px solid #8b5cf6; }
   .ai-pill { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; padding:3px 9px; border-radius:999px; background: rgba(139,92,246,.14); color:#8b5cf6; margin-bottom:10px; }
   .ai-summary-card .body { white-space: pre-wrap; font-size: 15px; line-height:1.6; }
 
@@ -79,11 +76,7 @@
   .sp-info { color: var(--muted); }
 
   .sp-group-title { font-size:11px; color: var(--muted); text-transform:uppercase; letter-spacing:.06em; margin: 18px 0 8px; }
-  .sp-card { background: var(--panel); border:1px solid var(--border); border-left: 3px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
-  .sp-card.sp-confirmed { border-left-color: var(--critical); }
-  .sp-card.sp-needs_review { border-left-color: var(--medium); }
-  .sp-card.sp-passed { border-left-color: var(--accent); }
-  .sp-card.sp-informational { border-left-color: var(--info); }
+  .sp-card { background: var(--panel); border:1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
   .sp-card-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
   .sp-path { font-size:13px; }
   .sp-badge { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; padding:3px 9px; border-radius:6px; }
@@ -141,6 +134,12 @@
   {% if f.get('confidence') %}<span class="pill compliance" title="How certain this specific finding is - separate from severity">{{ f.confidence }}</span>{% endif %}
   {% if f.get('cwe') %}<span class="pill compliance">{{ f.cwe }}</span>{% endif %}
   {% if f.get('verification_state') %}<span class="pill compliance" title="Attack-surface verification stage">{{ f.verification_state }}</span>{% endif %}
+  {% if f.get('cvss_vector') %}
+    {% set cvss_score = compute_cvss_score(f.cvss_vector) %}
+    {% if cvss_score[0] > 0 %}
+    <span class="pill compliance" title="CVSS 3.1 Base Score: {{ cvss_score[0] }} — {{ f.cvss_vector }}">CVSS {{ cvss_score[0] }} ({{ cvss_score[1] }})</span>
+    {% endif %}
+  {% endif %}
   <div class="body">
     <b>{{ f.title }}</b>
     <div class="detail">{{ f.detail }}</div>

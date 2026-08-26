@@ -342,6 +342,93 @@ SARIF_SEVERITY_LEVEL = {
 def severity_to_sarif_level(severity):
     return SARIF_SEVERITY_LEVEL.get(str(severity or "").lower(), "note")
 
+
+# --------------------------------------------------------------------------
+# CVSS 3.1 base score computation (CVSS-02).
+#
+# Parses a CVSS:3.1 vector string and returns (base_score, severity_label)
+# per the FIRST CVSS v3.1 specification.  Only the Base metric group is
+# required for scoring; Temporal and Environmental metrics are parsed but
+# the base score formula ignores them (per spec — Temporal/Environment
+# modify the score via their own formulas, but we only use the base for
+# the severity label).
+#
+# Invalid or unparseable vectors degrade to (0.0, "None") — never raise.
+# --------------------------------------------------------------------------
+
+_CVSS_AV = {"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.20}
+_CVSS_AC = {"L": 0.77, "H": 0.44}
+_CVSS_PR_FALSE = {"N": 0.85, "L": 0.62, "H": 0.27}
+_CVSS_PR_TRUE = {"N": 0.85, "L": 0.68, "H": 0.50}
+_CVSS_UI = {"N": 0.85, "R": 0.62}
+_CVSS_IMPACT = {"N": 0.00, "L": 0.22, "H": 0.56}
+_CVSS_IMPACT_WEIGHT = {"N": 0.0, "L": 0.22, "H": 0.56}
+
+
+def compute_cvss_score(vector):
+    """Parse a CVSS 3.1 vector string and return (base_score, severity_label).
+
+    Returns (0.0, "None") for invalid/unparseable vectors — never raises.
+    Uses the CVSS 3.1 specification's Roundup function (always one decimal).
+    """
+    import math
+    import re
+
+    def _roundup(val):
+        """CVSS 3.1 Roundup: round up to one decimal place."""
+        int_part = int(val * 10)
+        if val * 10 == int_part:
+            return float(int_part) / 10
+        return (int_part + 1) / 10.0
+
+    if not vector or not isinstance(vector, str):
+        return 0.0, "None"
+
+    m = re.match(r"^CVSS:3\.[01]/(.+)$", vector.strip())
+    if not m:
+        return 0.0, "None"
+
+    metrics = {}
+    for part in m.group(1).split("/"):
+        kv = part.split(":", 1)
+        if len(kv) == 2:
+            metrics[kv[0]] = kv[1]
+
+    try:
+        av = _CVSS_AV[metrics["AV"]]
+        ac = _CVSS_AC[metrics["AC"]]
+        ui = _CVSS_UI[metrics["UI"]]
+
+        cia_values = [metrics.get(k, "N") for k in ("C", "I", "A")]
+        iss = 1.0 - ((1.0 - _CVSS_IMPACT.get(cia_values[0], 0.0))
+                     * (1.0 - _CVSS_IMPACT.get(cia_values[1], 0.0))
+                     * (1.0 - _CVSS_IMPACT.get(cia_values[2], 0.0)))
+        impact_sub = 6.42 * iss
+
+        if impact_sub <= 0:
+            return 0.0, "None"
+
+        pr_table = _CVSS_PR_TRUE if "C" in cia_values or "H" in cia_values else _CVSS_PR_FALSE
+        pr = pr_table.get(metrics.get("PR", "N"), 0.85)
+
+        exploitability = 8.22 * av * ac * pr * ui
+
+        raw = min(impact_sub + exploitability, 10.0)
+        score = _roundup(raw)
+
+        if score >= 9.0:
+            label = "Critical"
+        elif score >= 7.0:
+            label = "High"
+        elif score >= 4.0:
+            label = "Medium"
+        else:
+            label = "Low"
+
+        return score, label
+    except (KeyError, ValueError):
+        return 0.0, "None"
+
 # Maps each Finding.category string (the values passed as Finding(...)'s
 # first positional arg, verified against every call site in this file) to
 # an OWASP Top 10 (2021) category, purely for report grouping/filtering -
@@ -433,6 +520,11 @@ class Finding:
     confidence: str = "Not Externally Verifiable"
     cwe: str | None = None
     verification_state: str | None = None
+    # v1.8 CVSS-01: optional CVSS 3.1 vector string for standardized scoring.
+    cvss_vector: str | None = None
+    # v1.8 DEDUP-01: count of identical findings collapsed by deduplication.
+    # Always 1 for raw findings; incremented by deduplicate_findings().
+    count: int = 1
 
 
 SENSITIVE_PATHS = [
@@ -1312,7 +1404,8 @@ def check_open_redirect(base_url, session, extra_paths):
                 hits.append({"path": path, "param": param})
                 findings.append(Finding("Open redirect", f"{path} redirects off-domain via '{param}'", "high",
                                          "The app trusts a client-supplied URL for redirection - usable for phishing.",
-                                         "Validate redirect targets against an allowlist of internal paths.", confidence="Confirmed"))
+                                         "Validate redirect targets against an allowlist of internal paths.", confidence="Confirmed",
+                                         cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:N"))
     return hits, findings
 
 
@@ -1552,7 +1645,8 @@ def check_jwt_weakness(session, base_url, home_html):
                         "Auth", f"JWT with no expiry ('exp' claim) found in {source_name}", "low",
                         "A client-visible JWT has a decodable payload but no 'exp' claim, so it never "
                         "expires once issued.",
-                        "Always set a short-lived 'exp' claim and use refresh tokens for longer sessions.", confidence="Confirmed"))
+                        "Always set a short-lived 'exp' claim and use refresh tokens for longer sessions.", confidence="Confirmed",
+                        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"))
                 counts["no_exp"] += 1
 
     return {"rows": rows}, findings
@@ -1583,7 +1677,8 @@ def check_sri(base_url, home_html):
         if not has_sri:
             findings.append(Finding("Supply chain", f"Third-party script without SRI", "medium",
                                      f"{abs_url} is loaded from an external host with no integrity= hash.",
-                                     "Add an integrity (SHA-384) and crossorigin attribute, or self-host the script.", confidence="Confirmed"))
+                                     "Add an integrity (SHA-384) and crossorigin attribute, or self-host the script.", confidence="Confirmed",
+                                     cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N"))
 
     for tag in soup.find_all("link", href=True):
         rels = [r.lower() for r in (tag.get("rel") or [])]
@@ -1648,6 +1743,7 @@ def check_file_upload(base_url, home_html):
         "validation, a file-size limit, uploaded files stored outside the webroot or served from "
         "a separate origin/CDN with no execute permission, and randomized/non-guessable filenames.",
         confidence="Confirmed", verification_state="Discovered",
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N",
     )]
     return {"upload_forms_found": len(rows), "rows": rows}, findings
 
@@ -2187,10 +2283,11 @@ def check_xss_sqli(urls, session):
                     probe_count += 1
                     if payload in r.text:
                         row["xss"] = "fail"
-                        findings.append(Finding("XSS", f"Reflected XSS in '{param}' on {url} ({variant_name} shape)",
-                                                 "critical",
-                                                 f"Injected markup ({variant_name}) was reflected unescaped into the HTML response.",
-                                                 "Escape/encode all user input before rendering; verify with a CSP.", confidence="Confirmed"))
+                    findings.append(Finding("XSS", f"Reflected XSS in '{param}' on {url} ({variant_name} shape)",
+                                             "critical",
+                                             f"Injected markup ({variant_name}) was reflected unescaped into the HTML response.",
+                                             "Escape/encode all user input before rendering; verify with a CSP.", confidence="Confirmed",
+                                             cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:N"))
                 except requests.RequestException:
                     row["xss"] = "info"
 

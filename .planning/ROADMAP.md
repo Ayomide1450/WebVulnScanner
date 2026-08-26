@@ -10,6 +10,7 @@
 - **v1.5 Detection Depth & Built-in Self-Test** - Phases 20-21 (shipped 2026-08-23)
 - **v1.6 Platform Surface & Enterprise Readiness** - Phases 22-26 (planned)
 - **v1.7 World-Class Platform Foundations** - Phases 27-30 (planned, scoped 2026-08-24)
+- **v1.8 Scoring, Dedup & Coverage Gaps** - Phases 31-34 (scoped 2026-08-26)
 
 ## Phases
 
@@ -805,4 +806,101 @@ not a failure to ship.
 | 28. Check Extensibility (Plugin Architecture) | v1.7 | Direct execution | Complete 2026-08-25 | bbad7b0 (staging v16) |
 | 29. SARIF Export | v1.7 | Direct execution | Complete 2026-08-24 (SARIF-03 user-pending) | d6981c3 (staging v15) |
 | 30. Self-Hostable / Open-Core Decision Spike | v1.7 | Direct execution | Complete 2026-08-25 | Decision doc (NO code change) |
+
+### Phase 31: CVSS 3.1 Scoring
+
+**Goal**: Findings optionally carry a CVSS 3.1 vector string; the report computes a CVSS base
+score alongside the existing risk score, giving security engineers a standard, comparable metric
+while keeping the existing severity-weight scoring for the platform's own grade/risk-score
+calculation. This is an additive layer, not a replacement — `_score_report()` keeps its
+battle-tested arithmetic; CVSS scores are附加 metadata on the report and per-finding detail.
+**Depends on**: nothing new — Finding dataclass, _score_report, and report templates.
+**Requirements**: CVSS-01..CVSS-05 (see REQUIREMENTS.md)
+**Success Criteria**:
+
+   1. A `cvss_vector` optional field on Finding accepts a CVSS 3.1 vector string
+      (e.g. `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H`).
+   2. A `compute_cvss_score(vector)` helper parses the vector and returns a base score
+      (0.0–10.0) + severity label (Critical/High/Medium/Low) per the CVSS 3.1 spec.
+   3. Findings with a CVSS vector show their CVSS score and severity on the report page;
+      findings without one degrade gracefully (no score shown, no error).
+   4. The existing `_score_report()` / risk grade / severity_counts pipeline is untouched —
+      CVSS is附加 metadata, not a scoring replacement.
+   5. At least 5 existing check call sites (one per severity tier) are updated to supply a
+      CVSS vector, proving the plumbing works end-to-end.
+
+**Plans**: Direct execution, single commit.
+**UI hint**: yes (report page CVSS column + per-finding CVSS badge)
+
+### Phase 32: Finding Deduplication
+
+**Goal**: The crawl-then-probe flow (Phase 17's depth-2 crawl, Phase 20's active checks) can
+surface the same finding multiple times for the same URL/path/param combination. Dedup
+collapse these into a single finding with a `count` field, keeping the report clean and the
+risk score accurate (a finding counted once vs. three times shouldn't change the grade).
+**Depends on**: Phase 31 (CVSS vectors on Findings, so dedup preserves them).
+**Requirements**: DEDUP-01..DEDUP-04 (see REQUIREMENTS.md)
+**Success Criteria**:
+
+   1. A `deduplicate_findings(findings)` helper hashes each finding by
+      (check_name, category, title, affected_url) and collapses duplicates into one Finding
+      with a `count: int` field.
+   2. The dedup runs in each orchestrator after all checks complete, before `_score_report()`.
+   3. The report template shows "(×N)" beside deduplicated finding titles.
+   4. Findings with different severities for the same (check_name, title, url) keep the
+      highest severity — no silent downgrade.
+   5. The dedup is deterministic — same input always produces same output, proven by tests.
+
+**Plans**: Direct execution, single commit.
+**UI hint**: yes (report "(×N)" badge)
+
+### Phase 33: OWASP Gap Audit
+
+**Goal**: Five new checks covering gaps in the OWASP Top 10 coverage that Strix and manual
+audit identified: XXE detection, CSP depth analysis, HSTS depth analysis, DNSSEC verification,
+and dependency-scanning depth. All follow the existing `(data, findings)` contract and
+safety constraints.
+**Depends on**: Phase 32 (dedup, so the new checks' findings are clean).
+**Requirements**: OWGAP-01..OWGAP-05 (see REQUIREMENTS.md)
+**Success Criteria**:
+
+   1. `check_xxe`: probes for XML external entity injection on endpoints that accept
+      XML Content-Type; marker-only (no real file reads), same safety as SSTI.
+   2. `check_csp_depth`: deepens the existing CSP header check to evaluate directive
+      quality (script-src strength, report-uri presence, nonce/hash usage).
+   3. `check_hsts_depth`: deepens the existing HSTS check to evaluate max-age adequacy,
+      includeSubDomains, preload eligibility.
+   4. `check_dnssec`: verifies DNSSEC signing via dns.resolver AD flag + DNSKEY record
+      presence.
+   5. `check_dependency_audit`: enriches the existing dependency version check with
+      known-CVE matching against a curated advisory list.
+   6. All five registered in FEATURE_REQUIREMENTS, CHECK_LABELS, CHECK_CATEGORY, scan_engine
+      jobs dict, and scan_report.html.
+
+**Plans**: Direct execution, single commit.
+**UI hint**: no (findings render through existing report UI)
+
+### Phase 34: API Testing Enhancements
+
+**Goal**: Three new checks for API surface testing: GraphQL depth/introspection probing,
+authentication comparison (authenticated vs. unauthenticated response diff), and mass
+assignment detection (sending extra fields to see if they're accepted). All read-only probes,
+no destructive payloads.
+**Depends on**: Phase 33 (OWASP gap checks, so the API surface has full coverage context).
+**Requirements**: APIT-01..APIT-03 (see REQUIREMENTS.md)
+**Success Criteria**:
+
+   1. `check_graphql_depth`: sends nested queries to GraphQL endpoints (introspection-
+      discovered or common paths) to test query depth limits and error handling.
+   2. `check_auth_comparison`: for endpoints discovered by `check_api_wordlist`, sends
+      the same request with and without authentication tokens, diffs response status/size
+      to identify authorization gaps.
+   3. `check_mass_assignment`: for discovered API endpoints, appends extra fields
+      (e.g. `{"role":"admin","is_admin":true}`) to POST bodies and checks if the response
+      reflects the extra field's acceptance.
+   4. All three registered in FEATURE_REQUIREMENTS (ORG_VERIFIED tier), CHECK_LABELS,
+      CHECK_CATEGORY, scan_engine jobs dict, and scan_report.html.
+
+**Plans**: Direct execution, single commit.
+**UI hint**: no (findings render through existing report UI)
 
