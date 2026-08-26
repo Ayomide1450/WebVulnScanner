@@ -1439,22 +1439,83 @@ def check_cors(base_url, session):
     return data, findings
 
 
+_HTTP_METHOD_REJECTION_CODES = (400, 403, 404, 405, 501)
+
+
 def check_http_methods(base_url, session):
+    """Probes PUT/DELETE/TRACE/CONNECT on '/' for methods the server
+    doesn't cleanly reject.
+
+    False-positive fix: a bare "status code isn't 404/405/..." test flags
+    any router that answers every verb the same way (a very common,
+    perfectly safe pattern - SPA fallback routes, some CDNs/edges) as a
+    "Confirmed" vulnerability, when it's proven nothing about the method
+    actually being honored. Two independent lines of evidence now decide
+    confidence instead of trusting the raw status code:
+
+    - A GET baseline to the same path: if the "not rejected" method's
+      status code matches GET's status exactly, that's the signature of a
+      method-agnostic router, not evidence the dangerous method executes -
+      downgraded to informational/"Potential" rather than a vulnerability.
+    - TRACE specifically: real risk (XST) requires the server to actually
+      echo the request back, not merely answer 200. A canary header is
+      sent and the response body is checked for it - only reflected TRACE
+      stays "Confirmed"; an unreflected 200 (same method-agnostic-router
+      case) is downgraded rather than reported as XST.
+    - OPTIONS' own Allow header, when present, is stronger evidence than
+      either of the above if it explicitly lists the method - the server
+      is stating outright that it accepts it.
+    """
     rows, findings = [], []
+    allow_methods = set()
     try:
         r = session.request("OPTIONS", base_url + "/", timeout=REQUEST_TIMEOUT)
-        rows.append({"method": "OPTIONS", "code": r.status_code, "allow": r.headers.get("Allow", "")})
+        allow_header = r.headers.get("Allow", "")
+        rows.append({"method": "OPTIONS", "code": r.status_code, "allow": allow_header})
+        allow_methods = {m.strip().upper() for m in allow_header.split(",") if m.strip()}
     except requests.RequestException:
         pass
+
+    baseline_status = None
+    try:
+        baseline = session.get(base_url + "/", timeout=REQUEST_TIMEOUT)
+        baseline_status = baseline.status_code
+    except requests.RequestException:
+        pass
+
+    canary = f"wvscan-trace-{os.urandom(6).hex()}"
     for method in ("PUT", "DELETE", "TRACE", "CONNECT"):
         try:
-            r = session.request(method, base_url + "/", timeout=REQUEST_TIMEOUT)
+            headers = {"X-Wvscan-Trace-Canary": canary} if method == "TRACE" else {}
+            r = session.request(method, base_url + "/", headers=headers, timeout=REQUEST_TIMEOUT)
             rows.append({"method": method, "code": r.status_code, "allow": ""})
-            if r.status_code not in (404, 405, 501, 400, 403, 501):
+            if r.status_code in _HTTP_METHOD_REJECTION_CODES:
+                continue
+
+            explicitly_allowed = method in allow_methods
+            trace_reflected = method == "TRACE" and canary in r.text
+            looks_method_agnostic = baseline_status is not None and r.status_code == baseline_status
+            title = f"{method} method not rejected ({r.status_code})"
+            recommendation = f"Disable the {method} method at the web server/edge for this route."
+
+            if explicitly_allowed or trace_reflected:
+                detail = (
+                    f"Server responded {r.status_code} to {method} and "
+                    + ("explicitly lists it in the OPTIONS Allow header."
+                       if explicitly_allowed else "echoed the probe's canary header back in the body (reflected TRACE).")
+                )
                 sev = "high" if method == "TRACE" else "medium"
-                findings.append(Finding("HTTP methods", f"{method} method not rejected ({r.status_code})", sev,
-                                         f"Server responded {r.status_code} instead of 405/501 for {method}.",
-                                         f"Disable the {method} method at the web server/edge for this route.", confidence="Confirmed"))
+                findings.append(Finding("HTTP methods", title, sev, detail, recommendation, confidence="Confirmed"))
+            elif looks_method_agnostic:
+                detail = (
+                    f"Server responded {r.status_code} to {method}, identical to a plain GET to the same path - "
+                    "this usually means the route answers every HTTP verb the same way (a method-agnostic router "
+                    "or edge/CDN fallback), not that the method is actually honored. Not confirmed as exploitable."
+                )
+                findings.append(Finding("HTTP methods", title, "info", detail, recommendation, confidence="Potential"))
+            else:
+                detail = f"Server responded {r.status_code} instead of 405/501 for {method}; not independently confirmed as executing the method."
+                findings.append(Finding("HTTP methods", title, "medium", detail, recommendation, confidence="Potential"))
         except requests.RequestException:
             pass
     return rows, findings
