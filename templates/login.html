@@ -16,11 +16,23 @@
   .sso-btn { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:14px; width:100%; padding:12px 22px; background:transparent; border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:14px; font-weight:600; text-decoration:none; cursor:pointer; transition:border-color .15s, background .15s; }
   .sso-btn:hover { border-color:var(--accent); background:rgba(255,255,255,.03); }
   .sso-btn .icon { width:18px; height:18px; color:var(--accent); }
+  /* Terminal-card chrome: purely decorative window-bar dropped on top of
+     the existing shared .card (base.html) - the card itself keeps its
+     canonical shape/shadow, this just adds the traffic-light title bar
+     from the reference mockup. Login/signup only - _auth_form_styles.html
+     (shared with forgot/reset/verify_email) is untouched. */
+  .term-bar { display:flex; align-items:center; gap:8px; margin:-22px -22px 22px; padding:12px 16px; background:var(--panel2); border-bottom:1px solid var(--border); border-radius:var(--radius-md) var(--radius-md) 0 0; }
+  .term-bar .tdot { width:10px; height:10px; border-radius:50%; }
+  .term-bar .tdot:nth-child(1) { background:#f0475a; }
+  .term-bar .tdot:nth-child(2) { background:#eec73e; }
+  .term-bar .tdot:nth-child(3) { background:#22c55e; }
+  .term-bar .term-title { margin-left:8px; font-family:"Fira Code",monospace; font-size:12px; color:var(--muted); }
 </style>
 {% endblock %}
 {% block content %}
 <div class="auth-wrap">
   <div class="card">
+    <div class="term-bar"><span class="tdot"></span><span class="tdot"></span><span class="tdot"></span><span class="term-title">glassbox &mdash; session</span></div>
     <h1>Log in</h1>
     <form method="POST" action="{{ url_for('auth.login') }}" id="loginForm">
       {{ form.hidden_tag() }}

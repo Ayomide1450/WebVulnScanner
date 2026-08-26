@@ -4,6 +4,20 @@
 {% include "_auth_form_styles.html" %}
 <style>
   .hint { font-size: 13px; color: var(--muted); margin-top: 5px; }
+  /* Terminal-card chrome, same pattern as login.html - purely decorative,
+     no change to the shared .card/_auth_form_styles.html contract. */
+  .term-bar { display:flex; align-items:center; gap:8px; margin:-22px -22px 22px; padding:12px 16px; background:var(--panel2); border-bottom:1px solid var(--border); border-radius:var(--radius-md) var(--radius-md) 0 0; }
+  .term-bar .tdot { width:10px; height:10px; border-radius:50%; }
+  .term-bar .tdot:nth-child(1) { background:#f0475a; }
+  .term-bar .tdot:nth-child(2) { background:#eec73e; }
+  .term-bar .tdot:nth-child(3) { background:#22c55e; }
+  .term-bar .term-title { margin-left:8px; font-family:"Fira Code",monospace; font-size:12px; color:var(--muted); }
+  /* Password-strength chips - client-side-only progressive enhancement,
+     mirrors the reference mockup. Doesn't replace or duplicate the
+     server-side WTForms password validator - purely a hint while typing. */
+  .pw-checks { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .pw-checks span { font-family:"Fira Code",monospace; font-size:10.5px; padding:3px 8px; border-radius:20px; border:1px solid var(--border); color:var(--muted); }
+  .pw-checks span.on { color:var(--accent); border-color:var(--accent2); background:var(--accent-dim); }
 </style>
 {% if config.TURNSTILE_SITE_KEY %}
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
@@ -12,6 +26,7 @@
 {% block content %}
 <div class="auth-wrap">
   <div class="card">
+    <div class="term-bar"><span class="tdot"></span><span class="tdot"></span><span class="tdot"></span><span class="term-title">glassbox &mdash; provision</span></div>
     <h1>Sign up</h1>
     <form method="POST" action="{{ url_for('auth.signup', invite=request.args.get('invite')) if invite_mode else url_for('auth.signup') }}" id="signupForm">
       {{ form.hidden_tag() }}
@@ -26,12 +41,17 @@
 
       <label for="password">Password</label>
       <div class="pw-wrap">
-        {{ form.password(id="password", type="password", placeholder="At least 8 characters", autocomplete="new-password") }}
+        {{ form.password(id="password", type="password", placeholder="At least 8 characters", autocomplete="new-password", oninput="checkPw(this.value)") }}
         <button type="button" class="pw-toggle" data-toggle-for="password" aria-label="Show password">
           <svg class="icon" style="width:17px;height:17px;" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
       {% for err in form.password.errors %}<div class="field-error">{{ err }}</div>{% endfor %}
+      <div class="pw-checks">
+        <span id="pw-len">8+ characters (required)</span>
+        <span id="pw-mix">upper &amp; lowercase</span>
+        <span id="pw-num">a number</span>
+      </div>
 
       <label for="confirm_password">Confirm password</label>
       <div class="pw-wrap">
@@ -59,6 +79,14 @@
   </div>
 </div>
 <script>
+  // Progressive-enhancement hint only - the real requirement (8+ chars) is
+  // enforced server-side by SignupForm's Length(min=8) validator regardless
+  // of what this shows; mix/number chips are encouragement, not a gate.
+  function checkPw(v) {
+    document.getElementById('pw-len').classList.toggle('on', v.length >= 8);
+    document.getElementById('pw-mix').classList.toggle('on', /[a-z]/.test(v) && /[A-Z]/.test(v));
+    document.getElementById('pw-num').classList.toggle('on', /[0-9]/.test(v));
+  }
   document.querySelectorAll('.pw-toggle').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var input = document.getElementById(btn.dataset.toggleFor);

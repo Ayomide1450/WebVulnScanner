@@ -20,10 +20,14 @@
   @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
 
   :root {
-    --bg: #010308; --panel: #080d16; --panel2: #0c1220; --border: #182030;
-    --text: #f0f4f8; --muted: #7a869a; --accent: #22c55e; --accent2: #16a34a; --accent-dim: rgba(34,197,94,.12);
-    --primary: #0c1220; --ring: #22c55e;
-    --critical:#f87171; --high:#fb923c; --medium:#fbbf24; --low:#60a5fa; --info:#8b96ad; --pass:#22c55e;
+    /* Palette swap (values only, names unchanged) to match the reference
+       login/signup/marketing mockup's darker, higher-contrast tones -
+       every template inherits this automatically since nothing here was
+       renamed. See git history for the reference source. */
+    --bg: #020617; --panel: #0a1120; --panel2: #101a2e; --border: #1c2942;
+    --text: #e6edf5; --muted: #93a4bd; --accent: #22c55e; --accent2: #16a34a; --accent-dim: rgba(34,197,94,.12);
+    --primary: #101a2e; --ring: #22c55e;
+    --critical:#f0475a; --high:#f7943c; --medium:#eec73e; --low:#4fc3f7; --info:#6b7d9e; --pass:#22c55e;
     /* "Operator console" telemetry accent - blue family, distinct from
        --accent (reserved for pass/complete) and --low (a different,
        severity-scale blue). Used for "in progress" states: the live scan
