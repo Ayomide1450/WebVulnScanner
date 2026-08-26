@@ -18,11 +18,14 @@ import os
 import re
 import socket
 import ssl
+import struct
 import time
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from urllib.parse import urlparse, urlencode, parse_qs, urlunparse, urljoin, quote
+from xml.etree import ElementTree
 
 import dns.resolver
 import requests
@@ -324,6 +327,8 @@ MAX_MEDIA_PAGES = 6
 MAX_MEDIA_ITEMS = 60
 MAX_EXIF_IMAGES = 15
 MAX_MEDIA_FILE_BYTES = 20 * 1024 * 1024
+MAX_MEDIA_DOCUMENTS = 15
+MAX_VIDEO_METADATA_FILES = 15
 
 # API exposure checks (see check_api_schema_exposure / check_api_wordlist /
 # check_api_js_discovery). Ported from the api-exposure-media-streaming
@@ -3031,6 +3036,10 @@ SOURCE_URL_ATTRS = ("src", "data-src")
 VIDEO_URL_ATTRS = ("src", "poster", "data-src", "data-poster")
 MEDIA_FILE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp", ".tiff",
                           ".mp4", ".webm", ".mov", ".avi", ".mkv", ".m4v", ".ogv")
+# Kept separate from MEDIA_FILE_EXTENSIONS - documents get metadata
+# extraction (docProps/core.xml or PDF /Info dict), not EXIF, and are
+# reported under their own "document" item kind rather than "other".
+DOCUMENT_FILE_EXTENSIONS = (".pdf", ".docx", ".xlsx", ".pptx")
 VIDEO_EMBED_DOMAINS = ("youtube.com", "youtube-nocookie.com", "youtu.be", "vimeo.com",
                         "player.vimeo.com", "wistia.com", "wistia.net", "dailymotion.com", "loom.com")
 MEDIA_PAGE_HINTS = ("gallery", "portfolio", "media", "video", "photo", "work", "project", "about")
@@ -3051,13 +3060,16 @@ def _bg_image_url(style):
 
 
 def _extract_media_urls(base_url, html):
-    """Returns (direct_media_urls, embedded_video_urls). Direct URLs point
-    to actual image/video files (HEAD-checkable, downloadable). Embedded
-    URLs are third-party player iframes (YouTube/Vimeo/etc.) that can't be
-    downloaded as a file but are still worth inventorying - a site's video
-    content isn't only self-hosted <video> tags."""
+    """Returns (direct_media_urls, embedded_video_urls, document_urls).
+    Direct URLs point to actual image/video files (HEAD-checkable,
+    downloadable). Embedded URLs are third-party player iframes (YouTube/
+    Vimeo/etc.) that can't be downloaded as a file but are still worth
+    inventorying - a site's video content isn't only self-hosted <video>
+    tags. Document URLs (PDF/DOCX/XLSX/PPTX) are linked files eligible for
+    metadata extraction (see _extract_pdf_metadata/_extract_office_metadata)."""
     soup = BeautifulSoup(html, "html.parser")
     urls = set()
+    doc_urls = set()
 
     for img in soup.find_all("img"):
         for attr in IMG_URL_ATTRS:
@@ -3092,8 +3104,11 @@ def _extract_media_urls(base_url, html):
 
     for a in soup.find_all("a", href=True):
         href = a["href"].split("?")[0].split("#")[0]
-        if href.lower().endswith(MEDIA_FILE_EXTENSIONS):
+        href_lower = href.lower()
+        if href_lower.endswith(MEDIA_FILE_EXTENSIONS):
             urls.add(urljoin(base_url + "/", a["href"]))
+        elif href_lower.endswith(DOCUMENT_FILE_EXTENSIONS):
+            doc_urls.add(urljoin(base_url + "/", a["href"]))
 
     embeds = set()
     for iframe in soup.find_all("iframe", src=True):
@@ -3102,7 +3117,7 @@ def _extract_media_urls(base_url, html):
         if any(domain in host for domain in VIDEO_EMBED_DOMAINS):
             embeds.add(abs_url)
 
-    return urls, embeds
+    return urls, embeds, doc_urls
 
 
 MAX_429_BACKOFF_SECONDS = 5
@@ -3141,7 +3156,7 @@ def crawl_media(session, base_url):
     try:
         home_r = _get_respecting_backoff(session, base_url + "/", timeout=REQUEST_TIMEOUT)
     except requests.RequestException as e:
-        return [], [], {"error": str(e)}
+        return [], [], [], {"error": str(e)}
 
     disallow_prefixes = _fetch_robots_disallow_prefixes(session, base_url)
     soup = BeautifulSoup(home_r.text, "html.parser")
@@ -3155,17 +3170,19 @@ def crawl_media(session, base_url):
     candidates.sort(key=lambda u: 0 if any(h in u.lower() for h in MEDIA_PAGE_HINTS) else 1)
     pages = [base_url + "/"] + candidates[:MAX_MEDIA_PAGES - 1]
 
-    media_urls, embeds = _extract_media_urls(base_url, home_r.text)
+    media_urls, embeds, doc_urls = _extract_media_urls(base_url, home_r.text)
     for page in pages[1:]:
         try:
             r = _get_respecting_backoff(session, page, timeout=REQUEST_TIMEOUT)
         except requests.RequestException:
             continue
-        u, e = _extract_media_urls(base_url, r.text)
+        u, e, d = _extract_media_urls(base_url, r.text)
         media_urls |= u
         embeds |= e
+        doc_urls |= d
 
-    return list(media_urls)[:MAX_MEDIA_ITEMS], list(embeds)[:20], {"pages_crawled": len(pages)}
+    return (list(media_urls)[:MAX_MEDIA_ITEMS], list(embeds)[:20],
+            list(doc_urls)[:MAX_MEDIA_DOCUMENTS], {"pages_crawled": len(pages)})
 
 
 def _dms_to_decimal(dms, ref):
@@ -3206,14 +3223,200 @@ def _extract_exif(image_bytes):
         return {}
 
 
+# --------------------------------------------------------------------------
+# Document/video metadata extraction (media-scan sophistication, 2026-08-26
+# review). Both deliberately avoid new third-party dependencies:
+# - PDF: /Info dictionary fields are regex-extracted directly from the raw
+#   bytes, the same lightweight-extraction style check_vulnerable_js/
+#   check_dependency_audit already use on HTML. Only catches the common
+#   case of an uncompressed /Info dict (most PDF authoring tools write one)
+#   - a PDF using compressed cross-reference/object streams for its Info
+#   dict won't match, which just means no metadata is reported, never a
+#   false claim.
+# - DOCX/XLSX/PPTX: all three are a zip archive with the same
+#   docProps/core.xml part (the OOXML "core properties" schema) - read via
+#   the stdlib zipfile + xml.etree.ElementTree, no new dependency needed.
+# - MP4/MOV: GPS/make/model/software are stored as plain-text QuickTime
+#   "user data" atoms (©xyz/©mak/©mod/©swr) - a well-documented format
+#   (this is literally how phones geotag videos) that's byte-scannable
+#   without a full container-parsing library.
+# --------------------------------------------------------------------------
+
+_PDF_INFO_FIELD_RE = re.compile(
+    rb"/(Author|Creator|Producer|Title|Subject)\s*\(((?:[^()\\]|\\.)*)\)"
+)
+
+
+def _pdf_unescape(raw):
+    """Minimal PDF literal-string unescaping - \\(, \\), \\\\, and octal
+    \\ddd sequences (the only escapes /Info dict values commonly use);
+    anything else passes through unchanged rather than raising."""
+    out = bytearray()
+    i = 0
+    while i < len(raw):
+        b = raw[i]
+        if b == 0x5C and i + 1 < len(raw):  # backslash
+            nxt = raw[i + 1]
+            if nxt in (0x28, 0x29, 0x5C):  # ( ) \
+                out.append(nxt)
+                i += 2
+                continue
+            if 0x30 <= nxt <= 0x37:  # octal escape, up to 3 digits
+                j = i + 1
+                digits = b""
+                while j < len(raw) and j < i + 4 and 0x30 <= raw[j] <= 0x37:
+                    digits += bytes([raw[j]])
+                    j += 1
+                try:
+                    out.append(int(digits, 8) & 0xFF)
+                except ValueError:
+                    out.append(nxt)
+                i = j
+                continue
+        out.append(b)
+        i += 1
+    return bytes(out)
+
+
+def _extract_pdf_metadata(data):
+    """Returns a small dict of human-readable /Info dict fields found in
+    raw PDF bytes, or {} if none/unreadable/compressed-Info-dict. Never
+    raises - malformed or unexpected bytes just yield no data, same
+    convention as _extract_exif."""
+    try:
+        if not data.startswith(b"%PDF-"):
+            return {}
+        result = {}
+        for m in _PDF_INFO_FIELD_RE.finditer(data):
+            field = m.group(1).decode("ascii")
+            try:
+                value = _pdf_unescape(m.group(2)).decode("utf-8", errors="replace")
+            except Exception:
+                continue
+            value = value.strip()
+            if value:
+                result[field] = value[:100]
+        return result
+    except Exception:
+        return {}
+
+
+_OOXML_CORE_PROPS_NS = {
+    "cp": "http://schemas.openxmlformats.org/package/2006/metadata/core-properties",
+    "dc": "http://purl.org/dc/elements/1.1/",
+    "dcterms": "http://purl.org/dc/terms/",
+}
+_OOXML_CORE_PROPS_MAX_BYTES = 200_000  # docProps/core.xml is always tiny in practice
+
+
+def _extract_office_metadata(data):
+    """Returns a small dict of docProps/core.xml fields (creator, last
+    modified by, company via extended props isn't read - core.xml only)
+    for a DOCX/XLSX/PPTX file, or {} if not a valid OOXML zip / no core
+    properties part / unreadable. Never raises.
+
+    Defensive by construction against a malicious zip masquerading as an
+    Office doc: only ever reads the one named `docProps/core.xml` entry
+    (never iterates/extracts the archive), and skips it outright if its
+    declared size looks implausible for what is always a small XML file
+    in real documents - the caller's MAX_MEDIA_FILE_BYTES download cap is
+    the outer bound on the whole file regardless."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            info = zf.getinfo("docProps/core.xml")
+            if info.file_size > _OOXML_CORE_PROPS_MAX_BYTES:
+                return {}
+            xml_bytes = zf.read(info)
+    except (zipfile.BadZipFile, KeyError, OSError):
+        return {}
+
+    try:
+        root = ElementTree.fromstring(xml_bytes)
+    except ElementTree.ParseError:
+        return {}
+
+    result = {}
+    field_tags = {
+        "Author": ("dc", "creator"),
+        "LastModifiedBy": ("cp", "lastModifiedBy"),
+        "Title": ("dc", "title"),
+        "Company": ("dc", "publisher"),
+    }
+    for label, (prefix, tag) in field_tags.items():
+        el = root.find(f"{{{_OOXML_CORE_PROPS_NS[prefix]}}}{tag}")
+        if el is not None and el.text and el.text.strip():
+            result[label] = el.text.strip()[:100]
+    return result
+
+
+# QuickTime/MP4 user-data metadata atoms: 4-byte size, ©-prefixed 4-byte
+# type, then (in the common ISO "full atom" text form) a 2-byte string
+# length + 2-byte language code + the UTF-8 string itself.
+_MP4_METADATA_ATOMS = {
+    b"\xa9xyz": "GPS",       # ISO 6709 string, e.g. "+37.3349-122.0090+000.000/"
+    b"\xa9mak": "Make",
+    b"\xa9mod": "Model",
+    b"\xa9swr": "Software",
+    b"\xa9day": "DateTimeOriginal",
+}
+_MP4_ISO6709_RE = re.compile(r"^([+-]\d+\.\d+)([+-]\d+\.\d+)")
+
+
+def _extract_mp4_metadata(data):
+    """Returns a small dict of QuickTime/MP4 user-data metadata fields
+    found by scanning for known atom tags directly in the byte stream, or
+    {} if none/not an MP4-family file/unreadable. Never raises.
+
+    Deliberately not a full MP4/QuickTime container parser (no moov/udta
+    box traversal) - just a bounded scan for these specific well-known
+    tag byte sequences, each followed by its documented [strlen(2)]
+    [lang(2)][string] header. A tag byte sequence that happens to occur
+    in unrelated binary data (extremely unlikely for 4 specific bytes
+    including a non-ASCII lead byte, but not impossible) is guarded by a
+    sane length check and a UTF-8 decode attempt - garbage that doesn't
+    decode cleanly, or decodes to an implausible length, is skipped."""
+    try:
+        if data[4:8] not in (b"ftyp", b"moov", b"free", b"mdat", b"wide"):
+            return {}
+        result = {}
+        for tag, label in _MP4_METADATA_ATOMS.items():
+            idx = data.find(tag)
+            if idx == -1 or idx + 8 > len(data):
+                continue
+            strlen = struct.unpack(">H", data[idx + 4:idx + 6])[0]
+            if not (0 < strlen <= 200):
+                continue
+            start = idx + 8
+            raw = data[start:start + strlen]
+            if len(raw) != strlen:
+                continue
+            try:
+                value = raw.decode("utf-8").strip()
+            except UnicodeDecodeError:
+                continue
+            if not value:
+                continue
+            if label == "GPS":
+                m = _MP4_ISO6709_RE.match(value)
+                if not m:
+                    continue
+                result[label] = f"{m.group(1)}, {m.group(2)}"
+            else:
+                result[label] = value[:100]
+        return result
+    except Exception:
+        return {}
+
+
 def check_media(session, base_url, download, max_files):
-    media_urls, embed_urls, crawl_info = crawl_media(session, base_url)
-    if not media_urls and not embed_urls:
+    media_urls, embed_urls, document_urls, crawl_info = crawl_media(session, base_url)
+    if not media_urls and not embed_urls and not document_urls:
         return {"media_items": [], "crawl_info": crawl_info, "downloaded_count": 0, "download_dir": None}, []
 
     findings = []
     items = []
     exif_checked = 0
+    video_meta_checked = 0
     downloaded = 0
     download_dir = None
     if download:
@@ -3261,9 +3464,13 @@ def check_media(session, base_url, download, max_files):
                                      "Move non-public assets behind authentication or remove them from the public web root.", confidence="Potential"))
 
         want_exif = is_image and "jpeg" in ctype.lower() and exif_checked < MAX_EXIF_IMAGES
+        want_video_meta = (
+            is_video and any(h in ctype.lower() for h in ("mp4", "quicktime"))
+            and video_meta_checked < MAX_VIDEO_METADATA_FILES
+        )
         want_download = download and item["kind"] in ("image", "video") and downloaded < max_files
 
-        if want_exif or want_download:
+        if want_exif or want_video_meta or want_download:
             try:
                 r = session.get(url, timeout=REQUEST_TIMEOUT, stream=True)
                 content = b""
@@ -3294,6 +3501,24 @@ def check_media(session, base_url, download, max_files):
                                                  f"EXIF metadata exposes: {', '.join(exif.keys())}.",
                                                  "Strip EXIF metadata from images before publishing if this isn't intentional.", confidence="Confirmed"))
 
+            if want_video_meta:
+                video_meta_checked += 1
+                vmeta = _extract_mp4_metadata(content)
+                if vmeta:
+                    item["video_metadata"] = vmeta
+                    if "GPS" in vmeta:
+                        findings.append(Finding("Media exposure", f"GPS location embedded in public video: {url}", "high",
+                                                 f"QuickTime/MP4 metadata reveals GPS coordinates {vmeta['GPS']} - this can "
+                                                 "disclose a physical location (home, office, event venue), the same class "
+                                                 "of leak as EXIF GPS in images.",
+                                                 "Strip location metadata from videos before publishing (most editing/export "
+                                                 "pipelines can do this automatically).", confidence="Confirmed"))
+                    if any(k in vmeta for k in ("Make", "Model", "Software")):
+                        exposed = [k for k in ("Make", "Model", "Software") if k in vmeta]
+                        findings.append(Finding("Media exposure", f"Device/software metadata embedded in public video: {url}", "low",
+                                                 f"QuickTime/MP4 metadata exposes: {', '.join(exposed)}.",
+                                                 "Strip device/software metadata from videos before publishing if this isn't intentional.", confidence="Confirmed"))
+
             if want_download and download_dir:
                 name = os.path.basename(urlparse(url).path) or f"file_{i}"
                 name = re.sub(r"[^A-Za-z0-9._-]", "_", name)[:120]
@@ -3308,6 +3533,55 @@ def check_media(session, base_url, download, max_files):
 
         items.append(item)
 
+    for url in document_urls:
+        item = {"url": url, "kind": "document"}
+        path_lower = urlparse(url).path.lower()
+        item["suspicious_path"] = any(hint in path_lower for hint in MEDIA_PATH_HINTS)
+
+        try:
+            r = session.get(url, timeout=REQUEST_TIMEOUT, stream=True)
+            content = b""
+            for chunk in r.iter_content(chunk_size=16384):
+                content += chunk
+                if len(content) >= MAX_MEDIA_FILE_BYTES:
+                    item["truncated"] = True
+                    break
+            r.close()
+        except requests.RequestException as e:
+            item["error"] = str(e)
+            items.append(item)
+            continue
+
+        item["status"] = r.status_code
+        item["content_type"] = r.headers.get("Content-Type", "")
+        if r.status_code != 200:
+            items.append(item)
+            continue
+
+        if item["suspicious_path"]:
+            findings.append(Finding("Media exposure", f"Possibly unintended public document: {url}", "medium",
+                                     "The file path contains a hint (e.g. 'private', 'backup', 'internal') "
+                                     "suggesting this wasn't meant to be publicly reachable, but it returns HTTP 200.",
+                                     "Move non-public assets behind authentication or remove them from the public web root.", confidence="Potential"))
+
+        path_lower_ext = path_lower.split("?")[0]
+        if path_lower_ext.endswith(".pdf"):
+            doc_meta = _extract_pdf_metadata(content)
+        elif path_lower_ext.endswith((".docx", ".xlsx", ".pptx")):
+            doc_meta = _extract_office_metadata(content)
+        else:
+            doc_meta = {}
+
+        if doc_meta:
+            item["document_metadata"] = doc_meta
+            findings.append(Finding("Media exposure", f"Author/software metadata embedded in public document: {url}", "low",
+                                     f"Document properties expose: {', '.join(doc_meta.keys())}. "
+                                     "This can reveal internal usernames, real names, or software/version details.",
+                                     "Strip document properties before publishing (most office suites have a "
+                                     "\"remove personal information\" export option).", confidence="Confirmed"))
+
+        items.append(item)
+
     for url in embed_urls:
         host = urlparse(url).netloc.lower()
         platform = next((d for d in VIDEO_EMBED_DOMAINS if d in host), host)
@@ -3316,7 +3590,7 @@ def check_media(session, base_url, download, max_files):
 
     return {"media_items": items, "crawl_info": crawl_info, "downloaded_count": downloaded,
             "download_dir": os.path.relpath(download_dir, APP_DIR) if download_dir else None,
-            "embedded_count": len(embed_urls)}, findings
+            "embedded_count": len(embed_urls), "document_count": len(document_urls)}, findings
 
 
 # --------------------------------------------------------------------------

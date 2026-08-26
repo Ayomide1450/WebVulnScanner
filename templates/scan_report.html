@@ -1022,17 +1022,22 @@
       <div class="table-scroll">
       <table>
         <thead>
-        <tr><th>URL</th><th>Kind</th><th>Status</th><th>Size</th><th>Suspicious path</th><th>EXIF</th><th>Downloaded</th></tr>
+        <tr><th>URL</th><th>Kind</th><th>Status</th><th>Size</th><th>Suspicious path</th><th>Embedded metadata</th><th>Downloaded</th></tr>
         </thead>
         <tbody>
+        {# metadata is whichever of exif (images)/video_metadata (mp4)/
+           document_metadata (pdf/docx/xlsx/pptx) this item's kind
+           populated - same rendering rule for all three: GPS in red if
+           present, otherwise the exposed field names. #}
         {% for item in r.media.media_items %}
+        {% set meta = item.exif or item.video_metadata or item.document_metadata %}
         <tr>
           <td><code>{{ item.url }}</code></td>
           <td>{% if item.kind == 'embedded' %}embedded ({{ item.content_type }}){% else %}{{ item.kind or '-' }}{% endif %}</td>
           <td class="{{ 'pass' if item.status == 200 else 'info' }}">{{ item.status or item.error or (item.kind == 'embedded' and 'n/a - external player') or '-' }}</td>
           <td>{{ '%0.0f KB'|format(item.size / 1024) if item.size else '-' }}</td>
           <td class="{{ 'medium' if item.suspicious_path else 'pass' }}">{{ 'yes' if item.suspicious_path else 'no' }}</td>
-          <td>{% if item.exif %}{% if item.exif.GPS %}<span class="high">GPS: {{ item.exif.GPS }}</span>{% else %}{{ item.exif.keys()|join(', ') }}{% endif %}{% else %}-{% endif %}</td>
+          <td>{% if meta %}{% if meta.GPS %}<span class="high">GPS: {{ meta.GPS }}</span>{% else %}{{ meta.keys()|join(', ') }}{% endif %}{% else %}-{% endif %}</td>
           <td>{{ item.downloaded_to or '-' }}</td>
         </tr>
         {% endfor %}
@@ -1040,11 +1045,13 @@
       </table>
       </div>
       <p class="note" style="margin-top:10px;">Embedded video players (YouTube/Vimeo/etc.) are listed for
-      inventory but can't be downloaded as a file - they're hosted on the third-party platform, not your site.</p>
+      inventory but can't be downloaded as a file - they're hosted on the third-party platform, not your site.
+      Documents (PDF/DOCX/XLSX/PPTX) linked from the site are checked for embedded author/software metadata,
+      the same class of leak EXIF catches on images.</p>
     </div>
   </details>
   {% else %}
-  <p class="empty">No images or videos were found while crawling this site.</p>
+  <p class="empty">No images, videos, or documents were found while crawling this site.</p>
   {% endif %}
   {% endif %}
 
