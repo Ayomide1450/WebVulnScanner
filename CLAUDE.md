@@ -328,23 +328,24 @@ have unscoped `label`/`input`/`select`/`button` selectors that would otherwise l
 other form in the app (auth pages included) — keep this pattern for any future form-heavy page
 rather than adding bare element selectors to `base.html` directly.
 
-### "Evolved operator console" motion language
+### "Evolved operator console" motion language (SUPERSEDED 2026-08-26 — see de-glow note below)
 
-`base.html` also defines a small set of reusable motion/texture primitives, first used by the
-live scan-progress feed above and available for future redesign phases: `--telemetry`/
-`--telemetry2` (a blue accent distinct from `--accent`'s green, for "in progress" states),
-`.glow-pulse` (a `drop-shadow(currentColor)` pulse — generalizes the glow `_gauge.html`'s
-`.gauge-fg` already used, gated under `@media (prefers-reduced-motion: no-preference)` with a
-steady-glow fallback for reduced-motion users, matching the discipline `marketing.html`'s
-terminal-boot typewriter already established), `.hud-grid` (a static, CSS-only ambient grid
-texture — no motion, so no reduced-motion gate needed on its own), and `.telemetry-dot`/`.done`/
-`.failed` (the feed's state-dot classes). The icon sprite also gained `#icon-warning` in Phase 4,
-authored in the sprite's own format (24×24 viewBox, `stroke-linecap`/`stroke-linejoin: round`).
-Reuse these rather than inventing new ad hoc glow/motion CSS in future redesign work.
+`base.html` defines `--telemetry`/`--telemetry2` (a blue accent distinct from `--accent`'s
+green, for "in progress" states) and `.telemetry-dot`/`.done`/`.failed` (the live scan-progress
+feed's state-dot classes) — these are still live and in use. `.glow-pulse` (a
+`drop-shadow(currentColor)` pulse, reduced-motion-gated) and `.hud-grid` (a static ambient grid
+texture) are **still defined in `base.html` but deliberately removed from every page that used
+to carry them** — see below. The icon sprite also has `#icon-warning` (24×24 viewBox,
+`stroke-linecap`/`stroke-linejoin: round`), still current.
 
-**Phase 4's dashboard/billing/org-admin/scan_report visual-consistency pass is done, reuse-only**
-(HARD-05, D-10): all four pages now use `.btn.primary` for their primary CTA instead of an older
-gradient variant, carry exactly one `.hud-grid`-textured anchor card each, show `.status-pill`'s
-dot+`.glow-pulse` on running/queued scan rows, and (billing only) an "Awaiting payment"
-`.status-pill.running` on each pending invoice. No new component, color, spacing value or motion
-pattern was introduced — every fix reused a primitive `base.html` already defined.
+**De-glow/flatten decision (2026-08-26, user-directed, commit `934394d` + `28475c5`/`67946fe`)**:
+the earlier "reuse `.hud-grid`/`.glow-pulse`, don't invent new treatments" guidance below is
+**no longer the house style**. The redesign pass flattened the look across login/signup/
+marketing/dashboard/scan_report: `.hud-grid` texture removed, gradients flattened, mobile tap
+targets widened, `base.html`'s CSS custom-property *values* (not names) switched to a darker
+palette from a user-supplied reference mockup, and login/signup gained a decorative
+terminal-window title bar. `.status-pill`'s dot+`.glow-pulse` on running/queued scan rows is the
+one motion treatment that survived the pass. **Do not re-add `.hud-grid` texture to new pages** —
+treat the flattened, darker-palette look as current; the "Phase 4 reuse-only" paragraph that used
+to follow this note (mandating a `.hud-grid`-textured anchor card on every major page) is
+retracted along with it.
