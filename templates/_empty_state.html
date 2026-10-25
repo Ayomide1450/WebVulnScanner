@@ -8,12 +8,12 @@
   safe there - kept separate per D-04's explicit instruction).
 
   Usage: `{% include "_empty_state.html" %}` once in a page's
-  `{% block head %}` for this file's <style> block, AND
+  `{% block head %}` for this file's <style nonce="{{ csp_nonce }}"> block, AND
   `{% from "_empty_state.html" import empty_state %}` wherever the macro is
   called. Both are needed - Jinja's `{% include %}` shares template
   variables but does not export a template's macros into the including
   template's namespace, and `{% from ... import %}` only pulls in the named
-  macro, never a template's top-level output (its <style> block). This was
+  macro, never a template's top-level output (its <style nonce="{{ csp_nonce }}"> block). This was
   confirmed against this app's actual Jinja2 version before writing this
   file, not assumed.
 
@@ -48,7 +48,7 @@
     when both are passed. "No sensible next action" (e.g. billing's "No
     pending invoices") is a valid, first-class state, not an oversight.
 #}
-<style>
+<style nonce="{{ csp_nonce }}">
   .empty-state { text-align: center; padding: var(--space-6) var(--space-4); }
   .empty-state-icon { width: 28px; height: 28px; stroke: currentColor; fill: none; stroke-width: 1.8; color: var(--muted); }
   .empty-state-title { margin-top: var(--space-2); font-size: 15px; font-weight: 600; color: var(--text); }

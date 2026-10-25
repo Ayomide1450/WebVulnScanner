@@ -6,13 +6,13 @@
   paginates, never above (09-UI-SPEC.md's explicit placement rule).
 
   Usage: `{% include "_pagination.html" %}` once in a page's
-  `{% block head %}` for this file's <style> block, AND
+  `{% block head %}` for this file's <style nonce="{{ csp_nonce }}"> block, AND
   `{% from "_pagination.html" import pagination_nav %}` wherever the macro
   is called - same two-step convention `_empty_state.html` documents, for
   the same reason (`{% include %}` shares template variables but does not
   export a template's macros into the including template's namespace, and
   `{% from ... import %}` only pulls in the named macro, never a template's
-  top-level output such as its <style> block).
+  top-level output such as its <style nonce="{{ csp_nonce }}"> block).
 
   Signature: pagination_nav(page, total_pages) - renders 09-UI-SPEC.md's
   "Numbered pagination controls (D-03)" markup verbatim: a desktop nav
@@ -36,7 +36,7 @@
   Pagination object's `.total` is 0 - this macro assumes `total_pages >= 1`
   and does not itself special-case an empty list.
 #}
-<style>
+<style nonce="{{ csp_nonce }}">
   .pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-2); margin-top: var(--space-5); }
   .pagination-pages { display: flex; align-items: center; gap: var(--space-2); }
   .pagination-page {

@@ -2,7 +2,7 @@
 {% block title %}Organizations - Platform Admin - Glassbox{% endblock %}
 {% block head %}
 {% include "_admin_form_styles.html" %}
-<style>
+<style nonce="{{ csp_nonce }}">
   .search-row { display:flex; gap:10px; margin-bottom: var(--space-4); max-width: 420px; }
   .search-row input { margin-top:0; }
   .search-row button { margin-top:0; width:auto; padding: 11px 20px; }

@@ -11,7 +11,7 @@ import os
 from urllib.parse import urlsplit, urlunsplit
 
 import click
-from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
+from flask import Flask, flash, g, jsonify, redirect, render_template, request, url_for
 from flask_wtf.csrf import CSRFError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -261,6 +261,93 @@ def create_app(config_class=Config):
 
     from glassbox.models import Role
 
+    # ---------------------------------------------------------------- #
+    # Our own security response headers.
+    #
+    # checks.py's SECURITY_HEADERS table (see `check_headers`) grades every
+    # scanned site on exactly these six headers and rates two of them
+    # "high" - and until 2026-10-25 Glassbox itself sent none of them. A
+    # self-scan would have failed its own audit six times over. Beyond the
+    # obvious credibility problem, the app genuinely was framable and had
+    # no browser-enforced containment for an XSS.
+    #
+    # CSP uses a per-request nonce rather than 'unsafe-inline', because the
+    # app carries ~21 inline <script> blocks it cannot drop without a build
+    # step. script-src therefore allows ONLY nonce'd scripts - the strong
+    # half of the policy. Inline `style="..."` *attributes* (151 of them
+    # across the templates) cannot take a nonce at all, so style-src-attr
+    # keeps 'unsafe-inline'; that is a far smaller risk than script
+    # injection and is the standard trade-off.
+    #
+# The ONE permitted third party is Cloudflare Turnstile, the signup
+    # bot-check (`signup.html` loads its api.js and the widget renders in a
+    # Cloudflare-hosted iframe, so it needs both script-src and frame-src).
+    # Everything else is 'self': fonts were self-hosted in the same release,
+    # closing the fonts.googleapis.com IP leak. Do not widen these without
+    # knowingly giving up that property.
+    # ---------------------------------------------------------------- #
+    TURNSTILE_ORIGIN = "https://challenges.cloudflare.com"
+
+    @app.before_request
+    def _issue_csp_nonce():
+        import secrets
+
+        g.csp_nonce = secrets.token_urlsafe(16)
+
+    @app.after_request
+    def _set_security_headers(response):
+        nonce = getattr(g, "csp_nonce", None)
+        if nonce:
+            script_src = f"'self' 'nonce-{nonce}' {TURNSTILE_ORIGIN}"
+            style_src = f"'self' 'nonce-{nonce}'"
+        else:
+            # No nonce (e.g. a 500 raised before before_request ran). Fail
+            # closed on inline scripts rather than silently allowing them.
+            script_src = f"'self' {TURNSTILE_ORIGIN}"
+            style_src = "'self'"
+
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "; ".join(
+                [
+                    "default-src 'self'",
+                    f"script-src {script_src}",
+                    f"style-src {style_src}",
+                    # Inline style attributes only - see note above.
+                    "style-src-attr 'unsafe-inline'",
+                    "img-src 'self' data:",
+                    "font-src 'self'",
+                    "connect-src 'self'",
+                    # The Turnstile widget renders inside a Cloudflare iframe.
+                    f"frame-src {TURNSTILE_ORIGIN}",
+                    "object-src 'none'",
+                    "base-uri 'none'",
+                    "form-action 'self'",
+                    "frame-ancestors 'none'",
+                ]
+            ),
+        )
+        # Belt-and-braces alongside CSP frame-ancestors, for older browsers.
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault(
+            "Permissions-Policy", "geolocation=(), microphone=(), camera=()"
+        )
+        response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+        response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
+
+        # HSTS only over a genuine HTTPS request. Sending it on plain http
+        # is ignored by browsers anyway, and sending it in local dev would
+        # pin localhost to https in the developer's browser - a genuinely
+        # annoying footgun to undo. SESSION_COOKIE_SECURE already tracks
+        # "are we deployed over TLS", so reuse that signal.
+        if request.is_secure and app.config.get("SESSION_COOKIE_SECURE", True):
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+            )
+        return response
+
     @app.context_processor
     def inject_role_enum():
         # base.html's nav checks current_user.role == Role.ORG_ADMIN;
@@ -271,6 +358,12 @@ def create_app(config_class=Config):
             "Role": Role,
             "current_year": datetime.now(timezone.utc).year,
             "idle_timeout_minutes": app.config.get("IDLE_TIMEOUT_MINUTES", 5),
+            # Templates stamp this on every inline <script>/<style> tag:
+            # <script nonce="{{ csp_nonce }}">. A tag that forgets it will
+            # be blocked by the policy above, which is the intended
+            # failure mode - silently dropping to 'unsafe-inline' would
+            # make the whole header decorative.
+            "csp_nonce": getattr(g, "csp_nonce", ""),
         }
 
     # v1.8 CVSS-02: expose compute_cvss_score to all Jinja templates so

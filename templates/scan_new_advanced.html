@@ -2,7 +2,7 @@
 {% block title %}Advanced Scan - Glassbox{% endblock %}
 {% block head %}
 {% include "_scan_form_styles.html" %}
-<style>
+<style nonce="{{ csp_nonce }}">
   .adv-group { border: 1px solid var(--border, #2a2f3a); border-radius: var(--radius); margin-bottom: 12px; padding: 0; overflow: hidden; }
   .adv-group > summary { list-style: none; cursor: pointer; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .adv-group > summary::-webkit-details-marker { display: none; }
@@ -223,7 +223,7 @@
   {% endif %}
 </div>
 {% if availability.unlocked %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
   var form = document.getElementById('scanForm');
   var btn = document.getElementById('scanSubmit');

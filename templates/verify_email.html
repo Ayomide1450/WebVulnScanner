@@ -2,7 +2,7 @@
 {% block title %}Verify email - Glassbox{% endblock %}
 {% block head %}
 {% include "_auth_form_styles.html" %}
-<style>
+<style nonce="{{ csp_nonce }}">
   h1 { margin: 0 0 12px; }
   p { color: var(--muted); font-size: 15px; }
   a.back { display:inline-block; margin-top: 14px; }

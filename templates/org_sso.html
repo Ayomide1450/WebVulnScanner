@@ -2,7 +2,7 @@
 {% block title %}SSO Configuration - Glassbox{% endblock %}
 {% block head %}
 {% include "_admin_form_styles.html" %}
-<style>
+<style nonce="{{ csp_nonce }}">
   .sso-info { font-size: 13px; color: var(--muted); margin-bottom: var(--space-4); line-height: 1.5; }
   .sso-info code { font-family: "Fira Code", monospace; font-size: 12px; color: var(--accent); background: rgba(255,255,255,.05); padding: 2px 6px; border-radius: var(--radius-sm); }
   .cert-area { min-height: 140px; font-family: "Fira Code", monospace; font-size: 12px; }

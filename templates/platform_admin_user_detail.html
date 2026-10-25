@@ -2,7 +2,7 @@
 {% block title %}{{ user.email }} - Platform Admin - Glassbox{% endblock %}
 {% block head %}
 {% include "_admin_form_styles.html" %}
-<style>
+<style nonce="{{ csp_nonce }}">
   .detail-grid { display:flex; gap: var(--space-5); flex-wrap: wrap; margin-bottom: var(--space-4); }
   .detail-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
   .detail-value { font-size: 14px; font-weight: 600; }

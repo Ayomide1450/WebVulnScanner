@@ -1,6 +1,6 @@
 <!-- Shared CSS for billing.html/org_admin.html/org_verify_domain.html's small
      admin-style forms (invite-member, add-domain, create-invoice, verify
-     buttons) - extracted from three near-identical local <style> blocks.
+     buttons) - extracted from three near-identical local <style nonce="{{ csp_nonce }}"> blocks.
      Not promoted into base.html, same reasoning _scan_form_styles.html's
      own header comment already documents: label/input[type=text]/
      input[type=email]/select/button are unscoped element selectors that
@@ -15,7 +15,7 @@
      treatment. button's own top margin (--space-4, 16px) stays smaller than
      the other two partials' since these are compact inline admin-action
      buttons, not full-page primary submits. -->
-<style>
+<style nonce="{{ csp_nonce }}">
   label { display: block; margin-top: var(--space-4); font-weight: 600; font-size: 13px; color: var(--text); }
   input[type=text], input[type=email], select, textarea {
     width: 100%; padding: var(--space-3) var(--space-4); margin-top: var(--space-2); border: 1px solid var(--border);

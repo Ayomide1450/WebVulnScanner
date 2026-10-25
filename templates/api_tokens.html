@@ -2,14 +2,14 @@
 {% block title %}API Tokens - Glassbox{% endblock %}
 {% block head %}
 {% include "_empty_state.html" %}
-<style>
+<style nonce="{{ csp_nonce }}">
   /* h1/.card/.warn-box/.pill/.btn/table/.table-scroll come from base.html -
      see its comments. This page mixes .btn.primary/.secondary/.destructive
      (base.html) with a small create-token form, so its label/input rules
      are declared page-scoped here rather than pulling in
      _admin_form_styles.html's unscoped label/input/button selectors (those
      would collide with this page's .btn-based buttons) - same page-scoped-
-     <style>-block discipline asset_detail.html established (02-UI-SPEC.md
+     <style nonce="{{ csp_nonce }}">-block discipline asset_detail.html established (02-UI-SPEC.md
      Design System). Compact .field-error/.revoke-btn padding values are
      reused verbatim from _admin_form_styles.html's precedent, not
      re-invented (02-UI-SPEC.md Spacing Scale). */
@@ -169,7 +169,7 @@
     {% endif %}
   </div>
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
   (function () {
     var copyBtn = document.getElementById('copy-token-btn');
     var copyBtnLabel = document.getElementById('copy-token-btn-label');

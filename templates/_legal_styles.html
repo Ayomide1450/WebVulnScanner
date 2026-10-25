@@ -1,5 +1,5 @@
 <!-- Shared CSS for terms.html / privacy.html - was byte-identical inline
-     <style> in both files.
+     <style nonce="{{ csp_nonce }}"> in both files.
 
      Phase 6 (DESIGN-01/02): retokenized onto base.html's canonical container/
      spacing scale - .legal-wrap consumes --container-form (760px, shared
@@ -7,7 +7,7 @@
      documented calc(var(--space-7) * 2) 96px page-bottom rhythm; h2 drops
      its local font-size override and cascades from base.html's new global
      h2 rule (20px). -->
-<style>
+<style nonce="{{ csp_nonce }}">
   /* width:100% - same direct-flex-child-of-body fix as base.html's
      .topnav/.wrap (see that comment for the full mechanism). Long-form
      legal text happens to mask this bug most of the time (its own

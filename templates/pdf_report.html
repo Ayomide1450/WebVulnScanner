@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Glassbox Security Report — {{ hostname }} (Scan #{{ scan_id }})</title>
-<style>
+<style nonce="{{ csp_nonce }}">
   @page {
     size: A4;
     margin: 20mm 16mm 20mm 16mm;

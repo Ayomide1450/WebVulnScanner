@@ -5,7 +5,7 @@
      into base.html: label/input[type=text]/button are unscoped element
      selectors that would leak into login.html/signup.html/billing.html/
      org_verify_domain.html's own forms. -->
-<style>
+<style nonce="{{ csp_nonce }}">
   .wrap { max-width: var(--container-form); }
   h1 { margin: 20px 0 6px; }
   .sub { color: var(--muted); margin: 0 0 22px; font-size: 15px; }

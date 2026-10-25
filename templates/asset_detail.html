@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ asset.name }} - Glassbox{% endblock %}
 {% block head %}
-<style>
+<style nonce="{{ csp_nonce }}">
   /* h1/h2.section/.card/table/th/td come from base.html - see its comments.
      This page only needs the same top-margin bump dashboard.html already
      uses, plus a handful of new, page-scoped rules for the schedule form
@@ -362,7 +362,7 @@
   </div>
   {% endif %}
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
   (function () {
     // Disable the button that owns each in-flight form submit - the same
     // server-rendered POST+redirect + button:disabled pattern every other

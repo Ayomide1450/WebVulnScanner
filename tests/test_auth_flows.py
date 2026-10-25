@@ -647,9 +647,13 @@ _EXPECTED_SAFE_NEXT_CALL_SITES = {
 # selftest blueprint was removed entirely (2026-08-24 redesign: no standalone
 # /selftest page; the verification engine now feeds scan reports directly),
 # then 311 -> 315 when Phase 26 registered the SSO blueprint,
-# then 315 -> 320 when Phase 31 added the CVSS globals injection.
+# then 315 -> 320 when Phase 31 added the CVSS globals injection,
+# then 320 -> 413 when the 2026-10-25 hardening pass added the
+# _issue_csp_nonce/_set_security_headers hooks above the error handlers.
+# The call site itself is unchanged - still the CSRFError handler's
+# `return redirect(_safe_referrer())`; only its line number moved.
 _EXPECTED_SAFE_REFERRER_CALL_SITES = {
-    ("__init__.py", 320),
+    ("__init__.py", 413),
 }
 
 

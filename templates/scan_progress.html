@@ -24,7 +24,7 @@ the finish review, the verdict, and DESIGN.md.
 {% extends "base.html" %}
 {% block title %}Scan in progress - Glassbox{% endblock %}
 {% block head %}
-<style>
+<style nonce="{{ csp_nonce }}">
   .wrap { max-width: var(--container-app); }
 
   /* ---- Status bar ------------------------------------------------- */
@@ -128,7 +128,7 @@ the finish review, the verdict, and DESIGN.md.
   </div>
   {% endif %}
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
   (function () {
     var scanId = {{ scan.id }};
     var status = "{{ scan.status.value }}";

@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
 <link rel="preload" as="font" type="font/woff2" crossorigin href="{{ url_for('static', filename='fonts/fira-sans-400.woff2') }}">
 <link rel="preload" as="font" type="font/woff2" crossorigin href="{{ url_for('static', filename='fonts/fira-code.woff2') }}">
-<script>
+<script nonce="{{ csp_nonce }}">
   /* Resolve the theme before first paint so there is no flash of the wrong
      ground. Reads the saved preference, else defers to the OS. Kept inline
      and tiny on purpose - it must run before the stylesheet paints. */
@@ -27,7 +27,7 @@
     } catch (e) { /* private mode / storage blocked - fall back to OS */ }
   })();
 </script>
-<style>
+<style nonce="{{ csp_nonce }}">
   /* ====================================================================
      Glassbox design system - "instrument, not black box"
 
@@ -46,7 +46,14 @@
      Fonts are self-hosted (glassbox/static/fonts). The previous
      @import from fonts.googleapis.com was render-blocking AND leaked
      every visitor's IP to a third party on page load - unacceptable in a
-     security/privacy product. Zero external requests now.
+     security/privacy product. The only third-party origin left anywhere in
+     the app is Cloudflare Turnstile on signup.html (the bot check), which
+     the CSP in __init__.py allowlists explicitly.
+
+     Every inline script/style tag in the app carries a per-request
+     csp_nonce attribute - the CSP allows inline code by nonce only, never
+     'unsafe-inline', so a tag that forgets it gets blocked rather than
+     silently weakening the policy.
      ==================================================================== */
 
   /* ---- Self-hosted typefaces -------------------------------------- */
@@ -667,7 +674,7 @@
       <span><a href="{{ url_for('public.terms') }}">Terms</a> &middot; <a href="{{ url_for('public.privacy') }}">Privacy</a></span>
     </div>
   </footer>
-  <script>
+  <script nonce="{{ csp_nonce }}">
   (function () {
     // Theme toggle. Flips to the opposite of what is currently *rendered*
     // (explicit attribute if set, else the OS preference) and remembers it.
@@ -685,7 +692,7 @@
     });
   })();
   </script>
-  <script>
+  <script nonce="{{ csp_nonce }}">
   (function () {
     // Code-only keep-alive heartbeat: pings /healthz every 4 minutes while
     // this tab is open and visible, to help stop a free-tier host (e.g.
@@ -702,7 +709,7 @@
   })();
   </script>
   {% if current_user.is_authenticated %}
-  <script>
+  <script nonce="{{ csp_nonce }}">
   (function () {
     // Client-side complement to __init__.py's server-side
     // _enforce_idle_timeout: that hook only fires on the *next* request
