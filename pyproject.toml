@@ -122,5 +122,21 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 warn_unreachable = true
 no_implicit_optional = true
-ignore_missing_imports = true   # flask_sqlalchemy/weasyprint/etc. ship partial stubs
+ignore_missing_imports = true   # weasyprint/python3-saml/etc. ship no stubs
 exclude = ["\\.venv", "migrations", "graphify-out", "tests"]
+
+# `class Organization(db.Model)` x18. flask_sqlalchemy DOES ship py.typed, so
+# this is not a missing-stub problem: `db = SQLAlchemy()` is an *instance*, so
+# `db.Model` is an instance attribute, and mypy requires a base class to be a
+# resolvable type name rather than an attribute expression. A long-standing,
+# documented limitation of the classic Flask-SQLAlchemy pattern - not a defect
+# in models.py.
+#
+# The real fix is Flask-SQLAlchemy 3.1's typed declarative style
+# (`class Base(DeclarativeBase)` + `SQLAlchemy(model_class=Base)`, with
+# `db.Column` -> `mapped_column`). That rewrites the schema layer for all 18
+# models while Alembic migrations are live, so it belongs in its own change
+# with its own verification, not bundled into a lint pass.
+[[tool.mypy.overrides]]
+module = "glassbox.models"
+disable_error_code = ["name-defined"]
