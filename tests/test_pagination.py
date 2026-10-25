@@ -161,7 +161,7 @@ def test_asset_list_zero_rows_renders_empty_state_not_pagination(client, db):
 
 def test_org_admin_members_paginate_page1_and_page2(client, db):
     org = make_org()
-    admin_user = make_user("orgadmin-page@example.com", org=org, role=Role.ORG_ADMIN)
+    make_user("orgadmin-page@example.com", org=org, role=Role.ORG_ADMIN)
     # 24 more members + the admin themself = 25 total, User.id ascending:
     # admin=1, member00..member23 = 2..25. Page 1 (20/page) = ids 1-20
     # (admin + member00..member18); page 2 = ids 21-25 (member19..member23).

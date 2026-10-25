@@ -212,6 +212,111 @@ CHECK_COMPLIANCE = {
     "mass_assignment":   {"owasp": "A04:2021-Insecure Design",           "asvs": "V5.3"},
 }
 
+# CWE mapping, parallel to CHECK_COMPLIANCE above and kept in sync with it
+# by a coverage test (tests/test_cwe_mapping.py), exactly like CHECK_LABELS
+# and CHECK_CATEGORY.
+#
+# Why this exists: `Finding.cwe` has been a field since v1.3 but NO built-in
+# check ever populated it - only community_checks.py, from YAML. That left
+# three already-written code paths permanently dead: sarif.py's `cwe:<id>`
+# tagging (which is what makes GitHub Code Scanning group and explain a
+# finding), ndjson_report.py's exported `cwe` column, and the `cwe` field
+# the API reference advertises. All three emitted null forever.
+#
+# One CWE per check, chosen as the *most specific* weakness the check
+# actually proves - not the broadest plausible parent. Where a check spans
+# genuinely different weaknesses the entry stays None rather than asserting
+# a wrong ID: a precise-looking but incorrect CWE is worse than an absent
+# one in a client deliverable, because it survives into compliance mapping
+# unchallenged.
+CHECK_CWE = {
+    # --- base scan: configuration & transport ---
+    "headers":            "CWE-693",   # Protection Mechanism Failure
+    "cookies":            "CWE-614",   # Sensitive Cookie Without 'Secure'
+    "tls":                "CWE-326",   # Inadequate Encryption Strength
+    "https_redirect":     "CWE-319",   # Cleartext Transmission
+    "hsts_depth":         "CWE-319",
+    "mixed_content":      "CWE-319",
+    "csp_depth":          "CWE-1021",  # Improper Restriction of Rendered UI Layers
+    "host_header":        "CWE-644",   # Improper Neutralization of HTTP Headers
+    "cache_deception":    "CWE-525",   # Use of Web Browser Cache Containing Sensitive Info
+    "caching_sensitive":  "CWE-524",   # Use of Cache Containing Sensitive Information
+    "dns_email":          "CWE-290",   # Authentication Bypass by Spoofing
+    "dnssec":             "CWE-350",   # Reliance on Reverse DNS Resolution
+    "subdomain_takeover": "CWE-350",
+
+    # --- exposure / information disclosure ---
+    "sensitive_paths":    "CWE-200",   # Exposure of Sensitive Information
+    "directory_listing":  "CWE-548",   # Exposure of Information Through Directory Listing
+    "secrets":            "CWE-798",   # Use of Hard-coded Credentials
+    "privacy_exposure":   "CWE-359",   # Exposure of Private Personal Information
+    "media":              "CWE-200",
+    "open_ports":         "CWE-668",   # Exposure of Resource to Wrong Sphere
+    "schema":             "CWE-200",
+    "wordlist":           "CWE-200",
+    "js_discovery":       "CWE-200",
+    # robots.txt/sitemap findings are informational wayfinding, not a
+    # weakness in their own right - CHECK_COMPLIANCE calls this
+    # "Uncategorized" for the same reason.
+    "robots_sitemap":     None,
+
+    # --- injection ---
+    "xss_sqli":           "CWE-79",    # Cross-site Scripting
+    "xss_stored":         "CWE-79",
+    "sqli_login":         "CWE-89",    # SQL Injection
+    "sqli_union":         "CWE-89",
+    "crlf":               "CWE-93",    # CRLF Injection
+    "ssti":               "CWE-1336",  # Server-Side Template Injection
+    "xxe":                "CWE-611",   # Improper Restriction of XML External Entity
+    "path_traversal":     "CWE-22",    # Path Traversal
+
+    # --- access control ---
+    "idor":               "CWE-639",   # Authorization Bypass Through User-Controlled Key
+    "open_redirect":      "CWE-601",   # URL Redirection to Untrusted Site
+    "cors":               "CWE-942",   # Permissive Cross-domain Policy
+    "csrf_posture":       "CWE-352",   # Cross-Site Request Forgery
+    "http_methods":       "CWE-650",   # Trusting HTTP Permission Methods on the Server Side
+    "mass_assignment":    "CWE-915",   # Improperly Controlled Modification of Attributes
+    "auth_comparison":    "CWE-285",   # Improper Authorization
+    "graphql_depth":      "CWE-770",   # Allocation Without Limits (depth/complexity abuse)
+    "graphql_deep":       "CWE-770",
+    "file_upload":        "CWE-434",   # Unrestricted Upload of File with Dangerous Type
+
+    # --- authentication / session ---
+    "bruteforce":         "CWE-307",   # Improper Restriction of Excessive Auth Attempts
+    "rate_limit":         "CWE-770",
+    "jwt":                "CWE-347",   # Improper Verification of Cryptographic Signature
+    "jwt_active":         "CWE-347",
+
+    # --- components ---
+    "vulnerable_js":      "CWE-1395",  # Dependency on Vulnerable Third-Party Component
+    "dep_audit":          "CWE-1395",
+    "sri":                "CWE-353",   # Missing Support for Integrity Check
+}
+
+
+def apply_cwe_mapping(findings):
+    """Backfill ``Finding.cwe`` from ``CHECK_CWE`` keyed on ``check_name``.
+
+    Called once per orchestrator, immediately before deduplication, for the
+    same reason ``check_name`` itself is assigned centrally: threading a CWE
+    through all 89 ``Finding(...)`` construction sites would guarantee drift.
+
+    Never overwrites a CWE that is already set - ``community_checks.py``
+    populates ``cwe`` from each YAML check's own definition, and that
+    author-supplied value is more specific than anything this map could
+    infer from a check name. An unmapped ``check_name`` is left as-is
+    rather than guessed at; the coverage test is what keeps the map
+    complete.
+    """
+    for f in findings:
+        if getattr(f, "cwe", None):
+            continue
+        mapped = CHECK_CWE.get(getattr(f, "check_name", "") or "")
+        if mapped:
+            f.cwe = mapped
+    return findings
+
 # v1.3 SCORE-01: groups every check_name into one of the 11 product-facing
 # finding domains the scan report displays (parallel to CHECK_COMPLIANCE
 # above - same coverage-lock pattern, see tests/test_security_domains.py).
@@ -913,8 +1018,10 @@ def _classify_tls_cipher(cipher_name):
 def check_tls_cert(hostname):
     try:
         ctx = ssl.create_default_context()
-        with socket.create_connection((hostname, 443), timeout=REQUEST_TIMEOUT) as sock:
-            with ctx.wrap_socket(sock, server_hostname=hostname) as ssock:
+        with (
+            socket.create_connection((hostname, 443), timeout=REQUEST_TIMEOUT) as sock,
+            ctx.wrap_socket(sock, server_hostname=hostname) as ssock,
+        ):
                 cert = ssock.getpeercert()
                 # version()/cipher() reflect whatever the server's own default
                 # negotiation picked against a standard client context - this
@@ -2360,9 +2467,10 @@ def detect_login_form(base_url, session=None, extra_paths=()):
             for a in soup.find_all("a", href=True):
                 abs_url = urljoin(base_url + "/", a["href"])
                 p = urlparse(abs_url)
-                if p.netloc == origin and any(h in p.path.lower() for h in AUTH_LIKE_PATH_HINTS):
-                    if abs_url not in candidates:
-                        candidates.append(abs_url)
+                if (p.netloc == origin
+                        and any(h in p.path.lower() for h in AUTH_LIKE_PATH_HINTS)
+                        and abs_url not in candidates):
+                    candidates.append(abs_url)
 
         for f in soup.find_all("form"):
             password_inputs = [
@@ -2629,18 +2737,39 @@ def check_cache_deception(base_url, session):
                                  "x-drupal-cache")}
 
     ch = _cache_headers(d)
-    row = {"decoy": decoy_url, "status": d.status_code, "cache_headers": ch or "none"}
+    # Baseline from the un-suffixed path. Without it this check cannot tell
+    # "the cache keys on the .css extension" (the actual weakness) from
+    # "this deployment caches everything" - a fully static site behind a CDN
+    # returns cache-HIT on *both* legs and used to trip the finding with
+    # nothing extension-keyed happening at all. That was the false positive;
+    # the baseline response was already being fetched and then discarded.
+    baseline_ch = _cache_headers(r)
+    baseline_hit = [v for v in baseline_ch.values() if "hit" in str(v).lower()]
+
+    row = {
+        "decoy": decoy_url,
+        "status": d.status_code,
+        "cache_headers": ch or "none",
+        "baseline_cache_headers": baseline_ch or "none",
+    }
     hit_markers = [v for v in ch.values() if "hit" in str(v).lower()]
-    if hit_markers and d.status_code == 200:
+    if hit_markers and d.status_code == 200 and not baseline_hit:
         row["result"] = "extension-keyed cache responded"
         findings.append(Finding(
             "Cache Deception Surface", "Cache serves extension-suffixed variants of dynamic paths",
             "low",
-            f"A request to {decoy_url} was answered with cache-HIT headers ({hit_markers}). "
-            "If authenticated pages are ever cached under attacker-chosen extensions, their "
-            "content can be exposed. Verify authenticated responses are never cacheable.",
+            f"A request to {decoy_url} was answered with cache-HIT headers ({hit_markers}), "
+            f"while the un-suffixed path {probe_path} was not served from cache. That "
+            "difference is the signal: the cache is keying on the path extension rather than "
+            "on content type. If authenticated pages are ever cached under attacker-chosen "
+            "extensions, their content can be exposed.",
             "Set Cache-Control: no-store on all authenticated responses; key caches on "
             "Content-Type, not path extensions.", confidence="Potential"))
+    elif hit_markers and baseline_hit:
+        # Both legs cached: this is a blanket caching policy, not an
+        # extension-keyed one. Recorded for the report's raw data, but it is
+        # not a finding - raising one here is the false positive.
+        row["result"] = "cache serves all paths (not extension-keyed) - no finding"
     else:
         row["result"] = "no observable extension-keyed caching"
     rows.append(row)
@@ -2658,7 +2787,7 @@ def check_path_traversal(urls, session):
         if confirmed:
             break
         qs = parse_qs(urlparse(url).query)
-        for param, values in qs.items():
+        for param, _values in qs.items():
             if not any(h in param.lower() for h in TRAVERSAL_PARAM_HINTS):
                 continue
             if confirmed:
@@ -2693,7 +2822,6 @@ def check_rate_limit_posture(base_url, session):
     submits credentials (no form POST anywhere in Glassbox) - it measures
     whether ANY throttling answers repeated automated requests. Stops at the
     first 429/503."""
-    target_path = next((p for p in RATE_LIMIT_CANDIDATE_PATHS), "/login")
     # Prefer a path that actually exists: fall back to "/" if the first two
     # candidates 404 immediately.
     statuses = []
@@ -4046,7 +4174,6 @@ def check_hsts_depth(headers):
     if not hsts:
         return {"present": False, "max_age": 0, "include_subdomains": False, "preload": False}, []
 
-    hsts_lower = hsts.lower()
     max_age = 0
     include_subdomains = False
     preload = False
@@ -4336,20 +4463,47 @@ def check_auth_comparison(base_url, session, auth_cookie=None):
                 auth_differs = (r_auth.status_code != r_unauth.status_code
                                 or abs(len(r_auth.content) - len(r_unauth.content)) > 32)
 
-                if auth_differs:
-                    # Authenticated and unauthenticated responses differ —
-                    # likely an intentional public endpoint that also has
-                    # an authenticated view.  Flag as Potential (needs
-                    # human review to confirm the unauthenticated data
-                    # isn't sensitive).
+                if auth_differs and not auth_is_api:
+                    # The two legs differ, but the *authenticated* one did
+                    # not come back as a successful API response - so the
+                    # supplied credentials are most likely expired, wrong,
+                    # or scoped away from this path. The comparison is
+                    # therefore not evidence about the endpoint's intent,
+                    # and concluding "probably an intentional public
+                    # endpoint" from it would be wrong. Report the
+                    # unauthenticated exposure (which is real and was
+                    # observed) and say plainly that the credentialed leg
+                    # was unusable.
+                    findings.append(Finding(
+                        "Auth Bypass",
+                        f"API endpoint {path} returns data without authentication "
+                        "(credentialed comparison inconclusive)",
+                        "medium",
+                        f"GET {path} returned HTTP {r_unauth.status_code} with an API-shaped body "
+                        f"to an unauthenticated caller. The authenticated request returned HTTP "
+                        f"{r_auth.status_code} and did not look like a successful API response, so "
+                        "the supplied credentials appear not to be working for this path - the "
+                        "authenticated-vs-unauthenticated comparison could not be completed. The "
+                        "unauthenticated exposure above was still directly observed.",
+                        "Re-run with valid credentials for this path to complete the comparison; "
+                        "meanwhile confirm the unauthenticated response exposes nothing sensitive.",
+                        confidence="Potential",
+                        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"))
+                elif auth_differs:
+                    # Both legs returned successful API data and they
+                    # differ - the expected shape of a genuinely public
+                    # endpoint that also serves a richer authenticated
+                    # view. Still Potential: a human has to confirm the
+                    # unauthenticated half isn't sensitive.
                     findings.append(Finding(
                         "Auth Bypass",
                         f"API endpoint {path} returns data without authentication (unconfirmed)",
                         "medium",
                         f"GET {path} returned HTTP {r_unauth.status_code} with an API-shaped body "
-                        "to an unauthenticated caller. The authenticated response differs, suggesting "
-                        "the endpoint may be intentionally public with an authenticated view — needs "
-                        "human review to confirm the unauthenticated data isn't sensitive.",
+                        "to an unauthenticated caller. The authenticated response also succeeded "
+                        "and differs, suggesting the endpoint may be intentionally public with an "
+                        "authenticated view — needs human review to confirm the unauthenticated "
+                        "data isn't sensitive.",
                         "Confirm this endpoint is meant to be public; otherwise require authentication.",
                         confidence="Potential",
                         cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"))

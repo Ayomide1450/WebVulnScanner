@@ -157,5 +157,5 @@ def test_never_sends_a_request_body():
         "CONNECT": _FakeResponse(404),
     })
     check_http_methods(BASE, session)
-    for method, url, headers in session.calls:
+    for _method, url, _headers in session.calls:
         assert url == BASE + "/"

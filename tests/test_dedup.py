@@ -14,8 +14,7 @@ from glassbox.checks import Finding, deduplicate_findings
 
 
 def _mk_finding(category, title, severity="medium", **kw):
-    f = Finding(category, title, severity, "detail", **kw)
-    return f
+    return Finding(category, title, severity, "detail", **kw)
 
 
 class TestDeduplicateFindings:

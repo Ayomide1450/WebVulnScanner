@@ -401,7 +401,7 @@ def test_labels_and_icon_buttons_eight_known_icon_only_buttons_are_named(client,
     session's audit found: three asset actions (asset_detail.html) and
     five password toggles (one on login, two each on signup/reset_password).
     A failure here names the specific control, not just a page."""
-    org = seeded["org"]
+    seeded["org"]
     asset_row = seeded["asset"]
 
     resp = client.get(f"/assets/{asset_row.id}")

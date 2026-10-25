@@ -33,7 +33,7 @@ def test_org_admin_alone_cannot_reach_platform_dashboard(client, db):
 
 def test_platform_dashboard_shows_counts_and_pending_deletions(client, db):
     org = make_org(name="Acme")
-    admin = make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
+    make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
     staff = make_user("staff@example.com")
     staff.is_platform_admin = True
     dv = DomainVerification(org_id=org.id, domain="example.com", method=VerifyMethod.DNS_TXT, token="tok")
@@ -180,8 +180,8 @@ def test_cannot_suspend_self_or_another_platform_admin(client, db):
 
 def test_suspend_org_blocks_every_members_login(client, db):
     org = make_org(name="Acme")
-    member_a = make_user("a@example.com", org=org, role=Role.MEMBER)
-    member_b = make_user("b@example.com", org=org, role=Role.ORG_ADMIN)
+    make_user("a@example.com", org=org, role=Role.MEMBER)
+    make_user("b@example.com", org=org, role=Role.ORG_ADMIN)
     _make_platform_admin()
     db.session.commit()
     org_id = org.id
@@ -258,7 +258,7 @@ def test_all_six_user_org_detail_and_suspend_routes_require_platform_admin(clien
     can only be the missing is_platform_admin flag, not some other gate)."""
     org = make_org()
     other_org = make_org(name="Other Org")
-    admin_of_org = make_user("orgadmin@example.com", org=org, role=Role.ORG_ADMIN)
+    make_user("orgadmin@example.com", org=org, role=Role.ORG_ADMIN)
     target_user = make_user("target@example.com", org=other_org, role=Role.MEMBER)
     db.session.commit()
 

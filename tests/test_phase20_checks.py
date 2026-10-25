@@ -384,9 +384,8 @@ def test_takeover_flags_dangling_fingerprint(monkeypatch):
 
     def fake_resolve(name, rtype):
         if rtype == "CNAME":
-            ans = _Ans([SimpleNamespace(target=name.replace(".t.test", "") +
+            return _Ans([SimpleNamespace(target=name.replace(".t.test", "") +
                                         ".github.io." if name.startswith("www") else "elsewhere.example.")])
-            return ans
         raise dr.NXDOMAIN  # every A lookup fails
 
     monkeypatch.setattr(checks.dns.resolver, "resolve", fake_resolve)
@@ -425,7 +424,7 @@ def test_graphql_introspection_enabled_is_reported_readonly():
     assert any(f.severity == "medium" and "introspection" in f.title.lower() for f in findings)
     assert any(f.severity == "low" and "suggest" in f.title.lower() for f in findings)
     # Read-only contract: both bodies are queries, never mutations.
-    for url, kw in s.post_calls:
+    for _url, kw in s.post_calls:
         assert "mutation" not in kw["data"].lower()
 
 

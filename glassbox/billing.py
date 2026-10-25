@@ -28,6 +28,10 @@ yet-enforced framing).
 import random
 from datetime import UTC, datetime, timedelta
 
+# OS entropy source for invoice-amount offsets - see create_invoice() for why
+# the default Mersenne Twister is not acceptable there.
+_system_random = random.SystemRandom()
+
 import requests
 from flask import current_app
 from sqlalchemy.exc import IntegrityError
@@ -103,7 +107,22 @@ def create_invoice(org_id, target_plan, token_symbol, billing_cycle="monthly"):
     base = price_for(target_plan, billing_cycle)
 
     for _ in range(MAX_OFFSET_COLLISION_RETRIES):
-        offset = round(random.uniform(0.0001, 0.0099), 4)
+        # CSPRNG, not random.uniform: this offset is the ONLY thing binding
+        # an on-chain payment to a specific org's invoice, because
+        # verify_invoice() matches purely by amount. Mersenne Twister output
+        # is reconstructable from observed samples, and an attacker can
+        # sample it freely by creating their own invoices - which would let
+        # them predict another org's expected amount and race a payment
+        # against it.
+        #
+        # Residual, NOT fixed by this change: the offset space is only ~99
+        # values (0.0001-0.0099 at 4dp), so it is guessable by brute force
+        # regardless of generator quality. The real defences remain the
+        # creation-time collision check below and matched_tx_hash's unique
+        # constraint. Widening the space (more decimal places) or binding
+        # payments by memo/reference instead of amount is the proper fix and
+        # is not attempted here.
+        offset = round(_system_random.uniform(0.0001, 0.0099), 4)
         expected = round(base + offset, 6)
         collision = CryptoInvoice.query.filter_by(
             target_plan=target_plan, status=InvoiceStatus.PENDING, expected_amount=expected,

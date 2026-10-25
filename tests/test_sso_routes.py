@@ -256,7 +256,7 @@ class TestSamlCallback:
         org = make_org()
         _make_sso_config(org)
         _make_verified_domain(org, domain="example.com")
-        existing = make_user("existing@example.com", org=org, verified=True)
+        make_user("existing@example.com", org=org, verified=True)
         db.session.commit()
 
         with client.session_transaction() as sess:
@@ -283,7 +283,7 @@ class TestSamlCallback:
         _make_sso_config(org)
         _make_verified_domain(org, domain="example.com")
         # Existing user with no org
-        existing = make_user("orphan@example.com", org=None, verified=True)
+        make_user("orphan@example.com", org=None, verified=True)
         db.session.commit()
 
         with client.session_transaction() as sess:

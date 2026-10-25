@@ -218,7 +218,7 @@ def create_app(config_class=Config):
     # revoke/expiry model in api_tokens_routes.py, not this one.
     @app.before_request
     def _enforce_idle_timeout():
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         import flask
         from flask import request, session
@@ -353,7 +353,7 @@ def create_app(config_class=Config):
     def inject_role_enum():
         # base.html's nav checks current_user.role == Role.ORG_ADMIN;
         # base.html's footer and terms.html/privacy.html use current_year.
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         return {
             "Role": Role,

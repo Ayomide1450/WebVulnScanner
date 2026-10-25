@@ -316,7 +316,7 @@ def test_step3_bulk_targets_creates_two_scans(client, db, monkeypatch, spawned):
     org = make_org()
     make_user("u19@example.com", org=org)
     login(client, "u19@example.com")
-    resp = client.post(
+    client.post(
         "/scan/new/base",
         data={"target": "a.example.com\nb.example.com", "authorized": "on"},
         follow_redirects=False,

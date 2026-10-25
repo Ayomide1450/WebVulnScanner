@@ -106,7 +106,7 @@ class TestAuditLogPage:
     def test_member_gets_403(self, client, db):
         """org_admin_required returns 403 for non-admins."""
         org = make_org()
-        user = make_user("audit-member@example.com", org=org, role=Role.MEMBER)
+        make_user("audit-member@example.com", org=org, role=Role.MEMBER)
         db.session.commit()
 
         login(client, "audit-member@example.com")
@@ -177,7 +177,7 @@ class TestRetention:
 
     def test_no_trim_when_under_limit(self, client, db):
         org = make_org()
-        user = make_user("audit-notrim@example.com", org=org, role=Role.ORG_ADMIN)
+        make_user("audit-notrim@example.com", org=org, role=Role.ORG_ADMIN)
         db.session.commit()
 
         login(client, "audit-notrim@example.com")

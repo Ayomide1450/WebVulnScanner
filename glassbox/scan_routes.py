@@ -122,9 +122,12 @@ def _owns_scan(user, s):
     the actual predicate `_check_ownership` (session-auth callers) and
     api_routes.py (API-key callers) both gate on, so the two auth paths
     can never diverge in what counts as "yours to see"."""
+    # Lint note: SIM103 wants one combined boolean. This is the shared
+    # ownership predicate for BOTH the session and API-key auth paths - the
+    # explicit guard form is what makes it reviewable, so keep it.
     if s.user_id == user.id:
         return True
-    if s.org_id is not None and user.org_id == s.org_id and user.role == Role.ORG_ADMIN:
+    if s.org_id is not None and user.org_id == s.org_id and user.role == Role.ORG_ADMIN:  # noqa: SIM103
         return True
     return False
 

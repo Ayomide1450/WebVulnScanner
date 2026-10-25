@@ -273,7 +273,11 @@ def _build_check_function(spec):
             matched = True
             reasons = []
 
-            if "status_code" in match:
+            # Lint note: SIM102 wants this collapsed, but it is one of
+            # several parallel "if this matcher is configured, test it"
+            # blocks; collapsing only this one would make it inconsistent
+            # with its siblings below and harder to extend.
+            if "status_code" in match:  # noqa: SIM102
                 if resp.status_code != match["status_code"]:
                     matched = False
                     reasons.append(f"status {resp.status_code} != {match['status_code']}")
@@ -364,7 +368,7 @@ def load_community_checks(directory=None):
             with open(fpath, encoding="utf-8") as f:
                 raw = yaml.safe_load(f)
         except yaml.YAMLError as e:
-            raise CommunityCheckError(f"{fpath}: YAML parse error: {e}")
+            raise CommunityCheckError(f"{fpath}: YAML parse error: {e}") from e
 
         if not isinstance(raw, dict):
             raise CommunityCheckError(f"{fpath}: expected a YAML mapping, got {type(raw).__name__}")

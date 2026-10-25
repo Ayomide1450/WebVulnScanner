@@ -191,7 +191,7 @@ def _build_signed_saml_response(key_pem, cert_pem, issuer_entity_id,
     # Use OneLogin_Saml2_Utils.add_sign() — wraps xmlsec properly.
     # Internally calls xmlsec.Key.from_memory(key, PEM) and
     # load_cert_from_memory(cert, PEM), so pass PEM content, not file paths.
-    signed_doc = OneLogin_Saml2_Utils.add_sign(
+    return OneLogin_Saml2_Utils.add_sign(
         response,
         key_pem.decode("utf-8"),
         cert_pem.decode("utf-8"),
@@ -199,7 +199,6 @@ def _build_signed_saml_response(key_pem, cert_pem, issuer_entity_id,
     )
 
     # add_sign() returns bytes via OneLogin_Saml2_XML.to_string()
-    return signed_doc
 
 
 # --------------------------------------------------------------------------
@@ -348,7 +347,7 @@ class TestSpikeSignatureValidation:
 
         now = datetime.datetime.now(datetime.UTC)
         issue_instant = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-        not_on_or_after = (now + datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        (now + datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
         acs_url = "https://glassbox.example.com/auth/saml/callback"
 
         nsmap = {

@@ -100,7 +100,7 @@ def test_signup_duplicate_email_is_rejected(client, db):
 
 def test_signup_email_is_case_insensitive_for_duplicate_check(client, db):
     make_user("existing@example.com")
-    resp = client.post(
+    client.post(
         "/signup",
         data={"email": "EXISTING@example.com", "password": "password123", "confirm_password": "password123"},
         follow_redirects=False,

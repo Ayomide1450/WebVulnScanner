@@ -40,8 +40,7 @@ def _derive_env_var_names_from_config():
     silently drift the next time a config value is added (08-06-PLAN.md's
     explicit instruction)."""
     text = CONFIG_PY.read_text(encoding="utf-8")
-    names = sorted(set(re.findall(r'os\.environ\.get\(\s*["\']([A-Z_][A-Z0-9_]*)["\']', text)))
-    return names
+    return sorted(set(re.findall(r'os\.environ\.get\(\s*["\']([A-Z_][A-Z0-9_]*)["\']', text)))
 
 
 _ENV_VAR_NAMES = _derive_env_var_names_from_config()
