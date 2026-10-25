@@ -108,7 +108,10 @@ def verify_domain(dv):
     """
     from glassbox.models import VerifyMethod
 
-    if dv.method == VerifyMethod.DNS_TXT:
+    # Lint note: SIM108 suggests a ternary. This is the branch that
+    # decides whether a domain-ownership proof succeeded - which unlocks the
+    # intrusive check tiers - so the explicit two-branch form stays.
+    if dv.method == VerifyMethod.DNS_TXT:  # noqa: SIM108
         ok = _verify_dns_txt(dv)
     else:
         ok = _verify_well_known(dv)

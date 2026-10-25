@@ -131,9 +131,13 @@ class User(UserMixin, db.Model):
         # org, is not - Flask-Login's login_user() refuses to authenticate
         # an inactive user, and __init__.py's before_request hook forces
         # out an already-open session the moment this flips false.
+        # Lint note: SIM103 wants these guards collapsed into a single
+        # `not (A or B)`. This is the authorization predicate Flask-Login
+        # gates every session on; sequential guards are materially easier to
+        # audit line-by-line than one negated boolean, so the rule loses here.
         if self.suspended_at is not None:
             return False
-        if self.organization is not None and self.organization.suspended_at is not None:
+        if self.organization is not None and self.organization.suspended_at is not None:  # noqa: SIM103
             return False
         return True
 

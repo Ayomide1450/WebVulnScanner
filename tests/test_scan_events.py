@@ -292,7 +292,7 @@ def test_scan_events_ownership_guard_applies_regardless_of_after_param(client, d
     org1 = make_org(name="Org One")
     org2 = make_org(name="Org Two")
     owner = make_user("owner@example.com", org=org1)
-    stranger = make_user("stranger@example.com", org=org2, role=Role.ORG_ADMIN)
+    make_user("stranger@example.com", org=org2, role=Role.ORG_ADMIN)
     scan = make_scan(owner, org=org1)
 
     login(client, "stranger@example.com")

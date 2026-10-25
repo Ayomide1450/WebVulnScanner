@@ -517,7 +517,7 @@ def test_scan_report_zero_findings_shows_no_findings_and_no_toggle(client, db):
 
 def test_scan_report_non_owner_gets_ownership_response_for_compliance_mode(client, db):
     owner = make_user("owner-toggle@example.com")
-    other = make_user("other-toggle@example.com")
+    make_user("other-toggle@example.com")
     db.session.commit()
     scan = make_scan(owner, scan_type="other")
     _make_report(db, scan, _report_with_two_categories())

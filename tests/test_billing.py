@@ -84,7 +84,7 @@ def test_create_invoice_retries_on_amount_collision_then_succeeds(app, db):
     _db.session.commit()
 
     offsets = iter([0.0050, 0.0071])  # first collides (0.0050), second is free
-    with patch.object(billing.random, "uniform", side_effect=lambda a, b: next(offsets)):
+    with patch.object(billing._system_random, "uniform", side_effect=lambda a, b: next(offsets)):
         inv = billing.create_invoice(org.id, Plan.PAID, "USDT")
 
     assert float(inv.expected_amount) != float(existing.expected_amount)
@@ -98,7 +98,7 @@ def test_create_invoice_ignores_collisions_with_non_pending_invoices(app, db):
     _make_invoice(org, plan=Plan.PAID, expected_amount=19.0050, status=InvoiceStatus.PAID)
     _db.session.commit()
 
-    with patch.object(billing.random, "uniform", return_value=0.0050):
+    with patch.object(billing._system_random, "uniform", return_value=0.0050):
         inv = billing.create_invoice(org.id, Plan.PAID, "USDT")
 
     assert float(inv.expected_amount) == pytest.approx(19.0050, abs=1e-6)
@@ -113,7 +113,7 @@ def test_create_invoice_raises_after_exhausting_retry_budget(app, db):
     _make_invoice(org, plan=Plan.PAID, expected_amount=19.0050)
     _db.session.commit()
 
-    with patch.object(billing.random, "uniform", return_value=0.0050):
+    with patch.object(billing._system_random, "uniform", return_value=0.0050):
         with pytest.raises(RuntimeError, match="Could not allocate a unique invoice amount"):
             billing.create_invoice(org.id, Plan.PAID, "USDT")
 

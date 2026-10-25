@@ -311,10 +311,6 @@ def deliver(webhook, scan_id, payload=None):
                        f"unexpected delivery error: {exc}", attempt=1)
         return
 
-    final_status = "failed"
-    final_code = None
-    final_error = None
-
     for attempt in range(1, MAX_DELIVERY_ATTEMPTS + 1):
         if attempt > 1:
             delay_idx = min(attempt - 2, len(_RETRY_DELAY_SECONDS) - 1)
@@ -332,9 +328,6 @@ def deliver(webhook, scan_id, payload=None):
         if status == "delivered":
             return  # success — stop retrying
 
-        final_status = status
-        final_code = code
-        final_error = error
 
     # Exhausted all attempts — the last _log_delivery call already recorded it.
 

@@ -34,6 +34,7 @@ from glassbox.checks import (
     SEVERITY_ORDER,
     SEVERITY_WEIGHT,
     _mk_session,
+    apply_cwe_mapping,
     check_api_js_discovery,
     check_api_schema_exposure,
     check_api_wordlist,
@@ -201,7 +202,7 @@ def run_media_scan(base_url, download, max_files):
     for f in findings:
         f.check_name = "media"
 
-    findings = deduplicate_findings(findings)
+    findings = deduplicate_findings(apply_cwe_mapping(findings))
     score, risk_grade, severity_counts, findings_sorted = _score_report(findings)
     # No locked-check concept for media scans (route-level gating means every
     # check that can run, runs) - coverage_pct stays None, not a fabricated 100.
@@ -255,7 +256,7 @@ def run_api_scan(base_url):
     results["js_discovery"] = data
     all_findings.extend(findings)
 
-    all_findings = deduplicate_findings(all_findings)
+    all_findings = deduplicate_findings(apply_cwe_mapping(all_findings))
     score, risk_grade, severity_counts, findings_sorted = _score_report(all_findings)
     readiness_verdict, readiness_reasons, coverage_pct = _compute_readiness(all_findings)
 
@@ -389,7 +390,7 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
     elif has_api_creds:
         locked.extend(["auth_comparison", "mass_assignment"])
 
-    all_findings = deduplicate_findings(all_findings)
+    all_findings = deduplicate_findings(apply_cwe_mapping(all_findings))
     score, risk_grade, severity_counts, findings_sorted = _score_report(all_findings)
     hostname = urlparse(targets[0]).netloc if targets else "unspecified-target"
     # Coverage is scoped to check groups the user actually attempted (filled
@@ -641,7 +642,7 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
                      finding_count=len(f_ports) if open_ports_phase else None,
                      top_severity=_top_severity(f_ports) if open_ports_phase else None)
 
-    all_findings = deduplicate_findings(all_findings)
+    all_findings = deduplicate_findings(apply_cwe_mapping(all_findings))
     score, risk_grade, severity_counts, findings_sorted = _score_report(all_findings)
     # +3: headers/cookies (always run, never locked) + open_ports (its own
     # gate, separate from the jobs-dict allowed_checks() call above).

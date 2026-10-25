@@ -108,7 +108,7 @@ def test_org_id_none_guard_blocks_none_equals_none_bypass(db, client):
     # Deliberately construct an org-less admin - shouldn't occur via normal
     # signup (ORG_ADMIN is only assigned alongside org creation), but the
     # ownership check must not rely on that invariant holding.
-    solo_admin = make_user("solo-admin@nowhere.com", org=None, role=Role.ORG_ADMIN)
+    make_user("solo-admin@nowhere.com", org=None, role=Role.ORG_ADMIN)
     scan = make_scan(solo_owner, org=None, target_url="https://example.com")
 
     login(client, "solo-admin@nowhere.com")

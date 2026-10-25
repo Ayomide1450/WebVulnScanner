@@ -152,7 +152,7 @@ def test_org_name_renders_escaped_on_org_admin(client, db):
     {{ org.name if org else 'Organization' }}) - attacker-controlled at
     signup time, rendered to every other member of the same org."""
     org = make_org(name=PAYLOAD)
-    user = make_user("org-name-admin@example.com", org=org, role=Role.ORG_ADMIN)
+    make_user("org-name-admin@example.com", org=org, role=Role.ORG_ADMIN)
     login(client, "org-name-admin@example.com")
 
     resp = client.get("/org/admin")
@@ -169,7 +169,7 @@ def test_domain_name_renders_escaped_on_org_admin(client, db):
     value reaching the row and then the page is the realistic path, not a
     hypothetical one."""
     org = make_org(name="Domain Name Escaping Org")
-    user = make_user("domain-admin@example.com", org=org, role=Role.ORG_ADMIN)
+    make_user("domain-admin@example.com", org=org, role=Role.ORG_ADMIN)
     dv = DomainVerification(org_id=org.id, domain=PAYLOAD, method=VerifyMethod.DNS_TXT,
                              token="test-token-value")
     db.session.add(dv)
@@ -192,7 +192,7 @@ def test_flashed_error_message_renders_escaped(client, db):
     escaping mechanism under test lives entirely in base.html's rendering of
     whatever message a route flashed, not in which route flashed it."""
     org = make_org(name="Flash Escaping Org")
-    user = make_user("flash-user@example.com", org=org, role=Role.MEMBER)
+    make_user("flash-user@example.com", org=org, role=Role.MEMBER)
     login(client, "flash-user@example.com")
     with client.session_transaction() as sess:
         sess["_flashes"] = [("error", PAYLOAD)]

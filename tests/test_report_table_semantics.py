@@ -52,8 +52,7 @@ def _strip_comments(html):
     "<thead>" in prose, which would otherwise inflate a naive substring
     count."""
     html = re.sub(r"\{#.*?#\}", "", html, flags=re.DOTALL)
-    html = re.sub(r"<!--.*?-->", "", html, flags=re.DOTALL)
-    return html
+    return re.sub(r"<!--.*?-->", "", html, flags=re.DOTALL)
 
 
 def _extract_block(html, start_marker, end_marker="</details>"):

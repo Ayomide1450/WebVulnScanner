@@ -93,6 +93,9 @@ from bs4 import BeautifulSoup
 
 PROBE_DB_MARKER = "glassbox_live_probe_phase8"
 PROBE_PASSWORD = "ProbePhase8Pass!1"
+# Outbound HTTP timeout for this script's single probe request;
+# requests defaults to waiting forever.
+PROBE_TIMEOUT_SECONDS = 15
 # base.html's nav renders this exact link for every authenticated page -
 # see templates/base.html's "Logout" <a> tag. Used by verify_authenticated()
 # as the "definitely-logged-in" marker, distinct from a login-page redirect
@@ -630,6 +633,10 @@ def _run_bearer_post_case(case, ids, base_url):
     resp = requests.post(
         url, data=case["data"], headers={"Authorization": f"Bearer {token}"},
         allow_redirects=False,
+        # requests defaults to no timeout, so without this the probe hangs
+        # forever against an unresponsive target. This is the script's only
+        # outbound HTTP call.
+        timeout=PROBE_TIMEOUT_SECONDS,
     )
     return resp.status_code, False
 

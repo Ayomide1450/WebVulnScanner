@@ -92,7 +92,7 @@ def test_status_different_org_gets_404(client, db):
     org1 = make_org(name="Org One")
     org2 = make_org(name="Org Two")
     owner = make_user("owner@org1.com", org=org1)
-    rival = make_user("rival@org2.com", org=org2)
+    make_user("rival@org2.com", org=org2)
     scan = make_scan(owner, org=org1, status=ScanStatus.RUNNING)
     login(client, "rival@org2.com")
     resp = client.get(f"/scan/{scan.id}/status")
@@ -102,7 +102,7 @@ def test_status_different_org_gets_404(client, db):
 def test_status_same_org_member_gets_404(client, db):
     org = make_org()
     owner = make_user("owner2@example.com", org=org)
-    colleague = make_user("colleague2@example.com", org=org, role=Role.MEMBER)
+    make_user("colleague2@example.com", org=org, role=Role.MEMBER)
     scan = make_scan(owner, org=org, status=ScanStatus.RUNNING)
     login(client, "colleague2@example.com")
     resp = client.get(f"/scan/{scan.id}/status")
@@ -112,7 +112,7 @@ def test_status_same_org_member_gets_404(client, db):
 def test_status_org_admin_gets_200(client, db):
     org = make_org()
     owner = make_user("owner3@example.com", org=org)
-    admin = make_user("admin3@example.com", org=org, role=Role.ORG_ADMIN)
+    make_user("admin3@example.com", org=org, role=Role.ORG_ADMIN)
     scan = make_scan(owner, org=org, status=ScanStatus.RUNNING)
     login(client, "admin3@example.com")
     resp = client.get(f"/scan/{scan.id}/status")

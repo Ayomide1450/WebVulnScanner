@@ -98,7 +98,7 @@ def test_org_admin_renders_four_dual_markup_tables(client, db):
 
 def test_org_admin_card_counts_match_row_counts(client, db):
     org = make_org()
-    admin = make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
+    make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
     make_user("m1@example.org", org=org, role=Role.MEMBER)
     make_user("m2@example.org", org=org, role=Role.MEMBER)
     db.session.commit()

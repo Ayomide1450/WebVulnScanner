@@ -48,6 +48,14 @@ ignore = [
     # `assert` is how the test suite works; also used for internal
     # invariants. Narrowed per-file below rather than blanket-allowed.
     "SIM105",
+    # Mid-file / function-local imports are load-bearing here, not sloppiness:
+    # the Flask app factory and several blueprints import models and each
+    # other lazily specifically to break circular imports (see
+    # scan_engine.py:21, admin_routes.py:38, org_routes.py:86). Hoisting them
+    # to the top would reintroduce the cycle. Enforcing this rule would mean
+    # ~7 permanent noqa comments on lines whose placement is already the
+    # documented design.
+    "E402",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -58,12 +66,37 @@ ignore = [
     "S311",  # non-cryptographic random in test data
     "E402",  # tests/test_auth_flows.py imports mid-file by design
     "B017",  # assertRaises(Exception) in a few deliberate smoke tests
+    # Style-only rules, suppressed rather than applied to test code. Test
+    # bodies optimise for being obvious when one fails, which is not always
+    # the most compact form: a nested `with` or `if` often reads as the
+    # setup/assertion steps it represents. Rewriting them buys nothing a
+    # reader of a failing test cares about.
+    "SIM102",  # collapsible-if (incl. the AST walkers in the lock tests)
+    "SIM117",  # nested with - usually one context per mocked dependency
+    "E741",    # `l` as a loop var in one NDJSON line-parsing test
+    "E731",    # a one-line lambda stub in test_phase20_checks
+    "B905",    # zip() without strict= over two known-equal-length lists
+    # test_seo.py parses the app's OWN sitemap.xml output. defusedxml is the
+    # right call for untrusted input; this input is a fixture the test just
+    # generated, and swapping it would add a dependency to assert on our own
+    # bytes.
+    "S314",
+    # "0.0.0.0" in test_ssrf_guard.py is a parametrised address asserting the
+    # SSRF guard *rejects* it - the opposite of binding to it.
+    "S104",
 ]
-# Operational scripts: one-shot local tooling, not shipped in the app.
+# Operational scripts: one-shot local tooling, run by hand against this app's
+# own local instance, never shipped in the deployed package.
 "scripts/*" = [
     "S101",
     "S603", "S607",  # subprocess calls with known-local commands
     "S311",
+    # Disposable credentials for the throwaway probe database that
+    # live_probe_phase8.py seeds in the OS temp dir - and a "token_symbol"
+    # that is a crypto ticker, not a secret.
+    "S105", "S106",
+    # The dev-server bind address in a local-only helper.
+    "S104",
 ]
 # The scanner legitimately parses hostile XML from scanned targets; the
 # relevant guard is upstream (defusedxml-style handling / size limits), not
