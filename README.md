@@ -1,6 +1,8 @@
 # Glassbox
 
 [![GitHub repo](https://img.shields.io/badge/GitHub-glassbox-blue?logo=github)](https://github.com/Ayomide1450/Glassbox)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 
 A multi-tenant website security-checkup SaaS: sign up, create an organization,
 run scans against domains you own, and track results across a dashboard with
@@ -160,4 +162,13 @@ verify manually, not a certainty.
 
 ## License
 
-Proprietary. See repository for terms.
+[MIT](LICENSE) &copy; 2026 Gabriel Ayomide.
+
+You may use, modify, and distribute this software, including commercially,
+provided the copyright notice and permission notice are retained. The software
+is provided "as is", without warranty — see [LICENSE](LICENSE) for the full
+text.
+
+Licensing the code permissively does not loosen the operational rule above:
+**only scan domains you own or have explicit written permission to test.** That
+constraint is a matter of law in most jurisdictions, not of this license.

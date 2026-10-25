@@ -4,8 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Glassbox (product name as of v1.3; formerly WebVulnScanner - the Python package `webvulnscanner/`,
-repo name, and DB are unchanged, see README.md) is a multi-tenant Flask SaaS for checking a
+Glassbox (formerly WebVulnScanner) is a multi-tenant Flask SaaS for checking a
 website's security posture:
 accounts, organizations, crypto-invoice billing, and a tiered entitlement system (Free / Paid /
 Org-verified) that gates which checks a scan is allowed to run. The most intrusive checks
@@ -13,6 +12,15 @@ Org-verified) that gates which checks a scan is allowed to run. The most intrusi
 ownership (DNS TXT or `/.well-known/`) tied to the org, not just a checkbox. See README.md for
 the full check list per tier and the documented false-positive fix (CDN edge ports being
 misreported as exposed services) — that history matters when touching `check_open_ports`.
+
+**The 2026-10-25 rename went all the way down** (user-directed, superseding
+`docs/superpowers/specs/2026-08-18-glassbox-rebrand-design.md`, which had explicitly scoped out
+internal-identifier renames). Everything is now `glassbox`: the repo directory
+(`Documents/Glassbox`), the Python package (`glassbox/`), and the SQLite default
+(`glassbox.db`). No `webvulnscanner` identifier survives anywhere in the tree. The GitHub remote
+is still `Ayomide1450/WebVulnScanner.git` — renaming that is a GitHub-side action nobody has
+taken yet, so expect the remote URL and the local directory name to disagree. Licensed MIT since
+the same date (`LICENSE`); the README previously said "Proprietary."
 
 **Only ever test against domains the user owns or has explicit permission to test.** Do not
 weaken or remove: the `authorized` / `authorized_adv` / `authorized_media` / `authorized_api`
@@ -57,8 +65,22 @@ the exact steps only a human can do (Render/Neon/Resend/Sentry/UptimeRobot signu
 `.venv\Scripts\python -m pytest`). `tests/conftest.py` builds a fresh Flask app per test against
 its own on-disk SQLite file under pytest's `tmp_path` (not `:memory:` — see the fixture's
 docstring for why), with CSRF and rate-limiting disabled and env vars defaulted so the suite
-needs no `.env` file. Runs on every push/PR via `.github/workflows/tests.yml` (GitHub Actions,
-Python 3.12, `ubuntu-latest`). Coverage so far: `entitlements.py` tier-gating (`allowed_checks`,
+needs no `.env` file. **CI is manual-only** — `.github/workflows/tests.yml` is
+`workflow_dispatch`-triggered (GitHub Actions, Python 3.12, `ubuntu-latest`) because the free
+Actions minutes are exhausted and the spending budget is $0; run it from the Actions tab or
+`gh workflow run tests.yml`. Do not assume a push was validated by CI, and do not add a lint/
+type gate that only runs there — it would never fire. The full suite takes ~21 minutes locally.
+
+**Run the full suite, not a subset, before claiming a change is verified.** The 2026-10-25
+rename passed two targeted batches (139 and 89 tests) and still had 34 full-suite failures —
+all of them the `cryptography` gap below. Targeted runs prove very little against 1,341 tests.
+
+**The local `.venv` is Python 3.14 while CI pins 3.12** — version-specific behavior can differ
+between the two. `requirements.txt` is also almost entirely unpinned, so a venv rebuilt from
+scratch pulls newer majors than whatever an older venv had (the 2026-10-25 rebuild jumped to
+SQLAlchemy 2.1.6 / Flask 3.1.3 / pytest 9.1.1). Pinning is an open, unaddressed item.
+
+Coverage so far: `entitlements.py` tier-gating (`allowed_checks`,
 `effective_tier`, `domain_is_org_verified`, plus a regression check that `FEATURE_REQUIREMENTS`
 covers every check name `run_scan`'s jobs dict can dispatch), `_check_ownership`'s IDOR guard in
 `scan_routes.py` across all four call sites, `checks.is_ssrf_safe_hostname` /
@@ -93,6 +115,16 @@ SSRF refusal) plus a source-parsing lock proving no `advanced` branch exists; `t
 filename prefix) for media/api/advanced; and `tests/test_template_consistency.py` — rendered-HTML
 consistency assertions for the four pages' visual pass (dashboard/org-admin/billing/scan-report).
 
+**Gotcha — lazy imports hide missing dependencies.** `cryptography` powers
+`models.py`'s `encrypt_secret`/`decrypt_secret` (Fernet at-rest encryption of SSO secrets) and
+`config.py`'s `_fernet_key()` HKDF derivation, but both import it *inside the function body*.
+It was missing from `requirements.txt` until 2026-10-25 and only worked locally because an older
+`python3-saml` pulled it in transitively — meaning a clean deploy would have booted green and
+then thrown the first time an SSO secret was written or read. It's declared now
+(`cryptography>=42`). When adding a function-local import of a third-party package, add it to
+`requirements.txt` in the same commit: the test suite will not catch the omission on a machine
+that already happens to have the package.
+
 **Gotcha**: `email_validator` (backing WTForms' `Email()` validator) statically rejects
 reserved TLDs (`.test`/`.invalid`/`.localhost`) even with deliverability checking off — use
 `.com`/`.org`/`.dev`-style fake domains for test fixture emails, not `.test`.
@@ -111,23 +143,23 @@ won't have the cookie sent back by the browser at all unless you set
 
 ## Architecture
 
-`app.py` at the repo root is a thin app-factory shim (`from webvulnscanner import create_app`).
+`app.py` at the repo root is a thin app-factory shim (`from glassbox import create_app`).
 Everything else — models, blueprints, checks, orchestrators, entitlement gating — lives in the
-`webvulnscanner/` package, with Jinja templates still in `templates/` (all extending
+`glassbox/` package, with Jinja templates still in `templates/` (all extending
 `templates/base.html`).
 
 | Module | Responsibility |
 |---|---|
-| `webvulnscanner/auth_routes.py` | Signup, login, logout, email verification |
-| `webvulnscanner/org_routes.py`, `domain_verification.py` | Org admin, invites, domain-ownership verification (DNS TXT / well-known). An invite issues a signed, **email-bound** token (`generate_invite_token`/`decode_invite_token`) — `auth_routes.signup()` consumes it end to end, joining the signer to the inviting org at the invited role; a forwarded/leaked link cannot be redeemed under a different address (the token is re-decoded against the submitted email at POST time). Changing an already-joined member's role is still deliberately not a route. |
-| `webvulnscanner/billing_routes.py`, `billing.py` | Crypto (USDT/USDC on Polygon) invoicing and plan activation |
-| `webvulnscanner/entitlements.py` | `Tier` enum + `FEATURE_REQUIREMENTS` map; the single place that gates checks by plan/domain-verification |
-| `webvulnscanner/scan_routes.py` | `/dashboard`, `/scan/new` (+ `/base`/`/advanced`/`/media`/`/api`), `/scan/<id>`, `/scan/<id>/events`, `/scan/<id>/report`, `/scan/<id>/compare/<other_id>`; spawns each scan in a background thread |
-| `webvulnscanner/scan_engine.py` | The four scan orchestrators (`run_scan`/`run_advanced_scan`/`run_media_scan` moved intact from the old `app.py`; `run_api_scan` ported later from the `api-exposure-media-streaming` branch) |
-| `webvulnscanner/checks.py` | Every individual check function |
-| `webvulnscanner/ai_summary.py` | AI-assisted remediation summary (Groq/open-source LLM), Paid tier and above |
-| `webvulnscanner/models.py` | SQLAlchemy models: `Organization`, `User`, `DomainVerification`, `Scan`, `ScanEvent` (per-check live-feed timeline, base scans only — see "Live scan-progress feed" below), `Report`, `Subscription`, `CryptoInvoice` |
-| `webvulnscanner/public_routes.py` | `/` marketing page |
+| `glassbox/auth_routes.py` | Signup, login, logout, email verification |
+| `glassbox/org_routes.py`, `domain_verification.py` | Org admin, invites, domain-ownership verification (DNS TXT / well-known). An invite issues a signed, **email-bound** token (`generate_invite_token`/`decode_invite_token`) — `auth_routes.signup()` consumes it end to end, joining the signer to the inviting org at the invited role; a forwarded/leaked link cannot be redeemed under a different address (the token is re-decoded against the submitted email at POST time). Changing an already-joined member's role is still deliberately not a route. |
+| `glassbox/billing_routes.py`, `billing.py` | Crypto (USDT/USDC on Polygon) invoicing and plan activation |
+| `glassbox/entitlements.py` | `Tier` enum + `FEATURE_REQUIREMENTS` map; the single place that gates checks by plan/domain-verification |
+| `glassbox/scan_routes.py` | `/dashboard`, `/scan/new` (+ `/base`/`/advanced`/`/media`/`/api`), `/scan/<id>`, `/scan/<id>/events`, `/scan/<id>/report`, `/scan/<id>/compare/<other_id>`; spawns each scan in a background thread |
+| `glassbox/scan_engine.py` | The four scan orchestrators (`run_scan`/`run_advanced_scan`/`run_media_scan` moved intact from the old `app.py`; `run_api_scan` ported later from the `api-exposure-media-streaming` branch) |
+| `glassbox/checks.py` | Every individual check function |
+| `glassbox/ai_summary.py` | AI-assisted remediation summary (Groq/open-source LLM), Paid tier and above |
+| `glassbox/models.py` | SQLAlchemy models: `Organization`, `User`, `DomainVerification`, `Scan`, `ScanEvent` (per-check live-feed timeline, base scans only — see "Live scan-progress feed" below), `Report`, `Subscription`, `CryptoInvoice` |
+| `glassbox/public_routes.py` | `/` marketing page |
 
 Scan results are persisted as `Report` rows (queryable for the dashboard/compare view) and still
 also written to `reports/` as timestamped JSON; media downloads still go to `downloads/`.
@@ -257,7 +289,7 @@ regression lock that fails if any orchestrator ever re-inlines the block.
 Preserve these constraints when modifying the corresponding checks — they're what keeps this a
 non-destructive, authorized-use-only tool rather than a general attack script.
 
-### Other hardening in `webvulnscanner/`
+### Other hardening in `glassbox/`
 
 - `extensions.limiter` (Flask-Limiter) rate-limits `/login` (10/min), `/signup` (5/hour), and
   invoice create/verify (10/hour, 30/hour) in `auth_routes.py` / `billing_routes.py`. It's
@@ -278,11 +310,11 @@ non-destructive, authorized-use-only tool rather than a general attack script.
   collision would otherwise let one real payment activate the wrong org's plan.
   `CryptoInvoice.matched_tx_hash` also has a DB-level unique constraint as defense in depth.
 - 404/429/500 all render inside the app's own theme (`templates/404.html`/`429.html`/`500.html`,
-  registered in `webvulnscanner/__init__.py`) instead of Flask's raw default error page.
+  registered in `glassbox/__init__.py`) instead of Flask's raw default error page.
 
 ## AI-assisted remediation summaries
 
-`webvulnscanner/ai_summary.py`'s `generate_remediation_summary()` layers an LLM-generated,
+`glassbox/ai_summary.py`'s `generate_remediation_summary()` layers an LLM-generated,
 plain-English summary + prioritized remediation steps on top of a scan's already-deterministic
 findings — vulnerability *detection* stays 100% rule-based in `checks.py`; the AI's only job is
 explaining/prioritizing what was already found. Called once per scan, for Paid tier and above,
@@ -306,9 +338,34 @@ degrade-gracefully convention as every `check_*` function in `checks.py`.
 
 ## Frontend design system
 
-`templates/base.html` defines the shared design tokens (CSS custom properties) every other
-template inherits: OLED-dark palette (`--bg`/`--panel`/`--accent` etc.), Fira Sans (UI) / Fira
-Code (data, monospace) typography. Templates should reuse `.card`, `.btn`, `.pill`/`.badge`,
+**Dual-theme as of 2026-10-25 (user-directed full visual overhaul).** The app is no longer
+dark-only. `templates/base.html` defines the palette three times: once on `:root` (the **light**
+ground, now the default), once under `@media (prefers-color-scheme: dark)`, and once more under
+`:root[data-theme="light"]` / `:root[data-theme="dark"]` so the in-app toggle beats the OS
+preference in *both* directions. A tiny inline `<script>` in `<head>` applies the saved
+`localStorage['gb-theme']` value before first paint to avoid a flash of the wrong ground.
+**Style components through the tokens only** — never put component rules inside the media query,
+or they will not respond to the toggle. Dark ground is `#0a0e17` (slate-black), deliberately not
+the old `#020617` OLED void, which made the panel/border steps indistinguishable.
+
+**Fonts are self-hosted** in `glassbox/static/fonts/` (Fira Sans 400/500/600/700 + Fira Code as
+one variable file, latin subsets, ~144KB total). `base.html` previously `@import`-ed from
+`fonts.googleapis.com`, which was render-blocking *and* leaked every visitor's IP to a third
+party on page load — unacceptable in a security/privacy product. **Do not reintroduce any
+external font, script, or stylesheet URL.** The app now makes zero third-party requests.
+
+Severity is encoded in **form as well as color**: `.finding` carries a 3px left stripe driven by
+`:has(.badge.critical)` etc., so finding weight survives greyscale printing and color-blindness.
+Each severity also has a paired `--{sev}-bg` token; use those rather than hand-rolled `rgba()`.
+`.card` is flat (`var(--panel)` + `--shadow-sm`) — the old `linear-gradient(180deg, panel,
+panel2)` is gone, as it read as muddy on a light ground.
+
+`tests/test_responsive_markup.py` holds **source-level lock tests on `base.html`'s canonical
+`.card` / `th, td` / `.btn.block` / `:focus-visible` rules** (whitespace-normalized). Changing
+those rules intentionally means updating the lock in the same commit; a failure there is the
+guardrail working, not a flaky test.
+
+Templates should reuse `.card`, `.btn`, `.pill`/`.badge`,
 `.finding`, `.warn-box`/`.error-box`/`.info-box`, and the `.icon` SVG convention rather than
 hardcoding colors or new component styles — and never use emoji as icons (inline SVG only, one
 remaining exception in `org_verify_domain.html`'s empty-state `.warn-box`, not yet cleaned up;
@@ -337,6 +394,13 @@ feed's state-dot classes) — these are still live and in use. `.glow-pulse` (a
 texture) are **still defined in `base.html` but deliberately removed from every page that used
 to carry them** — see below. The icon sprite also has `#icon-warning` (24×24 viewBox,
 `stroke-linecap`/`stroke-linejoin: round`), still current.
+
+> **Superseded 2026-10-25 by the dual-theme overhaul** (see "Frontend design system" above).
+> The flatten/de-glow direction below still holds and was carried forward — gradients stayed
+> gone, `.card` got flatter still — but its single-dark-theme premise does not. The palette
+> token *values* were replaced wholesale and a light ground added. `.glow-pulse`,
+> `.telemetry-dot`, and `.status-pill`'s dot all survive unchanged. Kept here for the
+> reasoning, not as current house style.
 
 **De-glow/flatten decision (2026-08-26, user-directed, commit `934394d` + `28475c5`/`67946fe`)**:
 the earlier "reuse `.hud-grid`/`.glow-pulse`, don't invent new treatments" guidance below is
