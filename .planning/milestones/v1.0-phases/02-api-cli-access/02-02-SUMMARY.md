@@ -31,8 +31,8 @@ tech-stack:
 key-files:
   created: []
   modified:
-    - webvulnscanner/scheduler.py
-    - webvulnscanner/api_routes.py
+    - glassbox/scheduler.py
+    - glassbox/api_routes.py
     - tests/test_api_routes.py
     - .planning/REQUIREMENTS.md
 
@@ -153,7 +153,7 @@ status: complete
 - **Started:** 2026-08-11T09:1x (prior commit 5c1ee94 at 08:48 was the orchestrator's pre-session backfill, not this plan's work)
 - **Completed:** 2026-08-11T09:31:25+01:00
 - **Tasks:** 3
-- **Files modified:** 3 (`webvulnscanner/scheduler.py`, `webvulnscanner/api_routes.py`, `tests/test_api_routes.py`)
+- **Files modified:** 3 (`glassbox/scheduler.py`, `glassbox/api_routes.py`, `tests/test_api_routes.py`)
 
 ## Accomplishments
 - `scheduler._fire(asset)` now returns the created `Scan` on every branch (success, SSRF-failure, tier-failure) - a minimal, backward-compatible change confirmed not to regress any of the 12 pre-existing scheduler tests
@@ -173,8 +173,8 @@ Each task was committed atomically:
 **Plan metadata:** this SUMMARY.md (committed separately per execute-plan.md's final-commit step)
 
 ## Files Created/Modified
-- `webvulnscanner/scheduler.py` - `_fire()` returns the created `Scan` row on every branch
-- `webvulnscanner/api_routes.py` - `POST /assets/<id>/scans` (`trigger_scan`), `GET /scans/<id>/report` (`fetch_report`)
+- `glassbox/scheduler.py` - `_fire()` returns the created `Scan` row on every branch
+- `glassbox/api_routes.py` - `POST /assets/<id>/scans` (`trigger_scan`), `GET /scans/<id>/report` (`fetch_report`)
 - `tests/test_api_routes.py` - 12 new tests: 4 trigger-scan, 6 fetch-report, 2 revoked-token/rate-limit
 - `.planning/REQUIREMENTS.md` - API-03/API-04/API-05 marked complete (checkbox + traceability table)
 
@@ -202,6 +202,6 @@ API-03/04/05 are fully satisfied and tested on top of 02-01's proven token-auth 
 
 ## Self-Check: PASSED
 
-All created/modified files (`webvulnscanner/scheduler.py`, `webvulnscanner/api_routes.py`,
+All created/modified files (`glassbox/scheduler.py`, `glassbox/api_routes.py`,
 `tests/test_api_routes.py`, this SUMMARY.md) exist on disk. All three task commits
 (`8265bc6`, `a4bddda`, `4f760a1`) are present in `git log`.

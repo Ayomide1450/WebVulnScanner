@@ -7,9 +7,9 @@ dependency-graph:
   requires: ["09-02", "09-04"]
   provides: ["templates/_pagination.html", "tests/test_query_counts.py", "tests/test_pagination.py"]
   affects:
-    - webvulnscanner/scan_routes.py
-    - webvulnscanner/asset_routes.py
-    - webvulnscanner/org_routes.py
+    - glassbox/scan_routes.py
+    - glassbox/asset_routes.py
+    - glassbox/org_routes.py
     - templates/dashboard.html
     - templates/assets.html
     - templates/org_admin.html
@@ -25,9 +25,9 @@ key-files:
     - tests/test_query_counts.py
     - tests/test_pagination.py
   modified:
-    - webvulnscanner/scan_routes.py
-    - webvulnscanner/asset_routes.py
-    - webvulnscanner/org_routes.py
+    - glassbox/scan_routes.py
+    - glassbox/asset_routes.py
+    - glassbox/org_routes.py
     - templates/dashboard.html
     - templates/assets.html
     - templates/org_admin.html

@@ -3,8 +3,8 @@ the production-readiness verdict companion to _score_report. Deliberately
 kept as its own test module mirroring test_scan_engine.py's own _score_report
 section, since _compute_readiness is a new, separate function (not a change
 to _score_report's existing, test-locked arithmetic)."""
-from webvulnscanner import scan_engine
-from webvulnscanner.checks import Finding
+from glassbox import scan_engine
+from glassbox.checks import Finding
 
 
 def _finding(severity, confidence="Confirmed"):

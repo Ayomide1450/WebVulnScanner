@@ -12,73 +12,236 @@
 <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png') }}">
 <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png') }}">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
-<style>
-  /* ---- Design system: OLED dark, Fira Code / Fira Sans -------------------
-     Generated via ui-ux-pro-max (security/dev-tool dashboard preset).
-     Single dark theme by design (no light-mode branch) - matches the
-     "Dark Mode (OLED)" style pick: deep black, high contrast, low glare. */
-  @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+<link rel="preload" as="font" type="font/woff2" crossorigin href="{{ url_for('static', filename='fonts/fira-sans-400.woff2') }}">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="{{ url_for('static', filename='fonts/fira-code.woff2') }}">
+<script nonce="{{ csp_nonce }}">
+  /* Resolve the theme before first paint so there is no flash of the wrong
+     ground. Reads the saved preference, else defers to the OS. Kept inline
+     and tiny on purpose - it must run before the stylesheet paints. */
+  (function () {
+    try {
+      var saved = localStorage.getItem('gb-theme');
+      if (saved === 'light' || saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', saved);
+      }
+    } catch (e) { /* private mode / storage blocked - fall back to OS */ }
+  })();
+</script>
+<style nonce="{{ csp_nonce }}">
+  /* ====================================================================
+     Glassbox design system - "instrument, not black box"
 
+     The product name argues against the pure-black console the app used to
+     be: Glassbox's pitch is transparency and legibility, and its main
+     output is a *report* that non-operators read. So the system is now
+     dual-theme - a genuinely designed light ground for reading and
+     reporting, and a refined dark ground for operating - rather than
+     dark-only.
+
+     What deliberately did NOT change: every class name, every component's
+     DOM contract, and the green brand accent. This is a token- and
+     component-layer overhaul, so all 51 templates inherit it without
+     edits and the rendered-HTML test suites keep passing.
+
+     Fonts are self-hosted (glassbox/static/fonts). The previous
+     @import from fonts.googleapis.com was render-blocking AND leaked
+     every visitor's IP to a third party on page load - unacceptable in a
+     security/privacy product. The only third-party origin left anywhere in
+     the app is Cloudflare Turnstile on signup.html (the bot check), which
+     the CSP in __init__.py allowlists explicitly.
+
+     Every inline script/style tag in the app carries a per-request
+     csp_nonce attribute - the CSP allows inline code by nonce only, never
+     'unsafe-inline', so a tag that forgets it gets blocked rather than
+     silently weakening the policy.
+     ==================================================================== */
+
+  /* ---- Self-hosted typefaces -------------------------------------- */
+  @font-face {
+    font-family: "Fira Sans"; font-style: normal; font-weight: 400;
+    font-display: swap;
+    src: url("{{ url_for('static', filename='fonts/fira-sans-400.woff2') }}") format("woff2");
+  }
+  @font-face {
+    font-family: "Fira Sans"; font-style: normal; font-weight: 500;
+    font-display: swap;
+    src: url("{{ url_for('static', filename='fonts/fira-sans-500.woff2') }}") format("woff2");
+  }
+  @font-face {
+    font-family: "Fira Sans"; font-style: normal; font-weight: 600;
+    font-display: swap;
+    src: url("{{ url_for('static', filename='fonts/fira-sans-600.woff2') }}") format("woff2");
+  }
+  @font-face {
+    font-family: "Fira Sans"; font-style: normal; font-weight: 700;
+    font-display: swap;
+    src: url("{{ url_for('static', filename='fonts/fira-sans-700.woff2') }}") format("woff2");
+  }
+  @font-face {
+    /* Variable: Google serves one latin file for the whole 300-700 range. */
+    font-family: "Fira Code"; font-style: normal; font-weight: 300 700;
+    font-display: swap;
+    src: url("{{ url_for('static', filename='fonts/fira-code.woff2') }}") format("woff2");
+  }
+
+  /* ---- Tokens: light ground (default) ------------------------------
+     Neutrals carry a slight cool/blue bias rather than being pure grey,
+     so they read as chosen next to the jade accent. */
   :root {
-    /* Palette swap (values only, names unchanged) to match the reference
-       login/signup/marketing mockup's darker, higher-contrast tones -
-       every template inherits this automatically since nothing here was
-       renamed. See git history for the reference source. */
-    --bg: #020617; --panel: #0a1120; --panel2: #101a2e; --border: #1c2942;
-    --text: #e6edf5; --muted: #93a4bd; --accent: #22c55e; --accent2: #16a34a; --accent-dim: rgba(34,197,94,.12);
-    --primary: #101a2e; --ring: #22c55e;
-    --critical:#f0475a; --high:#f7943c; --medium:#eec73e; --low:#4fc3f7; --info:#6b7d9e; --pass:#22c55e;
-    /* "Operator console" telemetry accent - blue family, distinct from
-       --accent (reserved for pass/complete) and --low (a different,
-       severity-scale blue). Used for "in progress" states: the live scan
-       feed's pulsing dot while a check is running, before it resolves to
-       green on completion. */
-    --telemetry: #38bdf8; --telemetry2: #0ea5e9; --telemetry-dim: rgba(56,189,248,.14);
-    --radius: 12px; --radius-lg: 18px;
-    /* --radius-sm/--radius-md promote already-pervasive hardcoded 10px/16px
-       literals to real tokens (DESIGN-03) - --radius/--radius-lg above are
-       unchanged existing tokens. */
-    --radius-sm: 10px;
-    --radius-md: 16px;
-    --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px; --space-7:48px;
-    --space-8: 64px;
-    /* Purpose-based container widths (DESIGN-04, 06-CONTEXT.md D-02) - every
-       page's outer content wrapper must consume one of these four, never a
-       page-local one-off max-width. */
+    color-scheme: light;
+
+    --ground:   #f5f7f9;
+    --panel:    #ffffff;
+    --panel2:   #eef1f5;
+    --border:   #dfe4ec;
+    --border-strong: #c8d0dc;
+
+    --text:     #0f1419;
+    --muted:    #5a667a;
+    --faint:    #8794a6;
+
+    /* Brand jade - deepened for contrast on a light ground. */
+    --accent:   #0c7a44;
+    --accent2:  #0a6338;
+    --accent-dim: rgba(12,122,68,.10);
+    --on-accent: #ffffff;
+
+    --primary:  #eef1f5;
+    --ring:     #0c7a44;
+
+    /* Severity: a calibrated warm-to-cool ramp, legible on both grounds
+       and deliberately NOT reusing the accent hue except for pass. */
+    --critical: #c62139;
+    --high:     #c25e0c;
+    --medium:   #9a7609;
+    --low:      #1565ad;
+    --info:     #64718a;
+    --pass:     #0c7a44;
+
+    --critical-bg: rgba(198,33,57,.09);
+    --high-bg:     rgba(194,94,12,.09);
+    --medium-bg:   rgba(154,118,9,.11);
+    --low-bg:      rgba(21,101,173,.09);
+    --info-bg:     rgba(100,113,138,.11);
+    --pass-bg:     rgba(12,122,68,.10);
+
+    /* "In progress" telemetry - separate axis from both accent and the
+       severity scale, so a running check never reads as a finding. */
+    --telemetry:  #1565ad;
+    --telemetry2: #0f4f88;
+    --telemetry-dim: rgba(21,101,173,.12);
+
+    --shadow-sm: 0 1px 2px rgba(15,20,25,.05);
+    --shadow-md: 0 2px 8px rgba(15,20,25,.07);
+
+    --radius: 12px; --radius-lg: 18px; --radius-sm: 10px; --radius-md: 14px;
+    --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
+    --space-5:24px; --space-6:32px; --space-7:48px; --space-8:64px;
+
     --container-auth: 440px;
     --container-form: 760px;
     --container-app: 1200px;
     --container-marketing: 1180px;
-    /* App-shell horizontal gutter (navbar/content/footer) - scales from
-       20px on narrow/mobile viewports up to 40px on wide desktop, rather
-       than a fixed 20px that reads as cramped once --container-app grew.
-       clamp() covers the whole range without a dedicated breakpoint. */
     --gutter-app: clamp(20px, 4vw, 40px);
-    /* Documentation-only (Phase 7 / D-01) - CSS media queries cannot consume
-       a custom property, so the literal 430px in the @media rule below the
-       .mobile-record-cards block is the single authoritative copy. This
-       token exists only so the value is discoverable/greppable next to the
-       other layout tokens above. */
+    /* Documentation-only: a CSS media query cannot read a custom property,
+       so the literal 430px in the @media rule below is authoritative. */
     --bp-card: 430px;
+
+    /* --bg is kept as an alias because templates and inline styles across
+       the app still reference it directly. */
+    --bg: var(--ground);
   }
 
+  /* ---- Tokens: dark ground ----------------------------------------
+     Slate-black with a blue bias rather than the old #020617 OLED void -
+     less glare over a long session, and it makes the panel/border steps
+     actually readable instead of all reading as "black". */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+
+      --ground:   #0a0e17;
+      --panel:    #111827;
+      --panel2:   #172032;
+      --border:   #212c40;
+      --border-strong: #2d3a52;
+
+      --text:     #e7edf5;
+      --muted:    #8d9bb0;
+      --faint:    #66748c;
+
+      --accent:   #2fd673;
+      --accent2:  #22b85e;
+      --accent-dim: rgba(47,214,115,.13);
+      --on-accent: #04170c;
+
+      --primary:  #172032;
+      --ring:     #2fd673;
+
+      --critical: #ff6478;
+      --high:     #ff9d4d;
+      --medium:   #e8c257;
+      --low:      #5cb0f7;
+      --info:     #8b98ad;
+      --pass:     #2fd673;
+
+      --critical-bg: rgba(255,100,120,.13);
+      --high-bg:     rgba(255,157,77,.13);
+      --medium-bg:   rgba(232,194,87,.13);
+      --low-bg:      rgba(92,176,247,.13);
+      --info-bg:     rgba(139,152,173,.13);
+      --pass-bg:     rgba(47,214,115,.13);
+
+      --telemetry:  #5cb0f7;
+      --telemetry2: #3b96e8;
+      --telemetry-dim: rgba(92,176,247,.14);
+
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+      --shadow-md: 0 2px 10px rgba(0,0,0,.45);
+    }
+  }
+
+  /* The explicit toggle must beat the media query in BOTH directions, so
+     each theme is restated as a [data-theme] block. */
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --ground:#f5f7f9; --panel:#ffffff; --panel2:#eef1f5; --border:#dfe4ec; --border-strong:#c8d0dc;
+    --text:#0f1419; --muted:#5a667a; --faint:#8794a6;
+    --accent:#0c7a44; --accent2:#0a6338; --accent-dim:rgba(12,122,68,.10); --on-accent:#ffffff;
+    --primary:#eef1f5; --ring:#0c7a44;
+    --critical:#c62139; --high:#c25e0c; --medium:#9a7609; --low:#1565ad; --info:#64718a; --pass:#0c7a44;
+    --critical-bg:rgba(198,33,57,.09); --high-bg:rgba(194,94,12,.09); --medium-bg:rgba(154,118,9,.11);
+    --low-bg:rgba(21,101,173,.09); --info-bg:rgba(100,113,138,.11); --pass-bg:rgba(12,122,68,.10);
+    --telemetry:#1565ad; --telemetry2:#0f4f88; --telemetry-dim:rgba(21,101,173,.12);
+    --shadow-sm:0 1px 2px rgba(15,20,25,.05); --shadow-md:0 2px 8px rgba(15,20,25,.07);
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground:#0a0e17; --panel:#111827; --panel2:#172032; --border:#212c40; --border-strong:#2d3a52;
+    --text:#e7edf5; --muted:#8d9bb0; --faint:#66748c;
+    --accent:#2fd673; --accent2:#22b85e; --accent-dim:rgba(47,214,115,.13); --on-accent:#04170c;
+    --primary:#172032; --ring:#2fd673;
+    --critical:#ff6478; --high:#ff9d4d; --medium:#e8c257; --low:#5cb0f7; --info:#8b98ad; --pass:#2fd673;
+    --critical-bg:rgba(255,100,120,.13); --high-bg:rgba(255,157,77,.13); --medium-bg:rgba(232,194,87,.13);
+    --low-bg:rgba(92,176,247,.13); --info-bg:rgba(139,152,173,.13); --pass-bg:rgba(47,214,115,.13);
+    --telemetry:#5cb0f7; --telemetry2:#3b96e8; --telemetry-dim:rgba(92,176,247,.14);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4); --shadow-md:0 2px 10px rgba(0,0,0,.45);
+  }
+
+  /* ---- Base ------------------------------------------------------- */
   * { box-sizing: border-box; }
-  html { color-scheme: dark; }
   body {
-    margin:0;
+    margin: 0;
     font-family: "Fira Sans", -apple-system, "Segoe UI", Arial, sans-serif;
-    font-size: 15px; line-height: 1.6;
-    background:
-      radial-gradient(900px 480px at 85% -8%, rgba(34,197,94,.06), transparent 60%),
-      radial-gradient(700px 420px at 0% 0%, rgba(59,130,246,.04), transparent 55%),
-      var(--bg);
+    font-size: 15px;
+    line-height: 1.6;
+    background: var(--ground);
     color: var(--text);
     -webkit-font-smoothing: antialiased;
-    /* Sticky footer: body is a full-viewport-height flex column and the
-       footer (last child) gets margin-top:auto, which pushes it to the
-       bottom of the viewport on short pages (login, a fresh account with
-       no scans yet) instead of riding up right under sparse content -
-       every other child just stacks normally above it. */
+    text-rendering: optimizeLegibility;
+    /* Sticky footer: body is a full-height flex column and .site-footer
+       (last child) takes margin-top:auto, pinning it to the bottom on
+       sparse pages instead of riding up under the content. */
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -89,155 +252,157 @@
   ::selection { background: var(--accent-dim); color: var(--text); }
   :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
 
-  /* Buttons */
+  /* Digits that sit in columns must not jitter between rows. */
+  table, .mono, .gauge-num .n, .metric-value { font-variant-numeric: tabular-nums; }
+
+  /* ---- Buttons ---------------------------------------------------- */
   .btn { display:inline-flex; align-items:center; gap:8px; cursor:pointer; text-decoration:none;
-    padding: 11px 20px; border-radius: 10px; font-weight:600; font-size:14px; border:1px solid transparent;
-    transition: transform 150ms ease, filter 150ms ease, background 150ms ease; }
-  .btn:hover { filter: brightness(1.08); }
+    padding: 11px 20px; border-radius: var(--radius-sm); font-weight:600; font-size:14px;
+    border:1px solid transparent; font-family: inherit;
+    transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease; }
   .btn:active { transform: translateY(1px); }
-  .btn.primary { background: var(--accent); color: #041007; }
-  .btn.secondary { border-color: var(--border); color: var(--text); background: var(--panel); }
+  .btn.primary { background: var(--accent); color: var(--on-accent); }
+  .btn.primary:hover { background: var(--accent2); }
+  .btn.secondary { border-color: var(--border-strong); color: var(--text); background: var(--panel); }
+  .btn.secondary:hover { border-color: var(--accent); color: var(--accent); }
   .btn.ghost { color: var(--muted); background: transparent; }
-  .btn.destructive { background: rgba(248,113,113,.09); border: 1px solid rgba(248,113,113,.35); color: var(--critical); }
+  .btn.ghost:hover { color: var(--text); background: var(--panel2); }
+  .btn.destructive { background: var(--critical-bg); border-color: var(--critical); color: var(--critical); }
+  .btn.destructive:hover { background: var(--critical); color: var(--panel); }
   .btn.block { width: 100%; justify-content: center; }
-  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
 
-  /* Badges / pills / severity tokens */
-  .pill { display:inline-block; font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
-  .pill.critical, .badge.critical, .dot.critical { background: rgba(248,113,113,.14); color: var(--critical); }
-  .pill.high, .badge.high, .dot.high { background: rgba(251,146,60,.14); color: var(--high); }
-  .pill.medium, .badge.medium, .dot.medium { background: rgba(251,191,36,.14); color: var(--medium); }
-  .pill.low, .badge.low, .dot.low { background: rgba(96,165,250,.14); color: var(--low); }
-  .pill.info, .badge.info, .dot.info { background: rgba(139,150,173,.14); color: var(--info); }
-  .pill.pass, .badge.pass, .dot.pass { background: rgba(34,197,94,.14); color: var(--pass); }
-  /* Deliberately neutral, non-severity, non-accent variant - an OWASP/ASVS
-     compliance-category tag is not a severity signal, so it must not reuse
-     any of the severity-colored .pill variants above (03-UI-SPEC.md Color). */
-  .pill.compliance { background: rgba(139,150,173,.14); color: var(--muted); }
+  /* ---- Badges / pills / severity ---------------------------------- */
+  .pill { display:inline-block; font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px;
+    text-transform:uppercase; letter-spacing:.04em; font-family:"Fira Code",monospace; }
+  .pill.critical, .badge.critical, .dot.critical { background: var(--critical-bg); color: var(--critical); }
+  .pill.high,     .badge.high,     .dot.high     { background: var(--high-bg);     color: var(--high); }
+  .pill.medium,   .badge.medium,   .dot.medium   { background: var(--medium-bg);   color: var(--medium); }
+  .pill.low,      .badge.low,      .dot.low      { background: var(--low-bg);      color: var(--low); }
+  .pill.info,     .badge.info,     .dot.info     { background: var(--info-bg);     color: var(--info); }
+  .pill.pass,     .badge.pass,     .dot.pass     { background: var(--pass-bg);     color: var(--pass); }
+  /* An OWASP/ASVS compliance tag is a category, not a severity, so it must
+     not borrow any severity color. */
+  .pill.compliance { background: var(--info-bg); color: var(--muted); }
 
-  /* Scan-status pill - sibling component to .pill above, shared by
-     dashboard.html's "Your scans" table and org_admin.html's "Org scan
-     history" table so the same Scan.status field renders identically on
-     both pages. */
-  .status-pill { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em; }
-  .status-pill.completed { background: rgba(34,197,94,.14); color: var(--accent); }
-  .status-pill.running, .status-pill.queued { background: rgba(56,189,248,.14); color: var(--telemetry); }
-  .status-pill.failed { background: rgba(248,113,113,.14); color: var(--critical); }
-  /* Optional leading dot, used by scan_progress.html's live feed - additive,
-     absent from dashboard.html/org_admin.html's plain-text .status-pill usage. */
-  .status-pill .dot { width:6px; height:6px; border-radius:50%; background: currentColor; box-shadow: 0 0 6px currentColor; flex-shrink:0; }
+  /* Scan-status pill - shared by dashboard.html's "Your scans" table and
+     org_admin.html's "Org scan history" so one Scan.status renders alike. */
+  .status-pill { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600;
+    padding:3px 9px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em;
+    font-family:"Fira Code",monospace; }
+  .status-pill.completed { background: var(--pass-bg); color: var(--accent); }
+  .status-pill.running, .status-pill.queued { background: var(--telemetry-dim); color: var(--telemetry); }
+  .status-pill.failed { background: var(--critical-bg); color: var(--critical); }
+  .status-pill .dot { width:6px; height:6px; border-radius:50%; background: currentColor; flex-shrink:0; }
 
-  /* Bare severity text-color utilities - scan_report.html applies these
-     directly to <td>/<span> in its result tables (e.g. class="critical"),
-     distinct from the .pill/.badge/.dot compound selectors above. */
+  /* Bare severity text utilities - scan_report.html puts these straight on
+     <td>/<span>, distinct from the .pill/.badge/.dot compounds above. */
   td.critical, span.critical, .text-critical { color: var(--critical); }
-  td.high, span.high, .text-high { color: var(--high); }
-  td.medium, span.medium, .text-medium { color: var(--medium); }
-  td.low, span.low, .text-low { color: var(--low); }
-  td.info, span.info, .text-info { color: var(--info); }
-  td.pass, span.pass, .text-pass { color: var(--pass); }
+  td.high,     span.high,     .text-high     { color: var(--high); }
+  td.medium,   span.medium,   .text-medium   { color: var(--medium); }
+  td.low,      span.low,      .text-low      { color: var(--low); }
+  td.info,     span.info,     .text-info     { color: var(--info); }
+  td.pass,     span.pass,     .text-pass     { color: var(--pass); }
 
-  /* Findings list - clean card style, no side-tab borders */
-  .finding { display:flex; gap:14px; background: var(--panel); border:1px solid var(--border); border-radius: var(--radius); padding: var(--space-4) var(--space-4); margin-bottom: var(--space-2); }
-  .finding .badge { flex-shrink:0; font-size:11px; font-weight:600; padding: 3px 9px; border-radius: 6px; text-transform: uppercase; letter-spacing:.04em; height: fit-content; }
-  /* .finding is a flex row, so any direct-child span without its own
-     height override stretches to the row's full height (flex default
-     align-items:stretch) - .badge already accounted for this, but
-     .pill.compliance (the OWASP-mapping pill) didn't, and its
-     border-radius:999px on a stretched multi-line-tall box rendered as a
-     huge oval blob instead of a small pill. */
+  /* ---- Findings ---------------------------------------------------
+     Severity is now encoded in FORM as well as color: a 3px left stripe
+     means the row's weight survives greyscale printing, color-blindness,
+     and a quick scan down the page. */
+  .finding { display:flex; gap:14px; background: var(--panel); border:1px solid var(--border);
+    border-left: 3px solid var(--border-strong); border-radius: var(--radius);
+    padding: var(--space-4); margin-bottom: var(--space-2); }
+  .finding:has(.badge.critical) { border-left-color: var(--critical); }
+  .finding:has(.badge.high)     { border-left-color: var(--high); }
+  .finding:has(.badge.medium)   { border-left-color: var(--medium); }
+  .finding:has(.badge.low)      { border-left-color: var(--low); }
+  .finding:has(.badge.info)     { border-left-color: var(--info); }
+  .finding:has(.badge.pass)     { border-left-color: var(--pass); }
+  .finding .badge { flex-shrink:0; font-size:11px; font-weight:600; padding: 3px 9px;
+    border-radius: 6px; text-transform: uppercase; letter-spacing:.04em; height: fit-content;
+    font-family:"Fira Code",monospace; }
+  /* .finding is a flex row, so a direct-child span with no height rule
+     stretches to the row height - which turned the 999px-radius
+     compliance pill into a huge oval. Both it and .badge opt out. */
   .finding .pill.compliance { flex-shrink:0; height: fit-content; }
   .finding .body b { font-size: 14px; font-weight: 600; }
-  .finding .cat { flex-shrink:0; height: fit-content; color: var(--muted); font-size: 11px; text-transform:uppercase; letter-spacing:.06em; font-family:"Fira Code",monospace; }
+  .finding .cat { flex-shrink:0; height: fit-content; color: var(--faint); font-size: 11px;
+    text-transform:uppercase; letter-spacing:.06em; font-family:"Fira Code",monospace; }
   .finding .detail { font-size: 13px; color: var(--muted); margin-top: 4px; }
   .finding .rec { font-size: 13px; margin-top: 6px; }
   .finding .rec b { color: var(--accent); font-weight: 700; }
 
-  /* Score gauge - shared by dashboard.html / scan_report.html via _gauge.html */
-  .score-card { display:flex; align-items:center; gap:var(--space-5); background: linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--border); border-radius:var(--radius-lg); padding:var(--space-5) var(--space-6); margin-top:var(--space-5); }
+  /* ---- Score gauge (shared via _gauge.html) ------------------------ */
+  .score-card { display:flex; align-items:center; gap:var(--space-5); background: var(--panel);
+    border:1px solid var(--border); border-radius:var(--radius-lg);
+    padding:var(--space-5) var(--space-6); margin-top:var(--space-5); box-shadow: var(--shadow-sm); }
   .gauge-wrap { position:relative; width:110px; height:110px; flex-shrink:0; }
   .gauge-wrap svg { transform: rotate(-90deg); }
-  .gauge-bg { fill:none; stroke: rgba(255,255,255,.06); stroke-width: 10; }
+  .gauge-bg { fill:none; stroke: var(--panel2); stroke-width: 10; }
   .gauge-fg { fill:none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 1s ease; }
-  /* Token-based SVG stroke rules, additive to the base .gauge-fg rule above -
-     let _gauge.html emit a class instead of a raw hex stroke="" attribute.
-     Defined here (rather than in the plan that consumes them) so base.html,
-     the sole wave-1-owned file, already carries the full class surface
-     wave 2's plans need. */
   .gauge-fg.pass { stroke: var(--pass); }
   .gauge-fg.medium { stroke: var(--medium); }
   .gauge-fg.high { stroke: var(--high); }
   .gauge-fg.critical { stroke: var(--critical); }
   .gauge-num { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-  .gauge-num .n { font-size: 26px; font-weight: 600; font-family:"Fira Code",monospace; }
-  .gauge-num .g { font-size: 11px; color: var(--muted); }
+  .gauge-num .n { font-size: 28px; font-weight: 600; font-family:"Fira Code",monospace; letter-spacing:-.02em; }
+  .gauge-num .g { font-size: 11px; color: var(--muted); font-family:"Fira Code",monospace; letter-spacing:.06em; }
 
   .icon { width:18px; height:18px; flex-shrink:0; stroke: currentColor; fill:none; stroke-width:1.8; vertical-align:-3px; }
-
-  /* Promoted from asset_detail.html's local-only copy (same reasoning as
-     .card's promotion in Phase 6) - the phase-wide 44px touch-target floor
-     for any icon-only control inside a mobile record card. asset_detail.html
-     keeps its identical local copy for now (inert duplicate); plan 07-03
-     removes it once that file is in scope. */
+  /* 44px touch-target floor for any icon-only control. */
   .icon-btn { min-width: 44px; min-height: 44px; padding: 0; justify-content: center; }
   .icon-btn .icon { width: 18px; height: 18px; }
 
-  .warn-box { display:flex; gap:12px; align-items:flex-start; background: rgba(251,191,36,.07); border: 1px solid rgba(251,191,36,.3); padding: var(--space-4); border-radius: var(--radius); font-size: 15px; margin-bottom: var(--space-5); color: var(--text); }
+  /* ---- Message boxes ---------------------------------------------- */
+  .warn-box { display:flex; gap:12px; align-items:flex-start; background: var(--medium-bg);
+    border: 1px solid var(--medium); border-left-width: 3px; padding: var(--space-4);
+    border-radius: var(--radius); font-size: 15px; margin-bottom: var(--space-5); color: var(--text); }
   .warn-box .icon { color: var(--medium); margin-top:2px; }
-  .error-box { background: rgba(248,113,113,.09); border: 1px solid rgba(248,113,113,.35); padding: var(--space-3) var(--space-4); border-radius: var(--radius); margin-bottom: var(--space-4); color: var(--critical); font-size: 15px; }
-  .info-box { background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.3); padding: var(--space-3) var(--space-4); border-radius: var(--radius); margin-bottom: var(--space-4); color: var(--text); font-size: 15px; }
+  .error-box { background: var(--critical-bg); border: 1px solid var(--critical); border-left-width: 3px;
+    padding: var(--space-3) var(--space-4); border-radius: var(--radius);
+    margin-bottom: var(--space-4); color: var(--critical); font-size: 15px; }
+  .info-box { background: var(--accent-dim); border: 1px solid var(--accent); border-left-width: 3px;
+    padding: var(--space-3) var(--space-4); border-radius: var(--radius);
+    margin-bottom: var(--space-4); color: var(--text); font-size: 15px; }
 
-  /* .card's canonical definition - every template that uses this class
-     already locally overrode it to this exact gradient/16px-radius shape
-     (dashboard/billing/org_admin/org_verify_domain/scan_progress/the five
-     scan_new_* pages via _scan_form_styles.html/the auth pages), so this
-     is that same, already-converged-on value promoted to the shared
-     default rather than a new design choice - only 404/429/500.html were
-     actually relying on the old flat/no-margin version, and those pages
-     override padding/margin inline anyway (inline styles always win), so
-     this change is visually inert there and a small consistency win. */
-  .card { background: linear-gradient(180deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 22px; margin-bottom: 18px; }
+  /* ---- Cards ------------------------------------------------------
+     Flattened to a single border + hairline shadow. The old
+     linear-gradient(panel -> panel2) is the single treatment that most
+     dated the UI, and it reads as muddy on a light ground. */
+  .card { background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 22px; margin-bottom: 18px;
+    box-shadow: var(--shadow-sm); }
 
-  /* Shared page-title rules, promoted from four near-identical local
-     overrides (dashboard/billing/org_admin/org_verify_domain) - same
-     reasoning as .card above. dashboard.html keeps a 2-line local
-     override for its extra top margin rather than this changing for
-     everyone. */
-  h1 { font-size: 28px; line-height: 1.2; letter-spacing: -0.01em; margin: 0 0 6px; }
-  h2 { font-size: 20px; line-height: 1.25; letter-spacing: -0.01em; }
+  /* ---- Typography scale ------------------------------------------- */
+  h1 { font-size: 28px; line-height: 1.2; letter-spacing: -0.02em; margin: 0 0 6px; text-wrap: balance; }
+  h2 { font-size: 20px; line-height: 1.25; letter-spacing: -0.015em; text-wrap: balance; }
   h3 { font-size: 16px; line-height: 1.3; letter-spacing: -0.01em; }
   h4 { font-size: 14px; line-height: 1.35; letter-spacing: normal; }
-  h2.section { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; line-height: 1.4; margin: 32px 0 12px; }
+  /* Instrument legend: a small monospace all-caps rule, used for section
+     eyebrows across the app. */
+  h2.section { font-size: 11px; font-weight: 600; color: var(--faint); text-transform: uppercase;
+    letter-spacing: .1em; line-height: 1.4; margin: 32px 0 12px; font-family:"Fira Code",monospace; }
+
+  /* ---- Tables ----------------------------------------------------- */
   table { width:100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align:left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  table tbody tr:hover td { background: rgba(255,255,255,.025); }
-  /* Deliberate mobile strategy for data tables: unbreakable content (email
-     addresses, URLs) forces a table wider than its card at narrow
-     viewports since table cells don't wrap mid-string. Without this, that
-     overflow was silently clipped at the card's edge with no way to reach
-     the cut-off columns - .table-scroll makes it a horizontal scroll
-     instead. Wrap every <table> in the app with <div class="table-scroll">. */
+  th, td { text-align:left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-family:"Fira Code",monospace; font-size: 10.5px; font-weight: 600; color: var(--faint);
+    text-transform: uppercase; letter-spacing: .07em; border-bottom: 1px solid var(--border-strong); }
+  table tbody tr:hover td { background: var(--panel2); }
+  /* Deliberate mobile strategy: unbreakable cell content (emails, URLs)
+     forces a table wider than its card, and that overflow used to be
+     silently clipped with no way to reach the cut-off columns. Wrap every
+     <table> in the app with <div class="table-scroll">. */
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-  /* D-01: dual-markup table/card swap. Every record-list table in the app
-     renders BOTH a semantic <table> (wrapped ".table-scroll desktop-table")
-     and a curated ".mobile-record-cards" <ul> from the same collection -
-     the @media rule below shows exactly one of the two at any width. See
-     07-UI-SPEC.md's "Mobile Stacked-Card Pattern (D-01)" and "Breakpoints"
-     sections for the full card anatomy and the 430px boundary rationale. */
+  /* ---- Dual-markup table/card swap (D-01) -------------------------
+     Every record-list renders BOTH a semantic <table> (".table-scroll
+     desktop-table") and a curated ".mobile-record-cards" <ul> from the
+     same collection; the @media rule shows exactly one at any width. */
   .mobile-record-cards { display: none; list-style: none; margin: 0; padding: 0; }
-  /* Applied together with .card on the same <li> - only adjusts what .card
-     does not already supply (background/border/border-radius stay .card's).
-     margin-bottom:0 because the list's own `gap` owns inter-card spacing
-     instead of .card's 18px bottom margin. */
   .record-card { padding: var(--space-4); margin-bottom: 0; }
   .record-card-top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); min-width: 0; }
   .record-card-id { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
   .record-card-meta { font-size: 13px; color: var(--muted); margin-top: var(--space-2); word-break: break-word; }
-  /* Progressive-disclosure hook for wave-2 pages that need to reveal more
-     per-record detail than the curated summary line - dashboard.html itself
-     does not use this, but it's defined here so base.html (the sole
-     wave-1-owned file) already carries every class wave 2 needs. */
   .record-card-details { margin-top: var(--space-2); font-size: 13px; color: var(--muted); }
   .record-card-details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--text); font-weight: 600; }
   .record-card-action { margin-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
@@ -247,18 +412,18 @@
     .mobile-record-cards { display: flex; flex-direction: column; gap: var(--space-3); }
   }
 
-  /* Operator-console motion language - subtle opacity pulse for "in progress" states. */
-  @keyframes glow-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+  /* ---- Motion ----------------------------------------------------- */
+  @keyframes glow-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
   @keyframes scan-sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
   @media (prefers-reduced-motion: no-preference) {
     .glow-pulse { animation: glow-pulse 2.2s ease-in-out infinite; }
   }
   @media (prefers-reduced-motion: reduce) {
     .glow-pulse { opacity: .7; }
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
   }
 
-  /* Live-feed state dot: solid color while a check is in flight, swapped
-     to green on completion - see scan_progress.html. No glow shadows. */
+  /* Live-feed state dot: telemetry blue in flight, accent on completion. */
   .telemetry-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; background: var(--telemetry); color: var(--telemetry); }
   .telemetry-dot.done { background: var(--accent); color: var(--accent); animation: none; }
   .telemetry-dot.failed { background: var(--critical); color: var(--critical); animation: none; }
@@ -266,33 +431,67 @@
   a.back { color: var(--accent); text-decoration:none; font-size: 13px; font-weight:600; }
   a.back:hover { text-decoration:underline; }
 
-  /* Skip-to-content link for keyboard/screen-reader users */
-  .skip-link { position:absolute; top:-100%; left:16px; z-index:1000; padding:12px 20px; background:var(--accent); color:#041007; font-weight:600; font-size:14px; border-radius:0 0 var(--radius-sm) var(--radius-sm); text-decoration:none; }
+  .skip-link { position:absolute; top:-100%; left:16px; z-index:1000; padding:12px 20px;
+    background:var(--accent); color:var(--on-accent); font-weight:600; font-size:14px;
+    border-radius:0 0 var(--radius-sm) var(--radius-sm); text-decoration:none; }
   .skip-link:focus { top:0; }
 
-  /* ---- Sidebar navigation (authenticated pages) ---- */
+  /* ---- Theme toggle ----------------------------------------------- */
+  .theme-toggle { display:inline-flex; align-items:center; justify-content:center;
+    width:36px; height:36px; padding:0; border-radius:var(--radius-sm);
+    background:transparent; border:1px solid var(--border); color:var(--muted);
+    cursor:pointer; transition: color 140ms ease, border-color 140ms ease; }
+  .theme-toggle:hover { color:var(--text); border-color:var(--border-strong); }
+  .theme-toggle .icon { width:17px; height:17px; }
+  /* Show exactly one glyph per theme. */
+  .theme-toggle .icon-sun { display:none; }
+  .theme-toggle .icon-moon { display:block; }
+  @media (prefers-color-scheme: dark) {
+    .theme-toggle .icon-sun { display:block; }
+    .theme-toggle .icon-moon { display:none; }
+  }
+  :root[data-theme="dark"] .theme-toggle .icon-sun { display:block; }
+  :root[data-theme="dark"] .theme-toggle .icon-moon { display:none; }
+  :root[data-theme="light"] .theme-toggle .icon-sun { display:none; }
+  :root[data-theme="light"] .theme-toggle .icon-moon { display:block; }
+
+  /* ---- Sidebar navigation (authenticated) ------------------------- */
   .app-shell { display:flex; min-height:100vh; }
-  .sidebar { width:240px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--border); padding:24px 0; display:flex; flex-direction:column; position:fixed; top:0; left:0; bottom:0; z-index:100; overflow-y:auto; }
-  .sidebar-brand { display:flex; align-items:center; gap:10px; padding:0 24px 24px; border-bottom:1px solid var(--border); text-decoration:none; color:var(--text); font-weight:600; font-size:16px; }
+  .sidebar { width:240px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--border);
+    padding:24px 0; display:flex; flex-direction:column; position:fixed; top:0; left:0; bottom:0;
+    z-index:100; overflow-y:auto; }
+  .sidebar-brand { display:flex; align-items:center; gap:10px; padding:0 24px 24px;
+    border-bottom:1px solid var(--border); text-decoration:none; color:var(--text);
+    font-weight:700; font-size:16px; letter-spacing:-.01em; }
   .sidebar-brand .icon { color:var(--accent); width:22px; height:22px; }
   .sidebar-nav { flex:1; padding:16px 12px; display:flex; flex-direction:column; gap:2px; }
-  .sidebar-section { font-size:10px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; padding:16px 12px 6px; }
-  .sidebar-nav a { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:var(--radius-sm); color:var(--muted); text-decoration:none; font-size:13px; font-weight:500; transition: background 150ms ease, color 150ms ease; }
-  .sidebar-nav a:hover { background:rgba(255,255,255,.04); color:var(--text); }
-  .sidebar-nav a.active { background:var(--accent-dim); color:var(--accent); }
+  .sidebar-section { font-size:10px; font-weight:600; color:var(--faint); text-transform:uppercase;
+    letter-spacing:.1em; padding:16px 12px 6px; font-family:"Fira Code",monospace; }
+  .sidebar-nav a { display:flex; align-items:center; gap:10px; padding:9px 12px;
+    border-radius:var(--radius-sm); color:var(--muted); text-decoration:none; font-size:13px;
+    font-weight:500; transition: background 140ms ease, color 140ms ease; }
+  .sidebar-nav a:hover { background:var(--panel2); color:var(--text); }
+  .sidebar-nav a.active { background:var(--accent-dim); color:var(--accent); font-weight:600; }
   .sidebar-nav a .icon { width:16px; height:16px; }
-  .sidebar-footer { padding:16px 12px; border-top:1px solid var(--border); }
-  .sidebar-footer a { display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:var(--radius-sm); color:var(--muted); text-decoration:none; font-size:13px; font-weight:500; transition: background 150ms ease, color 150ms ease; }
-  .sidebar-footer a:hover { background:rgba(255,255,255,.04); color:var(--text); }
+  .sidebar-footer { padding:16px 12px; border-top:1px solid var(--border);
+    display:flex; align-items:center; gap:8px; }
+  .sidebar-footer a { display:flex; align-items:center; gap:10px; padding:9px 12px; flex:1;
+    border-radius:var(--radius-sm); color:var(--muted); text-decoration:none; font-size:13px;
+    font-weight:500; transition: background 140ms ease, color 140ms ease; }
+  .sidebar-footer a:hover { background:var(--panel2); color:var(--text); }
   .sidebar-footer a .icon { width:16px; height:16px; }
   .app-content { flex:1; margin-left:240px; min-width:0; }
 
-  /* ---- Top nav (anonymous pages only) ---- */
-  .topnav { width: 100%; max-width: var(--container-app); margin: 0 auto; padding: 20px var(--gutter-app) 0; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
-  .topnav .brand-link { color: var(--text); text-decoration:none; font-weight:600; font-size:16px; display:flex; align-items:center; gap:9px; }
+  /* ---- Top nav (anonymous) ---------------------------------------- */
+  .topnav { width: 100%; max-width: var(--container-app); margin: 0 auto;
+    padding: 20px var(--gutter-app) 0; display:flex; justify-content:space-between;
+    align-items:center; gap:16px; flex-wrap:wrap; }
+  .topnav .brand-link { color: var(--text); text-decoration:none; font-weight:700; font-size:16px;
+    display:flex; align-items:center; gap:9px; letter-spacing:-.01em; }
   .topnav .brand-link .icon { color: var(--accent); width:22px; height:22px; }
   .topnav .nav-links { display:flex; gap:22px; align-items:center; flex-wrap:wrap; margin-left: auto; }
-  .topnav .nav-links a { color: var(--muted); text-decoration:none; font-size: 13px; font-weight:600; transition: color 150ms ease; }
+  .topnav .nav-links a { color: var(--muted); text-decoration:none; font-size: 13px; font-weight:600;
+    transition: color 140ms ease; }
   .topnav .nav-links a:hover { color: var(--text); }
   .topnav .nav-links a.cta-link { color: var(--accent); }
   .topnav .nav-links a.nav-auth-link { font-size: 16px; }
@@ -302,21 +501,25 @@
     .app-content { margin-left:0; }
     .mobile-topbar { display:flex !important; }
   }
-  .mobile-topbar { display:none; width:100%; padding:12px var(--gutter-app); background:var(--panel); border-bottom:1px solid var(--border); align-items:center; justify-content:space-between; }
-  .mobile-topbar .brand-link { color:var(--text); text-decoration:none; font-weight:600; font-size:15px; display:flex; align-items:center; gap:8px; }
+  .mobile-topbar { display:none; width:100%; padding:12px var(--gutter-app); background:var(--panel);
+    border-bottom:1px solid var(--border); align-items:center; justify-content:space-between; }
+  .mobile-topbar .brand-link { color:var(--text); text-decoration:none; font-weight:700; font-size:15px;
+    display:flex; align-items:center; gap:8px; }
   .mobile-topbar .brand-link .icon { color:var(--accent); width:20px; height:20px; }
   .mobile-topbar .nav-links { display:flex; gap:16px; align-items:center; }
   .mobile-topbar .nav-links a { color:var(--muted); text-decoration:none; font-size:13px; font-weight:600; }
   .mobile-topbar .nav-links a:hover { color:var(--text); }
 
-  /* width:100% - same shrink-to-fit fix as .topnav above (direct flex
-     child of body with auto side-margins). For sidebar pages, .wrap is
-     inside .app-content which already handles the flex layout. */
-  .wrap { width: 100%; max-width: var(--container-app); margin: 0 auto; padding: var(--space-6) var(--gutter-app) calc(var(--space-7) * 2); }
+  /* width:100% - .wrap is a direct flex child of body with auto side
+     margins, which would otherwise shrink-to-fit. */
+  .wrap { width: 100%; max-width: var(--container-app); margin: 0 auto;
+    padding: var(--space-6) var(--gutter-app) calc(var(--space-7) * 2); }
   .sidebar-page .wrap { max-width: 100%; padding-left: clamp(24px, 4vw, 48px); padding-right: clamp(24px, 4vw, 48px); }
 
   .site-footer { border-top: 1px solid var(--border); margin-top: auto; }
-  .footer-inner { max-width: var(--container-app); margin: 0 auto; padding: 20px var(--gutter-app); display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; color: var(--muted); font-size: 13px; }
+  .footer-inner { max-width: var(--container-app); margin: 0 auto; padding: 20px var(--gutter-app);
+    display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;
+    color: var(--muted); font-size: 13px; }
   .footer-inner a { color: var(--muted); text-decoration:none; }
   .footer-inner a:hover { color: var(--text); }
 </style>
@@ -326,9 +529,7 @@
   <!-- Shared icon sprite - reference any symbol with
        <svg class="icon"><use href="#icon-NAME"/></svg>. Hand-authored,
        one consistent stroke/weight (matches .icon's stroke:currentColor;
-       stroke-width:1.8 convention), not a icon-font/emoji substitute.
-       Category icons for the scan-progress live feed (Phase 2 redesign)
-       live here so any future page can reuse them without re-drawing. -->
+       stroke-width:1.8 convention), not an icon-font/emoji substitute. -->
   <svg style="position:absolute; width:0; height:0; overflow:hidden;" aria-hidden="true">
     <symbol id="icon-shield" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5l-8-3Z"/></symbol>
     <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
@@ -348,6 +549,8 @@
     <symbol id="icon-sso" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline stroke-linecap="round" stroke-linejoin="round" points="10,17 15,12 10,7"/><line stroke-linecap="round" stroke-linejoin="round" x1="15" y1="12" x2="3" y2="12"/></symbol>
     <symbol id="icon-chart" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18"/><path stroke-linecap="round" stroke-linejoin="round" d="m7 16 4-8 4 4 4-6"/></symbol>
     <symbol id="icon-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8Z"/></symbol>
   </svg>
 
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -409,6 +612,10 @@
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline stroke-linecap="round" stroke-linejoin="round" points="16,17 21,12 16,7"/><line stroke-linecap="round" stroke-linejoin="round" x1="21" y1="12" x2="9" y2="12"/></svg>
           Logout
         </a>
+        <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch between light and dark theme">
+          <svg class="icon icon-sun" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sun"/></svg>
+          <svg class="icon icon-moon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-moon"/></svg>
+        </button>
       </div>
     </aside>
     <div class="app-content">
@@ -434,6 +641,10 @@
     <div class="nav-links">
       <a href="{{ url_for('auth.login') }}" class="nav-auth-link">Login</a>
       <a href="{{ url_for('auth.signup') }}" class="nav-auth-link cta-link">Sign up</a>
+      <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch between light and dark theme">
+        <svg class="icon icon-sun" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sun"/></svg>
+        <svg class="icon icon-moon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-moon"/></svg>
+      </button>
     </div>
   </div>
   {% endif %}
@@ -463,7 +674,25 @@
       <span><a href="{{ url_for('public.terms') }}">Terms</a> &middot; <a href="{{ url_for('public.privacy') }}">Privacy</a></span>
     </div>
   </footer>
-  <script>
+  <script nonce="{{ csp_nonce }}">
+  (function () {
+    // Theme toggle. Flips to the opposite of what is currently *rendered*
+    // (explicit attribute if set, else the OS preference) and remembers it.
+    function current() {
+      var set = document.documentElement.getAttribute('data-theme');
+      if (set === 'light' || set === 'dark') return set;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var next = current() === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        try { localStorage.setItem('gb-theme', next); } catch (e) { /* storage blocked */ }
+      });
+    });
+  })();
+  </script>
+  <script nonce="{{ csp_nonce }}">
   (function () {
     // Code-only keep-alive heartbeat: pings /healthz every 4 minutes while
     // this tab is open and visible, to help stop a free-tier host (e.g.
@@ -480,7 +709,7 @@
   })();
   </script>
   {% if current_user.is_authenticated %}
-  <script>
+  <script nonce="{{ csp_nonce }}">
   (function () {
     // Client-side complement to __init__.py's server-side
     // _enforce_idle_timeout: that hook only fires on the *next* request

@@ -11,7 +11,7 @@ requires:
 provides:
   - "End-to-end proof that six user/target-controlled strings (finding title, finding detail, ai_summary, org name, domain name, flashed error) render HTML-escaped, plus a CSV counter-case pinning that non-HTML export output is deliberately NOT escaped"
   - "Standing, comment-filtered source-level locks: no template disables autoescape or uses |safe, no module builds Markup()/calls render_template_string(), and an exact-set allowlist of the only two raw db.session.execute() call sites in the app, each independently proven safe (literal string / bound Core update)"
-  - "webvulnscanner/scan_engine.read_report_file() - one containment-checked reader replacing three independent inline REPORTS_DIR-joined open() blocks in scan_routes.py, api_routes.py and asset_routes.py, each keeping its own original failure contract"
+  - "glassbox/scan_engine.read_report_file() - one containment-checked reader replacing three independent inline REPORTS_DIR-joined open() blocks in scan_routes.py, api_routes.py and asset_routes.py, each keeping its own original failure contract"
   - "A reachability analysis recorded plainly: report-path traversal is not exploitable today (Report.json_path is server-generated only), so SEC-06's fix is defence in depth, not a live-vulnerability patch"
 affects: [08-06, 08-07]
 
@@ -32,10 +32,10 @@ key-files:
   created: []
   modified:
     - tests/test_injection_and_traversal.py
-    - webvulnscanner/scan_engine.py
-    - webvulnscanner/scan_routes.py
-    - webvulnscanner/api_routes.py
-    - webvulnscanner/asset_routes.py
+    - glassbox/scan_engine.py
+    - glassbox/scan_routes.py
+    - glassbox/api_routes.py
+    - glassbox/asset_routes.py
 
 key-decisions:
   - "SEC-04/SEC-05 needed proof and a standing lock, not a fix - 08-RESEARCH.md's audit found the codebase already correct (zero unsafe-filter usages, zero markup-construction calls, exactly two non-builder DB calls) and this plan's own re-scan confirmed the same zero-hit result before locking it in."
@@ -44,7 +44,7 @@ key-decisions:
   - "The reader's docstring explicitly states this is defence in depth, not a live-vulnerability fix, and the reachability chain (save_report() is the only writer of Report.json_path, always from a server-generated hostname+timestamp, never from a request parameter) is recorded both in code and in this summary - the plan's own must_haves required not overstating this as an exploit fix."
 
 patterns-established:
-  - "tests/test_injection_and_traversal.py is now the shared home for SEC-04/05/06 as one audit sweep (one payload constant, one templates/ scan, one webvulnscanner/ scan, one containment-checked-reader section) rather than three separate test modules - reused directly by 08-04's coordination note and available as the pattern for any future 'prove X holds everywhere' requirement."
+  - "tests/test_injection_and_traversal.py is now the shared home for SEC-04/05/06 as one audit sweep (one payload constant, one templates/ scan, one glassbox/ scan, one containment-checked-reader section) rather than three separate test modules - reused directly by 08-04's coordination note and available as the pattern for any future 'prove X holds everywhere' requirement."
 
 requirements-completed: [SEC-04, SEC-05, SEC-06]
 
@@ -73,7 +73,7 @@ coverage:
         ref: "tests/test_injection_and_traversal.py::test_no_template_disables_autoescaping_or_uses_safe_filter, test_no_module_constructs_markup_or_renders_template_string"
         status: pass
       - kind: manual
-        ref: "Negative controls performed live during this recovery pass and reverted clean: (1) appended {{ \"neg-control\"|safe }} to templates/marketing.html -> AssertionError naming templates/marketing.html:484, mechanism '|safe filter'; (2) appended a Markup(\"<b>x</b>\") return to webvulnscanner/public_routes.py -> AssertionError naming webvulnscanner/public_routes.py:45. Both reverted via git checkout, diffs confirmed empty."
+        ref: "Negative controls performed live during this recovery pass and reverted clean: (1) appended {{ \"neg-control\"|safe }} to templates/marketing.html -> AssertionError naming templates/marketing.html:484, mechanism '|safe filter'; (2) appended a Markup(\"<b>x</b>\") return to glassbox/public_routes.py -> AssertionError naming glassbox/public_routes.py:45. Both reverted via git checkout, diffs confirmed empty."
         status: pass
     human_judgment: false
   - id: D4
@@ -84,7 +84,7 @@ coverage:
         ref: "tests/test_injection_and_traversal.py::test_raw_sql_execute_call_sites_are_exactly_the_two_known_ones, test_healthcheck_sql_argument_is_a_literal_string_constant, test_scheduler_update_binds_values_as_parameters"
         status: pass
       - kind: manual
-        ref: "Negative control performed live and reverted clean: appended a third db.session.execute(\"SELECT 1\") call to webvulnscanner/public_routes.py -> AssertionError: 'raw db.session.execute() call site(s) changed (SEC-05 regression) - expected exactly [(...healthz), (...try_claim)], found [(...healthz), (..._neg_control_execute), (...try_claim)]'. Reverted via git checkout, diff confirmed empty."
+        ref: "Negative control performed live and reverted clean: appended a third db.session.execute(\"SELECT 1\") call to glassbox/public_routes.py -> AssertionError: 'raw db.session.execute() call site(s) changed (SEC-05 regression) - expected exactly [(...healthz), (...try_claim)], found [(...healthz), (..._neg_control_execute), (...try_claim)]'. Reverted via git checkout, diff confirmed empty."
         status: pass
     human_judgment: false
   - id: D5
@@ -140,7 +140,7 @@ status: complete
 
 - Proved six user/target-controlled strings (finding title, finding detail, `ai_summary`, org name, domain name, flashed error message) render HTML-escaped wherever Jinja2 puts them on the page - each test asserts the escaped form is present AND the raw form is absent, using a single module-level payload constant with escaped/raw forms both derived via `markupsafe.escape` (never retyped by hand).
 - Pinned the deliberate counter-case: CSV export output is NOT HTML-escaped (it isn't HTML), so a future "fix" that escapes it would itself be the regression.
-- Added two standing, comment-filtered source-level locks: no template under `templates/` disables autoescape or uses `|safe`; no module under `webvulnscanner/` constructs `Markup()` or calls `render_template_string()`. Both confirmed zero-hit on the real codebase, then negative-controlled live during this recovery pass (see Negative Controls below) with the resulting failure text captured verbatim.
+- Added two standing, comment-filtered source-level locks: no template under `templates/` disables autoescape or uses `|safe`; no module under `glassbox/` constructs `Markup()` or calls `render_template_string()`. Both confirmed zero-hit on the real codebase, then negative-controlled live during this recovery pass (see Negative Controls below) with the resulting failure text captured verbatim.
 - Added an exact-set allowlist lock over the only two raw `db.session.execute()` call sites in the app (`public_routes.healthz`, `scheduler._try_claim`), plus two more tests independently proving each is safe: the healthcheck's argument is a literal `"SELECT 1"` string constant (never an f-string/`.format()`), and the scheduler's Core `update()` binds its values via `.values()`. Negative-controlled live (see below).
 - Added `scan_engine.read_report_file()`: resolves both `REPORTS_DIR` and the candidate path to real filesystem paths before comparing containment (not string-prefix arithmetic on the raw input, since `REPORTS_DIR` is derived from `__file__` and can itself sit behind a symlink), returning `None` on containment failure, a missing/unreadable file, invalid JSON, or any value that makes path resolution itself raise.
 - Converted all three former independent `open(os.path.join(REPORTS_DIR, ...))` blocks (`scan_routes._load_report_json`, `api_routes.fetch_report`, `asset_routes.compliance_coverage`) to call the shared reader, each keeping its own pre-existing, distinct failure contract exactly: `None`, a `jsonify(error=...), 500` body (`cli/wvs.py` depends on this shape), and a silent `continue`/skip respectively.
@@ -159,8 +159,8 @@ status: complete
 ## Files Created/Modified
 
 - `tests/test_injection_and_traversal.py` - new module: payload constant + escaped/raw derivation, six escaping proofs, the CSV counter-case, the autoescape/Markup/execute-call-site source locks, and the SEC-06 containment/positive-control/source-lock section.
-- `webvulnscanner/scan_engine.py` - new `read_report_file()`, placed directly below `save_report()`.
-- `webvulnscanner/scan_routes.py`, `webvulnscanner/api_routes.py`, `webvulnscanner/asset_routes.py` - their inline report-read blocks replaced with calls to `read_report_file()`; each site's original failure contract unchanged.
+- `glassbox/scan_engine.py` - new `read_report_file()`, placed directly below `save_report()`.
+- `glassbox/scan_routes.py`, `glassbox/api_routes.py`, `glassbox/asset_routes.py` - their inline report-read blocks replaced with calls to `read_report_file()`; each site's original failure contract unchanged.
 
 ## Decisions Made
 
@@ -179,12 +179,12 @@ Task 1/2's negative controls were performed by the original authoring pass per t
 1. **`|safe` filter injection** - appended `{{ "neg-control"|safe }}` to `templates/marketing.html`, ran `test_no_template_disables_autoescaping_or_uses_safe_filter` alone:
    `AssertionError: escaping-disabling construct(s) found (SEC-04 regression): templates/marketing.html:484 uses |safe filter -> '{{ "neg-control"|safe }}'`
    Reverted via `git checkout -- templates/marketing.html`; diff confirmed empty.
-2. **`Markup()` construction** - appended a function returning `Markup("<b>x</b>")` to `webvulnscanner/public_routes.py`, ran `test_no_module_constructs_markup_or_renders_template_string` alone:
-   `AssertionError: markup-construction/string-template-render call(s) found (SEC-04 regression): webvulnscanner/public_routes.py:45 -> 'return Markup("<b>x</b>")'`
-   Reverted via `git checkout -- webvulnscanner/public_routes.py`; diff confirmed empty.
-3. **A third raw `.execute()` call site** - appended `db.session.execute("SELECT 1")` inside a new function in `webvulnscanner/public_routes.py`, ran `test_raw_sql_execute_call_sites_are_exactly_the_two_known_ones` alone:
-   `AssertionError: raw db.session.execute() call site(s) changed (SEC-05 regression) - expected exactly [('webvulnscanner/public_routes.py', 'healthz'), ('webvulnscanner/scheduler.py', '_try_claim')], found [('webvulnscanner/public_routes.py', '_neg_control_execute'), ('webvulnscanner/public_routes.py', 'healthz'), ('webvulnscanner/scheduler.py', '_try_claim')].`
-   Reverted via `git checkout -- webvulnscanner/public_routes.py`; diff confirmed empty.
+2. **`Markup()` construction** - appended a function returning `Markup("<b>x</b>")` to `glassbox/public_routes.py`, ran `test_no_module_constructs_markup_or_renders_template_string` alone:
+   `AssertionError: markup-construction/string-template-render call(s) found (SEC-04 regression): glassbox/public_routes.py:45 -> 'return Markup("<b>x</b>")'`
+   Reverted via `git checkout -- glassbox/public_routes.py`; diff confirmed empty.
+3. **A third raw `.execute()` call site** - appended `db.session.execute("SELECT 1")` inside a new function in `glassbox/public_routes.py`, ran `test_raw_sql_execute_call_sites_are_exactly_the_two_known_ones` alone:
+   `AssertionError: raw db.session.execute() call site(s) changed (SEC-05 regression) - expected exactly [('glassbox/public_routes.py', 'healthz'), ('glassbox/scheduler.py', '_try_claim')], found [('glassbox/public_routes.py', '_neg_control_execute'), ('glassbox/public_routes.py', 'healthz'), ('glassbox/scheduler.py', '_try_claim')].`
+   Reverted via `git checkout -- glassbox/public_routes.py`; diff confirmed empty.
 
 Task 3's two negative controls (the inline-open lock, and a containment-bypass check that a broken `read_report_file()` would have actually returned the sentinel's secret content) were performed by the original authoring pass per the trailing comment block at the end of `tests/test_injection_and_traversal.py`; not independently re-run in this recovery pass since Task 3's implementation was authored fresh in this recovery rather than found already-committed (see below).
 

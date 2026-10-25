@@ -63,7 +63,7 @@ All eight Wave 0 gaps identified at plan-creation time are closed:
 
 - [x] `tests/test_org_routes.py` — cross-org tests for `resend_invitation`/`revoke_invitation` added (SEC-01, plan 08-01)
 - [x] `tests/test_csrf_enforcement.py` (new) — `WTF_CSRF_ENABLED=True` app instance, token-less POST 400s proven on all six cookie-authenticated blueprints (SEC-02, plan 08-02)
-- [x] `webvulnscanner/checks.py` `_mk_session()` fix — `_SSRFSafeSession` overriding `get_redirect_target()` (not `resolve_redirects()` — that approach was tried and empirically falsified, see 08-04-SUMMARY.md) re-validates each hop's hostname (SEC-03, plan 08-04; this was the phase's one confirmed-open live vulnerability)
+- [x] `glassbox/checks.py` `_mk_session()` fix — `_SSRFSafeSession` overriding `get_redirect_target()` (not `resolve_redirects()` — that approach was tried and empirically falsified, see 08-04-SUMMARY.md) re-validates each hop's hostname (SEC-03, plan 08-04; this was the phase's one confirmed-open live vulnerability)
 - [x] `tests/test_ssrf_guard.py` — redirect-following coverage against a real local `http.server` harness (SEC-03, plan 08-04)
 - [x] new module — six explicit HTML-escaping proofs plus standing source locks (SEC-04, plan 08-05, `tests/test_injection_and_traversal.py`)
 - [x] `tests/test_billing_routes.py` — cross-org `verify_invoice_route`/`create_invoice` route-level tests, replay idempotency test, four tamper gates (SEC-09, plan 08-03)

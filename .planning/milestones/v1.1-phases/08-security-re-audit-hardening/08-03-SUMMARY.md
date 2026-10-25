@@ -25,7 +25,7 @@ actuals:
 tech-stack:
   added: []
   patterns:
-    - "Patch webvulnscanner.billing.requests.get (module-local reference) rather than billing.verify_invoice itself, so a mock's call_count proves whether the route's guard fired before the network call was ever attempted - not just what the route returned."
+    - "Patch glassbox.billing.requests.get (module-local reference) rather than billing.verify_invoice itself, so a mock's call_count proves whether the route's guard fired before the network call was ever attempted - not just what the route returned."
     - "Force db.session.expire_all() before re-querying a row post-request to prove state-unchanged assertions read the true DB row rather than a possibly-stale identity-mapped Python object."
 
 key-files:
@@ -171,7 +171,7 @@ status: complete
 - Proved `/account/billing` never renders another org's pending invoice - neither its `id="addr-{id}"` element nor its receiving address string appears anywhere in a different org's rendered page body.
 - Added a source-level lock asserting `tests/test_billing.py` still defines the two unit tests (`test_create_invoice_raises_after_exhausting_retry_budget`, `test_verify_invoice_double_match_on_matched_tx_hash_returns_false`) this plan's scoping decision depends on.
 - Discharged `tests/test_cross_org_idor.py`'s `billing.verify_invoice_route` entry from `Deferred(...)` to `"tests/test_billing_routes.py::test_cross_org_verify_is_refused_and_makes_no_changes"`, and updated the module docstring so it no longer describes a still-open deferral.
-- Read `webvulnscanner/billing.py` and `webvulnscanner/billing_routes.py` in full; confirmed the cross-org guard is present and correctly ordered ahead of the `verify_invoice` call. **Neither file was modified** - this plan closes a proof gap (D-02), not a live vulnerability.
+- Read `glassbox/billing.py` and `glassbox/billing_routes.py` in full; confirmed the cross-org guard is present and correctly ordered ahead of the `verify_invoice` call. **Neither file was modified** - this plan closes a proof gap (D-02), not a live vulnerability.
 - Full suite (`pytest -q`): **683 passed**, 0 failures - wave-2 gate green.
 
 ## Task Commits
@@ -190,7 +190,7 @@ Both tasks landed in a single commit since the entire test module (cross-org, re
 
 ## Decisions Made
 
-- Seeded the PAID-invoice replay scenario by calling `billing._activate_subscription(inv)` directly (imported from `webvulnscanner.billing`) rather than hand-building the `Subscription` row, since that is the exact function a real prior payment would have run - more honest about what a real payment leaves behind than a hand-rolled approximation.
+- Seeded the PAID-invoice replay scenario by calling `billing._activate_subscription(inv)` directly (imported from `glassbox.billing`) rather than hand-building the `Subscription` row, since that is the exact function a real prior payment would have run - more honest about what a real payment leaves behind than a hand-rolled approximation.
 - Kept the `Deferred` sentinel class in `tests/test_cross_org_idor.py` even though no registry entry currently uses it (the mechanism itself is still useful for the next endpoint that needs a documented, two-step registration).
 - Combined Task 1 and Task 2 into a single commit (see Deviations).
 
@@ -217,7 +217,7 @@ None - `billing.py`/`billing_routes.py` were already correct as read; no auto-fi
 
 ## User Setup Required
 
-None - no external service configuration required. All tests stub `webvulnscanner.billing.requests.get`; no real Polygonscan request is made anywhere in this module.
+None - no external service configuration required. All tests stub `glassbox.billing.requests.get`; no real Polygonscan request is made anywhere in this module.
 
 ## Next Phase Readiness
 

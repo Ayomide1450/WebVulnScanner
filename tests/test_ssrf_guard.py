@@ -1,6 +1,6 @@
 """
-Tests for the SSRF guard: `is_ssrf_safe_hostname()` in webvulnscanner/checks.py
-and its caller `_unsafe_target_error()` in webvulnscanner/scan_routes.py,
+Tests for the SSRF guard: `is_ssrf_safe_hostname()` in glassbox/checks.py
+and its caller `_unsafe_target_error()` in glassbox/scan_routes.py,
 which every `new_scan_*` route calls on each user-supplied absolute URL
 before a `Scan` row is created (CLAUDE.md's hard rule: this function must
 not be weakened).
@@ -26,9 +26,9 @@ import threading
 import pytest
 import requests
 
-from webvulnscanner import checks
-from webvulnscanner.checks import UA, _mk_session, _SSRFSafeSession, is_ssrf_safe_hostname
-from webvulnscanner.models import Plan, Scan
+from glassbox import checks
+from glassbox.checks import UA, _mk_session, _SSRFSafeSession, is_ssrf_safe_hostname
+from glassbox.models import Plan, Scan
 
 from tests.conftest import login, make_org, make_user
 
@@ -122,7 +122,7 @@ def test_unsafe_target_error_none_for_public_host(app, monkeypatch):
     # verified?), which is a real DB query - see _unsafe_target_error's
     # docstring for why. The private-host test below doesn't need this,
     # it short-circuits on the SSRF check before ever reaching the DB.
-    from webvulnscanner.scan_routes import _unsafe_target_error
+    from glassbox.scan_routes import _unsafe_target_error
 
     monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo("93.184.216.34"))
     with app.app_context():
@@ -130,8 +130,8 @@ def test_unsafe_target_error_none_for_public_host(app, monkeypatch):
 
 
 def test_unsafe_target_error_blocks_domain_verified_by_another_org(app, db, monkeypatch):
-    from webvulnscanner.models import DomainVerification, VerifyMethod, _utcnow
-    from webvulnscanner.scan_routes import _unsafe_target_error
+    from glassbox.models import DomainVerification, VerifyMethod, _utcnow
+    from glassbox.scan_routes import _unsafe_target_error
 
     monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo("93.184.216.34"))
     owner_org = make_org(name="Owner Org")
@@ -154,7 +154,7 @@ def test_unsafe_target_error_blocks_domain_verified_by_another_org(app, db, monk
 
 
 def test_unsafe_target_error_allows_unclaimed_domain_for_anyone(app, db, monkeypatch):
-    from webvulnscanner.scan_routes import _unsafe_target_error
+    from glassbox.scan_routes import _unsafe_target_error
 
     monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo("93.184.216.34"))
     with app.app_context():
@@ -162,7 +162,7 @@ def test_unsafe_target_error_allows_unclaimed_domain_for_anyone(app, db, monkeyp
 
 
 def test_unsafe_target_error_message_for_private_host():
-    from webvulnscanner.scan_routes import _unsafe_target_error
+    from glassbox.scan_routes import _unsafe_target_error
 
     msg = _unsafe_target_error("https://127.0.0.1/admin")
     assert msg is not None
@@ -170,7 +170,7 @@ def test_unsafe_target_error_message_for_private_host():
 
 
 def test_unsafe_target_error_none_hostname_is_unsafe():
-    from webvulnscanner.scan_routes import _unsafe_target_error
+    from glassbox.scan_routes import _unsafe_target_error
 
     # A URL urlparse can't extract a hostname from (e.g. no netloc) must
     # not slip through as "safe" just because is_ssrf_safe_hostname was

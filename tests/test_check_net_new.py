@@ -4,7 +4,7 @@ and CHECK-05 (GraphQL introspection) are NOT covered here - both already
 existed before this phase (check_sensitive_paths, check_api_schema_exposure)
 and were deliberately not duplicated; see checks.py's own comment marking
 the boundary."""
-from webvulnscanner.checks import (
+from glassbox.checks import (
     check_caching_sensitive_data,
     check_file_upload,
     check_privacy_exposure,

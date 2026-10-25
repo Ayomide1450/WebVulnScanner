@@ -11,7 +11,7 @@ requires:
 provides:
   - "tests/test_cross_org_idor.py: an executable, self-maintaining lock proving every <int:>-accepting Flask route has a named cross-org/cross-user denial test"
   - "Cross-org denial coverage for org invitation resend/revoke, scan CSV export, and asset schedule update - the three routes 08-RESEARCH.md flagged as guarded-but-untested"
-  - "A recorded, executable route-inventory of all 21 ID-accepting endpoints in webvulnscanner/, their guard mechanism, and their covering test"
+  - "A recorded, executable route-inventory of all 21 ID-accepting endpoints in glassbox/, their guard mechanism, and their covering test"
 affects: [08-03 (SEC-09, billing.verify_invoice_route), 08-07 (phase gate re-check of the one deferred registry entry)]
 
 # Actuals (#2632)
@@ -117,7 +117,7 @@ status: complete
 
 - Closed the two genuinely-uncovered guarded-but-untested routes 08-RESEARCH.md flagged: org invitation resend/revoke now have executable cross-org denial proof (404 + no side effect) plus an owning-admin positive control and the non-admin-member 403 case.
 - Built `tests/test_cross_org_idor.py`, the completeness lock: a `REGISTRY` dict mapping all 21 `<int:>`-accepting endpoints in `app.url_map` to their covering test, with bidirectional enumeration tests (missing-entry and stale-entry), a method-subset assertion (proves no PUT/DELETE route exists anywhere in the app), and a resolution check that every referenced test actually exists on disk.
-- Performed and reverted both required negative controls: a throwaway `/tmp-idor-probe/<int:x>` route made the enumeration test fail naming that literal rule string; a renamed registry key (`scan.scan_status_TMP_RENAMED_PROBE`) made the reverse-direction test fail. Both reverted; `git diff --stat` for `webvulnscanner/scan_routes.py` came back empty after the revert.
+- Performed and reverted both required negative controls: a throwaway `/tmp-idor-probe/<int:x>` route made the enumeration test fail naming that literal rule string; a renamed registry key (`scan.scan_status_TMP_RENAMED_PROBE`) made the reverse-direction test fail. Both reverted; `git diff --stat` for `glassbox/scan_routes.py` came back empty after the revert.
 - Closed the two remaining registry gaps: `scan.scan_report_csv` (cross-org 404 + a seeded marker string proven absent from the response body, with an owner-side 200 positive control) and `asset.update_schedule` (cross-org 404 + re-read of the Asset row proving `cadence`/`schedule_scan_type` are unchanged).
 - Full suite: 657 passed, 0 failed (baseline 646 + 11 new tests), confirmed twice - once before this plan's changes (retroactive precondition confirmation) and once after all three tasks.
 
@@ -170,11 +170,11 @@ All 21 `<int:>`-accepting rules in `app.url_map`, built programmatically via `cr
 
 **Platform-admin deletion routes, explicitly:** `org.approve_domain_deletion` / `org.reject_domain_deletion` are cross-org **by design** - a platform admin reviews every org's deletion requests, so the correct (and only correct) guard is `platform_admin_required`, a role check, not an `org_id` comparison. Writing an org-scoping denial test for these two would assert something false about the intended behavior. They're registered in `test_cross_org_idor.py`'s `REGISTRY` as `RoleGated(test_ref, note)`, a distinct sentinel from a plain string entry, so the reasoning is recorded in the registry itself (not just this summary) and the resolution check still requires their `test_ref` to point at a real test.
 
-**Method-set assertion:** `app.url_map`'s full method set is `{GET, HEAD, OPTIONS, POST}` - no PUT or DELETE route exists anywhere in `webvulnscanner/`. Asserted directly in `test_registered_method_set_is_get_head_options_post_only`, confirming 08-RESEARCH.md's Pitfall 1 finding and the plan's `must_haves` statement that SEC-01's "GET/POST/PUT/DELETE" wording is a generic checklist, not a description of this app's actual routing.
+**Method-set assertion:** `app.url_map`'s full method set is `{GET, HEAD, OPTIONS, POST}` - no PUT or DELETE route exists anywhere in `glassbox/`. Asserted directly in `test_registered_method_set_is_get_head_options_post_only`, confirming 08-RESEARCH.md's Pitfall 1 finding and the plan's `must_haves` statement that SEC-01's "GET/POST/PUT/DELETE" wording is a generic checklist, not a description of this app's actual routing.
 
 ## Negative Controls (performed and reverted, verbatim)
 
-**Control 1 - unregistered route.** Temporarily added to `webvulnscanner/scan_routes.py`:
+**Control 1 - unregistered route.** Temporarily added to `glassbox/scan_routes.py`:
 ```python
 @scan.route("/tmp-idor-probe/<int:x>")
 @login_required
@@ -187,7 +187,7 @@ AssertionError: The following <int:>-accepting route(s) in app.url_map have no e
   - rule='/tmp-idor-probe/<int:x>' endpoint='scan._tmp_idor_probe'
 assert not [<Rule '/tmp-idor-probe/<x>' (HEAD, OPTIONS, GET) -> scan._tmp_idor_probe>]
 ```
-Reverted. `git diff --stat -- webvulnscanner/scan_routes.py` came back empty after the revert (confirmed clean).
+Reverted. `git diff --stat -- glassbox/scan_routes.py` came back empty after the revert (confirmed clean).
 
 **Control 2 - stale registry entry.** Temporarily renamed the `scan.scan_status` key in `REGISTRY` to `scan.scan_status_TMP_RENAMED_PROBE`. Running `test_registry_has_no_stale_entries` failed with:
 ```
@@ -198,18 +198,18 @@ Reverted. Full `test_cross_org_idor.py` module re-run green (4 passed) after the
 
 ## Decisions Made
 
-- **org_routes.py's invitation guard was already correct.** `resend_invitation` (line 335) and `revoke_invitation` (line 353) both carry `if inv.org_id != current_user.org_id: abort(404)` before this plan ran. This plan closes the proof gap (D-02) - a code-review finding still needs a Flask-test-client regression test - not a vulnerability. No file under `webvulnscanner/` was modified.
+- **org_routes.py's invitation guard was already correct.** `resend_invitation` (line 335) and `revoke_invitation` (line 353) both carry `if inv.org_id != current_user.org_id: abort(404)` before this plan ran. This plan closes the proof gap (D-02) - a code-review finding still needs a Flask-test-client regression test - not a vulnerability. No file under `glassbox/` was modified.
 - **The non-admin-member status code is 403, not 404.** `org_admin_required` (`decorators.py`) aborts 403 for an authenticated non-ORG_ADMIN before the route body (and its 404 IDOR guard) ever runs. Confirmed by reading the decorator rather than assuming the convention used elsewhere in the same file.
 - **Platform-admin deletion routes are cross-org by design, not a coverage gap.** Recorded as a `RoleGated` registry entry rather than either silently skipping them or writing a nonsensical org-scoping test.
 - **billing.verify_invoice_route stays Deferred, not silently dropped.** It's named in the registry with an explicit reason (owned by plan 08-03/SEC-09, threat register T-08-05) so the enumeration lock can't be satisfied by quietly deleting the entry.
 
 ## Deviations from Plan
 
-None - plan executed exactly as written. No production file under `webvulnscanner/` was touched; `git diff --stat` across the whole plan (`git diff --stat 1dbd56c..17ea150`) lists only files under `tests/`.
+None - plan executed exactly as written. No production file under `glassbox/` was touched; `git diff --stat` across the whole plan (`git diff --stat 1dbd56c..17ea150`) lists only files under `tests/`.
 
 ## Issues Encountered
 
-None. The `.venv` used by the orchestrator's main checkout is not present inside this worktree (worktrees share git history but not untracked directories) - tests were run by invoking the main checkout's `.venv/Scripts/python.exe` with the worktree as the working directory, which correctly imports the worktree's own `webvulnscanner`/`tests` packages (confirmed via `sys.path` behavior and cross-checked against the actual `app.url_map` inventory). No code or config change was needed to make this work; noted here only because a future agent hitting the same "No module named pytest" error in a fresh worktree should look for the sibling checkout's `.venv` rather than assume one needs to be created.
+None. The `.venv` used by the orchestrator's main checkout is not present inside this worktree (worktrees share git history but not untracked directories) - tests were run by invoking the main checkout's `.venv/Scripts/python.exe` with the worktree as the working directory, which correctly imports the worktree's own `glassbox`/`tests` packages (confirmed via `sys.path` behavior and cross-checked against the actual `app.url_map` inventory). No code or config change was needed to make this work; noted here only because a future agent hitting the same "No module named pytest" error in a fresh worktree should look for the sibling checkout's `.venv` rather than assume one needs to be created.
 
 ## User Setup Required
 

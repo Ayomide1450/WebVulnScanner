@@ -1,7 +1,7 @@
 """
-Shared pytest fixtures for the webvulnscanner test suite.
+Shared pytest fixtures for the glassbox test suite.
 
-Env vars are set *before* anything under webvulnscanner/ is imported, since
+Env vars are set *before* anything under glassbox/ is imported, since
 config.py reads them at module-import time (and raises RuntimeError if
 SECRET_KEY is unset - see config.py's docstring). `os.environ.setdefault`
 is used rather than a hard assignment so a developer's real .env (loaded
@@ -30,10 +30,10 @@ os.environ.setdefault("TURNSTILE_SECRET_KEY", "")
 import pytest
 from werkzeug.security import generate_password_hash
 
-from webvulnscanner import create_app
-from webvulnscanner.config import Config
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import ApiToken, Asset, Organization, Plan, Role, Scan, ScanStatus, User
+from glassbox import create_app
+from glassbox.config import Config
+from glassbox.extensions import db as _db
+from glassbox.models import ApiToken, Asset, Organization, Plan, Role, Scan, ScanStatus, User
 
 
 class TestConfig(Config):
@@ -65,7 +65,7 @@ def app(tmp_path):
     application = create_app(_AppConfig)
     with application.app_context():
         # create_app() no longer calls db.create_all() itself (schema is now
-        # Alembic's job - see migrations/ and webvulnscanner/__init__.py) -
+        # Alembic's job - see migrations/ and glassbox/__init__.py) -
         # tests want instant fresh schema per-run, not a real migration
         # replay, so they create it directly here instead.
         _db.create_all()

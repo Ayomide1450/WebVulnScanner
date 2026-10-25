@@ -40,7 +40,7 @@ import re
 
 import pytest
 
-from webvulnscanner.models import ScanStatus
+from glassbox.models import ScanStatus
 
 from tests.conftest import login, make_org, make_scan, make_user
 
@@ -208,18 +208,34 @@ def test_base_css_surface_btn_block_and_focus_visible_unchanged():
 
 
 def test_base_css_surface_card_and_table_rules_unchanged():
+    """Lock base.html's canonical .card and th/td shapes.
+
+    Values updated by the dual-theme redesign, which deliberately replaced
+    .card's `linear-gradient(180deg, panel, panel2)` with a flat
+    `var(--panel)` + hairline shadow (the gradient read as muddy on the new
+    light ground) and loosened cell padding from 7px/8px to 9px/10px. The
+    lock's *intent* is unchanged: catch a future phase silently drifting
+    these two canonical rules.
+
+    Matched against whitespace-normalized source rather than an exact
+    literal, so re-wrapping a multi-line rule does not fail the lock while
+    a real property change still does.
+    """
     import pathlib
+    import re
 
     text = pathlib.Path("templates/base.html").read_text(encoding="utf-8")
+    flat = re.sub(r"\s+", " ", text)
+
     assert (
-        ".card { background: linear-gradient(180deg, var(--panel), var(--panel2)); "
-        "border: 1px solid var(--border); border-radius: var(--radius-md); "
-        "padding: 22px; margin-bottom: 18px; }"
-    ) in text
+        ".card { background: var(--panel); border: 1px solid var(--border); "
+        "border-radius: var(--radius-md); padding: 22px; margin-bottom: 18px; "
+        "box-shadow: var(--shadow-sm); }"
+    ) in flat
     assert (
-        "th, td { text-align:left; padding: 7px 8px; border-bottom: 1px solid "
+        "th, td { text-align:left; padding: 9px 10px; border-bottom: 1px solid "
         "var(--border); vertical-align: top; }"
-    ) in text
+    ) in flat
 
 
 # --------------------------------------------------------------------------

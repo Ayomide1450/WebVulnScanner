@@ -22,7 +22,7 @@ actuals:
 tech-stack:
   added: [redis, fakeredis, lupa]
   patterns:
-    - "Two independently-constructed Limiter+Flask-app pairs, never routed through create_app()/webvulnscanner.extensions.limiter, used to simulate separate gunicorn worker processes in a unit test"
+    - "Two independently-constructed Limiter+Flask-app pairs, never routed through create_app()/glassbox.extensions.limiter, used to simulate separate gunicorn worker processes in a unit test"
     - "monkeypatch redis.from_url (not any flask_limiter/limits API) as the sole client-injection point for fakeredis"
     - "Boot-time log line prints only a config value's URI scheme, never the full value, when the value may carry credentials"
 
@@ -32,8 +32,8 @@ key-files:
   modified:
     - requirements.txt
     - requirements-dev.txt
-    - webvulnscanner/extensions.py
-    - webvulnscanner/__init__.py
+    - glassbox/extensions.py
+    - glassbox/__init__.py
     - .planning/phases/04-production-hardening-reliability/04-RESEARCH.md
 
 key-decisions:
@@ -128,8 +128,8 @@ Each task was committed atomically:
 - `tests/test_ratelimit_storage.py` - New: the two-Limiter fakeredis shared-counter proof, in-memory negative control, and config-key wiring assertions (HARD-01)
 - `requirements.txt` - Added `redis` (bare, unpinned) — production dependency for a Render deploy with `RATELIMIT_STORAGE_URI` set
 - `requirements-dev.txt` - Added `fakeredis` and `lupa` (bare, unpinned) — test-only, never needed at runtime
-- `webvulnscanner/extensions.py` - Replaced the stale in-memory-only `limiter` comment with the real, proven storage-backend mechanism
-- `webvulnscanner/__init__.py` - Added a boot-time log line after `limiter.init_app(app)` naming the storage backend's scheme
+- `glassbox/extensions.py` - Replaced the stale in-memory-only `limiter` comment with the real, proven storage-backend mechanism
+- `glassbox/__init__.py` - Added a boot-time log line after `limiter.init_app(app)` naming the storage backend's scheme
 - `.planning/phases/04-production-hardening-reliability/04-RESEARCH.md` - Recorded `lupa` in the Standard Stack and Package Legitimacy Audit tables (deviation from the original research, discovered during execution)
 
 ## Decisions Made
@@ -150,9 +150,9 @@ Each task was committed atomically:
 - **Committed in:** `81494ea` (Task 1 commit — `lupa` install and research-doc update bundled with the test file's own commit, since the checkpoint blocked Task 1's own completion)
 
 **2. [Verification-only] Plan's Task 1 acceptance-criteria string check is stricter than its own required docstring content**
-- **Found during:** Running Task 1's literal acceptance-criteria check: `assert 'webvulnscanner.extensions' not in t and 'create_app' not in t`
-- **Issue:** The check failed because the test module's docstring — which the plan's own Task 1 action step 4 explicitly requires to explain *why* `webvulnscanner.extensions.limiter` and `create_app()` are deliberately not used — necessarily contains those two substrings as prose, not as actual imports/calls.
-- **Fix:** No code change. Verified the true intent (no actual `import` of `webvulnscanner.extensions`, no actual `create_app()` call) via an AST-based check instead of a substring search — both are absent from real code, confirming the test only ever mentions them in comments/docstring, matching the plan's `must_haves` truth #5 in spirit.
+- **Found during:** Running Task 1's literal acceptance-criteria check: `assert 'glassbox.extensions' not in t and 'create_app' not in t`
+- **Issue:** The check failed because the test module's docstring — which the plan's own Task 1 action step 4 explicitly requires to explain *why* `glassbox.extensions.limiter` and `create_app()` are deliberately not used — necessarily contains those two substrings as prose, not as actual imports/calls.
+- **Fix:** No code change. Verified the true intent (no actual `import` of `glassbox.extensions`, no actual `create_app()` call) via an AST-based check instead of a substring search — both are absent from real code, confirming the test only ever mentions them in comments/docstring, matching the plan's `must_haves` truth #5 in spirit.
 - **Files modified:** None — verification-only finding, no fix required.
 - **Committed in:** N/A (no code change)
 

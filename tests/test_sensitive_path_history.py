@@ -19,11 +19,11 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from webvulnscanner.checks import REPORTS_DIR
-from webvulnscanner.entitlements import Tier
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import Report, Scan, ScanStatus
-from webvulnscanner import scan_engine
+from glassbox.checks import REPORTS_DIR
+from glassbox.entitlements import Tier
+from glassbox.extensions import db as _db
+from glassbox.models import Report, Scan, ScanStatus
+from glassbox import scan_engine
 
 from tests.conftest import login, make_org, make_scan, make_user
 

@@ -44,12 +44,12 @@ import re
 from pathlib import Path
 
 from tests.conftest import TestConfig
-from webvulnscanner import create_app
+from glassbox import create_app
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # The only HTTP verbs this app has ever registered a route with. No PUT or
-# DELETE route exists anywhere in webvulnscanner/ - every mutation is a POST
+# DELETE route exists anywhere in glassbox/ - every mutation is a POST
 # to an action-suffixed path (08-RESEARCH.md Pitfall 1). SEC-01's literal
 # "GET/POST/PUT/DELETE" wording is a generic REST checklist, not a
 # description of this app's actual routing - this assertion is the

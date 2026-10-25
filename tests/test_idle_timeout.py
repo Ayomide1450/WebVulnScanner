@@ -1,5 +1,5 @@
 """
-Tests for the idle-session timeout added to webvulnscanner/__init__.py's
+Tests for the idle-session timeout added to glassbox/__init__.py's
 `_enforce_idle_timeout` before_request hook: a session-cookie-authenticated
 user is signed out server-side after `IDLE_TIMEOUT_MINUTES` (default 5) with
 no request, independent of "Remember me". Bearer-token (API) auth is
@@ -7,7 +7,7 @@ exempt - see the hook's own docstring for why.
 """
 from datetime import datetime, timedelta, timezone
 
-from webvulnscanner.models import ApiToken, ScanStatus
+from glassbox.models import ApiToken, ScanStatus
 
 from tests.conftest import login, make_api_token, make_org, make_scan, make_user
 

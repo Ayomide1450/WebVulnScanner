@@ -1,5 +1,5 @@
 """
-Route-level tests for `webvulnscanner/billing_routes.py`.
+Route-level tests for `glassbox/billing_routes.py`.
 
 Originally just the two tests proving `/account/billing`'s pending-invoice
 payment card renders. Extended in Phase 8 (SEC-09, 08-03-PLAN.md) to cover
@@ -14,7 +14,7 @@ bottom of this module, which fails loudly if that assumption ever stops
 being true.
 
 Every test that can reach `billing.verify_invoice` patches
-`webvulnscanner.billing.requests.get` (the module-local reference, not the
+`glassbox.billing.requests.get` (the module-local reference, not the
 global `requests` package) rather than mocking `billing.verify_invoice`
 itself - several assertions below depend on the *call count* of that patch
 to prove whether the route reached the network at all, which only works if
@@ -25,8 +25,8 @@ from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
 
-from webvulnscanner import billing
-from webvulnscanner.models import (
+from glassbox import billing
+from glassbox.models import (
     CryptoInvoice,
     InvoiceStatus,
     Organization,
@@ -62,7 +62,7 @@ def make_pending_invoice(
         matched_at=matched_at,
         expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
     )
-    from webvulnscanner.extensions import db
+    from glassbox.extensions import db
 
     db.session.add(inv)
     db.session.flush()
@@ -138,7 +138,7 @@ def test_cross_org_verify_is_refused_and_makes_no_changes(client, db):
 
     login(client, "admina@example.com")
 
-    with patch("webvulnscanner.billing.requests.get") as mock_get:
+    with patch("glassbox.billing.requests.get") as mock_get:
         resp = client.post(f"/account/billing/invoice/{inv_id}/verify")
 
     assert resp.status_code == 403
@@ -181,7 +181,7 @@ def test_owning_org_admin_can_reach_verify_invoice(client, db):
 
     login(client, "owner@example.com")
 
-    with patch("webvulnscanner.billing.requests.get", return_value=_polygonscan_response()) as mock_get:
+    with patch("glassbox.billing.requests.get", return_value=_polygonscan_response()) as mock_get:
         resp = client.post(f"/account/billing/invoice/{inv.id}/verify")
 
     assert resp.status_code == 302
@@ -242,7 +242,7 @@ def test_replaying_verify_on_a_paid_invoice_changes_nothing(client, db):
 
     login(client, "admin@example.com")
 
-    with patch("webvulnscanner.billing.requests.get") as mock_get:
+    with patch("glassbox.billing.requests.get") as mock_get:
         resp = client.post(f"/account/billing/invoice/{inv_id}/verify")
 
     assert resp.status_code == 302

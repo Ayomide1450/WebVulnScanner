@@ -146,21 +146,21 @@ constraints:
 ## Existing Code Insights
 
 ### Reusable Assets
-- `entitlements.effective_tier_for_org(org)` (`webvulnscanner/entitlements.py`, added in Phase 1)
+- `entitlements.effective_tier_for_org(org)` (`glassbox/entitlements.py`, added in Phase 1)
   — org-shaped tier lookup already extracted for the scheduler; the API layer should call this
   same helper rather than re-deriving tier from a session-bound `current_user`.
-- `_check_asset_access` (`webvulnscanner/asset_routes.py`, Phase 1) — the 404-not-403
+- `_check_asset_access` (`glassbox/asset_routes.py`, Phase 1) — the 404-not-403
   ownership-check convention (including the solo-user `org_id IS NULL` IDOR fix) — API routes
   reading/mutating an Asset must reuse this exact function, not re-implement ownership checks.
 - `is_ssrf_safe_hostname()` (`checks.py`) — reuse directly for API-03 (triggering a scan via API
   must enforce the same SSRF gate as the web UI and scheduler).
-- Flask-Limiter (`webvulnscanner/extensions.py`) — existing rate-limiter instance; new API
+- Flask-Limiter (`glassbox/extensions.py`) — existing rate-limiter instance; new API
   endpoints should register limits through it rather than introducing a second rate-limiting
   mechanism.
 
 ### Established Patterns
 - Blueprint-per-feature: each major capability gets its own routes module (`auth_routes.py`,
-  `org_routes.py`, `asset_routes.py`, …) registered in `webvulnscanner/__init__.py`'s
+  `org_routes.py`, `asset_routes.py`, …) registered in `glassbox/__init__.py`'s
   `create_app()`. A new `api_routes.py` (and a separate CLI module/package) should follow this
   same registration pattern.
 - Fire-time / request-time re-checking, never cached: Phase 1 established that tier and SSRF

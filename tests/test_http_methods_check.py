@@ -18,7 +18,7 @@ Three scenarios are locked:
 3. A rejection status code (404/405/etc.) produces no finding at all,
    unchanged from before.
 """
-from webvulnscanner.checks import check_http_methods
+from glassbox.checks import check_http_methods
 
 BASE = "https://example.com"
 

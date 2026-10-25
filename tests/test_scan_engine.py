@@ -1,5 +1,5 @@
 """
-Tests for webvulnscanner/scan_engine.py's shared scoring helper (HARD-04)
+Tests for glassbox/scan_engine.py's shared scoring helper (HARD-04)
 and the three orchestrators that previously had no automated coverage at
 all - run_media_scan, run_api_scan, run_advanced_scan (HARD-02 / D-02,
 D-03, D-04).
@@ -13,8 +13,8 @@ D-03, D-04).
 - `run_media_scan` / `run_api_scan` / `run_advanced_scan` sections:
   direct-invocation, fully-mocked coverage of each orchestrator's completed
   return shape and error-propagation path. Every check function is stubbed
-  on `scan_engine`'s own module namespace (never on `webvulnscanner.checks`)
-  - `scan_engine.py` does `from webvulnscanner.checks import check_x`, so
+  on `scan_engine`'s own module namespace (never on `glassbox.checks`)
+  - `scan_engine.py` does `from glassbox.checks import check_x`, so
   patching `checks.check_x` would not intercept the orchestrator's call and
   the test would silently hit the network. See `tests/test_scan_events.py`'s
   module docstring for the same caveat, already established for `run_scan`.
@@ -24,19 +24,19 @@ D-03, D-04).
   invocation only (D-04): `scheduler._fire()` has no `"advanced"` branch.
 
 The "Safety-constraint regression locks (D-02)" section calls
-`webvulnscanner.checks` directly rather than through an orchestrator,
+`glassbox.checks` directly rather than through an orchestrator,
 because orchestrator-level tests stub check functions out entirely and
 therefore cannot observe the caps those checks enforce internally. No
-function in `webvulnscanner/checks.py` is modified by this plan - these
+function in `glassbox/checks.py` is modified by this plan - these
 tests lock existing, already-shipped behaviour, they do not introduce it.
 """
 from types import SimpleNamespace
 
 import pytest
 
-from webvulnscanner import scan_engine
-from webvulnscanner.checks import Finding, SEVERITY_WEIGHT
-from webvulnscanner.entitlements import Tier
+from glassbox import scan_engine
+from glassbox.checks import Finding, SEVERITY_WEIGHT
+from glassbox.entitlements import Tier
 
 # --------------------------------------------------------------------------
 # _score_report
@@ -336,7 +336,7 @@ def test_scan_engine_module_never_constructs_a_bare_requests_session():
     )
     bare_session = re.search(r"\brequests\.Session\s*\(", code_only)
     assert bare_session is None, (
-        "webvulnscanner/scan_engine.py constructs a requests.Session() directly - every "
+        "glassbox/scan_engine.py constructs a requests.Session() directly - every "
         "HTTP session in the scan engine must come from checks._mk_session() so the SSRF "
         "redirect guard applies. Route the construction through _mk_session() instead."
     )
@@ -385,7 +385,7 @@ def _stub_advanced_checks(monkeypatch):
     """Patches every check function run_advanced_scan can call, plus
     _mk_session, to network-free recording stubs. Returns a dict of
     call-argument-tuple lists keyed by check name so tests can assert call
-    counts/arguments without ever reaching webvulnscanner.checks."""
+    counts/arguments without ever reaching glassbox.checks."""
     calls = {name: [] for name in ALL_GROUP_NAMES}
 
     def make_stub(name):
@@ -492,14 +492,14 @@ def test_run_advanced_scan_never_crawls(monkeypatch):
 # --------------------------------------------------------------------------
 # Safety-constraint regression locks (D-02)
 #
-# These three tests call webvulnscanner.checks directly rather than through
+# These three tests call glassbox.checks directly rather than through
 # an orchestrator, because the orchestrator-level tests above stub every
 # check function out entirely and therefore cannot observe the caps/proof
 # those checks enforce internally - the orchestrator-level tests can only
 # verify run_advanced_scan passes through whatever the (mocked) check
 # returns, not what the real check does with its inputs.
 #
-# No function in webvulnscanner/checks.py is modified anywhere in this
+# No function in glassbox/checks.py is modified anywhere in this
 # plan - these tests lock existing, already-shipped behaviour.
 # --------------------------------------------------------------------------
 
@@ -526,7 +526,7 @@ class _RecordingAuthSession:
 
 
 def test_check_bruteforce_never_exceeds_max_attempts(monkeypatch):
-    from webvulnscanner import checks
+    from glassbox import checks
 
     # Neutralise the deliberate 1s inter-attempt delay - see
     # 04-RESEARCH.md Pitfall 4 - so this test pays none of it.
@@ -541,7 +541,7 @@ def test_check_bruteforce_never_exceeds_max_attempts(monkeypatch):
 
 
 def test_check_bruteforce_stops_on_first_success_and_withholds_password_in_detail(monkeypatch):
-    from webvulnscanner import checks
+    from glassbox import checks
 
     monkeypatch.setattr(checks.time, "sleep", lambda *a, **k: None)
     # Second password (index 1) succeeds.
@@ -560,7 +560,7 @@ def test_check_bruteforce_stops_on_first_success_and_withholds_password_in_detai
 def test_check_xss_stored_contacts_only_submit_and_view_hosts_no_cookie_exfiltration(monkeypatch):
     from urllib.parse import urlparse
 
-    from webvulnscanner import checks
+    from glassbox import checks
 
     submit_url = "https://example.com/comment"
     view_url = "https://example.com/comments"

@@ -16,7 +16,7 @@ mechanics that aren't project-specific (Werkzeug reloader guard, SQLAlchemy clai
 
 **D-01 — Scheduling Trigger Mechanism:** Use an in-process daemon background thread to
 periodically check for due schedules, reusing the same pattern already established for scan
-execution (`_spawn_scan_thread`/`_run_scan_in_background` in `webvulnscanner/scan_routes.py`)
+execution (`_spawn_scan_thread`/`_run_scan_in_background` in `glassbox/scan_routes.py`)
 rather than introducing APScheduler or a separate scheduled process/Render Cron Job.
 
 **D-02 — Multi-Worker Safety:** Add a DB-level claim guard now (e.g. a `locked_until`/
@@ -105,7 +105,7 @@ source this session rather than assuming from the pattern's name:
 **Primary recommendation:** Add one new `assets` table (schedule fields inline, no separate
 join table — ASSET-03 describes one cadence + one scan type per Asset, not multiple schedules)
 plus a nullable `asset_id` FK on the existing `scans` table; add a new bare-named module
-`webvulnscanner/scheduler.py` (not a blueprint) holding the tick loop, the claim-guard UPDATE, and
+`glassbox/scheduler.py` (not a blueprint) holding the tick loop, the claim-guard UPDATE, and
 a thin wrapper around the existing `_spawn_scan_thread`/`_run_scan_in_background`; start it from
 `create_app()` behind a three-part guard (config opt-out for tests, `TESTING` check, Werkzeug
 reloader check) rather than a Flask request hook (`before_first_request` no longer exists in
@@ -177,7 +177,7 @@ libraries already present in `requirements.txt` (`Flask-SQLAlchemy`, `Flask-Migr
 
 ```text
 ┌────────────────────────────────────────────────────────────────────┐
-│  create_app() (webvulnscanner/__init__.py)                          │
+│  create_app() (glassbox/__init__.py)                          │
 │  ...existing extension init/blueprint registration unchanged...     │
 │  NEW: _maybe_start_scheduler(app)                                    │
 │    guard: app.config["SCHEDULER_ENABLED"] AND NOT app.config["TESTING"]│
@@ -185,7 +185,7 @@ libraries already present in `requirements.txt` (`Flask-SQLAlchemy`, `Flask-Migr
 └───────────────────────────────┬───────────────────────────────────┘
                                  ▼ (starts once per process, daemon thread)
 ┌────────────────────────────────────────────────────────────────────┐
-│  webvulnscanner/scheduler.py :: _scheduler_loop(app)                 │
+│  glassbox/scheduler.py :: _scheduler_loop(app)                 │
 │  while True:                                                         │
 │    with app.app_context():        # fresh context PER TICK           │
 │        _tick(app)                 # see below                        │
@@ -223,7 +223,7 @@ libraries already present in `requirements.txt` (`Flask-SQLAlchemy`, `Flask-Migr
 ### Recommended Project Structure
 
 ```
-webvulnscanner/
+glassbox/
 ├── scheduler.py          # NEW — bare-named module (no _routes suffix), matches
 │                          # convention: "Non-route domain logic lives in bare-named
 │                          # modules" [VERIFIED: .planning/codebase/CONVENTIONS.md
@@ -271,7 +271,7 @@ per real process and never during the test suite.
   leaking daemon threads that outlive their SQLite file's deletion.
 
 ```python
-# webvulnscanner/config.py — add alongside existing env-var-driven settings
+# glassbox/config.py — add alongside existing env-var-driven settings
 SCHEDULER_ENABLED = os.environ.get("SCHEDULER_ENABLED", "true").lower() not in ("0", "false", "no")
 
 # tests/conftest.py — TestConfig
@@ -279,7 +279,7 @@ class TestConfig(Config):
     TESTING = True
     SCHEDULER_ENABLED = False   # never start the scheduler thread in the test suite
 
-# webvulnscanner/__init__.py — inside create_app(), after all extension init
+# glassbox/__init__.py — inside create_app(), after all extension init
 def _maybe_start_scheduler(app):
     if not app.config.get("SCHEDULER_ENABLED", True):
         return
@@ -287,7 +287,7 @@ def _maybe_start_scheduler(app):
         return
     if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
         return
-    from webvulnscanner.scheduler import start_scheduler
+    from glassbox.scheduler import start_scheduler
     start_scheduler(app)
 
 _maybe_start_scheduler(app)
@@ -302,7 +302,7 @@ held open for the thread's entire (infinite) lifetime.
 thread that does one unit of work and exits (`_run_scan_in_background`'s existing pattern).
 
 **Why this differs from the existing `_run_scan_in_background` pattern:** That function pushes
-one `app.app_context()` for its entire body [VERIFIED: webvulnscanner/scan_routes.py:91, quoted:
+one `app.app_context()` for its entire body [VERIFIED: glassbox/scan_routes.py:91, quoted:
 "with app.app_context():"] — safe there because the thread does one scan and then terminates
 (the thread's death is what ultimately reclaims any thread-local session state). A scheduler
 thread never terminates. Flask-SQLAlchemy's `scoped_session` is keyed by thread/greenlet identity
@@ -317,7 +317,7 @@ the same effect `_db.session.remove()` provides explicitly in `conftest.py`'s te
 _db.drop_all()"].
 
 ```python
-# webvulnscanner/scheduler.py
+# glassbox/scheduler.py
 def _scheduler_loop(app, poll_interval_seconds=60):
     while True:
         try:
@@ -342,7 +342,7 @@ conditional-UPDATE patterns, MEDIUM confidence] This relies only on standard SQL
 row-match semantics (works identically on Postgres and SQLite), unlike `SELECT ... FOR UPDATE
 SKIP LOCKED` which is Postgres-specific and would break the SQLite dev-parity this codebase
 already goes out of its way to preserve elsewhere (`_engine_options_for()` branches explicitly on
-`db_uri.startswith("sqlite")` [VERIFIED: webvulnscanner/config.py:71-72, quoted: "if
+`db_uri.startswith("sqlite")` [VERIFIED: glassbox/config.py:71-72, quoted: "if
 db_uri.startswith(\"sqlite\"): return {\"connect_args\": {\"check_same_thread\": False}}"]).
 On Postgres, the `UPDATE`'s row match is atomic under the row-level write lock Postgres already
 takes for any `UPDATE`; on SQLite, the whole-database writer lock makes it trivially safe (though
@@ -396,7 +396,7 @@ project's schema was created via `op.create_table(...)` with `sa.ForeignKeyConst
 'crypto_invoices', ... sa.ForeignKeyConstraint(['org_id'], ['organizations.id'], ),"]
 
 ```python
-# webvulnscanner/models.py — add alongside existing models
+# glassbox/models.py — add alongside existing models
 class Asset(db.Model):
     __tablename__ = "assets"
 
@@ -437,7 +437,7 @@ flask db upgrade
   factory-time setup (extension `.init_app()` calls) already works.
 - **Constructing a fake `User` object to call `entitlements.effective_tier()` from the scheduler:**
   `effective_tier(user)` expects `user.is_authenticated`/`user.organization`
-  [VERIFIED: webvulnscanner/entitlements.py:57-78, quoted: "def effective_tier(user): ... if user
+  [VERIFIED: glassbox/entitlements.py:57-78, quoted: "def effective_tier(user): ... if user
   is None or not getattr(user, \"is_authenticated\", True): return Tier.FREE \n org =
   getattr(user, \"organization\", None)"]. The scheduler has an `Organization`, not a `User`.
   Duck-typing a fake user is fragile (couples the scheduler to `User`'s exact attribute shape).
@@ -480,7 +480,7 @@ route before the orchestrator is even called (an intentional asymmetry documente
 scan_engine.py's module docstring)."]. In the existing web-UI flow this is safe because
 `new_scan_media`/`new_scan_api` routes check `_tier_flags(tier)["can_run_media"]`/
 `["can_run_api"]` (built from `FEATURE_REQUIREMENTS["media"]`/`["api"]`
-[VERIFIED: webvulnscanner/entitlements.py:48,53, quoted: "\"media\": Tier.PAID," and
+[VERIFIED: glassbox/entitlements.py:48,53, quoted: "\"media\": Tier.PAID," and
 "\"api\": Tier.PAID,"]) before ever calling `_spawn_scan_thread`. A scheduler tick handler has no
 route in the loop — it calls `_spawn_scan_thread` directly.
 
@@ -520,7 +520,7 @@ convention in `config.py`).
 **What goes wrong:** Code that tries to fake a `User`-like object (`SimpleNamespace(organization=asset.organization, is_authenticated=True)`) to reuse `effective_tier()` unchanged works today, but couples the scheduler to `effective_tier`'s exact undocumented attribute contract and will silently break if that contract's shape changes later.
 
 **Why it happens:** `effective_tier(user)`'s signature and body are written entirely in terms of
-a Flask-Login-style user object [VERIFIED: webvulnscanner/entitlements.py:57-78, quoted:
+a Flask-Login-style user object [VERIFIED: glassbox/entitlements.py:57-78, quoted:
 "def effective_tier(user): ... Maps an (optionally-authenticated) user to a Tier."]. Nothing in
 the existing codebase computes a tier from an `Organization` directly.
 
@@ -538,7 +538,7 @@ non-test code.
 
 **What goes wrong:** Manual scan submission's `authorized`/`authorized_adv`/`authorized_media`/
 `authorized_api` checkboxes are checked once, immediately before that one scan runs, and are
-never persisted as a DB column [VERIFIED: webvulnscanner/scan_routes.py:274, 297-300 — the
+never persisted as a DB column [VERIFIED: glassbox/scan_routes.py:274, 297-300 — the
 `authorized` form field is read and validated but the `Scan` row created immediately after
 (`s = Scan(user_id=..., org_id=..., target_url=..., scan_type="base",
 status=ScanStatus.QUEUED)`) has no `authorized` column]. An Asset's authorization checkbox, by
@@ -568,7 +568,7 @@ private/internal address, and the scheduler keeps firing scans against it withou
 
 **Why it happens:** The existing manual-scan flow only ever needs a submission-time check because
 the scan runs within seconds of that check
-[VERIFIED: webvulnscanner/checks.py:214-230 docstring, quoted: "This is a submission-time check
+[VERIFIED: glassbox/checks.py:214-230 docstring, quoted: "This is a submission-time check
 only - it does not pin the resolved IP for the actual scan request that happens later"] — the doc
 comment's own reasoning assumes a short window between check and use, which no longer holds for a
 schedule that can fire for months after registration.
@@ -592,7 +592,7 @@ or SSRF-failed scheduled fire, which requires an enum migration and diverges fro
 **Why it happens:** It can feel more precise to distinguish "the scan failed while running" from
 "the scan never started because of a gate" — but D-04 explicitly says failure handling should
 mirror existing semantics, and `ScanStatus` currently has exactly four values
-[VERIFIED: webvulnscanner/models.py:43-47, quoted: "class ScanStatus(enum.Enum): \n QUEUED =
+[VERIFIED: glassbox/models.py:43-47, quoted: "class ScanStatus(enum.Enum): \n QUEUED =
 \"queued\" \n RUNNING = \"running\" \n COMPLETED = \"completed\" \n FAILED = \"failed\""].
 
 **How to avoid:** Use the existing `FAILED` status with a descriptive `error_message` ("scan type
@@ -607,7 +607,7 @@ enum, consistent with D-04.
 ### Full tick handler skeleton (composes Patterns 2-4 above)
 
 ```python
-# webvulnscanner/scheduler.py
+# glassbox/scheduler.py
 """
 In-process daemon-thread scheduler for recurring Asset scans (Phase 1,
 ASSET-03/04/08). Ticks on a fixed interval, claims due Assets via a
@@ -623,11 +623,11 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import or_, update
 
-from webvulnscanner.checks import is_ssrf_safe_hostname
-from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, domain_is_org_verified
-from webvulnscanner.extensions import db
-from webvulnscanner.models import Asset, Scan, ScanStatus
-from webvulnscanner.scan_routes import _spawn_scan_thread
+from glassbox.checks import is_ssrf_safe_hostname
+from glassbox.entitlements import FEATURE_REQUIREMENTS, domain_is_org_verified
+from glassbox.extensions import db
+from glassbox.models import Asset, Scan, ScanStatus
+from glassbox.scan_routes import _spawn_scan_thread
 
 POLL_INTERVAL_SECONDS = 60
 LEASE_DURATION = timedelta(minutes=5)
@@ -635,8 +635,8 @@ CADENCE_INTERVALS = {"daily": timedelta(days=1), "weekly": timedelta(weeks=1), "
 
 
 def _tier_for_org(org):
-    from webvulnscanner.entitlements import Tier
-    from webvulnscanner.models import Plan
+    from glassbox.entitlements import Tier
+    from glassbox.models import Plan
     plan_to_tier = {Plan.FREE: Tier.FREE, Plan.PAID: Tier.PAID, Plan.ORG_VERIFIED: Tier.ORG_VERIFIED}
     return plan_to_tier.get(org.plan, Tier.FREE) if org else Tier.FREE
 
@@ -709,7 +709,7 @@ def start_scheduler(app):
 
 *(This is a skeleton for planner reference, not final production code — e.g. `_spawn_scan_thread`
 expects a real `current_app`-derived app object in its own call signature
-[VERIFIED: webvulnscanner/scan_routes.py:180-188, quoted: "def _spawn_scan_thread(scan_id,
+[VERIFIED: glassbox/scan_routes.py:180-188, quoted: "def _spawn_scan_thread(scan_id,
 scan_type, **kwargs): \n app_obj = current_app._get_current_object()"] — calling it from inside
 an already-pushed `app.app_context()` means `current_app` resolves correctly without changes, but
 the planner should verify this call composes cleanly when writing the actual task.)*
@@ -755,7 +755,7 @@ existing mechanism.
    - What we know: `scan_routes.py` already owns `/dashboard`, `/scan/*` — Asset registration/
      schedule config/history is a large enough surface (ASSET-01, 03, 05, 06) to warrant its own
      blueprint per the "New Feature (new page/blueprint)" convention
-     [VERIFIED: .planning/codebase/STRUCTURE.md "Create webvulnscanner/<feature>_routes.py
+     [VERIFIED: .planning/codebase/STRUCTURE.md "Create glassbox/<feature>_routes.py
      following the Blueprint(\"<name>\", __name__) pattern"].
    - What's unclear: whether `/dashboard` should be extended to surface Assets, or whether a new
      `/assets` landing page is more consistent with the existing `/scan/new` chooser-page pattern.
@@ -848,9 +848,9 @@ Postgres/SQLite dev-vs-prod split.
 ## Sources
 
 ### Primary (HIGH confidence)
-- Direct `Read` of this session's project source: `webvulnscanner/scan_routes.py`,
-  `webvulnscanner/models.py`, `webvulnscanner/__init__.py`, `webvulnscanner/entitlements.py`,
-  `webvulnscanner/config.py`, `webvulnscanner/checks.py` (SSRF function), `tests/conftest.py`,
+- Direct `Read` of this session's project source: `glassbox/scan_routes.py`,
+  `glassbox/models.py`, `glassbox/__init__.py`, `glassbox/entitlements.py`,
+  `glassbox/config.py`, `glassbox/checks.py` (SSRF function), `tests/conftest.py`,
   `tests/test_scan_events.py`, `migrations/versions/4621b1837a3f_baseline_schema.py`,
   `pytest.ini`, `requirements.txt` — all claims tagged `[VERIFIED: path:lines]` above were
   confirmed by reading the actual file this session, not inferred.

@@ -31,7 +31,7 @@ components.
 
 ## 1. Bug fixes
 
-- **`webvulnscanner/config.py`** — `SQLALCHEMY_ENGINE_OPTIONS` currently only sets anything for
+- **`glassbox/config.py`** — `SQLALCHEMY_ENGINE_OPTIONS` currently only sets anything for
   SQLite (`check_same_thread`). For non-SQLite (Postgres/Neon) it's `{}`, so a dropped idle
   connection (confirmed live: `psycopg2.OperationalError: server closed the connection
   unexpectedly`) surfaces as a hard 500 instead of transparently reconnecting. Add
@@ -58,7 +58,7 @@ components.
   Groq (finding text leaves the server as part of the prompt). Each page opens with a visible
   "Draft — not reviewed by counsel; do not rely on this without legal review" notice. Routed via
   `public_routes.py` as `/terms` and `/privacy`, no auth required.
-- **Footer partial** — new small footer block in `base.html` (`© {{ current year }} WebVulnScanner
+- **Footer partial** — new small footer block in `base.html` (`© {{ current year }} Glassbox
   · Terms · Privacy`), styled with existing tokens, present on every page.
 
 ## 3. Visual polish (existing pages, no behavior change)

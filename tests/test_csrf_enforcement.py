@@ -49,9 +49,9 @@ from datetime import datetime, timezone
 import pytest
 from bs4 import BeautifulSoup
 
-from webvulnscanner import create_app
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import (
+from glassbox import create_app
+from glassbox.extensions import db as _db
+from glassbox.models import (
     ApiToken,
     Asset,
     CryptoInvoice,
@@ -67,7 +67,7 @@ from webvulnscanner.models import (
 from tests.conftest import TestConfig, make_api_token, make_asset, make_org, make_user
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-WEBVULNSCANNER_DIR = REPO_ROOT / "webvulnscanner"
+GLASSBOX_DIR = REPO_ROOT / "glassbox"
 TEMPLATES_DIR = REPO_ROOT / "templates"
 
 
@@ -391,14 +391,14 @@ def test_advanced_detect_without_csrf_token_returns_400(csrf_client, csrf_db):
 
 
 def _find_csrf_exempt_call_sites():
-    """Reads every .py file under webvulnscanner/, strips full-line
+    """Reads every .py file under glassbox/, strips full-line
     comments (a trailing inline comment on a real call site is still
     counted - only a comment-only line is skipped), and collects every
     line containing an exempt call. A future second exemption anywhere
     fails this with the offending file/line named, rather than an opaque
     count mismatch."""
     hits = []
-    for path in sorted(WEBVULNSCANNER_DIR.rglob("*.py")):
+    for path in sorted(GLASSBOX_DIR.rglob("*.py")):
         for lineno, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if raw_line.strip().startswith("#"):
                 continue
@@ -441,13 +441,13 @@ def test_csrf_exempt_applied_to_exactly_two_blueprints():
 
 # Negative control performed manually while writing this test (not itself
 # a permanent test - a second csrf.exempt(api) call was added directly
-# below the real one in webvulnscanner/api_routes.py, this test was run
+# below the real one in glassbox/api_routes.py, this test was run
 # alone, and reverted immediately after). Observed failure:
 #
 #   AssertionError: expected exactly one csrf.exempt() call site
-#   (webvulnscanner/api_routes.py's Bearer-token blueprint), found 2:
-#   [('webvulnscanner\\api_routes.py', 35, 'csrf.exempt(api)'),
-#    ('webvulnscanner\\api_routes.py', 36, 'csrf.exempt(api)  # TEMP ...')]
+#   (glassbox/api_routes.py's Bearer-token blueprint), found 2:
+#   [('glassbox\\api_routes.py', 35, 'csrf.exempt(api)'),
+#    ('glassbox\\api_routes.py', 36, 'csrf.exempt(api)  # TEMP ...')]
 #   assert 2 == 1
 #
 # `git diff --stat` confirmed api_routes.py was clean again afterward -
@@ -464,7 +464,7 @@ def test_csrf_exempt_applied_to_exactly_two_blueprints():
 def test_bearer_token_trigger_scan_not_blocked_by_csrf_enforcement(csrf_client, csrf_db, monkeypatch):
     spawned = []
     monkeypatch.setattr(
-        "webvulnscanner.scheduler._spawn_scan_thread",
+        "glassbox.scheduler._spawn_scan_thread",
         lambda scan_id, scan_type, **kwargs: spawned.append((scan_id, scan_type, kwargs)),
     )
 

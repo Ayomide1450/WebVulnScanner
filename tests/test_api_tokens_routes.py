@@ -1,10 +1,10 @@
 """
-Tests for webvulnscanner/api_tokens_routes.py - self-service API token
+Tests for glassbox/api_tokens_routes.py - self-service API token
 generate/revoke (API-01, D-01..D-05, Phase 2 tracer plan 02-01).
 """
 import pytest
 
-from webvulnscanner.models import ApiToken
+from glassbox.models import ApiToken
 
 from tests.conftest import login, make_api_token, make_org, make_user
 
@@ -63,7 +63,7 @@ def test_create_token_requires_a_name(logged_in_client, db):
 
 
 def test_tokens_list_shows_only_hash_derived_metadata(logged_in_client, db):
-    from webvulnscanner.models import User
+    from glassbox.models import User
 
     user = User.query.filter_by(email="owner@example.com").first()
     _, raw_token = make_api_token(user, name="Personal script")
@@ -81,7 +81,7 @@ def test_tokens_list_shows_only_hash_derived_metadata(logged_in_client, db):
 # --------------------------------------------------------------------------
 
 def test_revoke_sets_revoked_at_and_immediately_fails_api_auth(app, logged_in_client, db):
-    from webvulnscanner.models import User
+    from glassbox.models import User
 
     user = User.query.filter_by(email="owner@example.com").first()
     token, raw_token = make_api_token(user, name="Personal script")

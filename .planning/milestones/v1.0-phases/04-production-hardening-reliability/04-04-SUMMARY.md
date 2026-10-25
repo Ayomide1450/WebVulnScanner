@@ -157,7 +157,7 @@ None — no external service configuration required.
 ## Next Phase Readiness
 
 - HARD-02 is now fully satisfied across all three levels: orchestrator-function level (plan 04-01), scheduler-dispatch level for media/api (this plan), and `Scan`-row status-transition level for media/api/advanced (this plan). `run_advanced_scan` remains direct-invocation-only by design (D-04), now backed by both a documentation comment in `scheduler.py` and a source-parsing regression test that would fail if an `"advanced"` branch were ever silently added.
-- No blockers for 04-05 — this plan touched only `tests/test_scheduler.py` and `tests/test_scan_routes.py`; `webvulnscanner/scheduler.py` and `webvulnscanner/scan_routes.py` are unmodified (confirmed via `git diff --name-only` across the whole plan, and via the byte-identical mutation-proof reverts).
+- No blockers for 04-05 — this plan touched only `tests/test_scheduler.py` and `tests/test_scan_routes.py`; `glassbox/scheduler.py` and `glassbox/scan_routes.py` are unmodified (confirmed via `git diff --name-only` across the whole plan, and via the byte-identical mutation-proof reverts).
 - Full test suite: 335/335 passing (297 baseline + 5 scheduler tests + 12 scan_routes tests, adjusted for the file's pre-existing 4 dashboard tests), confirmed after each task and again at plan completion.
 
 ## Self-Check: PASSED

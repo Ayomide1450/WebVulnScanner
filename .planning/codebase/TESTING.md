@@ -40,10 +40,10 @@ No coverage tool or `--cov` flag is configured anywhere in the repo (no `.covera
 |---|---|---|
 | `tests/conftest.py` | 127 | Shared fixtures, factories |
 | `tests/test_auth_flows.py` | 414 | Signup/verify-email/login/logout/forgot-password/reset-password flows, anti-user-enumeration, single-use tokens, `_safe_next()` open-redirect guard, `/login` rate-limit 429 |
-| `tests/test_billing.py` | 259 | Crypto invoice creation/verification logic (`webvulnscanner/billing.py`) |
+| `tests/test_billing.py` | 259 | Crypto invoice creation/verification logic (`glassbox/billing.py`) |
 | `tests/test_billing_routes.py` | 58 | Billing blueprint routes |
 | `tests/test_config.py` | 98 | `config.py`'s `_engine_options_for()` (SQLite vs Postgres branches), `postgres://`→`postgresql://` rewrite |
-| `tests/test_email_stub.py` | 52 | `webvulnscanner/email_stub.py` console/Resend email sender selection |
+| `tests/test_email_stub.py` | 52 | `glassbox/email_stub.py` console/Resend email sender selection |
 | `tests/test_entitlements.py` | 247 | `entitlements.py` tier-gating: `allowed_checks`, `effective_tier`, `domain_is_org_verified`, plus a regression test that `FEATURE_REQUIREMENTS` covers every check name `run_scan`'s jobs dict can dispatch |
 | `tests/test_org_routes.py` | 15 | Org routes (minimal coverage) |
 | `tests/test_public_routes.py` | 33 | Marketing/public routes |
@@ -68,7 +68,7 @@ No coverage tool or `--cov` flag is configured anywhere in the repo (no `.covera
 
 ## Environment Setup for Tests
 
-`tests/conftest.py` sets safe defaults with `os.environ.setdefault(...)` **before** importing anything under `webvulnscanner/` (since `config.py` reads env vars at module-import time and raises `RuntimeError` if `SECRET_KEY` is unset):
+`tests/conftest.py` sets safe defaults with `os.environ.setdefault(...)` **before** importing anything under `glassbox/` (since `config.py` reads env vars at module-import time and raises `RuntimeError` if `SECRET_KEY` is unset):
 ```python
 os.environ.setdefault("SECRET_KEY", "test-only-secret-never-used-outside-pytest")
 os.environ.setdefault("SESSION_COOKIE_SECURE", "false")  # test client talks http, not https

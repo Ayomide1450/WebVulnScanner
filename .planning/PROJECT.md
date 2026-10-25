@@ -1,4 +1,4 @@
-# WebVulnScanner
+# Glassbox
 
 ## What This Is
 
@@ -11,7 +11,7 @@ bar across UI/UX, accessibility, responsiveness, security, and SEO — not just 
 
 ## Core Value
 
-Security engineers can trust WebVulnScanner to run safe, authorization-gated, non-destructive
+Security engineers can trust Glassbox to run safe, authorization-gated, non-destructive
 scans against their own infrastructure and get findings they can act on — without it ever
 weakening its safety guarantees to become a general attack tool.
 
@@ -75,7 +75,7 @@ weakening its safety guarantees to become a general attack tool.
 
 ## Current Milestone: v1.3 Glassbox Rebrand & Production Security Readiness
 
-**Goal:** Rebrand the product from WebVulnScanner to Glassbox (in-app branding + a live Fly app
+**Goal:** Rebrand the product from Glassbox to Glassbox (in-app branding + a live Fly app
 migration to `glassbox.fly.dev`, no purchased custom domain yet), then extend the scan engine's
 existing architecture — reusing all current checks, the OWASP-mapped compliance layer, ownership
 verification, and scan pipelines rather than duplicating any of it — into a full "Production
@@ -96,7 +96,7 @@ scoring before net-new checks before the CTA, though 14/15 are largely independe
 
 - [ ] **Phase 11 — Rebrand**: in-app branding swap (templates/meta/emails/docs) to "Glassbox";
       new `glassbox` Fly app with all 12 secrets migrated and verified healthy before
-      `webvulnscanner` is decommissioned
+      `glassbox` is decommissioned
 - [ ] **Phase 12 — Finding schema**: `confidence`/`cwe`/`verification_state` fields added to
       `Finding`, backfilled honestly at all ~50 existing construction sites, regression-tested
 - [ ] **Phase 13 — Domain grouping & scoring v2**: `SECURITY_DOMAIN_MAP` (13 product-facing
@@ -159,7 +159,7 @@ roadmapped and should be picked up once v1.3's phases land.
   `README.md` and an earlier draft of this project's own product doc both still describe schema
   changes as requiring `db.create_all()`-only workarounds ("add a new table instead of altering
   one"). That's now stale — the codebase has since adopted Alembic/Flask-Migrate
-  (`migrations/`, confirmed via `CLAUDE.md` and `webvulnscanner/__init__.py`). A new `Asset` table
+  (`migrations/`, confirmed via `CLAUDE.md` and `glassbox/__init__.py`). A new `Asset` table
   (and any schema evolution it needs later) is a normal `flask db migrate` operation, not the
   workaround-requiring situation the original gap analysis implicitly assumed. This makes Phase 1
   more straightforward than it would have looked a few sessions ago.

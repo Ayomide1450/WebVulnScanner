@@ -99,13 +99,13 @@ this phase is presentation/flow only, routing through the exact same
 - `templates/scan_new_advanced.html`, `templates/scan_new_media.html`, `templates/scan_new_api.html`
   — current per-type forms; Advanced's credential fields are the ones D-02 says stay as-is
 - `templates/_scan_form_styles.html` — shared CSS partial across all 5 scan_new_* templates
-- `webvulnscanner/scan_routes.py` — `new_scan()` (line ~367), `new_scan_base()` (~420),
+- `glassbox/scan_routes.py` — `new_scan()` (line ~367), `new_scan_base()` (~420),
   `new_scan_advanced()` (~490), `new_scan_media()` (~554), `new_scan_api()` (~604),
   `_tier_flags()` (~312), `_unsafe_target_error()` (~323), `_launch_base_scan()` (~376),
   `scan_detail()` (~648) — the COMPLETED-redirect logic D-04 extends
-- `webvulnscanner/models.py` — `DomainVerification` (line 133, org-scoped verified-domain records
+- `glassbox/models.py` — `DomainVerification` (line 133, org-scoped verified-domain records
   D-01's dropdown queries), `Asset` (line 165, explicitly NOT the D-01 data source)
-- `webvulnscanner/entitlements.py` — `Tier` enum, `FEATURE_REQUIREMENTS`,
+- `glassbox/entitlements.py` — `Tier` enum, `FEATURE_REQUIREMENTS`,
   `domain_is_org_verified()` — the functions D-03's context-aware CTA branches on
 
 ### Design system this phase must build within (not redesign — that's Phase 6)

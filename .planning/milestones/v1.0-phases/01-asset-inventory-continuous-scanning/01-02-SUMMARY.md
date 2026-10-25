@@ -30,7 +30,7 @@ key-files:
   created:
     - templates/asset_detail.html
   modified:
-    - webvulnscanner/asset_routes.py
+    - glassbox/asset_routes.py
     - templates/assets.html
     - templates/base.html
     - tests/test_asset_routes.py
@@ -149,7 +149,7 @@ status: complete
 **Plan metadata:** this SUMMARY.md + STATE.md/ROADMAP.md/REQUIREMENTS.md update (separate docs commit, see below)
 
 ## Files Created/Modified
-- `webvulnscanner/asset_routes.py` - `asset_detail`, `update_schedule`, `pause_asset`, `resume_asset`, `delete_asset` routes; `_render_asset_detail` helper; `TIER_LABELS` display-name map
+- `glassbox/asset_routes.py` - `asset_detail`, `update_schedule`, `pause_asset`, `resume_asset`, `delete_asset` routes; `_render_asset_detail` helper; `TIER_LABELS` display-name map
 - `templates/asset_detail.html` (new) - schedule config + history/trend + pause/resume/delete UI
 - `templates/assets.html` - Name/Actions columns now link to the detail page
 - `templates/base.html` - `icon-clock`/`icon-pause`/`icon-play`/`icon-trash` sprite symbols
@@ -168,7 +168,7 @@ status: complete
 - **Found during:** Task 1, while implementing the tier-locked hint per the plan's `<behavior>` spec
 - **Issue:** The plan's behavior text directly indexes `FEATURE_REQUIREMENTS[asset.schedule_scan_type]`. `FEATURE_REQUIREMENTS` (in `entitlements.py`) has entries for `"media"` and `"api"` but no whole-type `"base"` key (only base scan's individual checks are gated separately) - `scheduler.py::_fire` avoids this by scoping its own tier check to `schedule_scan_type in ("media", "api")` only, but the plan's hint text has no such guard.
 - **Fix:** Used `FEATURE_REQUIREMENTS.get(asset.schedule_scan_type, 0)` instead of a direct index, mirroring `entitlements.allowed_checks()`'s existing convention of defaulting a missing key to `Tier.FREE` (0). A base-scheduled Asset never renders the hint, matching the fact that base scheduling as a whole is never tier-gated.
-- **Files modified:** `webvulnscanner/asset_routes.py` (route passes `FEATURE_REQUIREMENTS` through), `templates/asset_detail.html` (uses `.get(..., 0)`)
+- **Files modified:** `glassbox/asset_routes.py` (route passes `FEATURE_REQUIREMENTS` through), `templates/asset_detail.html` (uses `.get(..., 0)`)
 - **Verification:** `tests/test_asset_routes.py::test_schedule_tier_locked_hint_absent_for_base_schedule_type` (FREE-tier org, base-scheduled Asset, hint absent, no 500)
 - **Committed in:** `761dc0e` (Task 1 commit)
 
@@ -186,7 +186,7 @@ status: complete
 
 ## Issues Encountered
 
-**No local venv in this worktree.** `.venv/` does not exist inside the git worktree checkout; `pytest`/`flask` are not resolvable from a bare `python -m pytest` in this directory. Ran tests via the main repo's existing `.venv` (`C:\Users\Arktech_Designs\Documents\WebVulnScanner\.venv\Scripts\python.exe -m pytest`) against this worktree's `tests/` - same interpreter/dependency set 01-01 used, no code path difference, just an invocation-path note for the next executor in this worktree.
+**No local venv in this worktree.** `.venv/` does not exist inside the git worktree checkout; `pytest`/`flask` are not resolvable from a bare `python -m pytest` in this directory. Ran tests via the main repo's existing `.venv` (`C:\Users\Arktech_Designs\Documents\Glassbox\.venv\Scripts\python.exe -m pytest`) against this worktree's `tests/` - same interpreter/dependency set 01-01 used, no code path difference, just an invocation-path note for the next executor in this worktree.
 
 No `flask` CLI commands were run in this plan (no model/migration changes), so the `.env` cross-repo-leak risk flagged in 01-01's SUMMARY did not resurface here.
 
@@ -198,7 +198,7 @@ None - no external service configuration required. No new environment variables,
 
 - ASSET-03 (schedule editable after creation), ASSET-05 (history/trend), and ASSET-06 (pause/resume/delete) are all fully implemented and tested, completing Phase 1's Asset-inventory feature set alongside 01-01's ASSET-01/02/04/07/08.
 - Full test suite (172 tests, up from 160 after 01-01) green; no model or migration changes in this plan.
-- `webvulnscanner/asset_routes.py` now exposes the complete `asset` blueprint surface (`/assets`, `/assets/new`, `/assets/<id>`, `/assets/<id>/schedule`, `/assets/<id>/pause`, `/assets/<id>/resume`, `/assets/<id>/delete`) for any future phase that needs to link into or extend Asset management.
+- `glassbox/asset_routes.py` now exposes the complete `asset` blueprint surface (`/assets`, `/assets/new`, `/assets/<id>`, `/assets/<id>/schedule`, `/assets/<id>/pause`, `/assets/<id>/resume`, `/assets/<id>/delete`) for any future phase that needs to link into or extend Asset management.
 
 ---
 *Phase: 01-asset-inventory-continuous-scanning*

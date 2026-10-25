@@ -3,7 +3,7 @@
 {% block head %}
 {% include "_admin_form_styles.html" %}
 {% include "_empty_state.html" %}
-<style>
+<style nonce="{{ csp_nonce }}">
   .invoice-card { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); margin-bottom: var(--space-3); background: rgba(255,255,255,.02); }
   .invoice-card:last-child { margin-bottom: 0; }
   .invoice-row { display:flex; gap: var(--space-5); flex-wrap: wrap; margin-bottom: 14px; }
@@ -211,7 +211,7 @@
   <div class="warn-box"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-warning"/></svg><div>Create an organization (via sign up) to purchase a plan.</div></div>
   {% endif %}
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
   document.querySelectorAll('.copy-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {

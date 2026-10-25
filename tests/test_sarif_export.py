@@ -15,9 +15,9 @@ import json
 import jsonschema
 import pytest
 
-from webvulnscanner.checks import severity_to_sarif_level
-from webvulnscanner.models import Plan, Report, Role, ScanStatus
-from webvulnscanner.sarif import (
+from glassbox.checks import severity_to_sarif_level
+from glassbox.models import Plan, Report, Role, ScanStatus
+from glassbox.sarif import (
     SARIF_VERSION,
     _rule_id_for,
     build_sarif_report,
@@ -172,7 +172,7 @@ SARIF_LEAK_MARKER = "MARKER-29-SARIF-LEAK-CHECK-b47e02"
 def scenario(db):
     """Minimal two-org slice of test_scan_ownership.py's fixture: one scan
     owned by org1's plain member, plus org2's admin as the rival reader."""
-    from webvulnscanner.models import Role
+    from glassbox.models import Role
 
     org1 = make_org(name="Org One")
     org2 = make_org(name="Org Two")
@@ -198,7 +198,7 @@ def _attach_sarif_marker_report(scan):
     }
     r = Report(scan_id=scan.id, json_path="unused-for-this-test.json",
                data=report_data)
-    from webvulnscanner.extensions import db as _db
+    from glassbox.extensions import db as _db
 
     _db.session.add(r)
     _db.session.flush()

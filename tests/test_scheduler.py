@@ -1,5 +1,5 @@
 """
-Tests for webvulnscanner/scheduler.py - the in-process daemon-thread
+Tests for glassbox/scheduler.py - the in-process daemon-thread
 scheduler for recurring Asset scans (Phase 1, ASSET-04/07/08).
 
 `_spawn_scan_thread` is monkeypatched to a no-op recorder in every test
@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from webvulnscanner.models import Asset, Plan, Scan, ScanStatus
+from glassbox.models import Asset, Plan, Scan, ScanStatus
 
 from tests.conftest import make_asset, make_org, make_user
 
@@ -27,7 +27,7 @@ def spawned(monkeypatch):
     def _fake_spawn(scan_id, scan_type, **kwargs):
         calls.append({"scan_id": scan_id, "scan_type": scan_type, "kwargs": kwargs})
 
-    monkeypatch.setattr("webvulnscanner.scheduler._spawn_scan_thread", _fake_spawn)
+    monkeypatch.setattr("glassbox.scheduler._spawn_scan_thread", _fake_spawn)
     return calls
 
 
@@ -57,7 +57,7 @@ def test_tick_fires_due_asset_and_creates_one_scan(app, db, spawned):
     a = make_asset(org, user, schedule_scan_type="base", next_run_at=_past())
     db.session.commit()
 
-    from webvulnscanner.scheduler import _tick
+    from glassbox.scheduler import _tick
 
     _tick(app)
 
@@ -76,7 +76,7 @@ def test_tick_advances_next_run_at_by_cadence(app, db, spawned):
     a = make_asset(org, user, cadence="daily", next_run_at=before)
     db.session.commit()
 
-    from webvulnscanner.scheduler import _tick
+    from glassbox.scheduler import _tick
 
     _tick(app)
 
@@ -90,7 +90,7 @@ def test_tick_does_not_fire_a_not_yet_due_asset(app, db, spawned):
     make_asset(org, user, next_run_at=datetime.now(timezone.utc) + timedelta(days=1))
     db.session.commit()
 
-    from webvulnscanner.scheduler import _tick
+    from glassbox.scheduler import _tick
 
     _tick(app)
 
@@ -104,7 +104,7 @@ def test_tick_does_not_fire_a_paused_asset(app, db, spawned):
     make_asset(org, user, next_run_at=_past(), is_paused=True)
     db.session.commit()
 
-    from webvulnscanner.scheduler import _tick
+    from glassbox.scheduler import _tick
 
     _tick(app)
 
@@ -118,7 +118,7 @@ def test_tick_does_not_fire_a_soft_deleted_asset(app, db, spawned):
     make_asset(org, user, next_run_at=_past(), deleted_at=datetime.now(timezone.utc))
     db.session.commit()
 
-    from webvulnscanner.scheduler import _tick
+    from glassbox.scheduler import _tick
 
     _tick(app)
 
@@ -137,7 +137,7 @@ def test_try_claim_second_call_loses_the_race(app, db):
     a = make_asset(org, user, next_run_at=_past())
     db.session.commit()
 
-    from webvulnscanner.scheduler import CADENCE_INTERVALS, _try_claim
+    from glassbox.scheduler import CADENCE_INTERVALS, _try_claim
 
     now = datetime.now(timezone.utc)
     next_run_at = now + CADENCE_INTERVALS[a.cadence]
@@ -158,7 +158,7 @@ def test_tick_never_double_fires_the_same_asset_in_one_tick(app, db, spawned):
     a = make_asset(org, user, next_run_at=_past())
     db.session.commit()
 
-    from webvulnscanner.scheduler import _tick
+    from glassbox.scheduler import _tick
 
     _tick(app)
     _tick(app)  # second tick immediately after - Asset is no longer due
@@ -177,7 +177,7 @@ def test_free_tier_media_schedule_fails_without_spawning(app, db, spawned):
     a = make_asset(org, user, schedule_scan_type="media", next_run_at=_past())
     db.session.commit()
 
-    from webvulnscanner.scheduler import _tick
+    from glassbox.scheduler import _tick
 
     _tick(app)
 
@@ -194,7 +194,7 @@ def test_free_tier_api_schedule_fails_without_spawning(app, db, spawned):
     a = make_asset(org, user, schedule_scan_type="api", next_run_at=_past())
     db.session.commit()
 
-    from webvulnscanner.scheduler import _tick
+    from glassbox.scheduler import _tick
 
     _tick(app)
 
@@ -210,7 +210,7 @@ def test_tier_upgrade_is_respected_at_next_fire_not_retroactively(app, db, spawn
     a = make_asset(org, user, schedule_scan_type="media", next_run_at=_past())
     db.session.commit()
 
-    from webvulnscanner.scheduler import _tick
+    from glassbox.scheduler import _tick
 
     _tick(app)  # first fire: still Free tier, fails
 
@@ -257,7 +257,7 @@ def test_fire_time_ssrf_failure_produces_failed_scan_without_spawning(app, db, s
 
     monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo)
 
-    from webvulnscanner.scheduler import _tick
+    from glassbox.scheduler import _tick
 
     _tick(app)
 
@@ -282,7 +282,7 @@ def test_fire_time_ssrf_failure_does_not_pause_or_change_schedule(app, db, spawn
 
     monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo)
 
-    from webvulnscanner.scheduler import _tick
+    from glassbox.scheduler import _tick
 
     _tick(app)
 
@@ -308,7 +308,7 @@ def test_paid_tier_media_schedule_spawns_with_unattended_defaults(app, db, spawn
     a = make_asset(org, user, schedule_scan_type="media", next_run_at=_past())
     db.session.commit()
 
-    from webvulnscanner.scheduler import _tick
+    from glassbox.scheduler import _tick
 
     _tick(app)
 
@@ -340,7 +340,7 @@ def test_paid_tier_api_schedule_spawns_with_target_and_tier(app, db, spawned):
     a = make_asset(org, user, schedule_scan_type="api", next_run_at=_past())
     db.session.commit()
 
-    from webvulnscanner.scheduler import _tick
+    from glassbox.scheduler import _tick
 
     _tick(app)
 
@@ -375,7 +375,7 @@ def test_fire_time_ssrf_failure_on_media_schedule_produces_failed_scan_without_s
 
     monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo)
 
-    from webvulnscanner.scheduler import _tick
+    from glassbox.scheduler import _tick
 
     _tick(app)
 
@@ -396,7 +396,7 @@ def test_fire_dispatches_only_on_base_media_api_no_advanced_branch():
     import inspect
     import re
 
-    from webvulnscanner.scheduler import _fire
+    from glassbox.scheduler import _fire
 
     src = inspect.getsource(_fire)
     dispatched_types = set(re.findall(r'asset\.schedule_scan_type == "(\w+)"', src))

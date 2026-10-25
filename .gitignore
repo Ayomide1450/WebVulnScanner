@@ -6,7 +6,7 @@ downloads/
 reports/
 .worktrees/
 .superpowers/
-webvulnscanner.db
+glassbox.db
 instance/
 .env
 handoff.md

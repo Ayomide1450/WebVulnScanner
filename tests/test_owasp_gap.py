@@ -11,12 +11,12 @@ Tests cover:
 """
 import pytest
 from unittest.mock import patch, MagicMock
-from webvulnscanner.checks import (
+from glassbox.checks import (
     Finding, check_xxe, check_csp_depth, check_hsts_depth,
     check_dnssec, check_dependency_audit,
     CHECK_LABELS, CHECK_CATEGORY,
 )
-from webvulnscanner.entitlements import FEATURE_REQUIREMENTS
+from glassbox.entitlements import FEATURE_REQUIREMENTS
 
 
 class TestCheckXxe:
@@ -100,7 +100,7 @@ class TestCheckDnssec:
         assert isinstance(data, dict)
         assert "hostname" in data
 
-    @patch("webvulnscanner.checks.dns.resolver")
+    @patch("glassbox.checks.dns.resolver")
     def test_no_dnssec(self, mock_resolver):
         mock_flags = MagicMock()
         mock_flags.__and__ = lambda self, other: 0
@@ -167,12 +167,12 @@ class TestRegistration:
 
     def test_wired_in_scan_engine(self):
         import pathlib
-        source = pathlib.Path("webvulnscanner/scan_engine.py").read_text(encoding="utf-8")
+        source = pathlib.Path("glassbox/scan_engine.py").read_text(encoding="utf-8")
         for key in ("xxe", "csp_depth", "hsts_depth", "dnssec", "dep_audit"):
             assert f'"{key}":' in source, f"{key} not wired into scan_engine.py jobs dict"
 
     def test_imports_in_scan_engine(self):
         import pathlib
-        source = pathlib.Path("webvulnscanner/scan_engine.py").read_text(encoding="utf-8")
+        source = pathlib.Path("glassbox/scan_engine.py").read_text(encoding="utf-8")
         for fn in ("check_xxe", "check_csp_depth", "check_hsts_depth", "check_dnssec", "check_dependency_audit"):
             assert fn in source, f"{fn} not imported in scan_engine.py"

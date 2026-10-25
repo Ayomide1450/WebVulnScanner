@@ -24,8 +24,8 @@ Usage:
 """
 import sys
 
-from webvulnscanner import create_app
-from webvulnscanner.models import db, User, Organization, Scan, Report, CryptoInvoice, ScanEvent
+from glassbox import create_app
+from glassbox.models import db, User, Organization, Scan, Report, CryptoInvoice, ScanEvent
 
 TARGET_ORG_NAME = "UI Review Org"
 TARGET_USER_EMAIL = "uireview@example.com"

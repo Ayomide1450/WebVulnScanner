@@ -23,8 +23,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import DomainVerification, Plan, Scan, VerifyMethod
+from glassbox.extensions import db as _db
+from glassbox.models import DomainVerification, Plan, Scan, VerifyMethod
 
 from tests.conftest import login, make_org, make_user
 
@@ -42,7 +42,7 @@ def spawned(monkeypatch):
     def _fake_spawn(scan_id, scan_type, **kwargs):
         calls.append({"scan_id": scan_id, "scan_type": scan_type, "kwargs": kwargs})
 
-    monkeypatch.setattr("webvulnscanner.scan_routes._spawn_scan_thread", _fake_spawn)
+    monkeypatch.setattr("glassbox.scan_routes._spawn_scan_thread", _fake_spawn)
     return calls
 
 
@@ -466,7 +466,7 @@ def test_detect_without_authorized_adv_refuses_and_never_crawls(client, db, monk
 
     called = []
     monkeypatch.setattr(
-        "webvulnscanner.scan_routes.detect_login_form",
+        "glassbox.scan_routes.detect_login_form",
         lambda *a, **kw: called.append((a, kw)) or None,
     )
     resp = client.post("/scan/new/advanced/detect", data={"target": "https://example.com"})
@@ -481,7 +481,7 @@ def test_detect_unsafe_target_refuses_and_never_crawls(client, db, monkeypatch):
 
     called = []
     monkeypatch.setattr(
-        "webvulnscanner.scan_routes.detect_login_form",
+        "glassbox.scan_routes.detect_login_form",
         lambda *a, **kw: called.append((a, kw)) or None,
     )
     resp = client.post(
@@ -499,7 +499,7 @@ def test_detect_found_returns_login_fields_json(client, db, monkeypatch):
     login(client, "det3@example.com")
 
     monkeypatch.setattr(
-        "webvulnscanner.scan_routes.detect_login_form",
+        "glassbox.scan_routes.detect_login_form",
         lambda *a, **kw: {
             "login_url": "https://example.com/session",
             "user_field": "email",
@@ -524,7 +524,7 @@ def test_detect_not_found_returns_found_false(client, db, monkeypatch):
     make_user("det4@example.com", org=org)
     login(client, "det4@example.com")
 
-    monkeypatch.setattr("webvulnscanner.scan_routes.detect_login_form", lambda *a, **kw: None)
+    monkeypatch.setattr("glassbox.scan_routes.detect_login_form", lambda *a, **kw: None)
     resp = client.post(
         "/scan/new/advanced/detect",
         data={"target": "https://example.com", "authorized_adv": "on"},
@@ -540,7 +540,7 @@ def test_detect_creates_zero_scan_rows(client, db, monkeypatch):
     login(client, "det5@example.com")
 
     monkeypatch.setattr(
-        "webvulnscanner.scan_routes.detect_login_form",
+        "glassbox.scan_routes.detect_login_form",
         lambda *a, **kw: {"login_url": "https://example.com/login", "user_field": "u", "pass_field": "p"},
     )
     client.post(

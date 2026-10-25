@@ -17,11 +17,11 @@ Tests below use explicit fake responses (not bare MagicMock, whose auto-mocked
 magic methods like __contains__ silently return truthy and would mask exactly
 this class of bug) so they exercise the real corrected logic.
 """
-from webvulnscanner.checks import (
+from glassbox.checks import (
     check_graphql_depth, check_auth_comparison, check_mass_assignment,
     CHECK_LABELS, CHECK_CATEGORY, CHECK_COMPLIANCE,
 )
-from webvulnscanner.entitlements import FEATURE_REQUIREMENTS
+from glassbox.entitlements import FEATURE_REQUIREMENTS
 
 
 class _FakeResponse:
@@ -301,13 +301,13 @@ class TestRegistration:
             assert key in FEATURE_REQUIREMENTS
 
     def test_auth_comparison_mass_assignment_in_advanced_scan_type(self):
-        from webvulnscanner.checks import SCAN_TYPE_CHECK_NAMES
+        from glassbox.checks import SCAN_TYPE_CHECK_NAMES
         assert "auth_comparison" in SCAN_TYPE_CHECK_NAMES["advanced"]
         assert "mass_assignment" in SCAN_TYPE_CHECK_NAMES["advanced"]
 
     def test_wired_in_scan_engine(self):
         import pathlib
-        source = pathlib.Path("webvulnscanner/scan_engine.py").read_text(encoding="utf-8")
+        source = pathlib.Path("glassbox/scan_engine.py").read_text(encoding="utf-8")
         # graphql_depth is in run_scan; auth_comparison/mass_assignment in run_advanced_scan
         assert '"graphql_depth":' in source
         assert '"auth_comparison"' in source

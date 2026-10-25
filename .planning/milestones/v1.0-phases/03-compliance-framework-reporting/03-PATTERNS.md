@@ -8,18 +8,18 @@
 
 | New/Modified File | Role | Data Flow | Closest Analog | Match Quality |
 |--------------------|------|-----------|-----------------|---------------|
-| `webvulnscanner/checks.py` (+`CHECK_COMPLIANCE` dict, +`Finding.check_name` field) | model/config (per-check lookup table) | transform (read-time lookup) | `webvulnscanner/checks.py`'s own `CHECK_LABELS`/`CHECK_CATEGORY` dicts (lines 61-87) + `Finding` dataclass (line 146) | exact |
-| `webvulnscanner/scan_engine.py` (tag `f.check_name = name` at ~9 collection points across 4 orchestrators) | service/orchestrator | transform (CRUD-adjacent: enrich in-memory objects before persist) | `run_scan()`'s existing `all_findings.extend(findings)` collection points (lines 288-289, 356-375, 377-394) and the 3 sibling orchestrators' `data, findings = check_x(...)` lines | exact |
-| `webvulnscanner/asset_routes.py` (+coverage-aggregation helper for `asset_detail()`) | route/controller (read-aggregate) | request-response (file I/O: reads JSON report files per scan) | `asset_routes._check_asset_access()` + `asset_detail()` (lines 38, 146-148) and `scan_routes.diff_reports()`'s `index_by_key` aggregation pattern | role-match (ownership guard = exact; aggregation loop = partial, ported from scan_routes.py) |
+| `glassbox/checks.py` (+`CHECK_COMPLIANCE` dict, +`Finding.check_name` field) | model/config (per-check lookup table) | transform (read-time lookup) | `glassbox/checks.py`'s own `CHECK_LABELS`/`CHECK_CATEGORY` dicts (lines 61-87) + `Finding` dataclass (line 146) | exact |
+| `glassbox/scan_engine.py` (tag `f.check_name = name` at ~9 collection points across 4 orchestrators) | service/orchestrator | transform (CRUD-adjacent: enrich in-memory objects before persist) | `run_scan()`'s existing `all_findings.extend(findings)` collection points (lines 288-289, 356-375, 377-394) and the 3 sibling orchestrators' `data, findings = check_x(...)` lines | exact |
+| `glassbox/asset_routes.py` (+coverage-aggregation helper for `asset_detail()`) | route/controller (read-aggregate) | request-response (file I/O: reads JSON report files per scan) | `asset_routes._check_asset_access()` + `asset_detail()` (lines 38, 146-148) and `scan_routes.diff_reports()`'s `index_by_key` aggregation pattern | role-match (ownership guard = exact; aggregation loop = partial, ported from scan_routes.py) |
 | `templates/scan_report.html` (+compliance grouping/filter toggle, +inline compliance pill per finding) | component/template | request-response (SSR) | Same file's existing severity-grouping loop (lines 110-132) | exact |
 | `templates/asset_detail.html` (+"Compliance coverage" card section) | component/template | request-response (SSR) | Same file's existing "Risk score over time" sparkline card section (lines 115+) and "Latest scan" status-pill card (lines 84-113) | exact |
 | `tests/test_compliance.py` (new) | test | batch (static source-parsing regression test) | `tests/test_entitlements.py`'s `_run_scan_job_names()`/`ADVANCED_SCAN_CHECK_NAMES`/`OUT_OF_JOBS_DICT_NAMES` (lines 49-79) and `tests/test_scan_events.py`'s `CHECK_LABELS`/`CHECK_CATEGORY` coverage tests (lines 60-86) | exact |
 
 ## Pattern Assignments
 
-### `webvulnscanner/checks.py` — `CHECK_COMPLIANCE` dict + `Finding.check_name` field
+### `glassbox/checks.py` — `CHECK_COMPLIANCE` dict + `Finding.check_name` field
 
-**Analog:** `webvulnscanner/checks.py:47-87` (`CHECK_LABELS`/`CHECK_CATEGORY`) and `:145-151` (`Finding`)
+**Analog:** `glassbox/checks.py:47-87` (`CHECK_LABELS`/`CHECK_CATEGORY`) and `:145-151` (`Finding`)
 
 **Dict-shape pattern to copy** (`checks.py:61-87`):
 ```python
@@ -76,7 +76,7 @@ class Finding:
 
 ---
 
-### `webvulnscanner/scan_engine.py` — centralized `check_name` tagging
+### `glassbox/scan_engine.py` — centralized `check_name` tagging
 
 **Analog:** the file's own existing collection points; also mirrors how `CHECK_LABELS`-style
 per-check metadata is consumed elsewhere (`_extract_detail(name, data)` at `scan_engine.py:366`).
@@ -117,12 +117,12 @@ Apply the same `for f in findings: f.check_name = name` one-liner at every other
 
 ---
 
-### `webvulnscanner/asset_routes.py` — coverage-summary aggregation helper
+### `glassbox/asset_routes.py` — coverage-summary aggregation helper
 
 **Analog (ownership guard):** `asset_routes.py:38` `_check_asset_access(a)`, called at the top of
 every asset route including `asset_detail()` (`:146-148`).
 
-**Analog (report-read + findings-index pattern to reuse):** `webvulnscanner/scan_routes.py:556-589`
+**Analog (report-read + findings-index pattern to reuse):** `glassbox/scan_routes.py:556-589`
 ```python
 # scan_report() - the load pattern
 with open(os.path.join(REPORTS_DIR, s.report.json_path), encoding="utf-8") as f:
@@ -253,7 +253,7 @@ enough completed scans yet..." copy.
 ## Shared Patterns
 
 ### IDOR/ownership guard (applies to any new asset-scoped read)
-**Source:** `webvulnscanner/asset_routes.py:38` (`_check_asset_access`), called at
+**Source:** `glassbox/asset_routes.py:38` (`_check_asset_access`), called at
 `asset_detail()` line 148; sibling pattern `scan_routes._check_ownership()` referenced at
 `scan_routes.py:560`.
 **Apply to:** the new coverage-aggregation helper in `asset_routes.py` — must call
@@ -263,7 +263,7 @@ real threat pattern (compliance-summary route leaking one org's data to another)
 existing guard, not invent a new one.
 
 ### "Missing dict entry degrades gracefully" fallback convention
-**Source:** `webvulnscanner/checks.py:47-60` (`CHECK_LABELS`, falls back to
+**Source:** `glassbox/checks.py:47-60` (`CHECK_LABELS`, falls back to
 `check_name.replace('_', ' ').title()`) and `:72-87` (`CHECK_CATEGORY`, falls back to `"shield"`).
 **Apply to:** `CHECK_COMPLIANCE` lookups in both templates and the asset_routes helper — a
 `check_name` missing from `CHECK_COMPLIANCE` (or an `owasp` value that's `None`/absent) must render
@@ -279,7 +279,7 @@ hand-maintained constants for check groups without a `jobs` dict) and `tests/tes
 ```python
 # Source: tests/test_entitlements.py:49-58
 def _run_scan_job_names():
-    src = Path(__file__).resolve().parent.parent / "webvulnscanner" / "scan_engine.py"
+    src = Path(__file__).resolve().parent.parent / "glassbox" / "scan_engine.py"
     text = src.read_text(encoding="utf-8")
     start = text.index("jobs = {")
     end = text.index("\n    }", start)
@@ -294,14 +294,14 @@ identically) plus two new ones, `MEDIA_SCAN_CHECK_NAMES = {"media"}` and
 `API_SCAN_CHECK_NAMES = {"schema", "wordlist", "js_discovery"}`, and write:
 ```python
 def test_check_compliance_covers_every_scan_type():
-    from webvulnscanner.checks import CHECK_COMPLIANCE
+    from glassbox.checks import CHECK_COMPLIANCE
     all_names = (_run_scan_job_names() | OUT_OF_JOBS_DICT_NAMES
                  | ADVANCED_SCAN_CHECK_NAMES | MEDIA_SCAN_CHECK_NAMES | API_SCAN_CHECK_NAMES)
     missing = all_names - set(CHECK_COMPLIANCE)
     assert not missing, f"CHECK_COMPLIANCE is missing entries for {missing}"
 
 def test_check_compliance_every_entry_has_owasp_category():
-    from webvulnscanner.checks import CHECK_COMPLIANCE
+    from glassbox.checks import CHECK_COMPLIANCE
     for name, entry in CHECK_COMPLIANCE.items():
         assert entry.get("owasp"), f"{name} has no owasp category (D-01: required on every mapped check)"
 ```
@@ -321,7 +321,7 @@ None — every file in this phase's scope has a direct, same-file or same-codeba
 
 ## Metadata
 
-**Analog search scope:** `webvulnscanner/` (checks.py, scan_engine.py, scan_routes.py,
+**Analog search scope:** `glassbox/` (checks.py, scan_engine.py, scan_routes.py,
 asset_routes.py, entitlements.py, models.py), `templates/` (scan_report.html, asset_detail.html,
 base.html), `tests/` (test_entitlements.py, test_scan_events.py)
 **Files scanned:** 10

@@ -47,9 +47,9 @@ key-files:
   created:
     - tests/test_compliance.py
   modified:
-    - webvulnscanner/checks.py
-    - webvulnscanner/scan_engine.py
-    - webvulnscanner/scan_routes.py
+    - glassbox/checks.py
+    - glassbox/scan_engine.py
+    - glassbox/scan_routes.py
     - templates/base.html
     - templates/scan_report.html
 
@@ -238,11 +238,11 @@ Each task was committed atomically:
 
 ## Files Created/Modified
 
-- `webvulnscanner/checks.py` - `Finding.check_name` field, `SCAN_TYPE_CHECK_NAMES` dict, 26-entry
+- `glassbox/checks.py` - `Finding.check_name` field, `SCAN_TYPE_CHECK_NAMES` dict, 26-entry
   `CHECK_COMPLIANCE` dict
-- `webvulnscanner/scan_engine.py` - `check_name` tagging at all 9 finding-collection points across
+- `glassbox/scan_engine.py` - `check_name` tagging at all 9 finding-collection points across
   the 4 orchestrators
-- `webvulnscanner/scan_routes.py` - imports and passes `CHECK_COMPLIANCE` into `scan_report()`'s
+- `glassbox/scan_routes.py` - imports and passes `CHECK_COMPLIANCE` into `scan_report()`'s
   render context
 - `templates/base.html` - new `.pill.compliance` neutral CSS variant
 - `templates/scan_report.html` - inline OWASP pill + optional ASVS caption on every finding card
@@ -272,7 +272,7 @@ checkpoint (approved as-is, no row changes).
 
 None - the ambient `python` interpreter (3.14) lacked `pytest`; resolved by running the suite
 against the documented `.venv` at the main repo checkout
-(`C:\Users\Arktech_Designs\Documents\WebVulnScanner\.venv\Scripts\python.exe`), matching
+(`C:\Users\Arktech_Designs\Documents\Glassbox\.venv\Scripts\python.exe`), matching
 `CLAUDE.md`'s "Tests" section (the plan's own relative `../../../.venv/...` path assumes a
 `.venv` inside this worktree, which doesn't exist since `.venv/` is gitignored and worktrees don't
 share it).

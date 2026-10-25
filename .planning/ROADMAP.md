@@ -1,4 +1,4 @@
-# Roadmap: WebVulnScanner
+# Roadmap: Glassbox
 
 ## Milestones
 
@@ -65,7 +65,7 @@ VERIFY-08, VERIFY-09
 **Success Criteria** (what must be TRUE):
 
   1. A live four-width sweep (320/375/768/1280px) of every page against
-     `https://webvulnscanner.fly.dev` is complete with a per-page pass/fail record, per
+     `https://glassbox.fly.dev` is complete with a per-page pass/fail record, per
      07-07-PLAN.md's original checklist (RESP-01/02/03).
 
   2. The live scan-progress feed is re-confirmed against a real running scan at all four
@@ -90,14 +90,14 @@ not dropped. Pick up once v1.3's phases land.
 
 ### Phase 11: Glassbox Rebrand âœ… COMPLETE (2026-08-20)
 
-**Goal**: The product is renamed from WebVulnScanner to Glassbox across every user-facing surface
+**Goal**: The product is renamed from Glassbox to Glassbox across every user-facing surface
 and a new Fly app serves the same functionality, with the old app decommissioned only after the
 new one is verified healthy.
 **Depends on**: Phase 9 (v1.1, complete) â€” no dependency on the deferred Phase 10
 **Requirements**: REBRAND-01, REBRAND-02, REBRAND-03, REBRAND-04, REBRAND-05
 **Success Criteria** (what must be TRUE):
 
-  1. No rendered page contains the literal string "WebVulnScanner" â€” every title, meta tag, nav
+  1. No rendered page contains the literal string "Glassbox" â€” every title, meta tag, nav
      brand, email, and error page shows "Glassbox". âœ…
   2. `README.md`/`CLAUDE.md` reflect the new name; CLAUDE.md's frozen-surface and non-destructive
      constraints are unchanged in substance. âœ…
@@ -112,10 +112,10 @@ migration task)
 **Actual outcome**: `glassbox` itself was already taken globally on Fly (app names are global
 across all accounts, not per-org) â€” deployed as **`glassboxsec.fly.dev`** instead, confirmed via
 `flyctl apps create` before touching anything else. All 12 secrets migrated by reading them from
-the live `webvulnscanner` machine's environment (`flyctl ssh console -C`) piped directly into
+the live `glassbox` machine's environment (`flyctl ssh console -C`) piped directly into
 `flyctl secrets import` on the new app â€” values never displayed in any output, verified identical
 via matching digests. New app deployed, confirmed healthy (`/healthz` DB connectivity, `/signup`
-200, `/scan/new` correctly gating auth), old `webvulnscanner` app destroyed only after that
+200, `/scan/new` correctly gating auth), old `glassbox` app destroyed only after that
 verification. `fly.toml` updated to target `glassboxsec`.
 
 **UI hint**: yes (branding surfaces only â€” no layout/component changes)
@@ -379,7 +379,7 @@ negatives that MUST stay silent) and rendered as a pass/fail table at /selftest.
 **Requirements**: ST-01..ST-06 (see REQUIREMENTS.md)
 **Success Criteria**:
 
-   1. `webvulnscanner/selftest.py` starts a ThreadingHTTPServer bound to 127.0.0.1 on an
+   1. `glassbox/selftest.py` starts a ThreadingHTTPServer bound to 127.0.0.1 on an
       ephemeral port; nothing binds to a wildcard or external interface.
    2. `run_selftest()` executes all ten checks in-process using the real crawler
       (`crawl_same_origin`) and returns `{passed, duration_ms, results[]}` where every row

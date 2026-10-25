@@ -56,7 +56,7 @@ tech-stack:
 key-files:
   created: []
   modified:
-    - webvulnscanner/asset_routes.py
+    - glassbox/asset_routes.py
     - templates/asset_detail.html
     - tests/test_asset_routes.py
 
@@ -242,7 +242,7 @@ from which checks actually ran, never from the mere absence of findings.**
 - **Duration:** ~55 min active work
 - **Completed:** 2026-08-11
 - **Tasks:** 3 (all `type="auto"`, no checkpoints - `autonomous: true`)
-- **Files modified:** 3 (`webvulnscanner/asset_routes.py`, `templates/asset_detail.html`,
+- **Files modified:** 3 (`glassbox/asset_routes.py`, `templates/asset_detail.html`,
   `tests/test_asset_routes.py`)
 
 ## Accomplishments
@@ -279,7 +279,7 @@ Each task was committed atomically:
 
 ## Files Created/Modified
 
-- `webvulnscanner/asset_routes.py` - `_category_for_check()` helper, `summarize_compliance()`,
+- `glassbox/asset_routes.py` - `_category_for_check()` helper, `summarize_compliance()`,
   `compliance_coverage()`, `coverage=` wired into `_render_asset_detail()`
 - `templates/asset_detail.html` - "Compliance coverage" card, `.pill.not-checked` CSS
 - `tests/test_asset_routes.py` - 9 `summarize_compliance` unit tests, 5 `compliance_coverage`/
@@ -314,7 +314,7 @@ unreadable data always renders `not_checked`, never `passing`).
 ## Issues Encountered
 
 None - the ambient `python` interpreter lacks `pytest`; ran the suite against the documented
-`.venv` at the main repo checkout (`C:\Users\Arktech_Designs\Documents\WebVulnScanner\.venv\Scripts\python.exe`),
+`.venv` at the main repo checkout (`C:\Users\Arktech_Designs\Documents\Glassbox\.venv\Scripts\python.exe`),
 same convention plans 03-01 and 03-02 already established for this worktree. The full suite (up to
 260 tests by the final task) takes several minutes on this machine; ran it via a background task
 after each of the three task commits to confirm no interaction with plan 03-02's same-working-tree
@@ -337,7 +337,7 @@ Hardening & Reliability).
 
 ## Self-Check: PASSED
 
-- FOUND: `webvulnscanner/asset_routes.py`
+- FOUND: `glassbox/asset_routes.py`
 - FOUND: `templates/asset_detail.html`
 - FOUND: `tests/test_asset_routes.py`
 - FOUND: `.planning/phases/03-compliance-framework-reporting/03-03-SUMMARY.md`

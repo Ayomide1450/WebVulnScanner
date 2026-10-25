@@ -32,9 +32,9 @@ import time
 
 import pytest
 
-from webvulnscanner.entitlements import Tier
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import Plan, Scan, ScanStatus
+from glassbox.entitlements import Tier
+from glassbox.extensions import db as _db
+from glassbox.models import Plan, Scan, ScanStatus
 
 from tests.conftest import login, make_org, make_scan, make_user
 
@@ -50,7 +50,7 @@ def spawned(monkeypatch):
     def _fake_spawn(scan_id, scan_type, **kwargs):
         calls.append({"scan_id": scan_id, "scan_type": scan_type, "kwargs": kwargs})
 
-    monkeypatch.setattr("webvulnscanner.scan_routes._spawn_scan_thread", _fake_spawn)
+    monkeypatch.setattr("glassbox.scan_routes._spawn_scan_thread", _fake_spawn)
     return calls
 
 

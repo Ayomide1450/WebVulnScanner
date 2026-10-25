@@ -18,3 +18,13 @@ redis
 pyyaml
 weasyprint>=68,<70
 python3-saml>=1.16,<2
+# Fernet at-rest encryption of SSO secrets (models.py's
+# encrypt_secret/decrypt_secret) and the HKDF key derivation behind
+# config.py's _fernet_key(). Both import it lazily inside the function
+# body, so a missing install does NOT fail at boot - it fails the first
+# time an SSO secret is written or read. It was absent from this file
+# until 2026-10-25 and only worked locally because an older python3-saml
+# pulled it in transitively; a clean deploy would have hit it in
+# production. Pinned with a floor, not exact, to keep security patches
+# flowing.
+cryptography>=42

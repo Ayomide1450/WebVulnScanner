@@ -36,7 +36,7 @@ key-files:
     - templates/_scan_wizard_stepper.html
     - templates/scan_new_type.html
   modified:
-    - webvulnscanner/scan_routes.py
+    - glassbox/scan_routes.py
     - templates/base.html
     - templates/_scan_form_styles.html
     - templates/scan_new.html
@@ -111,7 +111,7 @@ status: complete
 - **Started:** 2026-08-15T20:33:14+01:00 (Task 1 commit)
 - **Completed:** 2026-08-17 (this closing session)
 - **Tasks:** 3 (2 auto/tracer tasks + 1 checkpoint:human-verify, all complete)
-- **Files modified:** 8 (`webvulnscanner/scan_routes.py`, `templates/base.html`, `templates/_scan_wizard_stepper.html`, `templates/_scan_form_styles.html`, `templates/scan_new.html`, `templates/scan_new_type.html`, `templates/scan_new_base.html`, `tests/test_scan_wizard.py`)
+- **Files modified:** 8 (`glassbox/scan_routes.py`, `templates/base.html`, `templates/_scan_wizard_stepper.html`, `templates/_scan_form_styles.html`, `templates/scan_new.html`, `templates/scan_new_type.html`, `templates/scan_new_base.html`, `tests/test_scan_wizard.py`)
 
 ## Accomplishments
 - `/scan/new` is now Step 1 (Select Domain): a `<select>` populated only from the caller org's verified `DomainVerification` rows (D-01), an equally-visible free-text target input never behind a toggle, and the 4-node stepper.
@@ -133,7 +133,7 @@ Each task was committed atomically:
 _Both code tasks were TDD (`tdd="true"`): tests were written/extended in `tests/test_scan_wizard.py` alongside each task's implementation and run to green before commit; no separate RED-only commit was produced for this tracer/auto pairing (single commit per task per plan convention)._
 
 ## Files Created/Modified
-- `webvulnscanner/scan_routes.py` - `_verified_domain_choices`, `_prefill_target`, `_scan_type_availability` helpers; `AVAILABILITY_*`/`SCAN_TYPE_CARDS` constants; new `new_scan_type()` route; `new_scan()` repurposed as Step 1; `new_scan_base()` passes `prefill_target` into all 5 render sites
+- `glassbox/scan_routes.py` - `_verified_domain_choices`, `_prefill_target`, `_scan_type_availability` helpers; `AVAILABILITY_*`/`SCAN_TYPE_CARDS` constants; new `new_scan_type()` route; `new_scan()` repurposed as Step 1; `new_scan_base()` passes `prefill_target` into all 5 render sites
 - `templates/base.html` - added `#icon-check` sprite symbol only (no other changes)
 - `templates/_scan_wizard_stepper.html` - new shared 4-node stepper partial
 - `templates/_scan_form_styles.html` - additive `select` styling (shares `input[type=text]` rule pair), `.wizard-steps`/`.wizard-step`/`.or-divider`/`.wizard-summary` classes

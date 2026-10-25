@@ -2,7 +2,7 @@
 {% block title %}Platform Admin - Glassbox{% endblock %}
 {% block head %}
 {% include "_admin_form_styles.html" %}
-<style>
+<style nonce="{{ csp_nonce }}">
   .stat-grid { display:grid; grid-template-columns: repeat(5, 1fr); gap:14px; margin-bottom: 8px; }
   @media (max-width: 700px) { .stat-grid { grid-template-columns: 1fr 1fr; } }
   .stat-card { padding: 16px 18px; }

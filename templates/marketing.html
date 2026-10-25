@@ -16,7 +16,7 @@
 <meta name="twitter:image" content="{{ url_for('static', filename='apple-touch-icon.png', _external=True) }}">
 {% endblock %}
 {% block head %}
-<style>
+<style nonce="{{ csp_nonce }}">
   /* ---------------------------------------------------------------------
      Homepage redesign. Reuses base.html's tokens (--bg/--panel/--accent/
      Fira Sans+Code) and shared components (.card, .btn, .pill) rather than
@@ -153,7 +153,7 @@
   .cta.primary { background: var(--accent); color:#041007; }
   .cta.secondary { border:1px solid var(--border); color: var(--text); background: var(--panel); }
 </style>
-<noscript><style>.terminal { display: none; }</style></noscript>
+<noscript><style nonce="{{ csp_nonce }}">.terminal { display: none; }</style></noscript>
 {% endblock %}
 {% block content %}
 
@@ -423,7 +423,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
   // Progressive enhancement only: the server-rendered headline/sub/CTA are
   // already the final, correct content and stay visible the entire time -

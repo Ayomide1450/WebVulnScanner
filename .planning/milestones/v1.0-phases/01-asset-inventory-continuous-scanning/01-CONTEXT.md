@@ -29,7 +29,7 @@ existing codebase conventions (see Claude's Discretion below).
 
 - **D-01:** Use an in-process daemon background thread to periodically check for due schedules,
   reusing the same pattern already established for scan execution
-  (`_spawn_scan_thread`/`_run_scan_in_background` in `webvulnscanner/scan_routes.py`) rather than
+  (`_spawn_scan_thread`/`_run_scan_in_background` in `glassbox/scan_routes.py`) rather than
   introducing APScheduler or a separate scheduled process/Render Cron Job. — **Reversibility:**
   costly — **rationale:** switching later to an external scheduler (APScheduler, a separate
   Render Cron Job/process) would mean re-architecting the trigger path and how it integrates with
@@ -121,7 +121,7 @@ constraints:
 ## Existing Code Insights
 
 ### Reusable Assets
-- `_spawn_scan_thread()` / `_run_scan_in_background()` (`webvulnscanner/scan_routes.py:82,180`) —
+- `_spawn_scan_thread()` / `_run_scan_in_background()` (`glassbox/scan_routes.py:82,180`) —
   the existing daemon-thread + pushed-app-context pattern for async scan execution. The
   scheduler's tick handler should invoke scans through this same path (or a thin wrapper around
   it) rather than duplicating scan-launch logic, so every safety gate it already enforces

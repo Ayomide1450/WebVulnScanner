@@ -29,8 +29,8 @@ import re
 
 import pytest
 
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import Report, ScanStatus
+from glassbox.extensions import db as _db
+from glassbox.models import Report, ScanStatus
 
 from tests.conftest import login, make_org, make_scan, make_user
 
@@ -261,7 +261,7 @@ def test_gauge_renders_on_dashboard_scan_report_and_asset_detail(client, db):
     from tests.conftest import make_asset
 
     asset = make_asset(org, user, name="Gauge Asset")
-    from webvulnscanner.models import Scan
+    from glassbox.models import Scan
 
     scan = Scan(
         asset_id=asset.id, user_id=user.id, org_id=org.id,

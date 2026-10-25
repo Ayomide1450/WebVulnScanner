@@ -1,5 +1,5 @@
 """
-Tests for webvulnscanner/auth_routes.py: signup, email verification, login,
+Tests for glassbox/auth_routes.py: signup, email verification, login,
 logout, and the forgot-password/reset-password flow.
 
 Fixture emails use .com/.org/.dev-style fake domains, never .test/.invalid/
@@ -14,13 +14,13 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from webvulnscanner.email_stub import EmailSender
-from webvulnscanner.models import Organization, PasswordReset, Plan, Role, User
+from glassbox.email_stub import EmailSender
+from glassbox.models import Organization, PasswordReset, Plan, Role, User
 
 from tests.conftest import login, make_org, make_user
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-WEBVULNSCANNER_DIR = REPO_ROOT / "webvulnscanner"
+GLASSBOX_DIR = REPO_ROOT / "glassbox"
 
 
 class _SpyEmailSender(EmailSender):
@@ -160,7 +160,7 @@ def test_signup_rejects_missing_turnstile_token_when_configured(client, db, app,
 
 
 def test_signup_rejects_failed_turnstile_verification(client, db, app, monkeypatch):
-    from webvulnscanner import auth_routes
+    from glassbox import auth_routes
 
     app.config["TURNSTILE_SECRET_KEY"] = "test-secret"
     mock_resp = type("R", (), {"json": lambda self: {"success": False}})()
@@ -180,7 +180,7 @@ def test_signup_rejects_failed_turnstile_verification(client, db, app, monkeypat
 
 
 def test_signup_succeeds_with_valid_turnstile_token(client, db, app, monkeypatch):
-    from webvulnscanner import auth_routes
+    from glassbox import auth_routes
 
     app.config["TURNSTILE_SECRET_KEY"] = "test-secret"
     mock_resp = type("R", (), {"json": lambda self: {"success": True}})()
@@ -200,7 +200,7 @@ def test_signup_succeeds_with_valid_turnstile_token(client, db, app, monkeypatch
 
 
 def test_signup_turnstile_network_failure_fails_closed(client, db, app, monkeypatch):
-    from webvulnscanner import auth_routes
+    from glassbox import auth_routes
 
     app.config["TURNSTILE_SECRET_KEY"] = "test-secret"
 
@@ -313,7 +313,7 @@ def test_login_blocked_when_org_requires_sso(client, db):
     actually block password login - before this fix the flag was saved by
     org_routes.py's admin panel and displayed in the UI, but /login never
     read it, so password auth kept working regardless of the setting."""
-    from webvulnscanner.models import SSOConfiguration
+    from glassbox.models import SSOConfiguration
 
     org = make_org()
     make_user("member@example.com", org=org, password="password123")
@@ -340,7 +340,7 @@ def test_login_blocked_when_org_requires_sso(client, db):
 def test_login_still_works_when_sso_allows_password_login(client, db):
     """Default/explicit allow_password_login=True must not regress -
     SSO being configured for an org doesn't itself lock out passwords."""
-    from webvulnscanner.models import SSOConfiguration
+    from glassbox.models import SSOConfiguration
 
     org = make_org()
     make_user("member2@example.com", org=org, password="password123")
@@ -365,7 +365,7 @@ def test_login_unaffected_by_disabled_sso_config_even_if_password_login_false(cl
     """enabled=False must fully disarm allow_password_login too - a
     disabled-but-not-deleted SSOConfiguration (models.py's documented
     "soft toggle") must not still block password login."""
-    from webvulnscanner.models import SSOConfiguration
+    from glassbox.models import SSOConfiguration
 
     org = make_org()
     make_user("member3@example.com", org=org, password="password123")
@@ -614,7 +614,7 @@ def test_logout_ignores_a_next_param_supplied_on_the_logout_request(client, db):
 
 # --------------------------------------------------------------------------
 # SEC-07 sole-surface source lock: every user-influenced redirect target
-# anywhere in webvulnscanner/ must go through one of exactly two named,
+# anywhere in glassbox/ must go through one of exactly two named,
 # reviewed helpers - _safe_next() (the `next` query-param case) or
 # _safe_referrer() (the CSRFError handler's `request.referrer` case, added
 # Phase 10, 08-20/21) - never a bare, unaudited expression. Same
@@ -639,7 +639,7 @@ _EXPECTED_SAFE_NEXT_CALL_SITES = {
 # allow_password_login SSO-enforcement branch ahead of this redirect
 # (see auth_routes.py's login() docstring-adjacent comments).
 
-# Same closed-set treatment for _safe_referrer() (webvulnscanner/__init__.py's
+# Same closed-set treatment for _safe_referrer() (glassbox/__init__.py's
 # CSRFError handler) - currently exactly one call site. Line moved 303 -> 307
 # when Phase 19 registered the webhooks blueprint above it, then 307 -> 311
 # when Phase 21 registered the selftest blueprint, then 311 -> 315 when
@@ -647,21 +647,25 @@ _EXPECTED_SAFE_NEXT_CALL_SITES = {
 # selftest blueprint was removed entirely (2026-08-24 redesign: no standalone
 # /selftest page; the verification engine now feeds scan reports directly),
 # then 311 -> 315 when Phase 26 registered the SSO blueprint,
-# then 315 -> 320 when Phase 31 added the CVSS globals injection.
+# then 315 -> 320 when Phase 31 added the CVSS globals injection,
+# then 320 -> 413 when the 2026-10-25 hardening pass added the
+# _issue_csp_nonce/_set_security_headers hooks above the error handlers.
+# The call site itself is unchanged - still the CSRFError handler's
+# `return redirect(_safe_referrer())`; only its line number moved.
 _EXPECTED_SAFE_REFERRER_CALL_SITES = {
-    ("__init__.py", 320),
+    ("__init__.py", 413),
 }
 
 
 def _find_redirect_call_sites():
-    """Reads every .py file under webvulnscanner/, strips full-line '#'
+    """Reads every .py file under glassbox/, strips full-line '#'
     comments (a trailing inline comment on a real call site is still
     counted - only a comment-only line is skipped), and collects every
     `redirect(...)` call together with the text immediately following the
     opening paren, so each call's argument can be classified without
     needing to fully parse nested parens."""
     hits = []
-    for path in sorted(WEBVULNSCANNER_DIR.rglob("*.py")):
+    for path in sorted(GLASSBOX_DIR.rglob("*.py")):
         for lineno, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if raw_line.strip().startswith("#"):
                 continue
@@ -712,7 +716,7 @@ def test_only_safe_next_redirects_take_a_request_derived_argument():
 #   @auth.route("/_neg_control_redirect")
 #   def _neg_control_redirect():
 #       return redirect(request.args.get("next"))
-# was added directly below logout() in webvulnscanner/auth_routes.py, this
+# was added directly below logout() in glassbox/auth_routes.py, this
 # test was run alone, and the route was reverted immediately after. Observed
 # failure (recorded verbatim, mirroring 08-02's/08-05's own negative-control
 # recording convention):
@@ -720,10 +724,10 @@ def test_only_safe_next_redirects_take_a_request_derived_argument():
 #   AssertionError: redirect() call site(s) with an argument that is neither
 #   url_for(...) nor _safe_next() (SEC-07 regression) - a request-derived
 #   redirect target outside _safe_next() may have been introduced:
-#   ['webvulnscanner\\auth_routes.py:301 -> redirect(\'request.args.get("next"))\') '
+#   ['glassbox\\auth_routes.py:301 -> redirect(\'request.args.get("next"))\') '
 #    "(full line: 'return redirect(request.args.get(\"next\"))')"]
 #
-# `git diff --stat webvulnscanner/auth_routes.py` confirmed empty afterward.
+# `git diff --stat glassbox/auth_routes.py` confirmed empty afterward.
 
 
 _NEXT_HELPER_DEF_RE = re.compile(r"^\s*def\s+(\w*next\w*)\s*\(", re.IGNORECASE)
@@ -735,7 +739,7 @@ def _find_next_parameter_helper_defs():
     divergent next-parameter guard being added anywhere in the app, not
     just a second call to the existing one."""
     hits = []
-    for path in sorted(WEBVULNSCANNER_DIR.rglob("*.py")):
+    for path in sorted(GLASSBOX_DIR.rglob("*.py")):
         for lineno, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if raw_line.strip().startswith("#"):
                 continue
@@ -759,7 +763,7 @@ def test_only_one_next_parameter_helper_is_defined():
 # permanent test): a second helper
 #   def _get_safe_next_url(default="/dashboard"):
 #       return default
-# was added directly below logout() in webvulnscanner/auth_routes.py, this
+# was added directly below logout() in glassbox/auth_routes.py, this
 # test was run alone, and the helper was reverted immediately after.
 # Observed failure:
 #
@@ -768,7 +772,7 @@ def test_only_one_next_parameter_helper_is_defined():
 #   '_safe_next'), ('auth_routes.py', 299, '_get_safe_next_url')] - a
 #   second, possibly divergent redirect-target guard may have been added
 #
-# `git diff --stat webvulnscanner/auth_routes.py` confirmed empty afterward.
+# `git diff --stat glassbox/auth_routes.py` confirmed empty afterward.
 
 
 # --------------------------------------------------------------------------
@@ -894,8 +898,8 @@ def test_reset_password_rejects_mismatched_confirmation(client, db):
 # --------------------------------------------------------------------------
 
 def test_login_rate_limit_is_enforced(tmp_path):
-    from webvulnscanner import create_app
-    from webvulnscanner.extensions import limiter as _limiter
+    from glassbox import create_app
+    from glassbox.extensions import limiter as _limiter
     from tests.conftest import TestConfig
 
     class _RateLimitedConfig(TestConfig):
@@ -904,7 +908,7 @@ def test_login_rate_limit_is_enforced(tmp_path):
 
     rl_app = create_app(_RateLimitedConfig)
     with rl_app.app_context():
-        from webvulnscanner.extensions import db as _db
+        from glassbox.extensions import db as _db
         _db.create_all()
     _limiter.reset()
     try:

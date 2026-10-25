@@ -1,5 +1,5 @@
 """
-Tests for webvulnscanner/api_docs.py + docs_route.py (Phase 22, DOCS-01..05).
+Tests for glassbox/api_docs.py + docs_route.py (Phase 22, DOCS-01..05).
 
 The theme of this file is that the /docs/api page cannot silently drift from
 reality. Three independent locks:
@@ -22,12 +22,12 @@ from pathlib import Path
 
 import pytest
 
-from webvulnscanner.api_docs import (
+from glassbox.api_docs import (
     API_ENDPOINTS,
     CLI_SUBCOMMANDS,
     WEBHOOK_VERIFY_SNIPPET,
 )
-from webvulnscanner.webhooks import sign_payload
+from glassbox.webhooks import sign_payload
 
 from tests.conftest import login, make_org, make_user
 
@@ -62,7 +62,7 @@ def test_every_api_v1_route_is_documented_with_matching_methods(app):
     }
     assert not undocumented, (
         f"/api/v1 route(s) exist but have no API_ENDPOINTS entry in "
-        f"webvulnscanner/api_docs.py - add one so /docs/api stays complete: "
+        f"glassbox/api_docs.py - add one so /docs/api stays complete: "
         f"{undocumented}"
     )
     assert not stale, (
@@ -146,7 +146,7 @@ def test_cli_subcommands_match_readme():
         "the /docs/api CLI quickstart and cli/README.md disagree - "
         f"commands only in README: {missing_from_docs}; "
         f"commands only in the docs spec: {phantom_in_docs}. "
-        "Update webvulnscanner/api_docs.py's CLI_SUBCOMMANDS and/or the README "
+        "Update glassbox/api_docs.py's CLI_SUBCOMMANDS and/or the README "
         "so both surfaces move together."
     )
 

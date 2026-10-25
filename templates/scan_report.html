@@ -2,7 +2,7 @@
 {% block title %}Scan report - Glassbox{% endblock %}
 {% block head %}
 {% include "_pagination.html" %}
-<style>
+<style nonce="{{ csp_nonce }}">
   h1 { margin-top: 20px; }
   .meta { color: var(--muted); font-size:13px; margin-bottom: 8px; }
   /* Report actions: was a single cramped &middot;-separated text line
@@ -454,7 +454,7 @@
             <b>Matched content:</b>
             <code class="sp-secret-masked">{{ p.secret_evidence.masked }}</code>
             <code class="sp-secret-raw" hidden>{{ p.secret_evidence.raw }}</code>
-            <button type="button" class="sp-reveal-btn" onclick="wvsToggleSecret(this)">Reveal</button>
+            <button type="button" class="sp-reveal-btn">Reveal</button>
             <div class="note sp-secret-note">Visible only to you, inside this authenticated report. Never included in exports, notifications, or third-party integrations.</div>
           </div>
           {% endif %}
@@ -1127,7 +1127,7 @@
   </details>
   {% endif %}
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
 // Client-side only mask/reveal toggle for confirmed sensitive-path evidence
 // (scan_report.html's .sp-secret blocks). No network request - the value
 // is already present in this authenticated, ownership-checked page (see
@@ -1143,6 +1143,15 @@ function wvsToggleSecret(btn) {
   masked.hidden = !revealed;
   btn.textContent = revealed ? 'Reveal' : 'Hide';
 }
+// Bound here rather than via an inline onclick= attribute: the app's CSP
+// allows inline script by nonce only, and an attribute handler cannot
+// carry a nonce - it would be blocked and the button would silently do
+// nothing. Delegated from document so it also covers rows rendered after
+// load.
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('.sp-reveal-btn');
+  if (btn) { wvsToggleSecret(btn); }
+});
 </script>
 {% endblock %}
 

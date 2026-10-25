@@ -1,20 +1,20 @@
 # Vercel migration: architecture notes and current status
 
-This document explains what part of WebVulnScanner can move to Vercel as-is, what
+This document explains what part of Glassbox can move to Vercel as-is, what
 architecturally cannot, and what's actually shipped in this pass vs. left as a follow-up
 project. It does not describe a completed migration — see "What's shipped in this pass" at the
 bottom for the honest boundary.
 
 ## Why this isn't a drop-in Vercel port
 
-WebVulnScanner's scan engine runs on a model that is fundamentally incompatible with Vercel's
+Glassbox's scan engine runs on a model that is fundamentally incompatible with Vercel's
 serverless Python functions:
 
 - **Scans run on a raw `threading.Thread` spawned from the request handler**
-  (`webvulnscanner/scan_routes.py`'s `_spawn_scan_thread()`), a daemon thread that keeps running
+  (`glassbox/scan_routes.py`'s `_spawn_scan_thread()`), a daemon thread that keeps running
   after the HTTP response returns. A serverless function is frozen or torn down once it returns
   a response — the thread would be killed mid-scan, and a base/advanced/media/api scan routinely
-  makes 30+ outbound HTTP requests (`webvulnscanner/checks.py`) that take well past any
+  makes 30+ outbound HTTP requests (`glassbox/checks.py`) that take well past any
   request's lifetime.
 - **The live SSE feed (`scan_events()` in `scan_routes.py`) is an indefinite polling loop** —
   it `sleep(0.5)`s and re-queries the DB in a `while` loop until the scan reaches
@@ -25,7 +25,7 @@ serverless Python functions:
   (`scan_engine.py`'s `save_report()` → `reports/`, `checks.py`'s media-download path →
   `downloads/`). Vercel's filesystem is read-only outside an ephemeral `/tmp` that doesn't
   persist across invocations — nothing written there survives past the request.
-- **Flask-Limiter's rate limiting uses in-memory storage** (`webvulnscanner/extensions.py`) —
+- **Flask-Limiter's rate limiting uses in-memory storage** (`glassbox/extensions.py`) —
   already documented as a single-process limitation; on serverless, every invocation is
   effectively a fresh process, so counters wouldn't be shared at all without an external store.
 
@@ -64,7 +64,7 @@ Every synchronous request/response route with no long-lived state:
                     ┌─────────────────────┐
    Browser  ───────▶│   Vercel (web/API)   │  Flask via WSGI adapter
                     │  auth/org/billing/    │  (@vercel/python wrapping
-                    │  dashboard/report      │   webvulnscanner.create_app())
+                    │  dashboard/report      │   glassbox.create_app())
                     │  enqueues scan jobs    │
                     └──────────┬─────────────┘
                                │ enqueue                 ▲ poll/short-poll

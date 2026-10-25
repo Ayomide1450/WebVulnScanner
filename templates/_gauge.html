@@ -35,7 +35,7 @@
   </svg>
   <div class="gauge-num"><div class="n">{{ score }}</div><div class="g">grade {{ risk_grade }}</div></div>
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
   (function () {
     var score = {{ score }};
     var circumference = 2 * Math.PI * 46;

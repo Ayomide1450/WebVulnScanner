@@ -14,12 +14,12 @@ import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-import webvulnscanner.scan_routes as scan_routes_mod
-import webvulnscanner.webhooks as webhook_engine
-from webvulnscanner.entitlements import Tier
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import OutboundWebhook, Report, Scan, ScanStatus, WebhookDelivery
-from webvulnscanner.regressions import (
+import glassbox.scan_routes as scan_routes_mod
+import glassbox.webhooks as webhook_engine
+from glassbox.entitlements import Tier
+from glassbox.extensions import db as _db
+from glassbox.models import OutboundWebhook, Report, Scan, ScanStatus, WebhookDelivery
+from glassbox.regressions import (
     alertable_new,
     classify_regressions,
     finding_key,

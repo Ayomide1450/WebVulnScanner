@@ -1,4 +1,4 @@
-"""Tests for webvulnscanner/public_routes.py."""
+"""Tests for glassbox/public_routes.py."""
 
 
 def test_healthz_returns_ok_when_db_reachable(client):

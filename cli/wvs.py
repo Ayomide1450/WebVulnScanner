@@ -2,7 +2,7 @@
 security engineers, not a fake terminal: every command below is a thin
 client over Glassbox's existing /api/v1 HTTP surface (api_routes.py) and
 its existing engine (scan_engine.py/scan_routes.py) - this module never
-imports Flask or webvulnscanner directly, and never executes arbitrary
+imports Flask or glassbox directly, and never executes arbitrary
 code of any kind. It talks to a server; it does not become one.
 
 Workflow this CLI is built around:
@@ -96,7 +96,7 @@ SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"]
 # server call) - intentionally NOT imported from checks.py's
 # check_exposed_secrets: that function is tightly coupled to a live HTTP
 # response (requests.Session, response text/headers) and this module's own
-# docstring is explicit that it never imports Flask/webvulnscanner - a CLI
+# docstring is explicit that it never imports Flask/glassbox - a CLI
 # a developer runs against their own local source tree is a genuinely
 # different code path (files on disk, not an HTTP response), not a
 # duplication of the same check running twice.
@@ -255,7 +255,7 @@ def _prompt_secret(prompt_text):
 def cli():
     """glassbox - a security control plane for developers and security
     engineers. Talks only to Glassbox's own HTTP API; never imports Flask/
-    webvulnscanner, never executes arbitrary code."""
+    glassbox, never executes arbitrary code."""
 
 
 # --------------------------------------------------------------------------
@@ -545,7 +545,7 @@ def gate(url, fail_on, as_json, quiet, verbose, token, api_url):
     polls the assessment to completion, then asks
     GET /api/v1/scans/<id>/gate?fail_on=<severity> for the verdict rather
     than filtering findings locally, so the blocking rule is the exact same
-    one a direct HTTP consumer gets (webvulnscanner/security_gate.py -
+    one a direct HTTP consumer gets (glassbox/security_gate.py -
     defined once, never drifting between client and server)."""
     token = _resolve_token(token)
     api_url = _resolve_api_url(api_url)

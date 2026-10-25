@@ -5,7 +5,7 @@ credential added during milestone v1.1. This script sweeps two surfaces -
 the diff of every commit in the milestone's own commit range, and the
 current working tree - for credential-shaped literals, using patterns
 derived from this app's real configuration surface
-(webvulnscanner/config.py / .env.example) plus generic credential-
+(glassbox/config.py / .env.example) plus generic credential-
 assignment and hex-wallet-credential shapes on top.
 
 Why no scanning package (detect-secrets / gitleaks): neither is installed
@@ -62,7 +62,7 @@ SCANNED_SUFFIXES = {
 
 # --------------------------------------------------------------------------
 # Patterns. Derived from this app's real configuration surface
-# (webvulnscanner/config.py's os.environ.get(...) names / .env.example),
+# (glassbox/config.py's os.environ.get(...) names / .env.example),
 # not a generic list, plus the generic credential-assignment shape and a
 # hex wallet-credential shape on top (08-06-PLAN.md's explicit
 # instruction).

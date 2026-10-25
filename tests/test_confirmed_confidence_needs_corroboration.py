@@ -22,7 +22,7 @@ allowlist below only when it's genuinely a bare code-only gate).
 import ast
 import pathlib
 
-CHECKS_PY = pathlib.Path(__file__).resolve().parent.parent / "webvulnscanner" / "checks.py"
+CHECKS_PY = pathlib.Path(__file__).resolve().parent.parent / "glassbox" / "checks.py"
 
 # Call sites that intentionally gate "Confirmed" on nothing but a bare
 # status-code comparison, with the corroboration living in a DIFFERENT

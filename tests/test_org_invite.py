@@ -1,6 +1,6 @@
 """
 Tests for the org-invite flow (HARD-03's invite half): `generate_invite_token`/
-`decode_invite_token` in `webvulnscanner/org_routes.py`, and the invite-mode
+`decode_invite_token` in `glassbox/org_routes.py`, and the invite-mode
 branch they feed into in `auth_routes.signup()`.
 
 This module owns D-05/D-06/D-07: D-05 is the previously-undocumented gap this
@@ -19,9 +19,9 @@ belt-and-suspenders.
 """
 import pytest
 
-from webvulnscanner.email_stub import EmailSender
-from webvulnscanner.models import Role, User
-from webvulnscanner.org_routes import decode_invite_token, generate_invite_token
+from glassbox.email_stub import EmailSender
+from glassbox.models import Role, User
+from glassbox.org_routes import decode_invite_token, generate_invite_token
 
 from tests.conftest import login, make_org, make_user
 
@@ -223,7 +223,7 @@ def test_decode_invite_token_rejects_tampered_signature(app):
 
 
 def test_decode_invite_token_rejects_expired_token(app, monkeypatch):
-    import webvulnscanner.org_routes as org_routes_module
+    import glassbox.org_routes as org_routes_module
 
     with app.app_context():
         token = generate_invite_token(org_id=5, role="member", email="invitee@example.com")

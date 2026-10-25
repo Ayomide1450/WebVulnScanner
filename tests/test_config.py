@@ -1,6 +1,6 @@
-"""Tests for webvulnscanner/config.py's engine-options branching, plus the
+"""Tests for glassbox/config.py's engine-options branching, plus the
 production-readiness additions (proxy trust, rate-limit storage backend,
-Sentry no-op) - see webvulnscanner/__init__.py's create_app()/_init_sentry().
+Sentry no-op) - see glassbox/__init__.py's create_app()/_init_sentry().
 
 _engine_options_for() is a pure function specifically so these can run
 without reloading the config module or spinning up a Flask app - config.py
@@ -13,7 +13,7 @@ import logging
 
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from webvulnscanner.config import _engine_options_for
+from glassbox.config import _engine_options_for
 
 
 def test_sqlite_engine_options_keep_check_same_thread_false():
@@ -39,7 +39,7 @@ def test_default_config_trusts_one_proxy_hop():
     # app - default-on so rate limiting keys on the real client IP and
     # HTTPS-scheme detection is correct out of the box on either target,
     # without every deployer needing to remember to set this themselves.
-    from webvulnscanner.config import Config
+    from glassbox.config import Config
 
     assert Config.TRUST_PROXY_HOPS == 1
 
@@ -52,7 +52,7 @@ def test_app_wraps_wsgi_app_with_proxy_fix_when_hops_positive(app):
 
 
 def test_app_skips_proxy_fix_when_hops_zero(tmp_path):
-    from webvulnscanner import create_app
+    from glassbox import create_app
     from tests.conftest import TestConfig
 
     class NoProxyConfig(TestConfig):
@@ -67,7 +67,7 @@ def test_sentry_init_is_a_noop_without_dsn(app, caplog):
     # SENTRY_DSN defaults to "" (Config) - _init_sentry() must not raise or
     # log a warning in the common case of Sentry simply not being
     # configured (distinct from the DSN-set-but-package-missing case below).
-    from webvulnscanner import _init_sentry
+    from glassbox import _init_sentry
 
     with caplog.at_level(logging.WARNING):
         _init_sentry(app)  # must not raise
@@ -79,7 +79,7 @@ def test_sentry_init_warns_but_does_not_raise_when_package_missing(app, caplog):
     # a DSN set without the package installed must degrade to a logged
     # warning, the same convention ai_summary.py uses for a missing
     # GROQ_API_KEY, never a hard crash on startup.
-    from webvulnscanner import _init_sentry
+    from glassbox import _init_sentry
 
     app.config["SENTRY_DSN"] = "https://example.invalid/123"
     with caplog.at_level(logging.WARNING):
@@ -93,6 +93,6 @@ def test_ratelimit_storage_uri_defaults_empty_so_limiter_falls_back_to_memory():
     # falls back to its in-memory default - see flask_limiter/_extension.py.
     # This just pins that the default stays empty (opt-in only) rather than
     # silently changing local-dev behavior.
-    from webvulnscanner.config import Config
+    from glassbox.config import Config
 
     assert Config.RATELIMIT_STORAGE_URI == ""

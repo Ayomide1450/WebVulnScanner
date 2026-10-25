@@ -34,12 +34,12 @@ key-files:
     - .planning/REQUIREMENTS.md
 
 key-decisions:
-  - "cli/ is a standalone top-level package, sibling to webvulnscanner/, not nested inside it - matches 02-RESEARCH.md's Recommended Project Structure and Architectural Responsibility Map (Client tier: HTTP only, never imports Flask/webvulnscanner)"
+  - "cli/ is a standalone top-level package, sibling to glassbox/, not nested inside it - matches 02-RESEARCH.md's Recommended Project Structure and Architectural Responsibility Map (Client tier: HTTP only, never imports Flask/glassbox)"
   - "Plain executable script (python cli/wvs.py ...), no pyproject.toml console-script entry point - this repo has no packaging infrastructure today, per 02-RESEARCH.md's Alternatives Considered"
   - "login has its own token/api-url resolution (prompts if unresolved) rather than reusing _resolve_token/_resolve_api_url, since falling back to stale stored config during a fresh login attempt would defeat the point of logging in"
 
 patterns-established:
-  - "CLI-as-pure-HTTP-client boundary: zero Flask/webvulnscanner import anywhere in cli/wvs.py, verified by the full pytest suite staying green with no import-time side effects"
+  - "CLI-as-pure-HTTP-client boundary: zero Flask/glassbox import anywhere in cli/wvs.py, verified by the full pytest suite staying green with no import-time side effects"
 
 requirements-completed: [API-06]
 
@@ -91,11 +91,11 @@ coverage:
         status: pass
     human_judgment: false
   - id: D6
-    description: "The CLI is a pure HTTP client (imports only click/requests/stdlib) with zero Flask or webvulnscanner package imports, matching 02-RESEARCH.md's Architectural Responsibility Map"
+    description: "The CLI is a pure HTTP client (imports only click/requests/stdlib) with zero Flask or glassbox package imports, matching 02-RESEARCH.md's Architectural Responsibility Map"
     requirement: "API-06"
     verification:
       - kind: unit
-        ref: "grep -c 'import webvulnscanner\\|from webvulnscanner\\|import flask\\|from flask' cli/wvs.py -> 0 matches (manual code inspection, not an automated test assertion)"
+        ref: "grep -c 'import glassbox\\|from glassbox\\|import flask\\|from flask' cli/wvs.py -> 0 matches (manual code inspection, not an automated test assertion)"
         status: pass
     human_judgment: true
     rationale: "The zero-import constraint was verified by reading cli/wvs.py's import block directly (click, requests, json, os, pathlib only) rather than a dedicated automated grep-assertion test - flagging as human-judgment since no test enforces this invariant going forward."
@@ -121,7 +121,7 @@ status: complete
 
 # Phase 2 Plan 3: CLI Summary
 
-**Thin, standalone `cli/wvs.py` HTTP client over `/api/v1/*` - `login`, `assets list`, `scan start`, `report get` - closing the final Phase 2 requirement (API-06) with zero Flask/webvulnscanner import**
+**Thin, standalone `cli/wvs.py` HTTP client over `/api/v1/*` - `login`, `assets list`, `scan start`, `report get` - closing the final Phase 2 requirement (API-06) with zero Flask/glassbox import**
 
 ## Performance
 
@@ -132,7 +132,7 @@ status: complete
 - **Files modified:** 4 (`cli/__init__.py`, `cli/wvs.py`, `requirements.txt`, `tests/test_cli.py`)
 
 ## Accomplishments
-- `cli/__init__.py` / `cli/wvs.py`: a standalone, sibling-to-`webvulnscanner/` package shipping a `click`-based CLI (`login`, `assets list`, `scan start`, `report get`) that is a pure HTTP client over `/api/v1/*` — imports only `click`, `requests`, and stdlib
+- `cli/__init__.py` / `cli/wvs.py`: a standalone, sibling-to-`glassbox/` package shipping a `click`-based CLI (`login`, `assets list`, `scan start`, `report get`) that is a pure HTTP client over `/api/v1/*` — imports only `click`, `requests`, and stdlib
 - `wvs login` validates a token against the live `GET /api/v1/assets` and persists `{"token", "api_url"}` to `~/.wvs/config.json` only on a 200 response; writes nothing on failure
 - Token/API-URL resolution precedence enforced identically across every command: CLI flag > `WVS_API_TOKEN`/`WVS_API_URL` env var (via click's native `envvar=`) > stored config > `DEFAULT_API_URL` (URL only) — a missing token raises a clean `click.ClickException` telling the user to run `wvs login` first, never a silent unauthenticated request
 - `wvs assets list` / `wvs scan start <id>` / `wvs report get <id>` each wrap their `requests.*` call in the same try/except-and-raise-`ClickException` shape, so a non-2xx response or network error always produces a clean, nonzero-exit message — never a raw Python traceback
@@ -158,7 +158,7 @@ Each task was committed atomically:
 
 ## Decisions Made
 No new architectural decisions beyond what 02-RESEARCH.md already locked - the plan's action text was followed exactly:
-- `cli/` is a standalone top-level package (sibling of `webvulnscanner/`), a plain executable script with no `pyproject.toml` console-script entry point, per 02-RESEARCH.md's Alternatives Considered (this repo has no packaging infrastructure today).
+- `cli/` is a standalone top-level package (sibling of `glassbox/`), a plain executable script with no `pyproject.toml` console-script entry point, per 02-RESEARCH.md's Alternatives Considered (this repo has no packaging infrastructure today).
 - `login`'s own token/api-url resolution intentionally does **not** reuse `_resolve_token`/`_resolve_api_url` (which fall back to stored config) — falling back to a stale stored token during a fresh login attempt would defeat the purpose of logging in; `login` prompts (`click.prompt(hide_input=True)`) if the token is still unresolved after flag/env, and falls back straight to `DEFAULT_API_URL` for the URL without prompting, exactly as the plan specified.
 
 ## Deviations from Plan

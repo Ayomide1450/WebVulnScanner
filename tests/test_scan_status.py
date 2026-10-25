@@ -1,5 +1,5 @@
 """
-Tests for `GET /scan/<id>/status` (webvulnscanner/scan_routes.py) - the
+Tests for `GET /scan/<id>/status` (glassbox/scan_routes.py) - the
 polling counterpart to `scan_events()`'s SSE feed for scan types that emit
 no `ScanEvent` rows (advanced/media/api), plus the `scan_progress.html`
 rendering assertions for the transport branch it feeds (SCANUX-05, D-04 -
@@ -13,8 +13,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import Plan, Report, Role, ScanStatus
+from glassbox.extensions import db as _db
+from glassbox.models import Plan, Report, Role, ScanStatus
 
 from tests.conftest import login, make_org, make_scan, make_user
 

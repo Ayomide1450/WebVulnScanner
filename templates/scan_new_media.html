@@ -76,7 +76,7 @@
   {% endif %}
 </div>
 {% if availability.unlocked %}
-<script>
+<script nonce="{{ csp_nonce }}">
   var scanForm = document.getElementById('scanForm');
   var scanSubmit = document.getElementById('scanSubmit');
   if (scanForm && scanSubmit) {

@@ -39,16 +39,16 @@ vanilla JS (no framework, matches the rest of the codebase), pytest + Flask test
 
 | File | Change |
 |---|---|
-| `webvulnscanner/config.py` | Modify — extract `_engine_options_for()`, add `pool_pre_ping`/`pool_recycle` for non-SQLite |
+| `glassbox/config.py` | Modify — extract `_engine_options_for()`, add `pool_pre_ping`/`pool_recycle` for non-SQLite |
 | `tests/test_config.py` | Create — Task 1 tests |
 | `templates/marketing.html` | Modify — stop hiding hero content behind the boot animation |
 | `templates/dashboard.html` | Modify — sparkline single-point fix (Task 3) + status pills (Task 5) |
 | `tests/test_scan_routes.py` | Create — Task 3 + Task 5 tests |
-| `webvulnscanner/public_routes.py` | Modify — add `/terms`, `/privacy` routes |
+| `glassbox/public_routes.py` | Modify — add `/terms`, `/privacy` routes |
 | `templates/terms.html` | Create |
 | `templates/privacy.html` | Create |
 | `templates/base.html` | Modify — footer (Task 4) + keep-alive heartbeat script (Task 10) |
-| `webvulnscanner/__init__.py` | Modify — inject `current_year` into template context |
+| `glassbox/__init__.py` | Modify — inject `current_year` into template context |
 | `tests/test_public_routes.py` | Modify — add Task 4 tests |
 | `templates/billing.html` | Modify — crypto invoice payment card (Task 6) |
 | `tests/test_billing_routes.py` | Create — Task 6 tests |
@@ -63,11 +63,11 @@ vanilla JS (no framework, matches the rest of the codebase), pytest + Flask test
 ## Task 1: Fix Postgres connection reliability (`pool_pre_ping`)
 
 **Files:**
-- Modify: `webvulnscanner/config.py:79-86`
+- Modify: `glassbox/config.py:79-86`
 - Test: `tests/test_config.py`
 
 **Interfaces:**
-- Produces: `webvulnscanner.config._engine_options_for(db_uri: str) -> dict` — pure function, no
+- Produces: `glassbox.config._engine_options_for(db_uri: str) -> dict` — pure function, no
   Flask/app context needed. Later tasks don't depend on this.
 
 - [ ] **Step 1: Write the failing test**
@@ -75,7 +75,7 @@ vanilla JS (no framework, matches the rest of the codebase), pytest + Flask test
 Create `tests/test_config.py`:
 
 ```python
-"""Tests for webvulnscanner/config.py's engine-options branching.
+"""Tests for glassbox/config.py's engine-options branching.
 
 _engine_options_for() is a pure function specifically so these can run
 without reloading the config module or spinning up a Flask app - config.py
@@ -84,7 +84,7 @@ testing the branches directly (rather than via importlib.reload gymnastics)
 is both simpler and doesn't risk leaking state into other tests' already-
 imported Config subclasses.
 """
-from webvulnscanner.config import _engine_options_for
+from glassbox.config import _engine_options_for
 
 
 def test_sqlite_engine_options_keep_check_same_thread_false():
@@ -112,7 +112,7 @@ Expected: FAIL — `ImportError: cannot import name '_engine_options_for'`
 
 - [ ] **Step 3: Write minimal implementation**
 
-This is a two-part edit to `webvulnscanner/config.py`:
+This is a two-part edit to `glassbox/config.py`:
 
 **3a.** Insert a new **module-level function** directly above the existing `class Config:` line
 (line 51 — i.e. right after the `_secret_key`/`RuntimeError` block and before `class Config:`):
@@ -179,7 +179,7 @@ every other test's `app` fixture goes through `Config`/`TestConfig`).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add webvulnscanner/config.py tests/test_config.py
+git add glassbox/config.py tests/test_config.py
 git commit -m "fix: add pool_pre_ping/pool_recycle for non-SQLite DB connections
 
 Fixes a live-reproduced psycopg2.OperationalError (\"server closed the
@@ -326,7 +326,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 Create `tests/test_scan_routes.py`:
 
 ```python
-"""Tests for webvulnscanner/scan_routes.py's dashboard() view."""
+"""Tests for glassbox/scan_routes.py's dashboard() view."""
 from tests.conftest import login, make_org, make_scan, make_user
 
 
@@ -459,12 +459,12 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ## Task 4: Add Terms of Service / Privacy Policy pages + site footer
 
 **Files:**
-- Modify: `webvulnscanner/public_routes.py`
+- Modify: `glassbox/public_routes.py`
 - Create: `templates/terms.html`
 - Create: `templates/privacy.html`
 - Modify: `templates/base.html` (footer, near line 227 just before `{% block content %}`'s
   closing `</body>`)
-- Modify: `webvulnscanner/__init__.py:55-58` (inject `current_year`)
+- Modify: `glassbox/__init__.py:55-58` (inject `current_year`)
 - Modify: `tests/test_public_routes.py`
 
 **Interfaces:**
@@ -504,7 +504,7 @@ Expected: FAIL — `/terms`/`/privacy` 404, and no footer markup exists yet.
 
 - [ ] **Step 3: Add the routes**
 
-In `webvulnscanner/public_routes.py`, after the `index()` view (before `healthz()`), add:
+In `glassbox/public_routes.py`, after the `index()` view (before `healthz()`), add:
 
 ```python
 @public.route("/terms")
@@ -522,7 +522,7 @@ def privacy():
 
 ```html
 {% extends "base.html" %}
-{% block title %}Terms of Service - WebVulnScanner{% endblock %}
+{% block title %}Terms of Service - Glassbox{% endblock %}
 {% block head %}
 <style>
   .legal-wrap { max-width: 760px; margin: 0 auto; padding: 40px 22px 80px; }
@@ -546,7 +546,7 @@ def privacy():
   </div>
 
   <h2>What this service is</h2>
-  <p>WebVulnScanner lets an organization run security scans (passive recon through, for
+  <p>Glassbox lets an organization run security scans (passive recon through, for
   domain-verified orgs, active/intrusive checks) against domains that organization owns or has
   explicit authorization to test. You must own or be authorized to test any domain you submit —
   see the authorization checkbox on every scan form.</p>
@@ -585,7 +585,7 @@ def privacy():
 
 ```html
 {% extends "base.html" %}
-{% block title %}Privacy Policy - WebVulnScanner{% endblock %}
+{% block title %}Privacy Policy - Glassbox{% endblock %}
 {% block head %}
 <style>
   .legal-wrap { max-width: 760px; margin: 0 auto; padding: 40px 22px 80px; }
@@ -659,7 +659,7 @@ Then, right before the closing `</body>` tag, add:
 ```html
   <footer class="site-footer">
     <div class="footer-inner">
-      <span>&copy; {{ current_year }} WebVulnScanner</span>
+      <span>&copy; {{ current_year }} Glassbox</span>
       <span><a href="{{ url_for('public.terms') }}">Terms</a> &middot; <a href="{{ url_for('public.privacy') }}">Privacy</a></span>
     </div>
   </footer>
@@ -667,7 +667,7 @@ Then, right before the closing `</body>` tag, add:
 
 - [ ] **Step 7: Inject `current_year` into the template context**
 
-In `webvulnscanner/__init__.py`, modify the existing context processor (lines 55-58):
+In `glassbox/__init__.py`, modify the existing context processor (lines 55-58):
 
 ```python
     @app.context_processor
@@ -694,7 +694,7 @@ suite tests behavior/redirects, not literal markup, but confirm).
 - [ ] **Step 10: Commit**
 
 ```bash
-git add webvulnscanner/public_routes.py webvulnscanner/__init__.py templates/terms.html templates/privacy.html templates/base.html tests/test_public_routes.py
+git add glassbox/public_routes.py glassbox/__init__.py templates/terms.html templates/privacy.html templates/base.html tests/test_public_routes.py
 git commit -m "feat: add Terms of Service / Privacy Policy pages and site footer
 
 Draft, app-specific content (clearly marked as not reviewed by counsel).
@@ -824,7 +824,7 @@ Create `tests/test_billing_routes.py`:
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from webvulnscanner.models import CryptoInvoice, InvoiceStatus, Plan
+from glassbox.models import CryptoInvoice, InvoiceStatus, Plan
 from tests.conftest import login, make_org, make_user
 
 
@@ -841,7 +841,7 @@ def make_pending_invoice(org, target_plan=Plan.PAID, token_symbol="USDT"):
         status=InvoiceStatus.PENDING,
         expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
     )
-    from webvulnscanner.extensions import db
+    from glassbox.extensions import db
 
     db.session.add(inv)
     db.session.flush()
@@ -1006,7 +1006,7 @@ Create `tests/test_org_routes.py`:
 
 ```python
 """Tests for templates/org_admin.html's member/domain pill rendering."""
-from webvulnscanner.models import Role
+from glassbox.models import Role
 from tests.conftest import login, make_org, make_user
 
 

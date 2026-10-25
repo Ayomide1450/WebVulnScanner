@@ -29,7 +29,7 @@ This verification did not trust 08-07-SUMMARY.md's evidence table at face value.
 1. Independently re-ran the full test suite from a clean shell (`./.venv/Scripts/python -m pytest -q`
    from the repo root), not reading any cached/reported count.
 2. Read all seven plan SUMMARY.md files plus 08-CONTEXT.md and 08-VALIDATION.md.
-3. Computed `git diff --stat <phase-start-commit>..HEAD -- webvulnscanner/` directly and read
+3. Computed `git diff --stat <phase-start-commit>..HEAD -- glassbox/` directly and read
    every line of the resulting diff, rather than trusting the summaries' "only these files
    changed" claims.
 4. Spot-checked 8 of the 10 evidence-gate rows against the actual test/source code they cite
@@ -49,10 +49,10 @@ waves for SEC-01..SEC-10"), the last commit before 08-01's work began.
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
 | 1 | Cross-org GET/POST/PUT/DELETE on every ID-accepting route returns 403/404, never 200 with another org's data, with regression tests added per route family | ✓ VERIFIED | `tests/test_cross_org_idor.py`'s `REGISTRY` enumeration lock covers all 21 `<int:>`-accepting routes (programmatically built from `app.url_map.iter_rules()`); read the guard code (`org_routes.py:335`, `billing_routes.py:95-96`) and the covering tests (`test_org_routes.py`, `test_billing_routes.py`) directly — guards and tests match. App has no PUT/DELETE routes at all (asserted by `test_registered_method_set_is_get_head_options_post_only`), so GET/POST is the actual full method surface. |
-| 2 | Every state-changing form/route carries CSRF, with any gap closed | ✓ VERIFIED | `tests/test_csrf_enforcement.py` (13 tests) proves token-less/wrong-token POSTs return 400 with no side effect across all six cookie-authenticated blueprints, verified by reading `test_invite_without_csrf_token_returns_400_and_creates_no_row` directly. `csrf.exempt()` confirmed to have exactly one call site in the codebase (`webvulnscanner/api_routes.py:33`, `grep -rn "csrf.exempt" webvulnscanner/` returns one line). |
-| 3 | A redirect-following test proves an SSRF-safe hostname that 30x-redirects to a private/loopback/metadata address is rejected | ✓ VERIFIED | `webvulnscanner/checks.py` diff confirms `_SSRFSafeSession(requests.Session)` overriding `get_redirect_target()`, delegating to unmodified `is_ssrf_safe_hostname()`; `tests/test_ssrf_guard.py` uses a real `http.server.BaseHTTPRequestHandler`-based local server (`class _RoutedHandler`), not a mock, confirmed by reading the test file directly. |
-| 4 | User-controlled strings never render unescaped HTML, no raw/string-interpolated SQL exists, report/media/CSV routes reject path traversal | ✓ VERIFIED | `tests/test_injection_and_traversal.py` (SEC-04/05/06 combined module) confirmed to exist with escaping proofs, an exact-set raw-`execute()` allowlist (2 call sites), and `webvulnscanner/scan_engine.read_report_file()` — read directly, confirmed it double-`realpath()`s both `REPORTS_DIR` and the candidate before `os.path.commonpath()` containment check, and that all three prior inline `open()` call sites (`scan_routes.py`, `api_routes.py`, `asset_routes.py`) were converted to call it, each keeping its distinct original failure contract (verified via diff). |
-| 5 | Redirects confined to app origin, secrets sweep clean, billing rejects replay/tampering/cross-org, error responses leak nothing | ✓ VERIFIED | `webvulnscanner/auth_routes.py`'s `_safe_next()` diff confirmed to add backslash/CR/LF rejection (a real live-finding fix, not just a test). `scripts/secrets_sweep_phase8.py` and `tests/test_secrets_hygiene.py` both exist. `tests/test_billing_routes.py::test_cross_org_verify_is_refused_and_makes_no_changes` read directly — asserts 403, zero Polygonscan calls (`mock_get.assert_not_called()`), and unchanged invoice state, matching `billing_routes.py:91-96`'s actual guard code read side-by-side. `tests/test_error_leakage.py` confirmed to build the first `TESTING=False`/`DEBUG=False` app config in the repo's history. |
+| 2 | Every state-changing form/route carries CSRF, with any gap closed | ✓ VERIFIED | `tests/test_csrf_enforcement.py` (13 tests) proves token-less/wrong-token POSTs return 400 with no side effect across all six cookie-authenticated blueprints, verified by reading `test_invite_without_csrf_token_returns_400_and_creates_no_row` directly. `csrf.exempt()` confirmed to have exactly one call site in the codebase (`glassbox/api_routes.py:33`, `grep -rn "csrf.exempt" glassbox/` returns one line). |
+| 3 | A redirect-following test proves an SSRF-safe hostname that 30x-redirects to a private/loopback/metadata address is rejected | ✓ VERIFIED | `glassbox/checks.py` diff confirms `_SSRFSafeSession(requests.Session)` overriding `get_redirect_target()`, delegating to unmodified `is_ssrf_safe_hostname()`; `tests/test_ssrf_guard.py` uses a real `http.server.BaseHTTPRequestHandler`-based local server (`class _RoutedHandler`), not a mock, confirmed by reading the test file directly. |
+| 4 | User-controlled strings never render unescaped HTML, no raw/string-interpolated SQL exists, report/media/CSV routes reject path traversal | ✓ VERIFIED | `tests/test_injection_and_traversal.py` (SEC-04/05/06 combined module) confirmed to exist with escaping proofs, an exact-set raw-`execute()` allowlist (2 call sites), and `glassbox/scan_engine.read_report_file()` — read directly, confirmed it double-`realpath()`s both `REPORTS_DIR` and the candidate before `os.path.commonpath()` containment check, and that all three prior inline `open()` call sites (`scan_routes.py`, `api_routes.py`, `asset_routes.py`) were converted to call it, each keeping its distinct original failure contract (verified via diff). |
+| 5 | Redirects confined to app origin, secrets sweep clean, billing rejects replay/tampering/cross-org, error responses leak nothing | ✓ VERIFIED | `glassbox/auth_routes.py`'s `_safe_next()` diff confirmed to add backslash/CR/LF rejection (a real live-finding fix, not just a test). `scripts/secrets_sweep_phase8.py` and `tests/test_secrets_hygiene.py` both exist. `tests/test_billing_routes.py::test_cross_org_verify_is_refused_and_makes_no_changes` read directly — asserts 403, zero Polygonscan calls (`mock_get.assert_not_called()`), and unchanged invoice state, matching `billing_routes.py:91-96`'s actual guard code read side-by-side. `tests/test_error_leakage.py` confirmed to build the first `TESTING=False`/`DEBUG=False` app config in the repo's history. |
 
 **Score:** 5/5 ROADMAP success criteria verified; 10/10 SEC-01..SEC-10 requirements verified.
 
@@ -63,11 +63,11 @@ waves for SEC-01..SEC-10"), the last commit before 08-01's work began.
 | `tests/test_cross_org_idor.py` | SEC-01 completeness lock | ✓ VERIFIED | Exists, contains `REGISTRY` + 4 enumeration tests |
 | `tests/test_csrf_enforcement.py` | SEC-02 CSRF proof | ✓ VERIFIED | Exists, 13 tests, second CSRF-enabled app instance |
 | `tests/test_ssrf_guard.py` | SEC-03 redirect-guard proof | ✓ VERIFIED | Exists, real `http.server` harness confirmed |
-| `webvulnscanner/checks.py`'s `_SSRFSafeSession` | SEC-03 fix | ✓ VERIFIED | Present, `_mk_session()` returns it, `is_ssrf_safe_hostname()` untouched |
+| `glassbox/checks.py`'s `_SSRFSafeSession` | SEC-03 fix | ✓ VERIFIED | Present, `_mk_session()` returns it, `is_ssrf_safe_hostname()` untouched |
 | `tests/test_injection_and_traversal.py` | SEC-04/05/06 sweep | ✓ VERIFIED | Exists, escaping/SQL/traversal proofs present |
-| `webvulnscanner/scan_engine.py`'s `read_report_file()` | SEC-06 containment reader | ✓ VERIFIED | Present, double-realpath containment check, 3 call sites converted |
+| `glassbox/scan_engine.py`'s `read_report_file()` | SEC-06 containment reader | ✓ VERIFIED | Present, double-realpath containment check, 3 call sites converted |
 | `tests/test_billing_routes.py` (extended) | SEC-09 route-level proof | ✓ VERIFIED | Grew from 2 to 15 tests; cross-org/replay/tamper coverage confirmed by reading test bodies |
-| `webvulnscanner/auth_routes.py`'s `_safe_next()` fix | SEC-07 fix | ✓ VERIFIED | Backslash/CR/LF rejection present in diff |
+| `glassbox/auth_routes.py`'s `_safe_next()` fix | SEC-07 fix | ✓ VERIFIED | Backslash/CR/LF rejection present in diff |
 | `tests/test_error_leakage.py` | SEC-10 proof | ✓ VERIFIED | Exists, genuine `TESTING=False` app config |
 | `scripts/secrets_sweep_phase8.py` + `tests/test_secrets_hygiene.py` | SEC-08 sweep | ✓ VERIFIED | Both exist |
 | `scripts/live_probe_phase8.py` + `tests/test_live_probe_script.py` | D-01/D-02 live probe | ✓ VERIFIED | Both exist; live-probe results recorded verbatim in 08-07-SUMMARY.md (10/10 cases, exit 0) |
@@ -125,8 +125,8 @@ deprecation warnings, unrelated to Phase 8.
 ### Frozen-Surface Verification (explicit check per task instructions)
 
 ```
-git diff 27bf56f..HEAD -- webvulnscanner/entitlements.py   → empty (zero changes)
-git diff 27bf56f..HEAD -- webvulnscanner/                  → 6 files changed:
+git diff 27bf56f..HEAD -- glassbox/entitlements.py   → empty (zero changes)
+git diff 27bf56f..HEAD -- glassbox/                  → 6 files changed:
     api_routes.py    (10 lines: read_report_file() call site swap)
     asset_routes.py  (12 lines: read_report_file() call site swap)
     auth_routes.py   (45 lines: _safe_next() backslash/CRLF rejection — SEC-07 fix)
@@ -141,7 +141,7 @@ starts at line 358 and inserts 69 new lines before `_mk_session()` (which itself
 line 451, so the function body is byte-identical pre/post phase, confirming the frozen-surface
 claim independently of the phase's own source-identity test.
 
-No occurrence of `authorized` anywhere in the phase's `webvulnscanner/` diff (`git diff ... |
+No occurrence of `authorized` anywhere in the phase's `glassbox/` diff (`git diff ... |
 grep authorized` returns nothing) — the `authorized*`/`authorized_adv`/`authorized_media`/
 `authorized_api` checkbox handling was not touched.
 

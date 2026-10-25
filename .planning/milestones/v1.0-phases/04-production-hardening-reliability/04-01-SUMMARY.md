@@ -22,14 +22,14 @@ tech-stack:
   added: []
   patterns:
     - "Direct-invocation orchestrator testing: monkeypatch every check_* function on scan_engine's own module namespace (never checks.check_x), matching tests/test_scan_events.py's documented binding-location caveat"
-    - "Safety-constraint regression locks live beside the orchestrator they protect (tests/test_scan_engine.py), calling webvulnscanner.checks directly since orchestrator-level tests stub every check out entirely"
+    - "Safety-constraint regression locks live beside the orchestrator they protect (tests/test_scan_engine.py), calling glassbox.checks directly since orchestrator-level tests stub every check out entirely"
     - "Source-parsing regression lock (inspect.getsource + string search) to guard against silent re-inlining of shared logic, mirroring tests/test_entitlements.py's / tests/test_compliance.py's coverage-map technique"
 
 key-files:
   created:
     - tests/test_scan_engine.py
   modified:
-    - webvulnscanner/scan_engine.py
+    - glassbox/scan_engine.py
 
 key-decisions:
   - "_score_report returns a 4-tuple (score, risk_grade, severity_counts, findings_sorted), folding in findings_sorted rather than CONCERNS.md's suggested 3-tuple, since that sort line was also duplicated identically at all four call sites (04-RESEARCH.md A1)"
@@ -98,14 +98,14 @@ status: complete
 - **Started:** 2026-08-13T16:10Z (context read)
 - **Completed:** 2026-08-13T17:09Z (last commit)
 - **Tasks:** 3/3 completed
-- **Files modified:** 2 (`webvulnscanner/scan_engine.py`, `tests/test_scan_engine.py` new)
+- **Files modified:** 2 (`glassbox/scan_engine.py`, `tests/test_scan_engine.py` new)
 
 ## Accomplishments
 
 - Extracted `_score_report(findings)` as the single scoring implementation (score/risk_grade/severity_counts/findings_sorted); all four orchestrators route through it and none retains an inline copy — a source-parsing regression test fails loudly if that ever changes.
 - `run_media_scan`, `run_api_scan`, and `run_advanced_scan` each gained direct-invocation, fully-mocked test coverage of their completed return shape, per-check finding tagging, and error-propagation path — closing HARD-02's orchestrator-level gap for the three scan types that previously had zero automated coverage.
 - `run_advanced_scan`'s five-group lock/run matrix is covered at, below, and beside the required tier, plus the empty-form "silently skipped, not locked" edge case (04-RESEARCH.md Pitfall 5).
-- Locked the app's most sensitive safety constraints with dedicated regression tests calling `webvulnscanner.checks` directly: `check_bruteforce`'s `MAX_BRUTEFORCE_ATTEMPTS` cap and stop-on-first-success behavior, and `check_xss_stored`'s marker-only proof with no cookie exfiltration to any other host.
+- Locked the app's most sensitive safety constraints with dedicated regression tests calling `glassbox.checks` directly: `check_bruteforce`'s `MAX_BRUTEFORCE_ATTEMPTS` cap and stop-on-first-success behavior, and `check_xss_stored`'s marker-only proof with no cookie exfiltration to any other host.
 - Two independent mutation proofs (temporarily re-inlining the scoring formula; temporarily widening the brute-force cap) confirmed the new regression tests actually fail when the underlying guarantee is weakened, then confirmed a clean revert restores a byte-identical file and a passing suite.
 
 ## Task Commits
@@ -120,7 +120,7 @@ Each task was committed atomically:
 
 ## Files Created/Modified
 
-- `webvulnscanner/scan_engine.py` — added `_score_report(findings)`; all four orchestrators (`run_scan`, `run_advanced_scan`, `run_media_scan`, `run_api_scan`) now call it instead of carrying an inline copy of the score/grade/severity_counts/findings_sorted arithmetic; added a one-line comment above `run_advanced_scan` documenting its scheduler-dispatch-free design (D-04)
+- `glassbox/scan_engine.py` — added `_score_report(findings)`; all four orchestrators (`run_scan`, `run_advanced_scan`, `run_media_scan`, `run_api_scan`) now call it instead of carrying an inline copy of the score/grade/severity_counts/findings_sorted arithmetic; added a one-line comment above `run_advanced_scan` documenting its scheduler-dispatch-free design (D-04)
 - `tests/test_scan_engine.py` (new, 549 lines, 32 tests) — `_score_report` unit tests; `run_media_scan`/`run_api_scan`/`run_advanced_scan` direct-invocation tests; the HARD-04 cross-orchestrator regression lock; the D-02 safety-constraint regression locks against `checks.check_bruteforce` and `checks.check_xss_stored`
 
 ## Decisions Made
@@ -167,12 +167,12 @@ None — no external service configuration required.
 - HARD-04 is fully satisfied: one shared `_score_report()` helper, used by all four orchestrators, with a regression test that fails if the formula is ever re-inlined.
 - HARD-02's orchestrator-level half is satisfied: `run_advanced_scan`/`run_media_scan`/`run_api_scan` now have direct-invocation, fully-mocked coverage of their completed/error paths, matching what `run_scan` already had. Plan 04-04 (per this phase's artifact-ownership table) still owns the scheduler-fired `media`/`api` tests and the `_run_scan_in_background` status-transition tests — those are a distinct, complementary slice of HARD-02, not duplicated here.
 - Plan 04-05's documentation-reconciliation task needs to update `CLAUDE.md`'s "Scoring" section, which currently states the block is "duplicated four times... needs updating in all four places" — that statement is now stale.
-- No blockers for 04-02/04-03/04-04/04-05 — this plan touched only `webvulnscanner/scan_engine.py` and added a new, self-contained test file; `checks.py`, `entitlements.py`, and `scan_routes.py` are unmodified (confirmed via `git diff --name-only` across the whole plan).
+- No blockers for 04-02/04-03/04-04/04-05 — this plan touched only `glassbox/scan_engine.py` and added a new, self-contained test file; `checks.py`, `entitlements.py`, and `scan_routes.py` are unmodified (confirmed via `git diff --name-only` across the whole plan).
 - Full test suite: 292/292 passing (260 baseline + 32 new), confirmed after each task and again at plan completion.
 
 ## Self-Check: PASSED
 
-- FOUND: `webvulnscanner/scan_engine.py`
+- FOUND: `glassbox/scan_engine.py`
 - FOUND: `tests/test_scan_engine.py`
 - FOUND commit: `c32bc4f`
 - FOUND commit: `c5db2c8`

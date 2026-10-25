@@ -11,7 +11,7 @@
      accent button (not gradient), select/textarea added to the input rule
      pair. This is the tracer proof block copied into
      _scan_form_styles.html/_admin_form_styles.html. -->
-<style>
+<style nonce="{{ csp_nonce }}">
   /* width:100% - .auth-wrap is a direct flex child of the page's body
      element (display:flex; flex-direction:column in base.html); without an
      explicit width its auto side-margins disable flex stretch and it

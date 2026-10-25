@@ -16,7 +16,7 @@ behind the score gauge, does the state dot crowd the pill label at phone
 width - is explicitly out of scope here and is settled at this plan's
 human-verification checkpoint instead (04-UI-SPEC.md's one backstop row).
 """
-from webvulnscanner.models import ScanStatus
+from glassbox.models import ScanStatus
 
 from tests.conftest import login, make_org, make_scan, make_user
 from tests.test_billing_routes import make_pending_invoice
@@ -127,7 +127,7 @@ def test_dashboard_existing_queued_pill_class_string_unbroken(client, db):
 # --------------------------------------------------------------------------
 
 def _make_admin(org, email="orgadmin@example.com"):
-    from webvulnscanner.models import Role
+    from glassbox.models import Role
 
     return make_user(email, org=org, role=Role.ORG_ADMIN, verified=True)
 

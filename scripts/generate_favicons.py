@@ -10,9 +10,9 @@ path (Pillow has no SVG renderer).
 Re-run with:
     .venv\\Scripts\\python scripts\\generate_favicons.py
 
-Writes into webvulnscanner/static/ (Flask's default static folder, since
-Flask(__name__) in webvulnscanner/__init__.py resolves relative to the
-webvulnscanner/ package directory - see webvulnscanner/__init__.py line 76).
+Writes into glassbox/static/ (Flask's default static folder, since
+Flask(__name__) in glassbox/__init__.py resolves relative to the
+glassbox/ package directory - see glassbox/__init__.py line 76).
 """
 from pathlib import Path
 
@@ -21,7 +21,7 @@ from PIL import Image, ImageDraw
 BG = (2, 6, 23, 255)       # --bg #020617
 ACCENT = (34, 197, 94, 255)  # --accent #22c55e
 
-STATIC_DIR = Path(__file__).resolve().parent.parent / "webvulnscanner" / "static"
+STATIC_DIR = Path(__file__).resolve().parent.parent / "glassbox" / "static"
 
 
 def _draw_mark(size: int) -> Image.Image:

@@ -1,4 +1,4 @@
-# fly.toml app configuration file. Migrated from the 'webvulnscanner' app to
+# fly.toml app configuration file. Migrated from the 'glassbox' app to
 # 'glassboxsec' as part of the v1.3 Glassbox rebrand (2026-08-20) - the
 # 'glassbox' slug itself was already taken by another Fly account. See
 # REBRAND-03/04 in .planning/REQUIREMENTS.md for the migration record.

@@ -81,19 +81,19 @@ error-leakage checks.
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Frozen surfaces (do not weaken or redesign)
-- `webvulnscanner/entitlements.py` — tier/domain-verification gating; `FEATURE_REQUIREMENTS`
-- `webvulnscanner/checks.py` `is_ssrf_safe_hostname()` — submission-time-only SSRF guard; see its
+- `glassbox/entitlements.py` — tier/domain-verification gating; `FEATURE_REQUIREMENTS`
+- `glassbox/checks.py` `is_ssrf_safe_hostname()` — submission-time-only SSRF guard; see its
   docstring for what it does and does not protect against (no DNS-rebinding pinning — accepted
   residual gap, explicitly out of scope, see REQUIREMENTS.md Out of Scope table)
-- `webvulnscanner/billing.py` — invoice creation/verification, `MAX_OFFSET_COLLISION_RETRIES`
+- `glassbox/billing.py` — invoice creation/verification, `MAX_OFFSET_COLLISION_RETRIES`
   collision-retry logic
 - `authorized` / `authorized_adv` / `authorized_media` / `authorized_api` checkbox checks
   (wherever enforced server-side across `scan_routes.py`)
 
 ### Existing security patterns to extend, not replace
-- `webvulnscanner/scan_routes.py` `_check_ownership` — the existing IDOR guard, already tested
+- `glassbox/scan_routes.py` `_check_ownership` — the existing IDOR guard, already tested
   "across all four call sites" per CLAUDE.md; the pattern SEC-01's new coverage should match
-- `webvulnscanner/auth_routes.py` `_safe_next()` — the existing open-redirect guard for
+- `glassbox/auth_routes.py` `_safe_next()` — the existing open-redirect guard for
   login/forgot-password; SEC-07 extends this same pattern to invite/logout/next-param paths
 - `extensions.limiter` (Flask-Limiter) rate-limiting on `/login`, `/signup`, invoice create/verify
   — relevant context for SEC-02 (CSRF) and SEC-09 (billing) audits

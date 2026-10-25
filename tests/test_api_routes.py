@@ -1,5 +1,5 @@
 """
-Tests for webvulnscanner/api_routes.py - token-authenticated JSON surface
+Tests for glassbox/api_routes.py - token-authenticated JSON surface
 (API-02..05, D-02, Phase 2). GET /api/v1/assets (02-01) proved the auth
 mechanism (401s, no Set-Cookie) end-to-end; this file also covers 02-02's
 trigger-scan (API-03), fetch-report (API-04), and the cross-cutting
@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from webvulnscanner.models import Plan, Report, Role, Scan, ScanStatus
+from glassbox.models import Plan, Report, Role, Scan, ScanStatus
 
 from tests.conftest import make_api_token, make_asset, make_org, make_scan, make_user
 
@@ -182,7 +182,7 @@ def test_token_updates_last_used_at_on_use(client, db):
 
     client.get("/api/v1/assets", headers=_auth_headers(raw_token))
 
-    from webvulnscanner.models import ApiToken
+    from glassbox.models import ApiToken
 
     refreshed = ApiToken.query.get(token.id)
     assert refreshed.last_used_at is not None
@@ -204,7 +204,7 @@ def spawned(monkeypatch):
     def _fake_spawn(scan_id, scan_type, **kwargs):
         calls.append({"scan_id": scan_id, "scan_type": scan_type, "kwargs": kwargs})
 
-    monkeypatch.setattr("webvulnscanner.scheduler._spawn_scan_thread", _fake_spawn)
+    monkeypatch.setattr("glassbox.scheduler._spawn_scan_thread", _fake_spawn)
     return calls
 
 
@@ -321,7 +321,7 @@ def _make_report(db, scan, report_dict=None):
     import json as _json
     import os as _os
 
-    from webvulnscanner.checks import REPORTS_DIR
+    from glassbox.checks import REPORTS_DIR
 
     report_dict = report_dict if report_dict is not None else {"score": 91, "findings": []}
     fname = f"test_report_{scan.id}.json"
@@ -585,8 +585,8 @@ def test_rate_limit_trips_429_on_list_assets(tmp_path):
     # exact pattern: a dedicated app with RATELIMIT_ENABLED=True and its own
     # DB, proving _api_rate_limit_key's wiring actually enforces a limit,
     # not just that the decorator is present.
-    from webvulnscanner import create_app
-    from webvulnscanner.extensions import limiter as _limiter
+    from glassbox import create_app
+    from glassbox.extensions import limiter as _limiter
     from tests.conftest import TestConfig
 
     class _RateLimitedConfig(TestConfig):
@@ -595,7 +595,7 @@ def test_rate_limit_trips_429_on_list_assets(tmp_path):
 
     rl_app = create_app(_RateLimitedConfig)
     with rl_app.app_context():
-        from webvulnscanner.extensions import db as _db
+        from glassbox.extensions import db as _db
 
         _db.create_all()
         org = make_org(plan=Plan.PAID, name="Org")
@@ -633,7 +633,7 @@ def spawned_base(monkeypatch):
     def _fake_spawn(scan_id, scan_type, **kwargs):
         calls.append({"scan_id": scan_id, "scan_type": scan_type, "kwargs": kwargs})
 
-    monkeypatch.setattr("webvulnscanner.scan_routes._spawn_scan_thread", _fake_spawn)
+    monkeypatch.setattr("glassbox.scan_routes._spawn_scan_thread", _fake_spawn)
     return calls
 
 
@@ -827,7 +827,7 @@ def test_report_csv_matches_shared_writer_bytes_exactly(client, db):
     # The token-authed export must serve findings_csv_document's output
     # byte-for-byte - the same function the session-web /scan/<id>/export.csv
     # route calls - proving one shared writer behind both surfaces.
-    from webvulnscanner.scan_routes import findings_csv_document
+    from glassbox.scan_routes import findings_csv_document
 
     org = make_org(plan=Plan.PAID, name="Org")
     user = make_user("owner@example.com", org=org)

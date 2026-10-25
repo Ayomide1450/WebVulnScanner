@@ -2,7 +2,7 @@
 {% block title %}Sign up - Glassbox{% endblock %}
 {% block head %}
 {% include "_auth_form_styles.html" %}
-<style>
+<style nonce="{{ csp_nonce }}">
   .hint { font-size: 13px; color: var(--muted); margin-top: 5px; }
   /* Terminal-card chrome, same pattern as login.html - purely decorative,
      no change to the shared .card/_auth_form_styles.html contract. */
@@ -41,7 +41,7 @@
 
       <label for="password">Password</label>
       <div class="pw-wrap">
-        {{ form.password(id="password", type="password", placeholder="At least 8 characters", autocomplete="new-password", oninput="checkPw(this.value)") }}
+        {{ form.password(id="password", type="password", placeholder="At least 8 characters", autocomplete="new-password") }}
         <button type="button" class="pw-toggle" data-toggle-for="password" aria-label="Show password">
           <svg class="icon" style="width:17px;height:17px;" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
@@ -78,7 +78,7 @@
     <div class="swap">Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a></div>
   </div>
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
   // Progressive-enhancement hint only - the real requirement (8+ chars) is
   // enforced server-side by SignupForm's Length(min=8) validator regardless
   // of what this shows; mix/number chips are encouragement, not a gate.
@@ -87,6 +87,16 @@
     document.getElementById('pw-mix').classList.toggle('on', /[a-z]/.test(v) && /[A-Z]/.test(v));
     document.getElementById('pw-num').classList.toggle('on', /[0-9]/.test(v));
   }
+  // Bound here rather than via an inline oninput= attribute: the app's CSP
+  // allows inline script by nonce only, and an attribute handler cannot
+  // carry a nonce - it would be blocked and the strength meter would
+  // silently stop updating.
+  (function () {
+    var pw = document.getElementById('password');
+    if (pw) {
+      pw.addEventListener('input', function () { checkPw(pw.value); });
+    }
+  })();
   document.querySelectorAll('.pw-toggle').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var input = document.getElementById(btn.dataset.toggleFor);

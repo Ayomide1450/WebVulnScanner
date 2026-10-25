@@ -1,8 +1,8 @@
-"""Tests for webvulnscanner/admin_routes.py's /platform-admin dashboard -
+"""Tests for glassbox/admin_routes.py's /platform-admin dashboard -
 the cross-org operator panel, gated by decorators.platform_admin_required
 (User.is_platform_admin), independent of org role."""
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import DomainVerification, PlatformAuditEvent, Role, User, VerifyMethod
+from glassbox.extensions import db as _db
+from glassbox.models import DomainVerification, PlatformAuditEvent, Role, User, VerifyMethod
 from tests.conftest import login, make_org, make_user
 
 
@@ -216,8 +216,8 @@ def test_suspended_mid_session_is_logged_out_on_next_request(app, client, db):
     technique tests/test_error_leakage.py uses for its own independent-
     app-instance cases - sidesteps that shared-context artifact entirely
     rather than fighting it with extra expire_all() calls."""
-    from webvulnscanner import create_app
-    from webvulnscanner.config import Config
+    from glassbox import create_app
+    from glassbox.config import Config
 
     org = make_org()
     member = make_user("member@example.com", org=org, role=Role.MEMBER)

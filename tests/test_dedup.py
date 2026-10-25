@@ -10,7 +10,7 @@ Tests cover:
 - _score_report regression lock (still uses SEVERITY_WEIGHT, not dedup count)
 - Source-parse: all 4 orchestrators call deduplicate_findings before _score_report
 """
-from webvulnscanner.checks import Finding, deduplicate_findings
+from glassbox.checks import Finding, deduplicate_findings
 
 
 def _mk_finding(category, title, severity="medium", **kw):
@@ -155,7 +155,7 @@ class TestScoreReportDedupIndependence:
 
     def test_score_report_uses_severity_weight(self):
         import inspect
-        from webvulnscanner.scan_engine import _score_report
+        from glassbox.scan_engine import _score_report
         source = inspect.getsource(_score_report)
         assert "SEVERITY_WEIGHT" in source
         assert "deduplicate_findings" not in source
@@ -166,7 +166,7 @@ class TestDedupWiring:
 
     def test_all_four_orchestrators_wired(self):
         import pathlib
-        source = pathlib.Path("webvulnscanner/scan_engine.py").read_text(encoding="utf-8")
+        source = pathlib.Path("glassbox/scan_engine.py").read_text(encoding="utf-8")
         lines = source.splitlines()
         # All 4 _score_report calls (excluding def line and docstring refs) should be preceded by deduplicate_findings
         score_lines = [i for i, line in enumerate(lines)
@@ -185,5 +185,5 @@ class TestDedupWiring:
 
     def test_dedup_import_in_scan_engine(self):
         import pathlib
-        source = pathlib.Path("webvulnscanner/scan_engine.py").read_text(encoding="utf-8")
+        source = pathlib.Path("glassbox/scan_engine.py").read_text(encoding="utf-8")
         assert "deduplicate_findings" in source

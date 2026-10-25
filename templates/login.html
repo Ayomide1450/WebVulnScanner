@@ -2,7 +2,7 @@
 {% block title %}Log in - Glassbox{% endblock %}
 {% block head %}
 {% include "_auth_form_styles.html" %}
-<style>
+<style nonce="{{ csp_nonce }}">
   .row-between { display:flex; justify-content:space-between; align-items:center; margin-top:18px; }
   .remember-row { display:flex; align-items:center; gap:7px; font-size:13px; color:var(--muted); }
   .remember-row input { width:15px; height:15px; accent-color: var(--accent); }
@@ -77,7 +77,7 @@
     <div class="swap">Don't have an account? <a href="{{ url_for('auth.signup') }}">Sign up</a></div>
   </div>
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
   document.querySelectorAll('.pw-toggle').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var input = document.getElementById(btn.dataset.toggleFor);

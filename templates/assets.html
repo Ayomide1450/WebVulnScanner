@@ -3,7 +3,7 @@
 {% block head %}
 {% include "_empty_state.html" %}
 {% include "_pagination.html" %}
-<style>
+<style nonce="{{ csp_nonce }}">
   h1 { margin-top: 20px; }
   a.row-link { color: var(--accent); text-decoration:none; }
 </style>

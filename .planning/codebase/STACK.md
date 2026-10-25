@@ -5,7 +5,7 @@
 ## Languages
 
 **Primary:**
-- Python 3.12 - entire backend (`webvulnscanner/`, `app.py`, `api/index.py`); pinned via `PYTHON_VERSION: "3.12.0"` in `render.yaml`
+- Python 3.12 - entire backend (`glassbox/`, `app.py`, `api/index.py`); pinned via `PYTHON_VERSION: "3.12.0"` in `render.yaml`
 
 **Secondary:**
 - Jinja2 HTML templates - `templates/`
@@ -24,12 +24,12 @@
 ## Frameworks
 
 **Core:**
-- Flask - `requirements.txt` (unpinned version); app factory in `webvulnscanner/__init__.py`
-- Flask-SQLAlchemy - `requirements.txt`; ORM layer, models in `webvulnscanner/models.py`
-- Flask-Login - `requirements.txt`; session auth, `webvulnscanner/auth_routes.py`, `webvulnscanner/extensions.py`
-- Flask-WTF - `requirements.txt`; CSRF protection (`csrf = CSRFProtect()` in `webvulnscanner/extensions.py`)
-- Flask-Limiter - `requirements.txt`; rate limiting (`limiter = Limiter(key_func=get_remote_address)` in `webvulnscanner/extensions.py`)
-- Flask-Migrate - `requirements.txt`; Alembic-backed schema migrations (`migrate = Migrate()` in `webvulnscanner/extensions.py`, scripts in `migrations/`)
+- Flask - `requirements.txt` (unpinned version); app factory in `glassbox/__init__.py`
+- Flask-SQLAlchemy - `requirements.txt`; ORM layer, models in `glassbox/models.py`
+- Flask-Login - `requirements.txt`; session auth, `glassbox/auth_routes.py`, `glassbox/extensions.py`
+- Flask-WTF - `requirements.txt`; CSRF protection (`csrf = CSRFProtect()` in `glassbox/extensions.py`)
+- Flask-Limiter - `requirements.txt`; rate limiting (`limiter = Limiter(key_func=get_remote_address)` in `glassbox/extensions.py`)
+- Flask-Migrate - `requirements.txt`; Alembic-backed schema migrations (`migrate = Migrate()` in `glassbox/extensions.py`, scripts in `migrations/`)
 
 **Testing:**
 - pytest - `requirements-dev.txt`; config in `pytest.ini` (`testpaths = tests`), tests in `tests/`
@@ -41,11 +41,11 @@
 ## Key Dependencies
 
 **Critical:**
-- requests - `requirements.txt`; HTTP client used for vulnerability checks (`webvulnscanner/checks.py`), Polygonscan billing verification (`webvulnscanner/billing.py`), and Resend email API (`webvulnscanner/email_stub.py`)
-- beautifulsoup4 - `requirements.txt`; HTML parsing for scan engine (`webvulnscanner/scan_engine.py`, `webvulnscanner/checks.py`)
-- dnspython - `requirements.txt`; DNS-based checks (`webvulnscanner/checks.py`, `webvulnscanner/domain_verification.py`)
+- requests - `requirements.txt`; HTTP client used for vulnerability checks (`glassbox/checks.py`), Polygonscan billing verification (`glassbox/billing.py`), and Resend email API (`glassbox/email_stub.py`)
+- beautifulsoup4 - `requirements.txt`; HTML parsing for scan engine (`glassbox/scan_engine.py`, `glassbox/checks.py`)
+- dnspython - `requirements.txt`; DNS-based checks (`glassbox/checks.py`, `glassbox/domain_verification.py`)
 - Pillow - `requirements.txt`; image processing (likely screenshot/report media handling)
-- openai - `requirements.txt`; used only as an OpenAI-compatible HTTP client pointed at Groq's API (`webvulnscanner/ai_summary.py`), not against OpenAI itself
+- openai - `requirements.txt`; used only as an OpenAI-compatible HTTP client pointed at Groq's API (`glassbox/ai_summary.py`), not against OpenAI itself
 - email-validator - `requirements.txt`; email format validation, used with Flask-WTF/WTForms validators
 
 **Infrastructure:**
@@ -55,7 +55,7 @@
 ## Configuration
 
 **Environment:**
-- Centralized in `webvulnscanner/config.py` (`class Config`), all values read via `os.environ.get(...)`
+- Centralized in `glassbox/config.py` (`class Config`), all values read via `os.environ.get(...)`
 - `.env` file supported via `python-dotenv` (existence only noted; not read for contents)
 - Documented env var list: `docs/env-vars.md`
 
@@ -65,15 +65,15 @@
 
 ## Database
 
-**ORM:** Flask-SQLAlchemy (`webvulnscanner/extensions.py`: `db = SQLAlchemy()`)
+**ORM:** Flask-SQLAlchemy (`glassbox/extensions.py`: `db = SQLAlchemy()`)
 
-**Dev/default:** SQLite - `webvulnscanner/config.py` line ~92, default URI `sqlite:///` + `webvulnscanner.db` in `APP_DIR` when `SQLALCHEMY_DATABASE_URI` env var is unset
+**Dev/default:** SQLite - `glassbox/config.py` line ~92, default URI `sqlite:///` + `glassbox.db` in `APP_DIR` when `SQLALCHEMY_DATABASE_URI` env var is unset
 
-**Production:** PostgreSQL (Neon, per `render.yaml` comments) via `SQLALCHEMY_DATABASE_URI` env var and `psycopg2-binary` driver. `webvulnscanner/config.py` rewrites `postgres://` → `postgresql://` scheme since SQLAlchemy 1.4+ requires the latter.
+**Production:** PostgreSQL (Neon, per `render.yaml` comments) via `SQLALCHEMY_DATABASE_URI` env var and `psycopg2-binary` driver. `glassbox/config.py` rewrites `postgres://` → `postgresql://` scheme since SQLAlchemy 1.4+ requires the latter.
 
 **Migrations:** Alembic via Flask-Migrate, migration scripts in `migrations/`; `render.yaml`/`Procfile` both run `flask db upgrade` before starting gunicorn.
 
-**Schema/Models:** `webvulnscanner/models.py` - `Organization`, `User`, `PasswordReset`, `DomainVerification`, `Scan`, `ScanEvent`, `Report`, `Subscription`, `CryptoInvoice`, plus enums (`Role`, `Plan`, `SubStatus`, `ScanStatus`, `VerifyMethod`, `InvoiceStatus`, `ScanEventPhase`)
+**Schema/Models:** `glassbox/models.py` - `Organization`, `User`, `PasswordReset`, `DomainVerification`, `Scan`, `ScanEvent`, `Report`, `Subscription`, `CryptoInvoice`, plus enums (`Role`, `Plan`, `SubStatus`, `ScanStatus`, `VerifyMethod`, `InvoiceStatus`, `ScanEventPhase`)
 
 ## Deployment Configuration
 
@@ -93,7 +93,7 @@
 - Explicit caveat in the config's own `"//"` comment: "Web/API layer only ... Scan execution, the SSE progress feed, and local report/media storage are NOT serverless-safe as currently implemented" — see `docs/vercel-migration.md`
 
 **Error monitoring:**
-- Sentry (`sentry-sdk`, optional) - best-effort init in `webvulnscanner/__init__.py` (`_init_sentry` around line 20), guarded so a missing `SENTRY_DSN` or missing package never raises; configured via `SENTRY_DSN` env var (`webvulnscanner/config.py`)
+- Sentry (`sentry-sdk`, optional) - best-effort init in `glassbox/__init__.py` (`_init_sentry` around line 20), guarded so a missing `SENTRY_DSN` or missing package never raises; configured via `SENTRY_DSN` env var (`glassbox/config.py`)
 
 ## Platform Requirements
 

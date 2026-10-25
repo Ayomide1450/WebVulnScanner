@@ -64,7 +64,7 @@ data maintenance) were explicitly left to planner discretion, not deferred to a 
 This phase adds a compliance-framework taxonomy layer on top of an already-complete,
 already-working findings pipeline — it does not change what any check *detects*, only how each
 finding is *labeled* for audit/reporting purposes. The codebase already has two precedent dicts
-(`CHECK_LABELS`, `CHECK_CATEGORY` in `webvulnscanner/checks.py`, verified read this session) that
+(`CHECK_LABELS`, `CHECK_CATEGORY` in `glassbox/checks.py`, verified read this session) that
 solve an almost-identical problem (per-check metadata + a sync regression test), but neither
 covers anything beyond `run_scan()`'s 17 base-scan check names — Phase 3 must extend that
 convention to all 26 check units across all 4 scan orchestrators (base/advanced/media/api), which
@@ -119,7 +119,7 @@ mechanism.
 
 No new third-party libraries are needed for this phase — it is a data-modeling + template-rendering
 change inside the existing Flask/Jinja/SQLAlchemy stack already used throughout
-`webvulnscanner/`. See "Package Legitimacy Audit" below.
+`glassbox/`. See "Package Legitimacy Audit" below.
 
 ### Core (existing, reused — no new install)
 | Library | Version | Purpose | Why Standard (for this phase) |
@@ -139,7 +139,7 @@ change inside the existing Flask/Jinja/SQLAlchemy stack already used throughout
 ## Package Legitimacy Audit
 
 Not applicable — this phase installs no external packages. All work is inside the existing
-`webvulnscanner/` package (new dict + one new dataclass field) and `templates/` (new Jinja
+`glassbox/` package (new dict + one new dataclass field) and `templates/` (new Jinja
 markup). No `npm install`/`pip install` step is part of this phase's scope.
 
 ## Architecture Patterns
@@ -181,7 +181,7 @@ check_xss_sqli(urls, session)                 ...
 No new files/folders — additions land in existing modules:
 
 ```
-webvulnscanner/
+glassbox/
 ├── checks.py          # + check_name field on Finding; + CHECK_COMPLIANCE dict (next to CHECK_LABELS/CHECK_CATEGORY)
 ├── scan_engine.py      # + f.check_name = <name> at each of the 4 orchestrators' finding-collection points
 ├── asset_routes.py     # + coverage-summary aggregation helper for asset_detail()
@@ -202,10 +202,10 @@ the field centrally, once per check, at the point each orchestrator already coll
 **When to use:** Any time you need to associate metadata with "which check produced this finding"
 without touching every individual finding-construction call site.
 
-**Example (verified from `webvulnscanner/scan_engine.py`, read this session — showing the base-scan
+**Example (verified from `glassbox/scan_engine.py`, read this session — showing the base-scan
 jobs-loop collection point, lines 356-375):**
 ```python
-# Source: webvulnscanner/scan_engine.py (this codebase, read this session)
+# Source: glassbox/scan_engine.py (this codebase, read this session)
 with ThreadPoolExecutor(max_workers=max(len(jobs), 1)) as pool:
     future_map = {}
     for name, fn in jobs.items():
@@ -239,7 +239,7 @@ OWASP Top 10 category (required) and an optional ASVS reference (nullable).
 **When to use:** This phase's COMP-01/COMP-04 requirement.
 
 ```python
-# Proposed addition to webvulnscanner/checks.py, mirroring CHECK_LABELS'/CHECK_CATEGORY's
+# Proposed addition to glassbox/checks.py, mirroring CHECK_LABELS'/CHECK_CATEGORY's
 # existing shape and "keep this dict in sync" comment convention (verified checks.py:47-87).
 CHECK_COMPLIANCE = {
     # base scan
@@ -430,7 +430,7 @@ the plan per CONTEXT.md's instruction, since it's user-visible and was left to p
 
 ### Existing report-read pattern this phase's COMP-03 aggregation should reuse
 ```python
-# Source: webvulnscanner/scan_routes.py, lines 556-569 (this codebase, read this session)
+# Source: glassbox/scan_routes.py, lines 556-569 (this codebase, read this session)
 @scan.route("/scan/<int:scan_id>/report")
 @login_required
 def scan_report(scan_id):
@@ -449,7 +449,7 @@ def scan_report(scan_id):
 
 ### Existing findings-indexing pattern this phase's grouping/lookup should reuse
 ```python
-# Source: webvulnscanner/scan_routes.py, lines 572-589 (this codebase, read this session)
+# Source: glassbox/scan_routes.py, lines 572-589 (this codebase, read this session)
 def diff_reports(report_a, report_b):
     def index_by_key(report):
         idx = {}
@@ -463,7 +463,7 @@ def diff_reports(report_a, report_b):
 ```python
 # Source: tests/test_entitlements.py, lines 49-79 (this codebase, read this session)
 def _run_scan_job_names():
-    src = Path(__file__).resolve().parent.parent / "webvulnscanner" / "scan_engine.py"
+    src = Path(__file__).resolve().parent.parent / "glassbox" / "scan_engine.py"
     text = src.read_text(encoding="utf-8")
     start = text.index("jobs = {")
     end = text.index("\n    }", start)
@@ -493,14 +493,14 @@ MEDIA_SCAN_CHECK_NAMES = {"media"}
 API_SCAN_CHECK_NAMES = {"schema", "wordlist", "js_discovery"}  # matches run_api_scan's results keys
 
 def test_check_compliance_covers_every_scan_type():
-    from webvulnscanner.checks import CHECK_COMPLIANCE
+    from glassbox.checks import CHECK_COMPLIANCE
     all_names = (_run_scan_job_names() | OUT_OF_JOBS_DICT_NAMES
                  | ADVANCED_SCAN_CHECK_NAMES | MEDIA_SCAN_CHECK_NAMES | API_SCAN_CHECK_NAMES)
     missing = all_names - set(CHECK_COMPLIANCE)
     assert not missing, f"CHECK_COMPLIANCE is missing entries for {missing}"
 
 def test_check_compliance_every_entry_has_owasp_category():
-    from webvulnscanner.checks import CHECK_COMPLIANCE
+    from glassbox.checks import CHECK_COMPLIANCE
     for name, entry in CHECK_COMPLIANCE.items():
         assert entry.get("owasp"), f"{name} has no owasp category (D-01: required on every mapped check)"
 ```
@@ -634,17 +634,17 @@ phase's scope (pure findings-labeling + report-rendering).
 ## Sources
 
 ### Primary (HIGH confidence — read directly this session)
-- `webvulnscanner/checks.py` (full file, 1523 lines) — `Finding` dataclass, `CHECK_LABELS`,
+- `glassbox/checks.py` (full file, 1523 lines) — `Finding` dataclass, `CHECK_LABELS`,
   `CHECK_CATEGORY`, every `def check_*(...)` and every `Finding(...)` call site's `category`
   argument.
-- `webvulnscanner/scan_engine.py` (full file, 466 lines) — all 4 orchestrators
+- `glassbox/scan_engine.py` (full file, 466 lines) — all 4 orchestrators
   (`run_scan`/`run_advanced_scan`/`run_media_scan`/`run_api_scan`), `save_report()`.
-- `webvulnscanner/entitlements.py` (full file, 136 lines) — `FEATURE_REQUIREMENTS`, `Tier`.
-- `webvulnscanner/models.py` (excerpt: `Asset`/`Scan`/`Report`/`Subscription`/`CryptoInvoice`
+- `glassbox/entitlements.py` (full file, 136 lines) — `FEATURE_REQUIREMENTS`, `Tier`.
+- `glassbox/models.py` (excerpt: `Asset`/`Scan`/`Report`/`Subscription`/`CryptoInvoice`
   class definitions) — confirms `Report` stores only `json_path`, no findings table.
-- `webvulnscanner/scan_routes.py` (excerpts: `scan_report()`, `diff_reports()`) — the report-read
+- `glassbox/scan_routes.py` (excerpts: `scan_report()`, `diff_reports()`) — the report-read
   and findings-indexing patterns this phase should reuse.
-- `webvulnscanner/asset_routes.py` (excerpts: `_render_asset_detail()`, `asset_detail()`,
+- `glassbox/asset_routes.py` (excerpts: `_render_asset_detail()`, `asset_detail()`,
   `update_schedule()`) — the existing Asset-scan-history query pattern.
 - `templates/scan_report.html` (excerpts, lines 1-174) — the existing category-grouping loop and
   finding-card markup.

@@ -15,8 +15,8 @@ import pytest
 from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 
-from webvulnscanner.extensions import db
-from webvulnscanner.models import (
+from glassbox.extensions import db
+from glassbox.models import (
     DomainVerification, Plan, Role, SSOConfiguration, User, VerifyMethod,
 )
 from tests.conftest import make_org, make_user
@@ -94,8 +94,8 @@ class TestLoginSaml:
         assert resp.status_code == 302
         assert "/login" in resp.headers["Location"]
 
-    @patch("webvulnscanner.sso_routes._ssrf_safe_url", return_value=True)
-    @patch("webvulnscanner.sso_routes.OneLogin_Saml2_Auth")
+    @patch("glassbox.sso_routes._ssrf_safe_url", return_value=True)
+    @patch("glassbox.sso_routes.OneLogin_Saml2_Auth")
     def test_valid_initiation_stores_session_and_redirects(self, mock_auth_cls, mock_ssrf, client, db):
         org = make_org()
         _make_sso_config(org)
@@ -142,7 +142,7 @@ class TestSamlCallback:
         assert resp.status_code == 302
         assert "/login" in resp.headers["Location"]
 
-    @patch("webvulnscanner.sso_routes.OneLogin_Saml2_Auth")
+    @patch("glassbox.sso_routes.OneLogin_Saml2_Auth")
     def test_saml_validation_error_redirects(self, mock_auth_cls, client, db):
         from onelogin.saml2.errors import OneLogin_Saml2_ValidationError
 
@@ -163,7 +163,7 @@ class TestSamlCallback:
         assert resp.status_code == 302
         assert "/login" in resp.headers["Location"]
 
-    @patch("webvulnscanner.sso_routes.OneLogin_Saml2_Auth")
+    @patch("glassbox.sso_routes.OneLogin_Saml2_Auth")
     def test_saml_get_errors_redirects(self, mock_auth_cls, client, db):
         org = make_org()
         _make_sso_config(org)
@@ -181,7 +181,7 @@ class TestSamlCallback:
         assert resp.status_code == 302
         assert "/login" in resp.headers["Location"]
 
-    @patch("webvulnscanner.sso_routes.OneLogin_Saml2_Auth")
+    @patch("glassbox.sso_routes.OneLogin_Saml2_Auth")
     def test_not_authenticated_redirects(self, mock_auth_cls, client, db):
         org = make_org()
         _make_sso_config(org)
@@ -200,7 +200,7 @@ class TestSamlCallback:
         assert resp.status_code == 302
         assert "/login" in resp.headers["Location"]
 
-    @patch("webvulnscanner.sso_routes.OneLogin_Saml2_Auth")
+    @patch("glassbox.sso_routes.OneLogin_Saml2_Auth")
     def test_domain_mismatch_redirects(self, mock_auth_cls, client, db):
         org = make_org()
         _make_sso_config(org)
@@ -221,7 +221,7 @@ class TestSamlCallback:
         assert resp.status_code == 302
         assert "/login" in resp.headers["Location"]
 
-    @patch("webvulnscanner.sso_routes.OneLogin_Saml2_Auth")
+    @patch("glassbox.sso_routes.OneLogin_Saml2_Auth")
     def test_jit_provisions_new_user(self, mock_auth_cls, client, db):
         org = make_org()
         _make_sso_config(org)
@@ -249,7 +249,7 @@ class TestSamlCallback:
         assert user.password_hash is None
         assert user.email_verified_at is not None
 
-    @patch("webvulnscanner.sso_routes.OneLogin_Saml2_Auth")
+    @patch("glassbox.sso_routes.OneLogin_Saml2_Auth")
     def test_jit_updates_existing_user(self, mock_auth_cls, client, db):
         org = make_org()
         _make_sso_config(org)
@@ -275,7 +275,7 @@ class TestSamlCallback:
         assert user.auth_method == "sso"
         assert user.password_hash is None
 
-    @patch("webvulnscanner.sso_routes.OneLogin_Saml2_Auth")
+    @patch("glassbox.sso_routes.OneLogin_Saml2_Auth")
     def test_jit_sets_org_for_orgless_user(self, mock_auth_cls, client, db):
         org = make_org()
         _make_sso_config(org)
@@ -301,7 +301,7 @@ class TestSamlCallback:
         assert user.org_id == org.id
         assert user.auth_method == "sso"
 
-    @patch("webvulnscanner.sso_routes.OneLogin_Saml2_Auth")
+    @patch("glassbox.sso_routes.OneLogin_Saml2_Auth")
     def test_missing_nameid_redirects(self, mock_auth_cls, client, db):
         org = make_org()
         _make_sso_config(org)
@@ -322,7 +322,7 @@ class TestSamlCallback:
         assert resp.status_code == 302
         assert "/login" in resp.headers["Location"]
 
-    @patch("webvulnscanner.sso_routes.OneLogin_Saml2_Auth")
+    @patch("glassbox.sso_routes.OneLogin_Saml2_Auth")
     def test_nameid_without_at_sign_redirects(self, mock_auth_cls, client, db):
         org = make_org()
         _make_sso_config(org)
@@ -401,7 +401,7 @@ class TestAdminSSOConfig:
         resp = client.get("/org/admin/sso")
         assert resp.status_code in (302, 403)
 
-    @patch("webvulnscanner.org_routes._ssrf_safe_hostname", return_value=True)
+    @patch("glassbox.org_routes._ssrf_safe_hostname", return_value=True)
     def test_save_sso_config_creates_new(self, mock_ssrf, client, db):
         org = make_org()
         admin = _make_admin_user(org)
@@ -419,7 +419,7 @@ class TestAdminSSOConfig:
         assert cfg.idp_entity_id == "https://idp.neworg.com/metadata"
         assert cfg.enabled is True
 
-    @patch("webvulnscanner.org_routes._ssrf_safe_hostname", return_value=True)
+    @patch("glassbox.org_routes._ssrf_safe_hostname", return_value=True)
     def test_save_sso_config_updates_existing(self, mock_ssrf, client, db):
         org = make_org()
         admin = _make_admin_user(org)

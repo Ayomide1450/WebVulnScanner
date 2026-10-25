@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}API Reference - Glassbox{% endblock %}
 {% block head %}
-<style>
+<style nonce="{{ csp_nonce }}">
   /* h1/.card/.pill/.btn/table/.table-scroll/.mobile-record-cards come from
      base.html - this page adds only its own documentation-specific layout,
      page-scoped here rather than promoted into base.html (same discipline

@@ -454,7 +454,7 @@ top-to-bottom sensibly, without checking the actual tag sequence.
 `06-UI-SPEC.md` documents `.tier-card h3` being deliberately sized like an H2 for visual
 prominence) — a page can *look* hierarchical while its tags skip a level.
 **How to avoid:** This session grepped every `<h1>`-`<h6>` tag across all 35 templates and found
-two confirmed skips: `marketing.html` goes `<h2>What WebVulnScanner checks</h2>` directly to
+two confirmed skips: `marketing.html` goes `<h2>What Glassbox checks</h2>` directly to
 `<h4>Exposed secrets</h4>` (and 10 sibling `<h4>`s) with no `<h3>` in between
 `[VERIFIED: templates/marketing.html:191,198]`, and again `<h2>How it works</h2>` directly to
 `<h4>Enter your domain</h4>` `[VERIFIED: templates/marketing.html:310,316]`.

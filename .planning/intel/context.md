@@ -61,10 +61,10 @@ appended verbatim/paraphrased with source attribution.
   spacing refinement; (9) `scan_new_*` consistency pass via `_scan_form_styles.html`; (10)
   code-only keep-alive heartbeat pinging `/healthz` every 4 minutes while tab visible; (11) full
   verification pass (automated suite + manual click-through at desktop and mobile widths).
-- File structure table lists exact files touched: `webvulnscanner/config.py`,
+- File structure table lists exact files touched: `glassbox/config.py`,
   `tests/test_config.py` (new), `templates/marketing.html`, `templates/dashboard.html`,
-  `tests/test_scan_routes.py` (new), `webvulnscanner/public_routes.py`, `templates/terms.html`
-  (new), `templates/privacy.html` (new), `templates/base.html`, `webvulnscanner/__init__.py`,
+  `tests/test_scan_routes.py` (new), `glassbox/public_routes.py`, `templates/terms.html`
+  (new), `templates/privacy.html` (new), `templates/base.html`, `glassbox/__init__.py`,
   `tests/test_public_routes.py`, `templates/billing.html`, `tests/test_billing_routes.py` (new),
   `templates/org_admin.html`, `tests/test_org_routes.py` (new), `templates/scan_report.html`,
   `templates/scan_compare.html`, `templates/_scan_form_styles.html`.

@@ -32,7 +32,7 @@ dedup (pure-function extraction), reuse-only CSS/template consistency pass.
   network calls — matching `run_scan`'s existing convention in `tests/test_scan_events.py` and
   `TESTING.md`'s documented pattern. No precedent in this suite for hitting a live test target.
 - **D-04:** `run_advanced_scan` has no scheduler-triggered path to test — confirmed via
-  `webvulnscanner/scheduler.py`'s `_fire()`, which only branches on `"base"`/`"media"`/`"api"`;
+  `glassbox/scheduler.py`'s `_fire()`, which only branches on `"base"`/`"media"`/`"api"`;
   there is no `"advanced"` branch, and `Asset`'s schedule model has no field for stored
   credentials. This is intentional, not a bug to fix — test `run_advanced_scan` via direct
   invocation only. `run_media_scan`/`run_api_scan` need both direct-invocation tests and
@@ -113,7 +113,7 @@ matches what CONTEXT.md/UI-SPEC.md assumed, surfacing exact signatures/line numb
 needs, and flagging pitfalls the decisions didn't anticipate.
 
 Four pitfalls surfaced that CONTEXT.md/UI-SPEC.md did not fully anticipate: (1) **the
-`webvulnscanner.extensions.limiter` object is a process-wide singleton** reused via
+`glassbox.extensions.limiter` object is a process-wide singleton** reused via
 `.init_app()` across every `create_app()` call in the test suite (confirmed in
 `tests/test_auth_flows.py`'s existing rate-limit test) — a HARD-01 test built around that
 singleton would not actually prove cross-*process* (i.e., cross-worker) sharing, it would prove
@@ -207,11 +207,11 @@ libraries with no documented postinstall network calls).
 ```
 gunicorn --workers N
    │
-   ├── worker process 1 ── webvulnscanner.extensions.limiter (singleton IN THIS PROCESS)
+   ├── worker process 1 ── glassbox.extensions.limiter (singleton IN THIS PROCESS)
    │        │                         │
    │        │                 storage_uri = RATELIMIT_STORAGE_URI (redis://...)
    │        │                         │
-   ├── worker process 2 ── webvulnscanner.extensions.limiter (a DIFFERENT singleton object,
+   ├── worker process 2 ── glassbox.extensions.limiter (a DIFFERENT singleton object,
    │        │                         │                        fresh Python import in this
    │        │                         │                        process)
    │        │                         ▼
@@ -222,7 +222,7 @@ gunicorn --workers N
                             └─────────────────────┘
 ```
 Each gunicorn worker is a separate OS process with its own fresh import of
-`webvulnscanner.extensions`, hence its own `Limiter` Python object — the property under test is
+`glassbox.extensions`, hence its own `Limiter` Python object — the property under test is
 that two *independent* `Limiter` objects pointed at the same `storage_uri` observe the same
 counter, not that one shared Python object does (trivially true and not what production needs
 proven).
@@ -243,7 +243,7 @@ One new top-level test file per net-new feature area (`test_ratelimit_storage.py
 (`test_scheduler.py`, `test_org_routes.py`) — matches `TESTING.md`'s documented convention.
 
 ### Pattern 1 (HARD-01): Two independent `Limiter` instances sharing a fakeredis backend
-**What:** A standalone test that never touches `webvulnscanner.extensions.limiter` or
+**What:** A standalone test that never touches `glassbox.extensions.limiter` or
 `create_app()` — it builds two bare `flask.Flask` + `flask_limiter.Limiter` mini-apps in-test,
 both configured with the same `storage_uri`, with `redis.from_url` monkeypatched process-wide to
 route to a shared `fakeredis.FakeServer()`.
@@ -302,13 +302,13 @@ demonstrates the shared-counter property correctly without needing a real networ
 **What:** Monkeypatch every `check_*` function `run_advanced_scan`/`run_media_scan`/
 `run_api_scan` import into `scan_engine`'s namespace (same binding-location caveat
 `test_scan_events.py`'s docstring already documents — patch `scan_engine.check_x`, not
-`checks.check_x`, since `scan_engine.py` does `from webvulnscanner.checks import check_x`).
+`checks.check_x`, since `scan_engine.py` does `from glassbox.checks import check_x`).
 **When to use:** All three new orchestrator test files/sections.
 **Example:**
 ```python
 # Source: mirrors tests/test_scan_events.py's _stub_all_checks pattern (verified read
 # 2026-08-13), adapted for run_media_scan's single check_media call.
-from webvulnscanner import scan_engine
+from glassbox import scan_engine
 
 
 def test_run_media_scan_returns_completed_shape(monkeypatch):
@@ -329,7 +329,7 @@ def test_run_media_scan_returns_completed_shape(monkeypatch):
 **What:** Assert `run_advanced_scan` never calls the stubbed `check_bruteforce` with more than
 `MAX_BRUTEFORCE_ATTEMPTS` passwords, and that a stubbed "succeeded" result short-circuits (no
 further calls) — regression-locking the safety cap at the orchestrator's call-site level, since
-`checks.check_bruteforce` (`webvulnscanner/checks.py:1562-1596`) itself already enforces the cap
+`checks.check_bruteforce` (`glassbox/checks.py:1562-1596`) itself already enforces the cap
 internally and D-03 says the check function is stubbed out entirely for these tests (never
 executed for real), so the orchestrator-level test cannot re-verify the check's own internal
 slicing — it can only verify `run_advanced_scan` passes through whatever the (mocked) check
@@ -337,14 +337,14 @@ returns without adding its own separate attempt loop.
 **When to use:** `test_scan_engine.py`'s `run_advanced_scan` bruteforce-group tests.
 **Example:**
 ```python
-# Source: read webvulnscanner/checks.py:1562-1596 and webvulnscanner/scan_engine.py:193-202
+# Source: read glassbox/checks.py:1562-1596 and glassbox/scan_engine.py:193-202
 # this session - the orchestrator calls check_bruteforce exactly once per invocation with
 # advanced["bruteforce_passwords"] passed through unmodified (the cap itself lives inside
 # check_bruteforce, not in run_advanced_scan - see check_bruteforce's own docstring:
 # "Hard-capped at MAX_BRUTEFORCE_ATTEMPTS, stops immediately on first success").
 def test_run_advanced_scan_calls_bruteforce_exactly_once_with_unmodified_password_list(monkeypatch):
-    from webvulnscanner import scan_engine
-    from webvulnscanner.entitlements import Tier
+    from glassbox import scan_engine
+    from glassbox.entitlements import Tier
 
     calls = []
 
@@ -386,7 +386,7 @@ orchestrator-level ones, if not already covered elsewhere in the suite.
 without_spawning` / `test_tier_upgrade_is_respected_at_next_fire_not_retroactively` shape, but for
 a *successful* (tier-allowed) fire — the existing tests only cover the tier-denial path for
 media/api; none currently assert a successful scheduler-fired media/api scan reaches
-`_spawn_scan_thread` with the right `scan_type`/kwargs (`webvulnscanner/scheduler.py:124-132`).
+`_spawn_scan_thread` with the right `scan_type`/kwargs (`glassbox/scheduler.py:124-132`).
 **When to use:** `tests/test_scheduler.py`, using the existing `spawned` fixture (records
 `_spawn_scan_thread` calls as no-ops — confirmed at `tests/test_scheduler.py:21-31`).
 **Example:**
@@ -394,9 +394,9 @@ media/api; none currently assert a successful scheduler-fired media/api scan rea
 # Source: mirrors tests/test_scheduler.py's existing test_tick_fires_due_asset_and_creates_one_scan
 # shape (read this session), extended to assert kwargs for the "media"/"api" branches specifically.
 def test_paid_tier_media_schedule_spawns_with_download_false(app, db, spawned):
-    from webvulnscanner.models import Plan
+    from glassbox.models import Plan
     from tests.conftest import make_asset, make_org, make_user
-    from webvulnscanner.scheduler import _tick
+    from glassbox.scheduler import _tick
 
     org = make_org(plan=Plan.PAID)
     user = make_user("paid-media@example.com", org=org)
@@ -424,9 +424,9 @@ covering the new 3-arg signature and the email-mismatch rejection.
 prescribed here beyond D-06/D-07's contract):**
 ```python
 # Source: derived from org_routes.py's existing generate_invite_token/decode_invite_token
-# (read this session, webvulnscanner/org_routes.py:63-79) plus D-06/D-07's contract.
+# (read this session, glassbox/org_routes.py:63-79) plus D-06/D-07's contract.
 def test_generate_and_decode_invite_token_round_trips_with_email():
-    from webvulnscanner.org_routes import decode_invite_token, generate_invite_token
+    from glassbox.org_routes import decode_invite_token, generate_invite_token
 
     token = generate_invite_token(org_id=5, role="member", email="invitee@example.com")
     decoded = decode_invite_token(token, expected_email="invitee@example.com")
@@ -434,7 +434,7 @@ def test_generate_and_decode_invite_token_round_trips_with_email():
 
 
 def test_decode_invite_token_rejects_email_mismatch():
-    from webvulnscanner.org_routes import decode_invite_token, generate_invite_token
+    from glassbox.org_routes import decode_invite_token, generate_invite_token
 
     token = generate_invite_token(org_id=5, role="member", email="invitee@example.com")
     # Signed-up email differs from the invited email - must be rejected, not silently accepted.
@@ -458,11 +458,11 @@ flow, just untested).
 **Example:**
 ```python
 # Source: derived from domain_verification.py's own _verify_dns_txt/_verify_well_known
-# (read this session, webvulnscanner/domain_verification.py:73-99) and the existing
+# (read this session, glassbox/domain_verification.py:73-99) and the existing
 # mocked-DNS convention already proven in tests/test_ssrf_guard.py.
 def test_verify_domain_dns_txt_success(db, monkeypatch):
-    from webvulnscanner.domain_verification import generate_verification, txt_record_value, verify_domain
-    from webvulnscanner.models import VerifyMethod
+    from glassbox.domain_verification import generate_verification, txt_record_value, verify_domain
+    from glassbox.models import VerifyMethod
     from tests.conftest import make_org
 
     org = make_org()
@@ -484,12 +484,12 @@ def test_verify_domain_dns_txt_success(db, monkeypatch):
 ### Pattern 7 (HARD-04): `_score_report` extraction
 **What:** A pure function taking a findings list and returning everything the four orchestrators'
 scoring blocks currently compute inline — confirmed byte-for-byte identical across all four
-(`webvulnscanner/scan_engine.py` lines 72-82, 129-139, 243-254, 427-438, read this session) except
+(`glassbox/scan_engine.py` lines 72-82, 129-139, 243-254, 427-438, read this session) except
 for the local variable name holding the findings list.
 **Example:**
 ```python
 # Source: mechanical extraction of the verbatim-identical block repeated at
-# webvulnscanner/scan_engine.py:72-82 (run_media_scan), :129-139 (run_api_scan),
+# glassbox/scan_engine.py:72-82 (run_media_scan), :129-139 (run_api_scan),
 # :243-254 (run_advanced_scan), :427-438 (run_scan) - read this session.
 def _score_report(findings):
     """Shared by all four orchestrators (HARD-04). Returns (score, risk_grade,
@@ -533,11 +533,11 @@ existing plumbing, not introducing new mechanisms.
 
 ## Common Pitfalls
 
-### Pitfall 1: Testing HARD-01 against the `webvulnscanner.extensions.limiter` singleton proves nothing about multi-worker safety
+### Pitfall 1: Testing HARD-01 against the `glassbox.extensions.limiter` singleton proves nothing about multi-worker safety
 **What goes wrong:** A test that calls `create_app()` twice and points both apps'
 `RATELIMIT_STORAGE_URI` at the same fakeredis URL will *appear* to pass even with the current
 in-memory default, because both `create_app()` calls in the test suite reuse the exact same
-`webvulnscanner.extensions.limiter` module-level singleton object (confirmed: `tests/
+`glassbox.extensions.limiter` module-level singleton object (confirmed: `tests/
 test_auth_flows.py`'s `test_login_rate_limit_is_enforced` already documents this: "Limiter's
 in-memory storage is a process-wide singleton shared across every test app instance"). Counters
 would already be shared via the shared Python object, storage backend irrelevant.
@@ -548,7 +548,7 @@ app's own runtime (one process per gunicorn worker → one `Limiter` per process
 the *test suite's* multiple `create_app()` calls don't simulate multiple worker processes at all.
 **How to avoid:** Build the HARD-01 test as two standalone `flask.Flask` + fresh
 `flask_limiter.Limiter(...)` instances (see Pattern 1 above), never importing
-`webvulnscanner.extensions.limiter`. This is a deliberate departure from "test through the real
+`glassbox.extensions.limiter`. This is a deliberate departure from "test through the real
 app," justified because the property under test (storage-layer sharing) is generic to `limits`'
 Redis backend, not specific to this app's routes.
 **Warning signs:** A HARD-01 test that passes even when `storage_uri` is left at the in-memory
@@ -600,7 +600,7 @@ core ask).
 a stale `QUEUED` value.
 
 ### Pitfall 4: `check_bruteforce`'s `time.sleep(1.0)` between attempts means it must be mocked, never called for real, in orchestrator tests
-**What goes wrong:** `checks.check_bruteforce` (`webvulnscanner/checks.py:1562-1596`) sleeps 1
+**What goes wrong:** `checks.check_bruteforce` (`glassbox/checks.py:1562-1596`) sleeps 1
 full second between each password attempt (`time.sleep(1.0)`, line 1587) — a real (unmocked)
 call in a test with even 3-5 passwords would make the test suite measurably slower and flaky
 under CI load. D-03 already mandates full mocking for exactly this class of reason.
@@ -615,7 +615,7 @@ orchestrator-level test.
 ### Pitfall 5: `run_advanced_scan`'s `locked` list entries depend on tier/domain gating evaluated per-group, independently
 **What goes wrong:** A test asserting "when tier is below ORG_VERIFIED, everything lands in
 `locked`" must check each check-group's `locked.append(...)` call individually
-(`webvulnscanner/scan_engine.py:190-241`) — `sqli_login`/`bruteforce`/`sqli_union`/`xss_stored`/
+(`glassbox/scan_engine.py:190-241`) — `sqli_login`/`bruteforce`/`sqli_union`/`xss_stored`/
 `idor` are five *independent* `elif has_group_fields:` branches, each appending its own name only
 if that group's *specific* required fields are present (a group with no fields filled in never
 appears in `locked` at all, matching the docstring's own note: "in practice: below that tier...
@@ -625,7 +625,7 @@ fields ARE filled in).
 an incomplete form group is silently skipped entirely (never runs, never locks), which is easy
 to misassert as "locked" if a test doesn't fill in that group's required fields.
 **How to avoid:** For an "everything locked below tier" test, fill in every group's required
-fields (matching `_parse_advanced_form`'s full field list, `webvulnscanner/scan_routes.py:
+fields (matching `_parse_advanced_form`'s full field list, `glassbox/scan_routes.py:
 209-227`) and assert all 5 check names appear in `report["locked_checks"]`; for an "empty form
 groups are silently skipped, not locked" test, leave fields empty and assert `locked_checks == []`
 and `ran == []`.
@@ -687,8 +687,8 @@ should be at least two tasks (route logic + template change), given the confirme
 ## Code Examples
 
 See Architecture Patterns §1-7 above — all seven code examples are sourced from files read this
-session (`webvulnscanner/scan_engine.py`, `webvulnscanner/checks.py`, `webvulnscanner/
-org_routes.py`, `webvulnscanner/domain_verification.py`, `webvulnscanner/scheduler.py`,
+session (`glassbox/scan_engine.py`, `glassbox/checks.py`, `glassbox/
+org_routes.py`, `glassbox/domain_verification.py`, `glassbox/scheduler.py`,
 `tests/test_scan_events.py`, `tests/test_scheduler.py`) plus `limits`/`fakeredis` upstream source
 confirmed via WebFetch this session, not fabricated from training-data assumption.
 
@@ -802,20 +802,20 @@ libraries beyond what any other `requirements.txt` entry needs).
 ## Sources
 
 ### Primary (HIGH confidence)
-- `webvulnscanner/scan_engine.py` (read in full, 492 lines) — all four orchestrators' scoring
+- `glassbox/scan_engine.py` (read in full, 492 lines) — all four orchestrators' scoring
   blocks confirmed byte-for-byte identical except variable naming; `run_advanced_scan`'s
   per-group locked-check branching
-- `webvulnscanner/checks.py` (targeted reads, lines 1482-1596) — `check_xss_stored`,
+- `glassbox/checks.py` (targeted reads, lines 1482-1596) — `check_xss_stored`,
   `check_idor`, `check_bruteforce`, `MAX_BRUTEFORCE_ATTEMPTS = 5` (line 44)
-- `webvulnscanner/org_routes.py` (read in full) — `generate_invite_token`/`decode_invite_token`
+- `glassbox/org_routes.py` (read in full) — `generate_invite_token`/`decode_invite_token`
   current 2-arg signature and sole call site (line 177)
-- `webvulnscanner/auth_routes.py` (read in full) — `signup()`'s current unconditional-form shape
-- `webvulnscanner/domain_verification.py` (read in full) — `verify_domain`/`_verify_dns_txt`/
+- `glassbox/auth_routes.py` (read in full) — `signup()`'s current unconditional-form shape
+- `glassbox/domain_verification.py` (read in full) — `verify_domain`/`_verify_dns_txt`/
   `_verify_well_known` mocking surface
-- `webvulnscanner/scheduler.py` (read in full) — `_fire()`'s `"base"`/`"media"`/`"api"` branches,
+- `glassbox/scheduler.py` (read in full) — `_fire()`'s `"base"`/`"media"`/`"api"` branches,
   confirmed no `"advanced"` branch (grounds D-04)
-- `webvulnscanner/scan_routes.py` (read in full) — `_run_scan_in_background`, `_spawn_scan_thread`
-- `webvulnscanner/extensions.py`, `webvulnscanner/config.py` (read in full) — `RATELIMIT_STORAGE_URI`
+- `glassbox/scan_routes.py` (read in full) — `_run_scan_in_background`, `_spawn_scan_thread`
+- `glassbox/extensions.py`, `glassbox/config.py` (read in full) — `RATELIMIT_STORAGE_URI`
   already wired, `limiter` singleton construction
 - `tests/test_scan_events.py`, `tests/test_scheduler.py`, `tests/test_org_routes.py`,
   `tests/conftest.py`, `tests/test_auth_flows.py` (lines 375-415), `tests/test_config.py` (lines

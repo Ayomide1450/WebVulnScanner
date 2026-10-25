@@ -23,9 +23,9 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-from webvulnscanner import checks
-from webvulnscanner import scan_engine
-from webvulnscanner.entitlements import Tier
+from glassbox import checks
+from glassbox import scan_engine
+from glassbox.entitlements import Tier
 
 
 # --------------------------------------------------------------------------

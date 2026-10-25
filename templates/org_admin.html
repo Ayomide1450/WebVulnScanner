@@ -4,7 +4,7 @@
 {% include "_admin_form_styles.html" %}
 {% include "_empty_state.html" %}
 {% include "_pagination.html" %}
-<style>
+<style nonce="{{ csp_nonce }}">
   .plan-card { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
   .plan-stats { display:flex; gap:22px; flex-wrap:wrap; margin-top:6px; }
   .plan-stats .stat { font-size:13px; color: var(--muted); }

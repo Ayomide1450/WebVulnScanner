@@ -3,7 +3,7 @@
 {% block head %}
 {% include "_empty_state.html" %}
 {% include "_pagination.html" %}
-<style>
+<style nonce="{{ csp_nonce }}">
   .audit-header { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:var(--space-4); }
   .audit-header h1 { margin:0; }
   .audit-back { font-size:13px; }

@@ -44,7 +44,7 @@ already pin down most of the what.
   network calls — matching `run_scan`'s existing convention in `tests/test_scan_events.py` and
   `TESTING.md`'s documented pattern. No precedent in this suite for hitting a live test target.
 - **D-04:** `run_advanced_scan` has no scheduler-triggered path to test — confirmed via
-  `webvulnscanner/scheduler.py`'s `_fire()`, which only branches on `"base"`/`"media"`/`"api"`;
+  `glassbox/scheduler.py`'s `_fire()`, which only branches on `"base"`/`"media"`/`"api"`;
   there is no `"advanced"` branch, and `Asset`'s schedule model has no field for stored
   credentials. This is intentional (advanced scans need per-run credentials/session cookies that
   don't fit unattended scheduling), not a bug to fix — test `run_advanced_scan` via direct
@@ -133,10 +133,10 @@ already pin down most of the what.
 - `.planning/codebase/TESTING.md` — existing test file organization, fixture/factory conventions
   (`tests/conftest.py`), the fully-mocked-check-functions convention D-03 follows, and the
   rate-limiting-disabled-by-default test convention relevant to D-01's new test
-- `webvulnscanner/scheduler.py` — `_fire()`/`_tick()`; grounds D-04's scheduler-dispatch finding
-- `webvulnscanner/org_routes.py`, `webvulnscanner/auth_routes.py`, `webvulnscanner/domain_verification.py`
+- `glassbox/scheduler.py` — `_fire()`/`_tick()`; grounds D-04's scheduler-dispatch finding
+- `glassbox/org_routes.py`, `glassbox/auth_routes.py`, `glassbox/domain_verification.py`
   — grounds D-05 through D-08's invite/role/domain-verification findings
-- `webvulnscanner/extensions.py`, `webvulnscanner/config.py` — existing `RATELIMIT_STORAGE_URI`/
+- `glassbox/extensions.py`, `glassbox/config.py` — existing `RATELIMIT_STORAGE_URI`/
   `TRUST_PROXY_HOPS` wiring D-01 builds on
 
 ### Prior-phase precedent
@@ -157,7 +157,7 @@ already pin down most of the what.
   `run_advanced_scan`/`run_media_scan`/`run_api_scan` have no `progress_cb` parameter at all
 - `tests/test_scheduler.py` — existing scheduler-fire test pattern (Phase 1, `"base"` only today)
   to extend for `"media"`/`"api"` scheduler-triggered coverage
-- `webvulnscanner/scheduler.py`'s `_fire()` return-value contract (returns the created `Scan` row
+- `glassbox/scheduler.py`'s `_fire()` return-value contract (returns the created `Scan` row
   on every branch, added in Phase 2) — reusable for asserting scheduler-fired scan outcomes in the
   new tests without needing new scaffolding
 - `base.html`'s `.glow-pulse`/`.hud-grid`/`--telemetry`/`.table-scroll`/`.status-pill` primitives —
@@ -177,8 +177,8 @@ already pin down most of the what.
 ### Integration Points
 - New `/signup?invite=<token>` branch integrates into `auth_routes.py`'s existing `signup()`
   view — needs to coexist with the current create-new-org-or-solo-user path, not replace it
-- New rate-limit storage wiring integrates into `webvulnscanner/extensions.py`'s existing
-  `limiter = Limiter(key_func=get_remote_address)` + `webvulnscanner/__init__.py`'s
+- New rate-limit storage wiring integrates into `glassbox/extensions.py`'s existing
+  `limiter = Limiter(key_func=get_remote_address)` + `glassbox/__init__.py`'s
   `limiter.init_app(app)` — Flask-Limiter already reads `RATELIMIT_STORAGE_URI` from
   `app.config` automatically, no new plumbing needed beyond setting the value and adding the
   Redis client dependency
