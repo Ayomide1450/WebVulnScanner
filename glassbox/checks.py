@@ -29,6 +29,9 @@ from xml.etree import ElementTree
 
 import dns.resolver
 import requests
+import requests.adapters
+import urllib3.connection as _urllib3_connection
+import urllib3.connectionpool as _urllib3_pool
 from bs4 import BeautifulSoup
 from PIL import ExifTags, Image
 
@@ -888,9 +891,83 @@ class _SSRFSafeSession(requests.Session):
         return location
 
 
+class _SSRFBlocked(requests.exceptions.ConnectionError):
+    """Raised at connect time when a socket resolves to an unsafe IP. A
+    subclass of ConnectionError so it rides the same `except
+    requests.RequestException` path every check already wraps its network
+    calls in - one blocked hop degrades that check cleanly, exactly like an
+    unreachable host, rather than crashing the scan."""
+
+
+def _assert_peer_ip_safe(sock):
+    """Validate the IP a socket actually connected to. This is the
+    TOCTOU-free half of the SSRF defense: `is_ssrf_safe_hostname` resolves
+    DNS at submission time, but a rebinding attacker can serve a public IP
+    then and an internal one at connect time. Here we read the real peer
+    address off the live socket - whatever DNS returned this instant - and
+    reject it before a single request byte is sent."""
+    try:
+        peer_ip = sock.getpeername()[0]
+        ip = ipaddress.ip_address(peer_ip)
+    except (OSError, ValueError):
+        # Can't determine the peer - fail closed, same convention as
+        # is_ssrf_safe_hostname's unresolvable branch.
+        sock.close()
+        raise _SSRFBlocked("could not verify the connected peer address") from None
+    if is_unsafe_ip(ip):
+        sock.close()
+        raise _SSRFBlocked(f"connection resolved to a blocked address ({peer_ip})") from None
+
+
+# Pinned connection classes: urllib3 calls _new_conn() to open the raw TCP
+# socket, BEFORE any TLS handshake or request bytes. Validating the peer
+# there covers http and https alike and runs strictly before anything is
+# sent to the host.
+class _PinnedHTTPConnection(_urllib3_connection.HTTPConnection):
+    def _new_conn(self):
+        sock = super()._new_conn()
+        _assert_peer_ip_safe(sock)
+        return sock
+
+
+class _PinnedHTTPSConnection(_urllib3_connection.HTTPSConnection):
+    def _new_conn(self):
+        sock = super()._new_conn()
+        _assert_peer_ip_safe(sock)
+        return sock
+
+
+class _PinnedHTTPConnectionPool(_urllib3_pool.HTTPConnectionPool):
+    ConnectionCls = _PinnedHTTPConnection
+
+
+class _PinnedHTTPSConnectionPool(_urllib3_pool.HTTPSConnectionPool):
+    ConnectionCls = _PinnedHTTPSConnection
+
+
+class _SSRFPinnedAdapter(requests.adapters.HTTPAdapter):
+    """Installs the pinned connection pools so every socket this session
+    opens is peer-IP-validated. Pairs with _SSRFSafeSession's redirect-hop
+    check: redirects are validated before being followed, and the
+    connection each hop actually makes is validated at the socket."""
+
+    def init_poolmanager(self, *args, **kwargs):
+        super().init_poolmanager(*args, **kwargs)
+        self.poolmanager.pool_classes_by_scheme = {
+            "http": _PinnedHTTPConnectionPool,
+            "https": _PinnedHTTPSConnectionPool,
+        }
+
+
 def _mk_session():
     s = _SSRFSafeSession()
     s.headers.update({"User-Agent": UA})
+    # Mount the peer-IP-pinning adapter on both schemes. Combined with
+    # _SSRFSafeSession's redirect guard, this closes the DNS-rebinding gap
+    # that is_ssrf_safe_hostname's submission-time check alone cannot.
+    adapter = _SSRFPinnedAdapter()
+    s.mount("http://", adapter)
+    s.mount("https://", adapter)
     return s
 
 
@@ -907,6 +984,22 @@ def normalize_target(raw):
 def registrable_domain(hostname):
     parts = hostname.split(".")
     return ".".join(parts[-2:]) if len(parts) >= 2 else hostname
+
+
+def is_unsafe_ip(ip):
+    """True if `ip` (an ipaddress object) is in a class a scan must never
+    reach: private, loopback, link-local (incl. 169.254.169.254 cloud
+    metadata), reserved, multicast, or unspecified.
+
+    Used by the connect-time peer-IP check (_assert_peer_ip_safe). It is the
+    same classification is_ssrf_safe_hostname applies, deliberately kept as a
+    separate copy: is_ssrf_safe_hostname is frozen byte-for-byte by a
+    CLAUDE.md rule and a source-hash test, so it cannot be refactored to call
+    this helper. The boolean is duplicated on purpose - if you change the set
+    of unsafe classes, change BOTH, and a test in test_ssrf_connect_pinning.py
+    plus the frozen-hash test will hold you to it."""
+    return (ip.is_private or ip.is_loopback or ip.is_link_local
+            or ip.is_reserved or ip.is_multicast or ip.is_unspecified)
 
 
 def is_ssrf_safe_hostname(hostname):
@@ -3306,10 +3399,13 @@ def crawl_media(session, base_url):
             r = _get_respecting_backoff(session, page, timeout=REQUEST_TIMEOUT)
         except requests.RequestException:
             continue
-        u, e, d = _extract_media_urls(base_url, r.text)
-        media_urls |= u
-        embeds |= e
-        doc_urls |= d
+        # Named rather than u/e/d: `e` is also the exception variable in
+        # this function's own `except requests.RequestException as e`
+        # above, so the single letter meant two unrelated things.
+        page_media, page_embeds, page_docs = _extract_media_urls(base_url, r.text)
+        media_urls |= page_media
+        embeds |= page_embeds
+        doc_urls |= page_docs
 
     return (list(media_urls)[:MAX_MEDIA_ITEMS], list(embeds)[:20],
             list(doc_urls)[:MAX_MEDIA_DOCUMENTS], {"pages_crawled": len(pages)})
