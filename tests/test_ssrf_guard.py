@@ -351,6 +351,26 @@ def _fake_public_via_loopback(*public_hostnames):
     return _impl
 
 
+def _redirect_hop_session():
+    """Session for the round-trip redirect tests below: the real
+    _SSRFSafeSession redirect-hop guard (get_redirect_target), but with a
+    PLAIN adapter replacing _mk_session()'s connect-time peer-IP pinning.
+
+    Those two guards are different layers. The redirect-hop guard lives on
+    the Session and decides which Location to follow; the connect-pin
+    adapter lives on the transport and validates the IP a socket actually
+    reaches. These tests prove the first by physically round-tripping
+    through a loopback test server - which the (correct) connect-pin guard
+    would otherwise block, since loopback IS unsafe. Connect-pinning has
+    its own coverage in test_ssrf_connect_pinning.py; here we isolate the
+    redirect-hop layer by mounting a plain adapter."""
+    session = _mk_session()
+    plain = requests.adapters.HTTPAdapter()
+    session.mount("http://", plain)
+    session.mount("https://", plain)
+    return session
+
+
 def test_mk_session_returns_ssrf_safe_session_with_ua_header():
     session = _mk_session()
     assert isinstance(session, _SSRFSafeSession)
@@ -367,7 +387,7 @@ def test_redirect_to_loopback_target_is_never_fetched():
         "/": (302, f"http://127.0.0.1:{private_port}/secret", None),
     })
 
-    session = _mk_session()
+    session = _redirect_hop_session()
     resp = session.get(f"http://127.0.0.1:{entry_port}/", timeout=5)
 
     assert entry_log == ["/"]
@@ -415,7 +435,7 @@ def test_redirect_to_public_hostname_is_followed(monkeypatch):
         _fake_public_via_loopback("public-entry.example.test", "public-target.example.test"),
     )
 
-    session = _mk_session()
+    session = _redirect_hop_session()
     resp = session.get(f"http://public-entry.example.test:{entry_port}/", timeout=5)
 
     assert entry_log == ["/"]
@@ -440,7 +460,7 @@ def test_safe_safe_unsafe_chain_stops_at_last_safe_hop(monkeypatch):
         _fake_public_via_loopback("hop1.example.test", "hop2.example.test"),
     )
 
-    session = _mk_session()
+    session = _redirect_hop_session()
     resp = session.get(f"http://hop1.example.test:{hop1_port}/", timeout=5)
 
     assert hop1_log == ["/"]
@@ -457,7 +477,7 @@ def test_safe_safe_unsafe_chain_stops_at_last_safe_hop(monkeypatch):
 def test_redirect_with_unparseable_hostname_is_not_followed(location):
     entry_port, entry_log = _start_server({"/": (302, location, None)})
 
-    session = _mk_session()
+    session = _redirect_hop_session()
     resp = session.get(f"http://127.0.0.1:{entry_port}/", timeout=5)
 
     assert entry_log == ["/"]
@@ -503,7 +523,7 @@ def test_scheme_upgrade_redirect_same_host_is_followed(monkeypatch):
         socket, "getaddrinfo", _fake_public_via_loopback("scheme-upgrade.example.test"),
     )
 
-    session = _mk_session()
+    session = _redirect_hop_session()
     session.mount("https://", _PlainHTTPOverHTTPSAdapter())
     resp = session.get(f"http://scheme-upgrade.example.test:{port}/", timeout=5)
 
@@ -527,7 +547,7 @@ def test_apex_to_www_redirect_is_followed(monkeypatch):
         _fake_public_via_loopback("apex.example.test", "www.apex.example.test"),
     )
 
-    session = _mk_session()
+    session = _redirect_hop_session()
     resp = session.get(f"http://apex.example.test:{apex_port}/", timeout=5)
 
     assert apex_log == ["/"]
@@ -546,7 +566,7 @@ def test_cross_domain_public_redirect_is_followed(monkeypatch):
         _fake_public_via_loopback("origin-public.example.test", "other-public.example.test"),
     )
 
-    session = _mk_session()
+    session = _redirect_hop_session()
     resp = session.get(f"http://origin-public.example.test:{origin_port}/", timeout=5)
 
     assert origin_log == ["/"]
@@ -564,7 +584,7 @@ def test_allow_redirects_false_returns_redirect_unfollowed():
         "/": (302, "http://127.0.0.1:1/unreachable", None),
     })
 
-    session = _mk_session()
+    session = _redirect_hop_session()
     resp = session.get(f"http://127.0.0.1:{entry_port}/", timeout=5, allow_redirects=False)
 
     assert entry_log == ["/"]

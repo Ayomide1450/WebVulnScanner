@@ -50,6 +50,19 @@ class TestConfig(Config):
     # infinite background loop against a soon-to-be-deleted DB file for every test.
 
 
+@pytest.fixture(autouse=True)
+def _disable_connect_pinning(monkeypatch):
+    """Turn OFF connect-time SSRF peer-IP pinning for the general suite.
+
+    Nearly every check-level test runs the real check against a 127.0.0.1
+    fixture server; the pinning guard (correctly) refuses loopback, which
+    would block those legitimate connections. Same approach as
+    RATELIMIT_ENABLED=False above. The dedicated
+    tests/test_ssrf_connect_pinning.py re-enables it to prove the guard;
+    monkeypatch auto-restores the default (True) after every test."""
+    monkeypatch.setattr("glassbox.checks.PIN_CONNECTIONS", False)
+
+
 @pytest.fixture()
 def app(tmp_path):
     """A fresh Flask app per test, backed by its own on-disk SQLite file

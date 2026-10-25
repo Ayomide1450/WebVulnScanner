@@ -177,6 +177,9 @@ REGISTRY = {
     # denial tests live alongside the rest of the NDJSON suite.
     "api.fetch_report_ndjson": "tests/test_ndjson_export.py::test_report_ndjson_different_org_gets_404",
     "scan.scan_report_ndjson": "tests/test_ndjson_export.py::test_scan_report_ndjson_cross_org_is_404_and_leaks_no_finding_text",
+    # report-pack.zip (prospecting drafts) is another rendering of the same
+    # already-authorised report, same ownership branch as the other exports.
+    "scan.scan_report_pack": "tests/test_report_pack_route.py::test_cross_org_user_gets_404_not_the_pack",
     "org.audit_log": "tests/test_audit_log.py::test_audit_log_cross_org_is_404",
     "scan.scan_status": "tests/test_scan_status.py::test_status_different_org_gets_404",
 }

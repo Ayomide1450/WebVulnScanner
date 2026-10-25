@@ -169,6 +169,7 @@
     <a class="btn ghost" href="{{ url_for('scan.scan_report_csv', scan_id=scan.id) }}">Export CSV</a>
     <a class="btn ghost" href="{{ url_for('scan.scan_report_sarif', scan_id=scan.id) }}">Export SARIF</a>
     <a class="btn ghost" href="{{ url_for('scan.scan_report_pdf', scan_id=scan.id) }}">Export PDF</a>
+    <a class="btn ghost" href="{{ url_for('scan.scan_report_pack', scan_id=scan.id) }}">Draft report pack</a>
     <a class="btn ghost" href="{{ url_for('assessment.request_assessment') }}">Request Expert Assessment</a>
   </div>
 
