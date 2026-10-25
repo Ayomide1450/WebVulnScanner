@@ -35,7 +35,7 @@ from types import SimpleNamespace
 import pytest
 
 from glassbox import scan_engine
-from glassbox.checks import Finding, SEVERITY_WEIGHT
+from glassbox.checks import SEVERITY_WEIGHT, Finding
 from glassbox.entitlements import Tier
 
 # --------------------------------------------------------------------------

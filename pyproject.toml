@@ -1,0 +1,93 @@
+# Lint / type-check configuration.
+#
+# Added 2026-10-25 - this repo had no linter, formatter or type checker at
+# all before that, on 14.5k lines of security-sensitive Python.
+#
+# IMPORTANT: this gate runs LOCALLY, not in CI. GitHub Actions minutes are
+# exhausted and the spending budget is $0, so .github/workflows/tests.yml is
+# workflow_dispatch-only - a lint job wired only into CI would never fire and
+# would be pure decoration. Run it by hand before committing:
+#
+#     .venv/Scripts/python -m ruff check glassbox/ tests/ scripts/ app.py
+#     .venv/Scripts/python -m ruff format --check glassbox/ app.py
+#
+# The selected rule set is deliberately strict on `glassbox/` (the shipped
+# package) and pragmatic on `tests/` and `scripts/`, where several rules are
+# actively wrong - a test suite is *supposed* to be full of asserts and
+# fixture passwords.
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"   # matches CI's pinned interpreter, not the local 3.14 venv
+extend-exclude = [".venv", "migrations", "graphify-out", ".planning"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes - real bugs: undefined names, unused imports
+    "W",    # pycodestyle warnings
+    "I",    # isort - deterministic import order
+    "B",    # flake8-bugbear - likely-wrong constructs
+    "S",    # flake8-bandit - security lint, the point of the exercise here
+    "UP",   # pyupgrade
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "RET",  # flake8-return
+]
+ignore = [
+    # 1,547 violations against an established house style that deliberately
+    # runs long prose comments. Reflowing 14.5k lines would bury every real
+    # finding in whitespace churn and wreck `git blame` on a security
+    # codebase. line-length above still documents the intent.
+    "E501",
+    # The codebase's checks all swallow exceptions on purpose so one failing
+    # check cannot kill a whole scan - that convention is documented in
+    # CLAUDE.md and enforced by tests. Flagging it here would be noise.
+    "S110",  # try-except-pass
+    "S112",  # try-except-continue
+    # `assert` is how the test suite works; also used for internal
+    # invariants. Narrowed per-file below rather than blanket-allowed.
+    "SIM105",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# A test suite is supposed to be asserts and fake credentials.
+"tests/*" = [
+    "S101",  # assert - the entire point of a test
+    "S105", "S106", "S107",  # "hardcoded password" = fixture passwords
+    "S311",  # non-cryptographic random in test data
+    "E402",  # tests/test_auth_flows.py imports mid-file by design
+    "B017",  # assertRaises(Exception) in a few deliberate smoke tests
+]
+# Operational scripts: one-shot local tooling, not shipped in the app.
+"scripts/*" = [
+    "S101",
+    "S603", "S607",  # subprocess calls with known-local commands
+    "S311",
+]
+# The scanner legitimately parses hostile XML from scanned targets; the
+# relevant guard is upstream (defusedxml-style handling / size limits), not
+# a blanket ban on ElementTree.
+"glassbox/checks.py" = ["S314"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["glassbox"]
+
+[tool.ruff.format]
+# Not enabled as a gate yet: formatting 14.5k lines in one commit would make
+# the security review of this pass impossible to read. Config is here so a
+# future pass can adopt it file-by-file.
+quote-style = "preserve"
+
+[tool.mypy]
+# Deliberately NOT strict. The codebase has 317 annotated functions but only
+# 44 return annotations, so --strict would emit thousands of errors and get
+# switched off within a week. This configuration is the honest starting
+# point: catch real type contradictions now, tighten per-module later.
+python_version = "3.12"
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unreachable = true
+no_implicit_optional = true
+ignore_missing_imports = true   # flask_sqlalchemy/weasyprint/etc. ship partial stubs
+exclude = ["\\.venv", "migrations", "graphify-out", "tests"]

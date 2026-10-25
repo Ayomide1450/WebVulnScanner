@@ -29,7 +29,7 @@ security_gate.py) rather than invented shapes.
 # Endpoint spec - one entry per Flask rule under /api/v1
 # ---------------------------------------------------------------------------
 
-_API_TOKEN_AUTH = "Bearer API token"
+_API_TOKEN_AUTH = "Bearer API token"  # noqa: S105 - an API-docs label, not a credential
 
 API_ENDPOINTS = [
     {

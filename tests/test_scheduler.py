@@ -9,12 +9,11 @@ tests/test_ssrf_guard.py's module docstring ("a real scan thread must
 never be triggered from a test").
 """
 import socket
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from glassbox.models import Asset, Plan, Scan, ScanStatus
-
 from tests.conftest import make_asset, make_org, make_user
 
 
@@ -32,7 +31,7 @@ def spawned(monkeypatch):
 
 
 def _past(minutes=5):
-    return datetime.now(timezone.utc) - timedelta(minutes=minutes)
+    return datetime.now(UTC) - timedelta(minutes=minutes)
 
 
 def _as_aware(dt):
@@ -42,7 +41,7 @@ def _as_aware(dt):
     normalization so assertions can safely compare against a fresh
     tz-aware datetime.now(timezone.utc)."""
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -81,13 +80,13 @@ def test_tick_advances_next_run_at_by_cadence(app, db, spawned):
     _tick(app)
 
     refreshed = Asset.query.get(a.id)
-    assert _as_aware(refreshed.next_run_at) > datetime.now(timezone.utc)
+    assert _as_aware(refreshed.next_run_at) > datetime.now(UTC)
 
 
 def test_tick_does_not_fire_a_not_yet_due_asset(app, db, spawned):
     org = make_org(plan=Plan.FREE)
     user = make_user("owner3@example.com", org=org)
-    make_asset(org, user, next_run_at=datetime.now(timezone.utc) + timedelta(days=1))
+    make_asset(org, user, next_run_at=datetime.now(UTC) + timedelta(days=1))
     db.session.commit()
 
     from glassbox.scheduler import _tick
@@ -115,7 +114,7 @@ def test_tick_does_not_fire_a_paused_asset(app, db, spawned):
 def test_tick_does_not_fire_a_soft_deleted_asset(app, db, spawned):
     org = make_org(plan=Plan.FREE)
     user = make_user("owner5@example.com", org=org)
-    make_asset(org, user, next_run_at=_past(), deleted_at=datetime.now(timezone.utc))
+    make_asset(org, user, next_run_at=_past(), deleted_at=datetime.now(UTC))
     db.session.commit()
 
     from glassbox.scheduler import _tick
@@ -139,7 +138,7 @@ def test_try_claim_second_call_loses_the_race(app, db):
 
     from glassbox.scheduler import CADENCE_INTERVALS, _try_claim
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     next_run_at = now + CADENCE_INTERVALS[a.cadence]
 
     first = _try_claim(a.id, now, next_run_at)
@@ -288,7 +287,7 @@ def test_fire_time_ssrf_failure_does_not_pause_or_change_schedule(app, db, spawn
 
     refreshed = Asset.query.get(a.id)
     assert refreshed.is_paused is False
-    assert _as_aware(refreshed.next_run_at) > datetime.now(timezone.utc)
+    assert _as_aware(refreshed.next_run_at) > datetime.now(UTC)
 
 
 # --------------------------------------------------------------------------
@@ -331,7 +330,7 @@ def test_paid_tier_media_schedule_spawns_with_unattended_defaults(app, db, spawn
     # A successful media fire reschedules exactly like a base fire does -
     # not a special case.
     refreshed = Asset.query.get(a.id)
-    assert _as_aware(refreshed.next_run_at) > datetime.now(timezone.utc)
+    assert _as_aware(refreshed.next_run_at) > datetime.now(UTC)
 
 
 def test_paid_tier_api_schedule_spawns_with_target_and_tier(app, db, spawned):
@@ -356,7 +355,7 @@ def test_paid_tier_api_schedule_spawns_with_target_and_tier(app, db, spawned):
     assert "tier" in kwargs
 
     refreshed = Asset.query.get(a.id)
-    assert _as_aware(refreshed.next_run_at) > datetime.now(timezone.utc)
+    assert _as_aware(refreshed.next_run_at) > datetime.now(UTC)
 
 
 def test_fire_time_ssrf_failure_on_media_schedule_produces_failed_scan_without_spawning(

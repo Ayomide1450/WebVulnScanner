@@ -29,7 +29,7 @@ checking off).
 import pathlib
 import re
 import socket
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from bs4 import BeautifulSoup
@@ -45,7 +45,6 @@ from glassbox.models import (
     ScanStatus,
     VerifyMethod,
 )
-
 from tests.conftest import login, make_api_token, make_asset, make_org, make_scan, make_user
 from tests.test_responsive_org_tables import _ids_in
 
@@ -131,7 +130,7 @@ def _make_invitation(org, email="invitee@example.org", role="member", inviter=No
 def _make_verified_domain(org, domain="example.com"):
     dv = DomainVerification(
         org_id=org.id, domain=domain, method=VerifyMethod.DNS_TXT, token="tok",
-        verified_at=datetime.now(timezone.utc),
+        verified_at=datetime.now(UTC),
     )
     _db.session.add(dv)
     _db.session.flush()

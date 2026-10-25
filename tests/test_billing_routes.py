@@ -20,7 +20,7 @@ itself - several assertions below depend on the *call count* of that patch
 to prove whether the route reached the network at all, which only works if
 the real function body still runs against a stubbed network call.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
@@ -60,7 +60,7 @@ def make_pending_invoice(
         status=status,
         matched_tx_hash=matched_tx_hash,
         matched_at=matched_at,
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
     )
     from glassbox.extensions import db
 
@@ -225,7 +225,7 @@ def test_replaying_verify_on_a_paid_invoice_changes_nothing(client, db):
     make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
     inv = make_pending_invoice(
         org, status=InvoiceStatus.PAID, matched_tx_hash="0xexistingpayment",
-        matched_at=datetime.now(timezone.utc),
+        matched_at=datetime.now(UTC),
     )
     db.session.commit()
     billing._activate_subscription(inv)

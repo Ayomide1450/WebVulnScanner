@@ -11,16 +11,18 @@ route logic (session state, error handling, JIT provisioning, domain
 guard) is what's under test, not the SAML library's signature validation
 (which the spike already proved).
 """
-import pytest
-from datetime import datetime, timezone
-from unittest.mock import patch, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
 
 from glassbox.extensions import db
 from glassbox.models import (
-    DomainVerification, Plan, Role, SSOConfiguration, User, VerifyMethod,
+    DomainVerification,
+    Role,
+    SSOConfiguration,
+    User,
+    VerifyMethod,
 )
 from tests.conftest import make_org, make_user
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -49,7 +51,7 @@ def _make_verified_domain(org, domain="example.com"):
         domain=domain,
         method=VerifyMethod.DNS_TXT,
         token="fake-token",
-        verified_at=datetime.now(timezone.utc),
+        verified_at=datetime.now(UTC),
     )
     db.session.add(dv)
     db.session.flush()

@@ -13,12 +13,16 @@ Bare-named module (no "_routes" suffix) per the project's
 import logging
 import threading
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import or_, update
 
 from glassbox.checks import is_ssrf_safe_hostname
-from glassbox.entitlements import FEATURE_REQUIREMENTS, effective_tier_for_org, domain_is_org_verified
+from glassbox.entitlements import (
+    FEATURE_REQUIREMENTS,
+    domain_is_org_verified,
+    effective_tier_for_org,
+)
 from glassbox.extensions import db
 from glassbox.models import Asset, Scan, ScanStatus
 from glassbox.scan_routes import _spawn_scan_thread
@@ -137,7 +141,7 @@ def _fire(asset):
 def _tick(app):
     """One scheduler tick: finds candidate due Assets, attempts to claim
     each, and fires the ones this process wins the claim for."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     due_assets = Asset.query.filter(
         Asset.is_paused.is_(False),
         Asset.deleted_at.is_(None),

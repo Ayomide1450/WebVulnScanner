@@ -11,6 +11,7 @@ SARIF-03's live GitHub upload verification is a user-side step (needs a
 scratch GitHub repo) and is documented in the phase ship record."""
 
 import json
+from datetime import UTC
 
 import jsonschema
 import pytest
@@ -23,7 +24,6 @@ from glassbox.sarif import (
     build_sarif_report,
     sarif_text,
 )
-
 from tests.conftest import (
     login,
     make_api_token,
@@ -303,7 +303,7 @@ def test_report_sarif_different_org_gets_404(client, db):
 
 
 def test_report_sarif_soft_deleted_asset_gets_404(client, db):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     org = make_org(plan=Plan.PAID)
     user = make_user("deleted-asset@example.com", org=org, role=Role.ORG_ADMIN)
@@ -314,7 +314,7 @@ def test_report_sarif_soft_deleted_asset_gets_404(client, db):
     scan.asset_id = a.id
     db.session.commit()
     _attach_sarif_marker_report(scan)
-    a.deleted_at = datetime.now(timezone.utc)
+    a.deleted_at = datetime.now(UTC)
     db.session.commit()
 
     resp = client.get(

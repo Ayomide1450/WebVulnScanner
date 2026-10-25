@@ -8,6 +8,7 @@ registered here.
 """
 import logging
 import os
+from datetime import UTC
 from urllib.parse import urlsplit, urlunsplit
 
 import click
@@ -217,9 +218,9 @@ def create_app(config_class=Config):
     # revoke/expiry model in api_tokens_routes.py, not this one.
     @app.before_request
     def _enforce_idle_timeout():
-        import flask
         from datetime import datetime, timedelta, timezone
 
+        import flask
         from flask import request, session
         from flask_login import current_user, logout_user
 
@@ -239,7 +240,7 @@ def create_app(config_class=Config):
             session.clear()
             return
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         timeout = timedelta(minutes=app.config.get("IDLE_TIMEOUT_MINUTES", 5))
         last_seen_raw = session.get("_last_seen")
         if last_seen_raw:
@@ -356,7 +357,7 @@ def create_app(config_class=Config):
 
         return {
             "Role": Role,
-            "current_year": datetime.now(timezone.utc).year,
+            "current_year": datetime.now(UTC).year,
             "idle_timeout_minutes": app.config.get("IDLE_TIMEOUT_MINUTES", 5),
             # Templates stamp this on every inline <script>/<style> tag:
             # <script nonce="{{ csp_nonce }}">. A tag that forgets it will

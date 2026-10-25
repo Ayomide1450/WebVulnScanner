@@ -14,10 +14,10 @@ from flask import Blueprint, render_template
 from flask_login import login_required
 
 from glassbox.api_docs import (
+    API_ENDPOINTS,
     CLI_SUBCOMMANDS,
     CURL_EXAMPLE,
     ERROR_SEMANTICS,
-    API_ENDPOINTS,
     WEBHOOK_VERIFY_SNIPPET,
 )
 

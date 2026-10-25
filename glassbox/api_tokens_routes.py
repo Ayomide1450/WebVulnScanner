@@ -11,7 +11,7 @@ one route per action).
 """
 import hashlib
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -76,7 +76,7 @@ def revoke_token(token_id):
         # convention - a token ID doesn't confirm its own existence to
         # someone who doesn't own it.
         abort(404)
-    t.revoked_at = datetime.now(timezone.utc)
+    t.revoked_at = datetime.now(UTC)
     log_org_event("api_token_revoked", detail=f"Token \"{t.name}\" revoked")
     db.session.commit()
     return redirect(url_for("api_tokens.list_tokens"))

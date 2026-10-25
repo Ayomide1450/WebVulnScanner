@@ -23,7 +23,6 @@ from glassbox import scan_engine
 from glassbox.checks import CHECK_LABELS
 from glassbox.entitlements import Tier
 from glassbox.models import Role, Scan, ScanEvent, ScanEventPhase, ScanStatus
-
 from tests.conftest import login, make_org, make_scan, make_user
 
 FREE_TIER_JOBS = {

@@ -11,7 +11,7 @@ stubbed; the diff itself never touches it by construction."""
 import hashlib
 import hmac as hmac_mod
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import glassbox.scan_routes as scan_routes_mod
@@ -24,9 +24,7 @@ from glassbox.regressions import (
     classify_regressions,
     finding_key,
 )
-
 from tests.conftest import login, make_asset, make_org, make_scan, make_user
-
 
 # --------------------------------------------------------------------------
 # Helpers
@@ -166,7 +164,7 @@ def test_scheduled_fire_tags_regressions_in_stored_report(app, monkeypatch):
         org = make_org()
         user = make_user("asset-owner@example.com", org=org)
         asset = make_asset(org, user, target_url="https://example.com")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         _seed_completed(app, asset, user, org,
                         [_f("xss_sqli", "/search reflected", "high"),
                          _f("open_ports", "3306 exposed")],
@@ -264,7 +262,7 @@ def test_scan_type_change_does_not_diff_across_types(app, monkeypatch):
         org = make_org()
         user = make_user("mixed-types@example.com", org=org)
         asset = make_asset(org, user)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         _seed_completed(app, asset, user, org, [_f("base_check", "B")],
                         created_at=now, scan_type="base")
         queued = make_scan(user, org=org, scan_type="media",
@@ -308,7 +306,7 @@ def test_regression_event_delivered_signed_with_only_alertable_findings(app, db,
         asset = make_asset(org, user)
         s = make_scan(user, org=org, status=ScanStatus.COMPLETED)
         s.asset_id = asset.id
-        s.created_at = datetime.now(timezone.utc)
+        s.created_at = datetime.now(UTC)
         s.risk_score = 40
         _db.session.add(Report(scan_id=s.id, json_path="unused.json", data=_report(
             [_f("sqli_union", "/items union", "critical", regression="new"),
@@ -346,7 +344,7 @@ def test_no_regression_event_without_new_high_critical(app, db, monkeypatch):
         org = make_org()
         user = make_user("quiet@example.com", org=org)
         s = make_scan(user, org=org, status=ScanStatus.COMPLETED)
-        s.created_at = datetime.now(timezone.utc)
+        s.created_at = datetime.now(UTC)
         _db.session.add(Report(scan_id=s.id, json_path="u.json", data=_report(
             [_f("m", "med new", "medium", regression="new"),
              _f("r", "recurring crit", "critical", regression="recurring")])))
@@ -370,7 +368,7 @@ def test_manual_scan_fires_no_regression_event(app, db, monkeypatch):
     with app.app_context():
         user = make_user("plain@example.com")
         s = make_scan(user, status=ScanStatus.COMPLETED)
-        s.created_at = datetime.now(timezone.utc)
+        s.created_at = datetime.now(UTC)
         _db.session.add(Report(scan_id=s.id, json_path="u.json", data=_report(
             [_f("a", "A", "critical")])))  # no regression tags at all
         _db.session.add(OutboundWebhook(
@@ -395,7 +393,7 @@ def test_asset_detail_renders_regression_timeline(client, app, db):
         org = make_org()
         user = make_user("timeline-viewer@example.com", org=org)
         asset = make_asset(org, user, name="Timeline Asset")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         _seed_completed(app, asset, user, org,
                         [_f("xss", "/q reflected", "high")],
                         created_at=now - timedelta(days=1))
@@ -433,14 +431,14 @@ def test_asset_detail_without_diffable_history_shows_empty_state(client, app, db
     """One completed scan = history exists (section renders) but no
     predecessor to diff against -> reg_timeline is empty -> the muted
     empty-state card explains what will appear once a second scan lands."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     with app.app_context():
         org = make_org()
         user = make_user("empty-timeline@example.com", org=org)
         asset = make_asset(org, user, name="Empty Timeline Asset")
         _seed_completed(app, asset, user, org, [_f("a", "A")],
-                        created_at=datetime.now(timezone.utc) - timedelta(days=1))
+                        created_at=datetime.now(UTC) - timedelta(days=1))
         _db.session.commit()
         asset_id = asset.id
 

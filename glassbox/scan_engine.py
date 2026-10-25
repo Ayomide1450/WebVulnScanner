@@ -23,78 +23,78 @@ import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
-from glassbox.entitlements import FEATURE_REQUIREMENTS, Tier, allowed_checks
-from glassbox.selftest import verification_summary
-from glassbox.community_checks import (
-    load_community_checks,
-    register_community_checks,
-    build_community_jobs,
-    CommunityCheckError,
-)
 from glassbox.checks import (
-    REQUEST_TIMEOUT,
-    REPORTS_DIR,  # noqa: F401  (re-exported for callers that import it from here)
     DOWNLOADS_DIR,  # noqa: F401
-    SEVERITY_WEIGHT,
-    SEVERITY_ORDER,
     READINESS_GATING_CONFIDENCE,
-    deduplicate_findings,
+    REPORTS_DIR,  # noqa: F401  (re-exported for callers that import it from here)
+    REQUEST_TIMEOUT,
+    SEVERITY_ORDER,
+    SEVERITY_WEIGHT,
     _mk_session,
-    check_headers,
-    check_cookies,
-    crawl_same_origin,
-    crawl_depth2_param_urls,
-    check_ssti,
-    check_host_header,
-    check_cache_deception,
-    check_path_traversal,
-    check_rate_limit_posture,
-    check_jwt_active,
-    check_crlf_injection,
-    check_csrf_posture,
-    check_subdomain_takeover,
-    check_graphql_deep,
-    check_tls_cert,
-    check_https_redirect,
-    check_sensitive_paths,
-    check_robots_sitemap,
-    check_cors,
-    check_http_methods,
-    check_open_redirect,
-    check_directory_listing,
-    check_mixed_content,
-    check_dns_email_security,
-    check_vulnerable_js,
-    check_xss_sqli,
-    check_exposed_secrets,
-    check_jwt_weakness,
-    check_sri,
-    check_file_upload,
-    check_privacy_exposure,
-    check_caching_sensitive_data,
-    owasp_category_for,
-    check_open_ports,
-    check_media,
-    check_sqli_login,
-    check_bruteforce,
-    check_sqli_union,
-    check_xss_stored,
-    check_idor,
+    check_api_js_discovery,
     check_api_schema_exposure,
     check_api_wordlist,
-    check_api_js_discovery,
-    check_xxe,
-    check_csp_depth,
-    check_hsts_depth,
-    check_dnssec,
-    check_dependency_audit,
-    check_graphql_depth,
     check_auth_comparison,
+    check_bruteforce,
+    check_cache_deception,
+    check_caching_sensitive_data,
+    check_cookies,
+    check_cors,
+    check_crlf_injection,
+    check_csp_depth,
+    check_csrf_posture,
+    check_dependency_audit,
+    check_directory_listing,
+    check_dns_email_security,
+    check_dnssec,
+    check_exposed_secrets,
+    check_file_upload,
+    check_graphql_deep,
+    check_graphql_depth,
+    check_headers,
+    check_host_header,
+    check_hsts_depth,
+    check_http_methods,
+    check_https_redirect,
+    check_idor,
+    check_jwt_active,
+    check_jwt_weakness,
     check_mass_assignment,
+    check_media,
+    check_mixed_content,
+    check_open_ports,
+    check_open_redirect,
+    check_path_traversal,
+    check_privacy_exposure,
+    check_rate_limit_posture,
+    check_robots_sitemap,
+    check_sensitive_paths,
+    check_sqli_login,
+    check_sqli_union,
+    check_sri,
+    check_ssti,
+    check_subdomain_takeover,
+    check_tls_cert,
+    check_vulnerable_js,
+    check_xss_sqli,
+    check_xss_stored,
+    check_xxe,
+    crawl_depth2_param_urls,
+    crawl_same_origin,
+    deduplicate_findings,
+    owasp_category_for,
 )
+from glassbox.community_checks import (
+    CommunityCheckError,
+    build_community_jobs,
+    load_community_checks,
+    register_community_checks,
+)
+from glassbox.entitlements import FEATURE_REQUIREMENTS, Tier, allowed_checks
+from glassbox.selftest import verification_summary
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +122,7 @@ def _score_report(findings):
     risk_grade = ("A" if score >= 90 else "B" if score >= 75 else
                   "C" if score >= 60 else "D" if score >= 40 else "F")
 
-    severity_counts = {s: 0 for s in SEVERITY_WEIGHT}
+    severity_counts = dict.fromkeys(SEVERITY_WEIGHT, 0)
     for f in findings:
         severity_counts[f.severity] = severity_counts.get(f.severity, 0) + 1
 
@@ -210,7 +210,7 @@ def run_media_scan(base_url, download, max_files):
     return {
         "target": base_url,
         "hostname": urlparse(base_url).netloc,
-        "scanned_at": datetime.now(timezone.utc).isoformat(),
+        "scanned_at": datetime.now(UTC).isoformat(),
         "score": score,
         "risk_grade": risk_grade,
         "severity_counts": severity_counts,
@@ -262,7 +262,7 @@ def run_api_scan(base_url):
     return {
         "target": base_url,
         "hostname": urlparse(base_url).netloc,
-        "scanned_at": datetime.now(timezone.utc).isoformat(),
+        "scanned_at": datetime.now(UTC).isoformat(),
         "score": score,
         "risk_grade": risk_grade,
         "severity_counts": severity_counts,
@@ -402,7 +402,7 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
 
     return {
         "hostname": hostname,
-        "scanned_at": datetime.now(timezone.utc).isoformat(),
+        "scanned_at": datetime.now(UTC).isoformat(),
         "score": score,
         "risk_grade": risk_grade,
         "severity_counts": severity_counts,
@@ -660,7 +660,7 @@ def run_scan(base_url, manual_test_url, tier, org_verified_for_domain, progress_
     report = {
         "target": base_url,
         "resolved_ip": resolved_ip,
-        "scanned_at": datetime.now(timezone.utc).isoformat(),
+        "scanned_at": datetime.now(UTC).isoformat(),
         "score": score,
         "risk_grade": risk_grade,
         "severity_counts": severity_counts,

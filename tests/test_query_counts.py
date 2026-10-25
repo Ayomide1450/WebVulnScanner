@@ -46,9 +46,9 @@ from contextlib import contextmanager
 
 from sqlalchemy import event
 
-from tests.conftest import login, make_org, make_scan, make_user
 from glassbox.extensions import db
 from glassbox.models import OrgAuditEvent, Role, ScanStatus
+from tests.conftest import login, make_org, make_scan, make_user
 
 
 @contextmanager

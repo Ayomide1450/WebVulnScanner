@@ -23,7 +23,7 @@ token is no longer the one being proven - `verified_at` is reset to `None`
 longer serves).
 """
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import dns.resolver
 import requests
@@ -114,7 +114,7 @@ def verify_domain(dv):
         ok = _verify_well_known(dv)
 
     if ok:
-        dv.verified_at = datetime.now(timezone.utc)
+        dv.verified_at = datetime.now(UTC)
         db.session.commit()
 
     return ok

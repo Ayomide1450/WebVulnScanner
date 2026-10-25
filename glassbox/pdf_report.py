@@ -29,7 +29,6 @@ native libraries it requires, but ``build_pdf_report`` raises a clear
 and the Windows dev machine coexist without conditional skips everywhere.
 """
 
-import re
 
 from jinja2 import Environment, FileSystemLoader
 

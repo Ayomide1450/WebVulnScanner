@@ -26,14 +26,14 @@ import json
 import os
 import pathlib
 import re
+from datetime import UTC
 
 from markupsafe import escape as _markupsafe_escape
 
 from glassbox.checks import REPORTS_DIR
 from glassbox.extensions import db as _db
-from glassbox.models import DomainVerification, Report, Role, Scan, ScanStatus, VerifyMethod
+from glassbox.models import DomainVerification, Report, Role, ScanStatus, VerifyMethod
 from glassbox.scan_engine import read_report_file
-
 from tests.conftest import login, make_api_token, make_org, make_scan, make_user
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -630,11 +630,11 @@ def _make_asset_for_coverage(org, user):
     local rather than imported from tests.conftest's make_asset, which
     this module doesn't otherwise need and whose full field set would add
     unrelated noise to this containment-focused test."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from glassbox.models import Asset
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     a = Asset(
         org_id=org.id, created_by_user_id=user.id, authorized_by_user_id=user.id,
         authorized_at=now, name="Fallback Coverage Asset", target_url="https://example.com",

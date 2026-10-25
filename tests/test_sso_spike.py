@@ -27,10 +27,9 @@ import pytest
 pytest.importorskip("onelogin.saml2")
 pytest.importorskip("xmlsec")
 
-from onelogin.saml2.settings import OneLogin_Saml2_Settings
 from onelogin.saml2.response import OneLogin_Saml2_Response
+from onelogin.saml2.settings import OneLogin_Saml2_Settings
 from onelogin.saml2.utils import OneLogin_Saml2_Utils
-
 
 # --------------------------------------------------------------------------
 # Helpers: generate a self-signed RSA keypair for the spike
@@ -61,8 +60,8 @@ def _generate_idp_keypair():
         .issuer_name(issuer)
         .public_key(key.public_key())
         .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.datetime.now(datetime.timezone.utc))
-        .not_valid_after(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1))
+        .not_valid_before(datetime.datetime.now(datetime.UTC))
+        .not_valid_after(datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=1))
         .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
         .add_extension(
             x509.KeyUsage(
@@ -118,7 +117,7 @@ def _build_signed_saml_response(key_pem, cert_pem, issuer_entity_id,
     Returns the raw XML bytes."""
     import lxml.etree as etree
 
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     issue_instant = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     not_on_or_after = (now + datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -347,7 +346,7 @@ class TestSpikeSignatureValidation:
         """A response without any signature must be rejected."""
         import lxml.etree as etree
 
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
         issue_instant = now.strftime("%Y-%m-%dT%H:%M:%SZ")
         not_on_or_after = (now + datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
         acs_url = "https://glassbox.example.com/auth/saml/callback"

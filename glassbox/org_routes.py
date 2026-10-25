@@ -38,7 +38,7 @@ from flask_wtf import FlaskForm
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from sqlalchemy.orm import joinedload
 from wtforms import BooleanField, SelectField, StringField, TextAreaField
-from wtforms.validators import DataRequired, Email, Length, Optional, URL
+from wtforms.validators import URL, DataRequired, Email, Length, Optional
 
 from glassbox.decorators import org_admin_required, platform_admin_required
 from glassbox.domain_verification import (
@@ -48,7 +48,18 @@ from glassbox.domain_verification import (
     well_known_path_and_content,
 )
 from glassbox.extensions import db
-from glassbox.models import DomainVerification, Invitation, InvitationStatus, OrgAuditEvent, Role, Scan, SSOConfiguration, User, VerifyMethod, _utcnow
+from glassbox.models import (
+    DomainVerification,
+    Invitation,
+    InvitationStatus,
+    OrgAuditEvent,
+    Role,
+    Scan,
+    SSOConfiguration,
+    User,
+    VerifyMethod,
+    _utcnow,
+)
 
 org = Blueprint("org", __name__, url_prefix="/org")
 
@@ -71,7 +82,8 @@ SCAN_TYPE_LABELS = {
     "media": "Media Scan",
     "api": "API Scan",
 }
-from glassbox.audit import ORG_AUDIT_EVENT_LABELS, log_org_event as _log_org_event  # noqa: E402
+from glassbox.audit import ORG_AUDIT_EVENT_LABELS  # noqa: E402
+from glassbox.audit import log_org_event as _log_org_event
 
 
 class AddDomainForm(FlaskForm):
@@ -463,7 +475,6 @@ def audit_log():
     rendering pattern as org_admin.html's inline audit section but with
     full pagination and a link back from the org admin page."""
     from glassbox.audit import ORG_AUDIT_EVENT_LABELS
-    from glassbox.models import Organization
 
     page = request.args.get("page", 1, type=int)
 

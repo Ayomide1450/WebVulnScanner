@@ -44,7 +44,7 @@ false-flagged by a single-pattern check).
 """
 import pathlib
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from bs4 import BeautifulSoup
@@ -63,7 +63,6 @@ from glassbox.models import (
     Scan,
     VerifyMethod,
 )
-
 from tests.conftest import TestConfig, make_api_token, make_asset, make_org, make_user
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -340,7 +339,7 @@ def _seed_org_verified_member(csrf_db, domain="example.com"):
     user = make_user("member@example.com", org=org, role=Role.MEMBER)
     csrf_db.session.add(DomainVerification(
         org_id=org.id, domain=domain, method=VerifyMethod.DNS_TXT,
-        token="verify-token", verified_at=datetime.now(timezone.utc),
+        token="verify-token", verified_at=datetime.now(UTC),
     ))
     csrf_db.session.commit()
     return org, user

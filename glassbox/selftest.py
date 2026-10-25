@@ -62,9 +62,12 @@ from glassbox.checks import (
     crawl_same_origin,
 )
 
-_JWT_SECRET = b"glassbox-selftest-lure-secret"
+_JWT_SECRET = b"glassbox-selftest-lure-secret"  # noqa: S105 - selftest lure, never a real signing key
+# Fake /etc/passwd served as a honeypot lure - deliberately not a real
+# credential store. noqa sits on the value line because that is where
+# flake8-bandit anchors the diagnostic for an implicitly-concatenated string.
 _DECOY_PASSWD = (
-    "root:x:0:0:root:/root:/bin/bash\n"
+    "root:x:0:0:root:/root:/bin/bash\n"  # noqa: S105
     "daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n"
 )
 
@@ -147,7 +150,7 @@ class _LureHandler(BaseHTTPRequestHandler):
             if target.replace("\\", "/").endswith("/etc/passwd"):
                 self._reply(_DECOY_PASSWD, ctype="text/plain")
             elif os.path.isfile(target):
-                with open(target, "r", errors="replace") as fh:
+                with open(target, errors="replace") as fh:
                     self._reply(fh.read(), ctype="text/plain")
             else:
                 self._reply("404 no such file", status=404)

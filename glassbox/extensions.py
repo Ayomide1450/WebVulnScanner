@@ -5,6 +5,7 @@ Kept in their own module so other modules (models, routes) can import them
 without triggering circular imports with the app factory.
 """
 import hashlib
+from datetime import UTC
 
 import flask
 from flask_limiter import Limiter
@@ -84,7 +85,7 @@ def load_user_from_request(request):
     if not raw_token:
         return None
 
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from glassbox.models import ApiToken
 
@@ -93,7 +94,7 @@ def load_user_from_request(request):
     if row is None:
         return None
 
-    row.last_used_at = datetime.now(timezone.utc)
+    row.last_used_at = datetime.now(UTC)
     db.session.commit()
     # Consumed by _ApiAwareSessionInterface.save_session below - a Bearer
     # token-authenticated request must never receive a Set-Cookie session
@@ -111,5 +112,5 @@ class _ApiAwareSessionInterface(flask.sessions.SecureCookieSessionInterface):
 
     def save_session(self, app, session, response):
         if getattr(flask.g, "login_via_request", False):
-            return
+            return None
         return super().save_session(app, session, response)

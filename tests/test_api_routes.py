@@ -5,12 +5,11 @@ mechanism (401s, no Set-Cookie) end-to-end; this file also covers 02-02's
 trigger-scan (API-03), fetch-report (API-04), and the cross-cutting
 revoked-token/tier-gate/rate-limit proof (API-05).
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from glassbox.models import Plan, Report, Role, Scan, ScanStatus
-
 from tests.conftest import make_api_token, make_asset, make_org, make_scan, make_user
 
 
@@ -276,7 +275,7 @@ def test_trigger_scan_soft_deleted_asset_gets_404_no_scan_created(client, db, sp
     _, raw_token = make_api_token(user, name="tok")
     a = make_asset(
         org, user, name="Deleted asset",
-        deleted_at=datetime.now(timezone.utc),
+        deleted_at=datetime.now(UTC),
     )
     db.session.commit()
 
@@ -460,7 +459,7 @@ def test_fetch_report_soft_deleted_asset_gets_404(client, db):
     _, raw_token = make_api_token(user, name="tok")
     a = make_asset(
         org, user, name="Deleted asset",
-        deleted_at=datetime.now(timezone.utc),
+        deleted_at=datetime.now(UTC),
     )
     scan = make_scan(user, org=org, status=ScanStatus.COMPLETED)
     scan.asset_id = a.id
@@ -565,7 +564,7 @@ def test_revoked_token_gets_401_on_all_three_routes(client, db, spawned):
     db.session.commit()
     _make_report(db, scan)
 
-    token.revoked_at = datetime.now(timezone.utc)
+    token.revoked_at = datetime.now(UTC)
     db.session.commit()
 
     headers = _auth_headers(raw_token)
@@ -884,7 +883,7 @@ def test_report_csv_soft_deleted_asset_gets_404(client, db):
     user = make_user("owner@example.com", org=org)
     db.session.commit()
     _, raw_token = make_api_token(user, name="tok")
-    a = make_asset(org, user, name="Deleted asset", deleted_at=datetime.now(timezone.utc))
+    a = make_asset(org, user, name="Deleted asset", deleted_at=datetime.now(UTC))
     scan = make_scan(user, org=org, status=ScanStatus.COMPLETED)
     scan.asset_id = a.id
     db.session.commit()

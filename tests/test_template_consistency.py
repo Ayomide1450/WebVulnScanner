@@ -17,10 +17,8 @@ width - is explicitly out of scope here and is settled at this plan's
 human-verification checkpoint instead (04-UI-SPEC.md's one backstop row).
 """
 from glassbox.models import ScanStatus
-
 from tests.conftest import login, make_org, make_scan, make_user
 from tests.test_billing_routes import make_pending_invoice
-
 
 # --------------------------------------------------------------------------
 # dashboard.html

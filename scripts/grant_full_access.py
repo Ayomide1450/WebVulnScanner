@@ -22,7 +22,7 @@ import sys
 
 from glassbox import create_app
 from glassbox.extensions import db
-from glassbox.models import User, Plan, DomainVerification, VerifyMethod, _utcnow
+from glassbox.models import DomainVerification, Plan, User, VerifyMethod, _utcnow
 
 
 def main():

@@ -14,12 +14,13 @@ Windows dev machines).  Rendering tests are gated behind a module-level
 GTK3, but the safe_filename and template-structure tests always run.
 """
 
+from datetime import UTC
+
 import pytest
 
 from glassbox.models import Plan, Report, Role, ScanStatus
-from glassbox.pdf_report import _weasyprint_available, build_pdf_report, PDF_MIMETYPE
+from glassbox.pdf_report import _weasyprint_available, build_pdf_report
 from glassbox.scan_routes import safe_filename
-
 from tests.conftest import (
     login,
     make_api_token,
@@ -28,7 +29,6 @@ from tests.conftest import (
     make_scan,
     make_user,
 )
-
 
 PDF_MAGIC = b"%PDF-"
 
@@ -353,7 +353,7 @@ def test_report_pdf_different_org_gets_404(client, db):
 
 
 def test_report_pdf_soft_deleted_asset_gets_404(client, db):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     org = make_org(plan=Plan.PAID)
     user = make_user("deleted-asset-pdf@example.com", org=org, role=Role.ORG_ADMIN)
@@ -364,7 +364,7 @@ def test_report_pdf_soft_deleted_asset_gets_404(client, db):
     scan.asset_id = a.id
     db.session.commit()
     _attach_pdf_marker_report(scan)
-    a.deleted_at = datetime.now(timezone.utc)
+    a.deleted_at = datetime.now(UTC)
     db.session.commit()
 
     resp = client.get(

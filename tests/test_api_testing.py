@@ -18,8 +18,12 @@ magic methods like __contains__ silently return truthy and would mask exactly
 this class of bug) so they exercise the real corrected logic.
 """
 from glassbox.checks import (
-    check_graphql_depth, check_auth_comparison, check_mass_assignment,
-    CHECK_LABELS, CHECK_CATEGORY, CHECK_COMPLIANCE,
+    CHECK_CATEGORY,
+    CHECK_COMPLIANCE,
+    CHECK_LABELS,
+    check_auth_comparison,
+    check_graphql_depth,
+    check_mass_assignment,
 )
 from glassbox.entitlements import FEATURE_REQUIREMENTS
 

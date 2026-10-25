@@ -29,7 +29,6 @@ import requests
 from glassbox import checks
 from glassbox.checks import UA, _mk_session, _SSRFSafeSession, is_ssrf_safe_hostname
 from glassbox.models import Plan, Scan
-
 from tests.conftest import login, make_org, make_user
 
 

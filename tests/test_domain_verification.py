@@ -21,7 +21,7 @@ combined as an OR (from an independently-written pass covering the same
 module - see that section's own header comment for why it's appended
 here rather than a separate file).
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import dns.resolver
 import requests
@@ -34,7 +34,6 @@ from glassbox.domain_verification import (
 )
 from glassbox.entitlements import domain_is_org_verified
 from glassbox.models import DomainVerification, Role, VerifyMethod
-
 from tests.conftest import login, make_org, make_user
 
 
@@ -76,7 +75,7 @@ def test_generate_verification_resets_existing_row_in_place(db):
     db.session.commit()
 
     first = generate_verification(org.id, "example.com", VerifyMethod.DNS_TXT)
-    first.verified_at = datetime.now(timezone.utc)
+    first.verified_at = datetime.now(UTC)
     db.session.commit()
     first_token = first.token
     first_id = first.id

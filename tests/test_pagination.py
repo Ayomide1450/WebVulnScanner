@@ -18,9 +18,8 @@ org-admin's member_count) prove those read from a separate, unbounded
 query/aggregate - never from the current page's row count - by requesting
 page 2 of a 25-row seed and asserting the stat is unaffected.
 """
-from tests.conftest import login, make_asset, make_org, make_scan, make_user
 from glassbox.models import Report, Role, ScanStatus
-
+from tests.conftest import login, make_asset, make_org, make_scan, make_user
 
 # --------------------------------------------------------------------------
 # Dashboard scan history (scan_routes.dashboard())
@@ -200,8 +199,8 @@ def test_org_admin_member_count_stat_unaffected_by_current_page(client, db):
     resp_p1 = client.get("/org/admin")
     resp_p2 = client.get("/org/admin?page=2")
     assert resp_p1.status_code == 200 and resp_p2.status_code == 200
-    assert "Members &middot; <b>25</b>".encode() in resp_p1.data
-    assert "Members &middot; <b>25</b>".encode() in resp_p2.data
+    assert b"Members &middot; <b>25</b>" in resp_p1.data
+    assert b"Members &middot; <b>25</b>" in resp_p2.data
 
 
 # --------------------------------------------------------------------------

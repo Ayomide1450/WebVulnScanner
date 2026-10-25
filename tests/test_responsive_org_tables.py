@@ -23,8 +23,9 @@ email_validator statically rejects reserved TLDs even with deliverability
 checking off).
 """
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+from glassbox.extensions import db as _db
 from glassbox.models import (
     DomainVerification,
     Invitation,
@@ -33,8 +34,6 @@ from glassbox.models import (
     ScanStatus,
     VerifyMethod,
 )
-from glassbox.extensions import db as _db
-
 from tests.conftest import login, make_org, make_scan, make_user
 
 
@@ -52,7 +51,7 @@ def _ids_in(body):
 def _make_domain(org, domain="example.com", verified=True, method=VerifyMethod.DNS_TXT):
     dv = DomainVerification(org_id=org.id, domain=domain, method=method, token="tok")
     if verified:
-        dv.verified_at = datetime.now(timezone.utc)
+        dv.verified_at = datetime.now(UTC)
     _db.session.add(dv)
     _db.session.flush()
     return dv
@@ -223,7 +222,7 @@ def test_verify_domain_form_csrf_preserved_in_both_blocks(client, db):
     resp = client.get("/org/verify-domain")
     body = resp.get_data(as_text=True)
 
-    assert body.count('name="domain_id" value="{}"'.format(dv.id)) == 2
+    assert body.count(f'name="domain_id" value="{dv.id}"') == 2
     assert body.count('name="action" value="verify"') == 2
 
     # `add_form.csrf_token` (a WTForms field, unlike org_admin.html's raw

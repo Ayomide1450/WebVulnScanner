@@ -22,7 +22,6 @@ import pytest
 from glassbox.email_stub import EmailSender
 from glassbox.models import Role, User
 from glassbox.org_routes import decode_invite_token, generate_invite_token
-
 from tests.conftest import login, make_org, make_user
 
 

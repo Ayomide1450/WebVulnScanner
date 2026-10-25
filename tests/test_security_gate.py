@@ -9,11 +9,12 @@ unit tests pin the blocking semantics; route tests pin that the endpoint
 reuses fetch_report's exact ownership/error branches and never lets a gate
 response be read more widely than the report it derives from.
 """
+from datetime import UTC
+
 import pytest
 
 from glassbox.models import Plan, Report, Role, ScanStatus
 from glassbox.security_gate import GATE_SEVERITIES, evaluate_gate
-
 from tests.conftest import make_api_token, make_asset, make_org, make_scan, make_user
 
 
@@ -336,7 +337,7 @@ def test_asset_linked_org_member_can_gate_shared_asset_scan(client, db):
 
 
 def test_soft_deleted_asset_gate_gets_404(client, db):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from glassbox.models import Plan
 
@@ -345,7 +346,7 @@ def test_soft_deleted_asset_gate_gets_404(client, db):
     db.session.commit()
     _, raw_token = make_api_token(user, name="tok")
     a = make_asset(org, user, name="Deleted asset",
-                   deleted_at=datetime.now(timezone.utc))
+                   deleted_at=datetime.now(UTC))
     scan = _completed_scan_with_report(db, user, org=org, asset=a)
 
     resp = client.get(f"/api/v1/scans/{scan.id}/gate", headers=_auth_headers(raw_token))

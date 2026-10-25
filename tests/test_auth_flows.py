@@ -9,14 +9,13 @@ Commands section / handoff.md for how this was found).
 """
 import pathlib
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import check_password_hash
 
 from glassbox.email_stub import EmailSender
 from glassbox.models import Organization, PasswordReset, Plan, Role, User
-
 from tests.conftest import login, make_org, make_user
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -640,21 +639,18 @@ _EXPECTED_SAFE_NEXT_CALL_SITES = {
 # (see auth_routes.py's login() docstring-adjacent comments).
 
 # Same closed-set treatment for _safe_referrer() (glassbox/__init__.py's
-# CSRFError handler) - currently exactly one call site. Line moved 303 -> 307
-# when Phase 19 registered the webhooks blueprint above it, then 307 -> 311
-# when Phase 21 registered the selftest blueprint, then 311 -> 315 when
-# Phase 22 registered the api_docs blueprint, then back to 311 when the
-# selftest blueprint was removed entirely (2026-08-24 redesign: no standalone
-# /selftest page; the verification engine now feeds scan reports directly),
-# then 311 -> 315 when Phase 26 registered the SSO blueprint,
-# then 315 -> 320 when Phase 31 added the CVSS globals injection,
-# then 320 -> 413 when the 2026-10-25 hardening pass added the
-# _issue_csp_nonce/_set_security_headers hooks above the error handlers.
-# The call site itself is unchanged - still the CSRFError handler's
-# `return redirect(_safe_referrer())`; only its line number moved.
-_EXPECTED_SAFE_REFERRER_CALL_SITES = {
-    ("__init__.py", 413),
-}
+# CSRFError handler) - currently exactly one call site.
+#
+# Pinned by FILE AND COUNT, not by line number. It was line-pinned until
+# 2026-10-25 and had to be hand-edited seven times for edits that had
+# nothing to do with it (303 -> 307 -> 311 -> 315 -> 311 -> 315 -> 320 ->
+# 413 -> 414, as blueprints were registered or removed above it, then the
+# CSP/security-header hooks landed). The line number never carried any
+# security signal: the property worth locking is "exactly one
+# _safe_referrer()-based redirect, and it lives in __init__.py". A new
+# call site in another module, or a second one appearing here, still fails
+# this - which is the actual regression anyone cares about.
+_EXPECTED_SAFE_REFERRER_CALL_FILES = {"__init__.py": 1}
 
 
 def _find_redirect_call_sites():
@@ -704,10 +700,14 @@ def test_only_safe_next_redirects_take_a_request_derived_argument():
         f"expected exactly {sorted(_EXPECTED_SAFE_NEXT_CALL_SITES)}, "
         f"found {sorted(safe_next_sites)}"
     )
-    assert safe_referrer_sites == _EXPECTED_SAFE_REFERRER_CALL_SITES, (
+    # File-and-count, not line-pinned - see the constant's comment.
+    safe_referrer_by_file = {}
+    for rel_path, _lineno in safe_referrer_sites:
+        safe_referrer_by_file[rel_path] = safe_referrer_by_file.get(rel_path, 0) + 1
+    assert safe_referrer_by_file == _EXPECTED_SAFE_REFERRER_CALL_FILES, (
         f"the set of _safe_referrer()-based redirect() call sites changed - "
-        f"expected exactly {sorted(_EXPECTED_SAFE_REFERRER_CALL_SITES)}, "
-        f"found {sorted(safe_referrer_sites)}"
+        f"expected exactly {_EXPECTED_SAFE_REFERRER_CALL_FILES} "
+        f"(file -> count), found {safe_referrer_by_file}"
     )
 
 
@@ -803,7 +803,7 @@ def test_reset_password_with_valid_token_updates_password_and_logs_in_with_new_o
     token = "valid-token-abc"
     db.session.add(PasswordReset(
         user_id=user.id, token=token,
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+        expires_at=datetime.now(UTC) + timedelta(minutes=30),
     ))
     db.session.flush()
 
@@ -830,7 +830,7 @@ def test_reset_password_token_is_single_use(client, db):
     token = "single-use-token"
     db.session.add(PasswordReset(
         user_id=user.id, token=token,
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+        expires_at=datetime.now(UTC) + timedelta(minutes=30),
     ))
     db.session.flush()
 
@@ -853,7 +853,7 @@ def test_reset_password_rejects_expired_token(client, db):
     token = "expired-token"
     db.session.add(PasswordReset(
         user_id=user.id, token=token,
-        expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),  # already expired
+        expires_at=datetime.now(UTC) - timedelta(minutes=1),  # already expired
     ))
     db.session.flush()
 
@@ -876,7 +876,7 @@ def test_reset_password_rejects_mismatched_confirmation(client, db):
     token = "mismatch-token"
     db.session.add(PasswordReset(
         user_id=user.id, token=token,
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+        expires_at=datetime.now(UTC) + timedelta(minutes=30),
     ))
     db.session.flush()
 

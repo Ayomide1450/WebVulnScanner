@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(APP_DIR, ".env"))
 
-_DEV_SECRET_KEY = "dev-only-insecure-secret-key-change-me"
+_DEV_SECRET_KEY = "dev-only-insecure-secret-key-change-me"  # noqa: S105 - documented dev placeholder, gated by ALLOW_INSECURE_DEV_SECRET_KEY
 
 
 def _allow_insecure_dev_secret():
@@ -212,7 +212,6 @@ class Config:
     # env var is needed — rotates when SECRET_KEY rotates.
     @staticmethod
     def _fernet_key():
-        import hashlib
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.kdf.hkdf import HKDF
         derived = HKDF(

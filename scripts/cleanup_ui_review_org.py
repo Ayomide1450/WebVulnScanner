@@ -25,7 +25,7 @@ Usage:
 import sys
 
 from glassbox import create_app
-from glassbox.models import db, User, Organization, Scan, Report, CryptoInvoice, ScanEvent
+from glassbox.models import CryptoInvoice, Organization, Report, Scan, ScanEvent, User, db
 
 TARGET_ORG_NAME = "UI Review Org"
 TARGET_USER_EMAIL = "uireview@example.com"

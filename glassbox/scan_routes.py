@@ -46,11 +46,22 @@ import logging
 import re
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from math import ceil
 from urllib.parse import urlparse
 
-from flask import Blueprint, Response, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    current_app,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import current_user, login_required
 
 from glassbox.ai_summary import generate_remediation_summary
@@ -66,6 +77,10 @@ from glassbox.checks import (
 from glassbox.entitlements import FEATURE_REQUIREMENTS, Tier, domain_is_org_verified, effective_tier
 from glassbox.extensions import db
 from glassbox.models import Report, Role, Scan, ScanEvent, ScanEventPhase, ScanStatus
+from glassbox.ndjson_report import findings_ndjson
+from glassbox.pdf_report import PDF_MIMETYPE, build_pdf_report
+from glassbox.regressions import classify_regressions
+from glassbox.sarif import build_sarif_report, sarif_text
 from glassbox.scan_engine import (
     read_report_file,
     run_advanced_scan,
@@ -74,11 +89,7 @@ from glassbox.scan_engine import (
     run_scan,
     save_report,
 )
-from glassbox.webhooks import fire_scan_webhooks, fire_regression_webhooks
-from glassbox.regressions import classify_regressions
-from glassbox.pdf_report import build_pdf_report, PDF_MIMETYPE
-from glassbox.sarif import build_sarif_report, sarif_text
-from glassbox.ndjson_report import findings_ndjson
+from glassbox.webhooks import fire_regression_webhooks, fire_scan_webhooks
 
 scan = Blueprint("scan", __name__)
 
@@ -101,7 +112,6 @@ FINDINGS_PER_PAGE = 20
 
 
 from glassbox.utils import safe_filename  # noqa: E402 — after blueprint consts
-
 
 # --------------------------------------------------------------------------
 # Ownership
@@ -181,7 +191,7 @@ def _run_scan_in_background(app, scan_id, scan_type, **kwargs):
     with app.app_context():
         s = Scan.query.get(scan_id)
         s.status = ScanStatus.RUNNING
-        s.started_at = datetime.now(timezone.utc)
+        s.started_at = datetime.now(UTC)
         db.session.commit()
         try:
             if scan_type == "base":
@@ -281,7 +291,7 @@ def _run_scan_in_background(app, scan_id, scan_type, **kwargs):
                 return
             s.status = ScanStatus.COMPLETED
             s.risk_score = report["score"]
-            s.completed_at = datetime.now(timezone.utc)
+            s.completed_at = datetime.now(UTC)
             db.session.commit()
             # Phase 19: push a scan-completed notice to every matching
             # outbound webhook (org Slack channels / CI receivers). Called
@@ -339,7 +349,7 @@ def _timeout_watchdog(app_obj, scan_id):
         if s.status in (ScanStatus.QUEUED, ScanStatus.RUNNING):
             s.status = ScanStatus.FAILED
             s.error_message = "This scan exceeded its time limit and was stopped."
-            s.completed_at = datetime.now(timezone.utc)
+            s.completed_at = datetime.now(UTC)
             db.session.commit()
 
 
@@ -527,8 +537,8 @@ SCAN_TYPE_CARDS = (
 def _tier_flags(tier):
     return {
         "tier": tier,
-        "can_run_paid": Tier.PAID <= tier,
-        "can_run_org_verified": Tier.ORG_VERIFIED <= tier,
+        "can_run_paid": tier >= Tier.PAID,
+        "can_run_org_verified": tier >= Tier.ORG_VERIFIED,
         "can_run_media": FEATURE_REQUIREMENTS["media"] <= tier,
         "can_run_api": FEATURE_REQUIREMENTS["api"] <= tier,
         "max_bulk_targets": MAX_BULK_TARGETS,
@@ -663,7 +673,7 @@ def _scan_type_availability(tier, org, target_url):
         if card["key"] == "base":
             entry.update(label=AVAILABILITY_INCLUDED, unlocked=True, upgrade_url=None)
         elif card["key"] == "advanced":
-            if not (Tier.ORG_VERIFIED <= tier):
+            if not (tier >= Tier.ORG_VERIFIED):
                 entry.update(label=AVAILABILITY_PAID, unlocked=False, upgrade_url=url_for("billing.view"))
             elif not target_url or not domain_is_org_verified(org, target_url):
                 entry.update(label=AVAILABILITY_VERIFIED, unlocked=False,

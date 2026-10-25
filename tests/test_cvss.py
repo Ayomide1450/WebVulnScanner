@@ -7,7 +7,7 @@ Tests cover:
 - Source-parse lock: _score_report still uses SEVERITY_WEIGHT (CVSS is附加)
 - 5 check call sites supply CVSS vectors (one per severity tier)
 """
-from glassbox.checks import Finding, compute_cvss_score, SEVERITY_WEIGHT
+from glassbox.checks import Finding, compute_cvss_score
 
 
 class TestComputeCvssScore:
@@ -132,6 +132,7 @@ class TestScoreReportCvssIndependence:
         """Source-parse lock: _score_report's arithmetic references SEVERITY_WEIGHT,
         not compute_cvss_score — CVSS is附加 metadata, not a scoring replacement."""
         import inspect
+
         from glassbox.scan_engine import _score_report
         source = inspect.getsource(_score_report)
         assert "SEVERITY_WEIGHT" in source

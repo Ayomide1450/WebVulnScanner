@@ -28,7 +28,6 @@ from glassbox.api_docs import (
     WEBHOOK_VERIFY_SNIPPET,
 )
 from glassbox.webhooks import sign_payload
-
 from tests.conftest import login, make_org, make_user
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
