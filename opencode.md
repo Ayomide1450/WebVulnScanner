@@ -38,7 +38,7 @@ you write the code, run the tests, and ship to staging per the STAGING-FIRST POL
 
 ## Project
 
-**Glassbox** (v1.3+; formerly WebVulnScanner — Python package `webvulnscanner/`
+**Glassbox** (v1.3+; formerly Glassbox — Python package `glassbox/`
 and DB unchanged). Multi-tenant Flask **security platform**. **NEVER call it a
 "scanner"** (user's explicit instruction) — it is a security-assessment /
 expertise platform for **cybersecurity experts, security engineers, vibe
@@ -202,16 +202,16 @@ rather than expecting it in `git log`.
   `audit_log.html` (compact data); dashboard empty-state text assertion updated.
   Full suite: **1209 passed, 11 skipped, 0 failed**.
 - Phase 25 — Pipeline Integrations (`feat(25)`, b4822b5, 2026-08-25):
-  `webvulnscanner/ndjson_report.py` NDJSON writer; session-web
+  `glassbox/ndjson_report.py` NDJSON writer; session-web
   `/scan/<id>/findings.ndjson` + token-authed API twin (IDOR registry += both,
-  api_docs entry); `webvulnscanner/webhooks.py` Splunk HEC payload builder +
+  api_docs entry); `glassbox/webhooks.py` Splunk HEC payload builder +
   format dispatch (`Splunk`/`Generic`/`NDJSON`); exponential backoff retry
   (3 attempts, `[1, 2, 4]`s delays); `WebhookDelivery.attempt_number` column;
   `audit.py` solo-user early-return bugfix; form payload_format dropdown in
   `webhook_routes.py`; template pill badge in `webhooks.html`. 140 passed,
   11 skipped (WeasyPrint/GTK3), 0 failed. INTG-04 (GitHub Actions recipe)
   deferred.
-- Phase 23 — Audit Log (2026-08-25): `webvulnscanner/audit.py` shared helpers
+- Phase 23 — Audit Log (2026-08-25): `glassbox/audit.py` shared helpers
   (consolidated from `org_routes._log_org_event` / `admin_routes._log_platform_event`),
   `ORG_AUDIT_EVENT_LABELS` for 15 event types, `log_platform_event` for 4 platform
   types; emission sites wired in `api_tokens_routes.py` (create/revoke),
@@ -225,17 +225,17 @@ rather than expecting it in `git log`.
   Also fixed Phase 24 gap: `api_docs.py` now documents
   `/api/v1/scans/<int:scan_id>/report.pdf`.
 - Phase 24 — Report PDF Export (`feat(24)`, 2026-08-25):
-  `webvulnscanner/pdf_report.py` shared writer (WeasyPrint `>=68,<70`,
+  `glassbox/pdf_report.py` shared writer (WeasyPrint `>=68,<70`,
   `URLFetcher(allowed_protocols=[])` + `presentational_hints=False` for SSRF
   defence); `templates/pdf_report.html` standalone self-contained template (no
   `| safe` on finding fields); session-web `GET /scan/<id>/report.pdf` +
   token-authed `/api/v1` twin (same ownership guards, IDOR REGISTRY updated);
-  shared `safe_filename()` in `webvulnscanner/utils.py` retroactively applied
+  shared `safe_filename()` in `glassbox/utils.py` retroactively applied
   to CSV/SARIF exporters; Dockerfile updated with pango/harfbuzz/font-noto
   runtime deps. 22 tests (writer, IDOR, no-drift, template `| safe` regression);
   11 rendering tests skip on Windows (need GTK3 — will pass on Linux CI).
 - Phase 29 — SARIF 2.1.0 export (`feat(29)` d6981c3, staging v15):
-  `webvulnscanner/sarif.py` shared writer behind BOTH surfaces (session-web
+  `glassbox/sarif.py` shared writer behind BOTH surfaces (session-web
   /scan/<id>/report.sarif + token-authed /api/v1 twin, byte-identical, same
   ownership guards as CSV — IDOR REGISTRY += both); severity→level mapping
   lives once in checks.severity_to_sarif_level(); vendored official SARIF
@@ -256,10 +256,10 @@ rather than expecting it in `git log`.
 ### Phase 18 close-out (SHIPPED TO STAGING 2026-08-23, commit 9405e81)
 
 **Phase 18 close-out (COMPLETE, committed 9405e81, shipped to staging):**
-- `webvulnscanner/api_routes.py` — new GET `/api/v1/scans/<int:scan_id>/report.csv`
+- `glassbox/api_routes.py` — new GET `/api/v1/scans/<int:scan_id>/report.csv`
   (token-authed CSV export; ownership branches + WR-01/WR-02 error semantics cloned
   verbatim from fetch_report).
-- `webvulnscanner/scan_routes.py` — CSV writer extracted to shared pure helper
+- `glassbox/scan_routes.py` — CSV writer extracted to shared pure helper
   `findings_csv_document(report, scan_id)`; web export.csv route now calls it too
   (single writer behind both surfaces — byte-identical output proven by test).
 - `cli/wvs.py` — `glassbox report --csv` flag hitting the new endpoint.
@@ -293,7 +293,7 @@ scan_routes):
 - `models.py`: `OutboundWebhook` + `WebhookDelivery` (scan_id NULLABLE for
   test pings). Migration `c3f8a91d2e47`, down_revision='1da1e657ca46' —
   **run `flask db upgrade` on deploy**.
-- `webvulnscanner/webhooks.py` — engine: `validate_webhook_url` (HTTPS +
+- `glassbox/webhooks.py` — engine: `validate_webhook_url` (HTTPS +
   `is_ssrf_safe_hostname`, same SSRF gate as scan targets),
   `redact_webhook_url` (never render stored URLs — Slack URLs embed creds),
   `build_scan_payload` (Slack-first `text` + structured event/scan/gate/
@@ -379,7 +379,7 @@ Verified gaps for a pro audience (grep-confirmed absent):
 5. No SSO/SAML.
 6. No developer-facing API docs page/template.
 7. PRODUCT.md is stale (claims no-migrations constraint that Alembic
-   replaced; still named WebVulnScanner).
+   replaced; still named Glassbox).
 
 ## STAGING-FIRST POLICY (user directive, 2026-08-22 — standing rule)
 
@@ -543,7 +543,7 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
 - **Phase 22 In-Product API Documentation BUILT (2026-08-24, v1.6 first
   phase)** — why: Phases 2/18/19 shipped a full token-authed REST surface +
   CLI + signed webhooks discoverable only by reading source; /docs/api makes
-  it integrable in one sitting and can't drift. `webvulnscanner/api_docs.py`
+  it integrable in one sitting and can't drift. `glassbox/api_docs.py`
   = single-source spec (API_ENDPOINTS ×8 routes, error-semantics table,
   curl example); `docs_route.py` blueprint GET /docs/api (@login_required);
   templates/api_docs.html (base.html tokens only, endpoint overview table +
@@ -574,7 +574,7 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
   pipeline (after scoring, so the live feed isn't delayed on a worker's first
   scan) and attaches `report["detection_verified"]` only when present — an
   unavailable verification omits the badge, never fails the scan.
-  (c) DELETED: `webvulnscanner/selftest_routes.py`, `templates/selftest.html`,
+  (c) DELETED: `glassbox/selftest_routes.py`, `templates/selftest.html`,
   dashboard.html's "Detection Self-Test" button, __init__ registration
   (_safe_referrer tripwire back 315→311 with history note). (d)
   scan_report.html renders a quiet `.pill.pass` "Engine verified · N/10
@@ -610,7 +610,7 @@ master  ──push──► glassboxsec.fly.dev (prod DB)                ← rel
   per the STAGING-FIRST POLICY.
 
 - **"Scanner" purge complete (2026-08-22)** — zero occurrences left in
-  templates/source outside the `webvulnscanner` package name and opaque test
+  templates/source outside the `glassbox` package name and opaque test
   fixture URLs (`scanner.example.com`, `scanner@example.com`). Changed:
   marketing.html `<title>`/meta/OG/Twitter ×6 → "Glassbox - Autonomous
   Security Validation for AppSec Teams" + assessments wording; eyebrow

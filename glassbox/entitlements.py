@@ -2,9 +2,9 @@
 Entitlement / tier gating for Glassbox (Workstream 3).
 
 This module is the one place allowed to bridge DB-backed concepts
-(`webvulnscanner.models.Plan`, `DomainVerification`) and the tier-ordering
-system used to gate checks. `webvulnscanner/checks.py` and
-`webvulnscanner/scan_engine.py` have zero dependency on `webvulnscanner.models`
+(`glassbox.models.Plan`, `DomainVerification`) and the tier-ordering
+system used to gate checks. `glassbox/checks.py` and
+`glassbox/scan_engine.py` have zero dependency on `glassbox.models`
 today and that must stay true - `models` is only imported here, and lazily
 inside the functions that need it, to avoid any circular-import risk.
 
@@ -27,7 +27,7 @@ class Tier(IntEnum):
 
 # Keys MUST match run_scan's jobs-dict keys exactly, plus "headers"/"cookies"/
 # "open_ports" (dispatched outside the jobs dict), the advanced-scan check
-# names, and "media". Verified directly against webvulnscanner/scan_engine.py
+# names, and "media". Verified directly against glassbox/scan_engine.py
 # - note "secrets" is the correct jobs-dict key (NOT "exposed_secrets").
 FEATURE_REQUIREMENTS = {
     # base scan - passive (FREE)
@@ -74,13 +74,13 @@ def effective_tier_for_org(org):
     """Maps an `Organization` (or `None`) directly to a `Tier`.
 
     Org-shaped entry point for callers that have an `Organization` but no
-    `User` - e.g. webvulnscanner.scheduler's tick handler, which must
+    `User` - e.g. glassbox.scheduler's tick handler, which must
     recompute tier at scheduled-fire time (ASSET-07), never cached from
     registration time, and has no request/user in the loop. `effective_tier`
     below is user-shaped and delegates here after its own user-specific
     checks, so the Plan->Tier mapping is defined exactly once.
     """
-    from webvulnscanner.models import Plan  # lazy import - see module docstring
+    from glassbox.models import Plan  # lazy import - see module docstring
 
     if org is None:
         return Tier.FREE
@@ -141,7 +141,7 @@ def domain_is_org_verified(org, target_url):
     if org is None:
         return False
 
-    from webvulnscanner.models import DomainVerification  # lazy import
+    from glassbox.models import DomainVerification  # lazy import
 
     hostname = urlparse(target_url).netloc.split(":")[0].lower()
     row = DomainVerification.query.filter_by(

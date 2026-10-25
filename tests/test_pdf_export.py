@@ -16,9 +16,9 @@ GTK3, but the safe_filename and template-structure tests always run.
 
 import pytest
 
-from webvulnscanner.models import Plan, Report, Role, ScanStatus
-from webvulnscanner.pdf_report import _weasyprint_available, build_pdf_report, PDF_MIMETYPE
-from webvulnscanner.scan_routes import safe_filename
+from glassbox.models import Plan, Report, Role, ScanStatus
+from glassbox.pdf_report import _weasyprint_available, build_pdf_report, PDF_MIMETYPE
+from glassbox.scan_routes import safe_filename
 
 from tests.conftest import (
     login,
@@ -86,7 +86,7 @@ def _attach_pdf_marker_report(scan):
     }
     r = Report(scan_id=scan.id, json_path="unused-for-this-test.json",
                data=report_data)
-    from webvulnscanner.extensions import db as _db
+    from glassbox.extensions import db as _db
     _db.session.add(r)
     _db.session.flush()
     return r
@@ -239,7 +239,7 @@ def test_scan_report_pdf_missing_weasyprint_flashes_and_redirects_not_500(client
     misconfigured deploy), the session-web route must degrade to a flash +
     redirect back to the report - not a raw 500. Forces the failure via
     monkeypatch so this runs identically with or without GTK3 installed."""
-    from webvulnscanner import scan_routes
+    from glassbox import scan_routes
 
     org = make_org()
     user = make_user("pdf-degrade@example.com", org=org)
@@ -271,7 +271,7 @@ def test_fetch_report_pdf_missing_weasyprint_returns_503_json(client, db, monkey
     (cli/wvs.py, CI) needs a parseable 503 + error message, not a bare 500,
     so it can tell 'retry later / use another format' apart from a real
     server error."""
-    from webvulnscanner import api_routes
+    from glassbox import api_routes
 
     org = make_org()
     user = make_user("pdf-degrade-api@example.com", org=org)

@@ -26,15 +26,15 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
-from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, allowed_checks
-from webvulnscanner.selftest import verification_summary
-from webvulnscanner.community_checks import (
+from glassbox.entitlements import FEATURE_REQUIREMENTS, Tier, allowed_checks
+from glassbox.selftest import verification_summary
+from glassbox.community_checks import (
     load_community_checks,
     register_community_checks,
     build_community_jobs,
     CommunityCheckError,
 )
-from webvulnscanner.checks import (
+from glassbox.checks import (
     REQUEST_TIMEOUT,
     REPORTS_DIR,  # noqa: F401  (re-exported for callers that import it from here)
     DOWNLOADS_DIR,  # noqa: F401

@@ -6,7 +6,7 @@ Small shared route decorators used by more than one blueprint.
 exact same "must be logged in AND role == ORG_ADMIN" gate.
 
 `platform_admin_required` gates the separate, cross-org website-staff
-surface (`webvulnscanner/admin_routes.py`) - deliberately a different
+surface (`glassbox/admin_routes.py`) - deliberately a different
 check than `org_admin_required`: an ORG_ADMIN only has authority within
 their own org, while a platform admin (`User.is_platform_admin`) can act
 across every org (e.g. approving a domain-deletion request an org admin
@@ -31,7 +31,7 @@ def org_admin_required(view_func):
 
     @wraps(view_func)
     def wrapped(*args, **kwargs):
-        from webvulnscanner.models import Role
+        from glassbox.models import Role
 
         if not current_user.is_authenticated or current_user.role != Role.ORG_ADMIN:
             abort(403)

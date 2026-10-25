@@ -17,11 +17,11 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import or_, update
 
-from webvulnscanner.checks import is_ssrf_safe_hostname
-from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, effective_tier_for_org, domain_is_org_verified
-from webvulnscanner.extensions import db
-from webvulnscanner.models import Asset, Scan, ScanStatus
-from webvulnscanner.scan_routes import _spawn_scan_thread
+from glassbox.checks import is_ssrf_safe_hostname
+from glassbox.entitlements import FEATURE_REQUIREMENTS, effective_tier_for_org, domain_is_org_verified
+from glassbox.extensions import db
+from glassbox.models import Asset, Scan, ScanStatus
+from glassbox.scan_routes import _spawn_scan_thread
 
 # Fixed-interval cadence presets (D-03) - deliberately not a cron-expression
 # parser; ASSET-03 only asks for daily/weekly/monthly presets.
@@ -173,6 +173,6 @@ def _scheduler_loop(app):
 def start_scheduler(app):
     """Spawns the scheduler loop as a daemon thread. Callers must apply the
     three-part guard (SCHEDULER_ENABLED / TESTING / Werkzeug-reloader) before
-    calling this - see webvulnscanner.__init__._maybe_start_scheduler."""
+    calling this - see glassbox.__init__._maybe_start_scheduler."""
     thread = threading.Thread(target=_scheduler_loop, args=(app,), daemon=True)
     thread.start()

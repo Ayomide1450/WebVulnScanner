@@ -1,8 +1,8 @@
 """
-App factory for the webvulnscanner package.
+App factory for the glassbox package.
 
 `app.py` at the repo root is now the thin factory around this package
-(Workstream 4's cutover): `from webvulnscanner import create_app; app =
+(Workstream 4's cutover): `from glassbox import create_app; app =
 create_app()`. All 5 blueprints (auth, org, billing, scan, public) are
 registered here.
 """
@@ -15,9 +15,9 @@ from flask import Flask, flash, jsonify, redirect, render_template, request, url
 from flask_wtf.csrf import CSRFError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from webvulnscanner.config import Config
-from webvulnscanner.email_stub import make_email_sender
-from webvulnscanner.extensions import (
+from glassbox.config import Config
+from glassbox.email_stub import make_email_sender
+from glassbox.extensions import (
     _ApiAwareSessionInterface,
     csrf,
     db,
@@ -47,7 +47,7 @@ def _maybe_start_scheduler(app):
         return
     if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
         return
-    from webvulnscanner.scheduler import start_scheduler
+    from glassbox.scheduler import start_scheduler
 
     start_scheduler(app)
 
@@ -82,7 +82,7 @@ def _safe_referrer():
     # guards against (SEC-07). Kept as its own named function (mirroring
     # _safe_next()'s pattern) rather than inlined, so
     # tests/test_auth_flows.py::test_only_safe_next_redirects_take_a_
-    # request_derived_argument - which source-scans webvulnscanner/ for
+    # request_derived_argument - which source-scans glassbox/ for
     # every redirect call site and fails closed on anything that isn't
     # url_for(...) or a named, reviewed safe-redirect helper - has a
     # second, equally auditable pattern to recognize instead of a raw
@@ -154,55 +154,55 @@ def create_app(config_class=Config):
         app.config["EMAIL_MODE"], app.config["RESEND_API_KEY"], app.config["RESEND_FROM_EMAIL"],
     )
 
-    from webvulnscanner.auth_routes import auth as auth_blueprint
+    from glassbox.auth_routes import auth as auth_blueprint
 
     app.register_blueprint(auth_blueprint)
 
-    from webvulnscanner.org_routes import org as org_blueprint
+    from glassbox.org_routes import org as org_blueprint
 
     app.register_blueprint(org_blueprint)
 
-    from webvulnscanner.admin_routes import admin as admin_blueprint
+    from glassbox.admin_routes import admin as admin_blueprint
 
     app.register_blueprint(admin_blueprint)
 
-    from webvulnscanner.billing_routes import billing_bp as billing_blueprint
+    from glassbox.billing_routes import billing_bp as billing_blueprint
 
     app.register_blueprint(billing_blueprint)
 
-    from webvulnscanner.scan_routes import scan as scan_blueprint
+    from glassbox.scan_routes import scan as scan_blueprint
 
     app.register_blueprint(scan_blueprint)
 
-    from webvulnscanner.asset_routes import asset as asset_blueprint
+    from glassbox.asset_routes import asset as asset_blueprint
 
     app.register_blueprint(asset_blueprint)
 
-    from webvulnscanner.public_routes import public as public_blueprint
+    from glassbox.public_routes import public as public_blueprint
 
     app.register_blueprint(public_blueprint)
 
-    from webvulnscanner.api_tokens_routes import api_tokens as api_tokens_blueprint
+    from glassbox.api_tokens_routes import api_tokens as api_tokens_blueprint
 
     app.register_blueprint(api_tokens_blueprint)
 
-    from webvulnscanner.webhook_routes import webhooks_bp as webhooks_blueprint
+    from glassbox.webhook_routes import webhooks_bp as webhooks_blueprint
 
     app.register_blueprint(webhooks_blueprint)
 
-    from webvulnscanner.api_routes import api as api_blueprint
+    from glassbox.api_routes import api as api_blueprint
 
     app.register_blueprint(api_blueprint)
 
-    from webvulnscanner.assessment_routes import assessment as assessment_blueprint
+    from glassbox.assessment_routes import assessment as assessment_blueprint
 
     app.register_blueprint(assessment_blueprint)
 
-    from webvulnscanner.docs_route import docs_bp as docs_blueprint
+    from glassbox.docs_route import docs_bp as docs_blueprint
 
     app.register_blueprint(docs_blueprint)
 
-    from webvulnscanner.sso_routes import sso as sso_blueprint
+    from glassbox.sso_routes import sso as sso_blueprint
 
     app.register_blueprint(sso_blueprint)
 
@@ -259,7 +259,7 @@ def create_app(config_class=Config):
         if not (request.path.endswith("/status") or request.path.endswith("/events")):
             session["_last_seen"] = now.isoformat()
 
-    from webvulnscanner.models import Role
+    from glassbox.models import Role
 
     @app.context_processor
     def inject_role_enum():
@@ -275,7 +275,7 @@ def create_app(config_class=Config):
 
     # v1.8 CVSS-02: expose compute_cvss_score to all Jinja templates so
     # scan_report.html can render per-finding CVSS badges.
-    from webvulnscanner.checks import compute_cvss_score
+    from glassbox.checks import compute_cvss_score
     app.jinja_env.globals["compute_cvss_score"] = compute_cvss_score
 
     # Custom error pages so 404/500 stay inside the app's own dark theme
@@ -329,7 +329,7 @@ def create_app(config_class=Config):
         so bootstrapping the first one is deliberately a server-access-only
         operation: `flask grant-platform-admin someone@example.com`.
         """
-        from webvulnscanner.models import User
+        from glassbox.models import User
 
         user = User.query.filter_by(email=email.strip().lower()).first()
         if user is None:
@@ -343,7 +343,7 @@ def create_app(config_class=Config):
     @click.argument("email")
     def revoke_platform_admin(email):
         """Reverses grant-platform-admin."""
-        from webvulnscanner.models import User
+        from glassbox.models import User
 
         user = User.query.filter_by(email=email.strip().lower()).first()
         if user is None:
@@ -361,7 +361,7 @@ def create_app(config_class=Config):
         # also what silently masked adding a column to an existing table
         # never actually applying to a real, already-created DB - the exact
         # failure mode migrations exist to fix.
-        from webvulnscanner import models  # noqa: F401
+        from glassbox import models  # noqa: F401
 
     _maybe_start_scheduler(app)
 

@@ -4,7 +4,7 @@ dict - every dispatchable check_name must have a domain entry, no stale
 entries for check names no longer dispatched, and every entry's value must
 be one of the 11 real SECURITY_DOMAINS (never a Security Posture/Production
 Readiness aggregate section, which are report-summary-only)."""
-from webvulnscanner.checks import (
+from glassbox.checks import (
     SCAN_TYPE_CHECK_NAMES,
     SECURITY_DOMAIN_MAP,
     SECURITY_DOMAINS,

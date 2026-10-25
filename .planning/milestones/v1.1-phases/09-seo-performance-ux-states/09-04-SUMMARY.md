@@ -7,8 +7,8 @@ dependency-graph:
   requires: []
   provides: ["_find_running_scan()", "scan-level wall-clock timeout watchdog"]
   affects:
-    - webvulnscanner/config.py
-    - webvulnscanner/scan_routes.py
+    - glassbox/config.py
+    - glassbox/scan_routes.py
 tech-stack:
   added: []
   patterns:
@@ -17,8 +17,8 @@ key-files:
   created:
     - tests/test_scan_lifecycle_guards.py
   modified:
-    - webvulnscanner/config.py
-    - webvulnscanner/scan_routes.py
+    - glassbox/config.py
+    - glassbox/scan_routes.py
 decisions:
   - "Duplicate-scan guard is scoped per user+target+scan_type, not across scan types - a user can run base and media scans on the same target concurrently, just not two base scans"
   - "Timeout watchdog wraps _spawn_scan_thread rather than touching scan_engine.py's orchestrators, preserving Phase 8's _mk_session() source-parsing regression lock untouched"
@@ -51,7 +51,7 @@ scan and a `base` scan on the same target at once, just not two `base` scans.
 
 **Wall-clock timeout watchdog** - a `threading.Timer` wraps `_spawn_scan_thread`'s dispatch, so a
 scan that hangs (network stall, unresponsive target) is force-marked `FAILED` with a distinct
-"timed out" message after `webvulnscanner/config.py`'s new timeout setting elapses, rather than
+"timed out" message after `glassbox/config.py`'s new timeout setting elapses, rather than
 sitting in `RUNNING` forever. A race guard ensures that if the orchestrator thread finishes
 *after* the timeout has already written the terminal `FAILED` status, the late-finishing
 orchestrator's own status write is discarded rather than silently reviving/overwriting the
@@ -69,9 +69,9 @@ scan types, the timeout watchdog, and the race guard.
 
 ## Self-Check
 
-- `_find_running_scan()` in `webvulnscanner/scan_routes.py` - FOUND
-- Timeout watchdog + race guard in `webvulnscanner/scan_routes.py` - FOUND
-- `webvulnscanner/config.py` timeout setting - FOUND
+- `_find_running_scan()` in `glassbox/scan_routes.py` - FOUND
+- Timeout watchdog + race guard in `glassbox/scan_routes.py` - FOUND
+- `glassbox/config.py` timeout setting - FOUND
 - `tests/test_scan_lifecycle_guards.py` - FOUND
 - Commit `0c26a96` - FOUND in `git log`
 - Full suite: one failure seen in this plan's own worktree run

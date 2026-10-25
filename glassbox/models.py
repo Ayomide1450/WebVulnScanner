@@ -1,5 +1,5 @@
 """
-Data model for the webvulnscanner package.
+Data model for the glassbox package.
 
 Schema, FKs, and uniqueness constraints follow the plan's Workstream 1
 "Data model" section exactly. Timestamps use `datetime.now(timezone.utc)`,
@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 
 from flask_login import UserMixin
 
-from webvulnscanner.extensions import db
+from glassbox.extensions import db
 
 
 def _utcnow():
@@ -98,7 +98,7 @@ class User(UserMixin, db.Model):
     # decorators.platform_admin_required - the website's own operators
     # (not an org admin) reviewing cross-org actions like domain-deletion
     # approval. Nothing in the app can set this via a route - only the
-    # `flask grant-platform-admin <email>` CLI command (webvulnscanner/cli.py)
+    # `flask grant-platform-admin <email>` CLI command (glassbox/cli.py)
     # can, so it can never be granted by a bug in ordinary request handling.
     is_platform_admin = db.Column(db.Boolean, nullable=False, default=False, server_default="false")
     email_verified_at = db.Column(db.DateTime(timezone=True), nullable=True)
@@ -190,7 +190,7 @@ class DomainVerification(db.Model):
 class Asset(db.Model):
     """A persistent, recurring scan target (Phase 1, ASSET-01..08) - distinct
     from a one-off manual Scan. Registering an Asset arms a schedule
-    (cadence + scan type); webvulnscanner.scheduler's tick loop claims due
+    (cadence + scan type); glassbox.scheduler's tick loop claims due
     Assets and fires a Scan(asset_id=...) automatically, re-checking SSRF
     safety and tier entitlement at fire time (never cached from
     registration), see scheduler.py's module docstring.
@@ -269,7 +269,7 @@ class Scan(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     org_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=True)
     # Nullable so the existing manual-scan flow (no Asset involved) is
-    # completely unaffected - only scans spawned by webvulnscanner.scheduler
+    # completely unaffected - only scans spawned by glassbox.scheduler
     # ever set this.
     asset_id = db.Column(db.Integer, db.ForeignKey("assets.id"), nullable=True)
     target_url = db.Column(db.String(2048), nullable=False)
@@ -663,7 +663,7 @@ class SSOConfiguration(db.Model):
         """Encrypt a plaintext string for at-rest storage. Returns a
         base64-encoded Fernet token string."""
         from cryptography.fernet import Fernet
-        from webvulnscanner.config import Config
+        from glassbox.config import Config
         f = Fernet(Config._fernet_key())
         return f.encrypt(plaintext.encode("utf-8")).decode("ascii")
 
@@ -671,6 +671,6 @@ class SSOConfiguration(db.Model):
     def decrypt_secret(ciphertext_b64):
         """Decrypt a base64-encoded Fernet token back to plaintext."""
         from cryptography.fernet import Fernet
-        from webvulnscanner.config import Config
+        from glassbox.config import Config
         f = Fernet(Config._fernet_key())
         return f.decrypt(ciphertext_b64.encode("ascii")).decode("utf-8")

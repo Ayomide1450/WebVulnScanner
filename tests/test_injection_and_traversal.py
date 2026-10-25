@@ -6,10 +6,10 @@ this module's job is to convert that one-time reading into a standing,
 regression-proof check rather than a recorded grep result.
 
 Jinja2's autoescaping is on by default under Flask, and nothing in this app
-disables it (`webvulnscanner/__init__.py` never sets `autoescape=False`,
+disables it (`glassbox/__init__.py` never sets `autoescape=False`,
 replaces the Jinja environment, or registers a markup-returning filter). The
 risk this module exists to catch is not today's state but a future `|safe`
-filter, `Markup()` wrap, or raw-SQL string built anywhere in `webvulnscanner/`
+filter, `Markup()` wrap, or raw-SQL string built anywhere in `glassbox/`
 - which is why Task 2's locks are comment-filtered source scans that run on
 every suite invocation, not a one-time audit finding.
 
@@ -29,15 +29,15 @@ import re
 
 from markupsafe import escape as _markupsafe_escape
 
-from webvulnscanner.checks import REPORTS_DIR
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import DomainVerification, Report, Role, Scan, ScanStatus, VerifyMethod
-from webvulnscanner.scan_engine import read_report_file
+from glassbox.checks import REPORTS_DIR
+from glassbox.extensions import db as _db
+from glassbox.models import DomainVerification, Report, Role, Scan, ScanStatus, VerifyMethod
+from glassbox.scan_engine import read_report_file
 
 from tests.conftest import login, make_api_token, make_org, make_scan, make_user
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-WEBVULNSCANNER_DIR = REPO_ROOT / "webvulnscanner"
+GLASSBOX_DIR = REPO_ROOT / "glassbox"
 TEMPLATES_DIR = REPO_ROOT / "templates"
 
 # Single module-level payload: a tag (would execute if unescaped) plus an
@@ -305,12 +305,12 @@ def test_no_template_disables_autoescaping_or_uses_safe_filter():
 
 def _find_markup_construction_or_string_template_render():
     """Comment-filtered (full-line only, matching test_csrf_enforcement.py's
-    established idiom) scan of every .py under webvulnscanner/ for
+    established idiom) scan of every .py under glassbox/ for
     Markup(...) construction or render_template_string(...) calls - the two
     ways a Python module (rather than a template) could reintroduce
     unescaped HTML. Returns (path, lineno, stripped_line) tuples."""
     hits = []
-    for path in sorted(WEBVULNSCANNER_DIR.rglob("*.py")):
+    for path in sorted(GLASSBOX_DIR.rglob("*.py")):
         for lineno, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if raw_line.strip().startswith("#"):
                 continue
@@ -329,7 +329,7 @@ def test_no_module_constructs_markup_or_renders_template_string():
 
 def _find_raw_sql_execute_call_sites():
     """Comment-filtered (full-line only) scan of every .py under
-    webvulnscanner/ for a direct `.execute(` call - the only shape a raw or
+    glassbox/ for a direct `.execute(` call - the only shape a raw or
     string-interpolated SQL statement could enter this codebase through,
     since every ORM/Core query-builder call (Model.query.filter(...),
     select(...), update(...), etc.) never itself calls .execute() in
@@ -339,7 +339,7 @@ def _find_raw_sql_execute_call_sites():
     test_csrf_exempt_applied_to_exactly_one_blueprint uses for its own
     exact-set lock."""
     hits = []
-    for path in sorted(WEBVULNSCANNER_DIR.rglob("*.py")):
+    for path in sorted(GLASSBOX_DIR.rglob("*.py")):
         current_function = None
         for raw_line in path.read_text(encoding="utf-8").splitlines():
             if raw_line.strip().startswith("#"):
@@ -356,8 +356,8 @@ def _find_raw_sql_execute_call_sites():
 def test_raw_sql_execute_call_sites_are_exactly_the_two_known_ones():
     hits = _find_raw_sql_execute_call_sites()
     expected = {
-        ("webvulnscanner/public_routes.py", "healthz"),
-        ("webvulnscanner/scheduler.py", "_try_claim"),
+        ("glassbox/public_routes.py", "healthz"),
+        ("glassbox/scheduler.py", "_try_claim"),
     }
     assert set(hits) == expected, (
         f"raw db.session.execute() call site(s) changed (SEC-05 regression) - expected "
@@ -373,7 +373,7 @@ def test_healthcheck_sql_argument_is_a_literal_string_constant():
     built from a variable, f-string, or .format() call."""
     import inspect
 
-    from webvulnscanner.public_routes import healthz
+    from glassbox.public_routes import healthz
 
     src = inspect.getsource(healthz)
     assert re.search(r'db\.text\(\s*"SELECT 1"\s*\)', src), (
@@ -395,7 +395,7 @@ def test_scheduler_update_binds_values_as_parameters():
     a SQL string."""
     import inspect
 
-    from webvulnscanner.scheduler import _try_claim
+    from glassbox.scheduler import _try_claim
 
     src = inspect.getsource(_try_claim)
     assert re.search(r"\.values\(", src), (
@@ -493,7 +493,7 @@ def test_read_report_file_returns_parsed_json_for_a_legitimate_filename(tmp_path
     parsed JSON, byte-identical to what the previous inline code returned.
     REPORTS_DIR is monkeypatched to tmp_path here specifically so this one
     function-level test never touches the repo's real reports/ directory."""
-    from webvulnscanner import scan_engine
+    from glassbox import scan_engine
 
     monkeypatch.setattr(scan_engine, "REPORTS_DIR", str(tmp_path))
     payload = {"score": 77, "findings": []}
@@ -505,7 +505,7 @@ def test_read_report_file_returns_parsed_json_for_a_legitimate_filename(tmp_path
 
 
 def _find_inline_reports_dir_open_call_sites():
-    """Comment-filtered scan of every .py under webvulnscanner/ for the
+    """Comment-filtered scan of every .py under glassbox/ for the
     exact open(os.path.join(REPORTS_DIR, ...)) shape the three converted
     call sites used to have - a fourth call site reintroducing this pattern
     instead of calling scan_engine.read_report_file() would silently
@@ -516,7 +516,7 @@ def _find_inline_reports_dir_open_call_sites():
     inline read added directly in scan_engine.py would still be caught."""
     hits = []
     pattern = re.compile(r"open\s*\(\s*os\.path\.join\s*\(\s*REPORTS_DIR")
-    for path in sorted(WEBVULNSCANNER_DIR.rglob("*.py")):
+    for path in sorted(GLASSBOX_DIR.rglob("*.py")):
         for lineno, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if raw_line.strip().startswith("#"):
                 continue
@@ -632,7 +632,7 @@ def _make_asset_for_coverage(org, user):
     unrelated noise to this containment-focused test."""
     from datetime import datetime, timezone
 
-    from webvulnscanner.models import Asset
+    from glassbox.models import Asset
 
     now = datetime.now(timezone.utc)
     a = Asset(

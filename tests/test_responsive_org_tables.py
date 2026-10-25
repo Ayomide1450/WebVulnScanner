@@ -25,7 +25,7 @@ checking off).
 import re
 from datetime import datetime, timezone
 
-from webvulnscanner.models import (
+from glassbox.models import (
     DomainVerification,
     Invitation,
     InvitationStatus,
@@ -33,7 +33,7 @@ from webvulnscanner.models import (
     ScanStatus,
     VerifyMethod,
 )
-from webvulnscanner.extensions import db as _db
+from glassbox.extensions import db as _db
 
 from tests.conftest import login, make_org, make_scan, make_user
 

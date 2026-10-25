@@ -31,8 +31,8 @@ key-files:
     - tests/test_org_invite.py
     - tests/test_domain_verification.py
   modified:
-    - webvulnscanner/org_routes.py
-    - webvulnscanner/auth_routes.py
+    - glassbox/org_routes.py
+    - glassbox/auth_routes.py
     - templates/signup.html
     - templates/org_admin.html
 
@@ -137,8 +137,8 @@ Each task was committed atomically:
 **Plan metadata:** (this commit)
 
 ## Files Created/Modified
-- `webvulnscanner/org_routes.py` - `generate_invite_token(org_id, role, email)`, `decode_invite_token(token, expected_email=None)`, `invite()` hoists the normalized email into one local reused for the token and the send, module docstring rewritten
-- `webvulnscanner/auth_routes.py` - `signup()` gained the invite-mode branch (decode/re-decode, org/role assignment, degrade paths)
+- `glassbox/org_routes.py` - `generate_invite_token(org_id, role, email)`, `decode_invite_token(token, expected_email=None)`, `invite()` hoists the normalized email into one local reused for the token and the send, module docstring rewritten
+- `glassbox/auth_routes.py` - `signup()` gained the invite-mode branch (decode/re-decode, org/role assignment, degrade paths)
 - `templates/signup.html` - invite-mode conditional: locked/pre-filled email, no org-name field, invite param carried through the form action
 - `templates/org_admin.html` - invite-form helper copy corrected to describe the flow that now exists
 - `tests/test_org_invite.py` - token unit tests, end-to-end invite→signup→membership tests, failure-path tests (tampered/expired/cross-org/case), authorization/validation tests
@@ -163,7 +163,7 @@ None - no external service configuration required.
 
 ## Next Phase Readiness
 - HARD-03 is fully closed: the invite flow is finished, email-bound, and end-to-end tested; the domain-verification flow has automated coverage with zero production-code changes.
-- `webvulnscanner/domain_verification.py` remains unmodified, confirmed via a `git diff --name-only` check in Task 3's acceptance criteria.
+- `glassbox/domain_verification.py` remains unmodified, confirmed via a `git diff --name-only` check in Task 3's acceptance criteria.
 - Full suite: 323/323 passing (baseline before this plan was 260 per the plan's `<verification>` block; 04-01/04-02 landed first bringing it to 292; this plan added 31 tests net across two new files, minus a handful that were split/consolidated during authoring, landing at 323).
 - No blockers for 04-04/04-05 (wave 2/3 of Phase 4) — this plan's file scope (org_routes.py, auth_routes.py, signup.html, org_admin.html, two new test files) does not overlap either.
 

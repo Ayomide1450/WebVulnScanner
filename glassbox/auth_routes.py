@@ -22,8 +22,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from wtforms import BooleanField, PasswordField, StringField
 from wtforms.validators import DataRequired, Email, EqualTo, Length, Optional
 
-from webvulnscanner.extensions import db, limiter
-from webvulnscanner.models import Organization, PasswordReset, Plan, Role, SSOConfiguration, User
+from glassbox.extensions import db, limiter
+from glassbox.models import Organization, PasswordReset, Plan, Role, SSOConfiguration, User
 
 auth = Blueprint("auth", __name__)
 
@@ -149,7 +149,7 @@ def signup():
     # here (rather than at the top of the file) keeps the dependency
     # direction obvious: auth_routes reaches into org_routes for the token
     # codec, not the other way around.
-    from webvulnscanner.org_routes import decode_invite_token
+    from glassbox.org_routes import decode_invite_token
 
     invite_token = request.args.get("invite")
     # An already-logged-in user hitting a bare /signup shouldn't see the

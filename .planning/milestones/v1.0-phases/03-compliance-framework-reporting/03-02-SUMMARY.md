@@ -10,7 +10,7 @@ requires:
     provides: "Finding.check_name field, CHECK_COMPLIANCE dict, and the inline
       compliance pill already wired into scan_report()'s render context"
 provides:
-  - "GROUPING_MODES allowlist tuple (webvulnscanner/scan_routes.py) - only
+  - "GROUPING_MODES allowlist tuple (glassbox/scan_routes.py) - only
     'severity'/'compliance' ever reach render_template() or the page"
   - "group_findings_by_compliance(findings, mapping) pure helper - buckets
     findings by OWASP category, Uncategorized always last, preserves arrival
@@ -49,7 +49,7 @@ tech-stack:
 key-files:
   created: []
   modified:
-    - webvulnscanner/scan_routes.py
+    - glassbox/scan_routes.py
     - templates/scan_report.html
     - tests/test_compliance.py
 
@@ -209,7 +209,7 @@ allowlisted `?group=` query parameter.**
 - **Duration:** ~30 min active work
 - **Completed:** 2026-08-11
 - **Tasks:** 2 (both `type="auto"`, no checkpoints)
-- **Files modified:** 3 (`webvulnscanner/scan_routes.py`, `templates/scan_report.html`,
+- **Files modified:** 3 (`glassbox/scan_routes.py`, `templates/scan_report.html`,
   `tests/test_compliance.py`)
 
 ## Accomplishments
@@ -251,7 +251,7 @@ Each task was committed atomically:
 
 ## Files Created/Modified
 
-- `webvulnscanner/scan_routes.py` — `GROUPING_MODES` allowlist, `group_findings_by_compliance()`
+- `glassbox/scan_routes.py` — `GROUPING_MODES` allowlist, `group_findings_by_compliance()`
   helper, `scan_report()` coerces `?group=` and computes `compliance_groups` only in compliance
   mode
 - `templates/scan_report.html` — `finding_card(f)` macro, "Group by:" toggle control + page-scoped
@@ -277,7 +277,7 @@ Jinja `sort(attribute=...)` loop).
 ## Issues Encountered
 
 None — the ambient `python` interpreter lacks `pytest`; ran the suite against the documented
-`.venv` at the main repo checkout (`C:\Users\Arktech_Designs\Documents\WebVulnScanner\.venv\Scripts\python.exe`),
+`.venv` at the main repo checkout (`C:\Users\Arktech_Designs\Documents\Glassbox\.venv\Scripts\python.exe`),
 same convention plan 03-01 already established for this worktree.
 
 ## User Setup Required
@@ -296,7 +296,7 @@ findings by OWASP category outside the report page itself. No blockers.
 
 ## Self-Check: PASSED
 
-- FOUND: `webvulnscanner/scan_routes.py`
+- FOUND: `glassbox/scan_routes.py`
 - FOUND: `templates/scan_report.html`
 - FOUND: `tests/test_compliance.py`
 - FOUND: `.planning/phases/03-compliance-framework-reporting/03-02-SUMMARY.md`

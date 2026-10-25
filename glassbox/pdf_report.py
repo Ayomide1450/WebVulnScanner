@@ -33,8 +33,8 @@ import re
 
 from jinja2 import Environment, FileSystemLoader
 
-from webvulnscanner.checks import CHECK_LABELS
-from webvulnscanner.utils import safe_filename
+from glassbox.checks import CHECK_LABELS
+from glassbox.utils import safe_filename
 
 PDF_MIMETYPE = "application/pdf"
 PDF_RENDER_TIMEOUT = 30

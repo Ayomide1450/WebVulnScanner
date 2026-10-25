@@ -29,8 +29,8 @@ from onelogin.saml2.auth import OneLogin_Saml2_Auth
 from onelogin.saml2.errors import OneLogin_Saml2_ValidationError
 from onelogin.saml2.settings import OneLogin_Saml2_Settings
 
-from webvulnscanner.extensions import db, csrf, limiter
-from webvulnscanner.models import (
+from glassbox.extensions import db, csrf, limiter
+from glassbox.models import (
     DomainVerification, Organization, SSOConfiguration, User,
 )
 
@@ -65,7 +65,7 @@ def _email_domain_is_verified(email, org_id):
 
 def _ssrf_safe_url(url):
     """Return True if the URL's hostname passes the SSRF guard."""
-    from webvulnscanner.checks import is_ssrf_safe_hostname
+    from glassbox.checks import is_ssrf_safe_hostname
     try:
         parsed = urlparse(url)
         hostname = parsed.hostname

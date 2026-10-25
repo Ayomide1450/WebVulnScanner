@@ -1,5 +1,5 @@
 """
-Tests for webvulnscanner/entitlements.py - the single place that gates which
+Tests for glassbox/entitlements.py - the single place that gates which
 checks a scan is allowed to run by plan tier (Free / Paid / Org-verified),
 plus the domain-ownership check that gates the intrusive checks on top of
 tier alone. See CLAUDE.md's "entitlements.py" row and
@@ -15,14 +15,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from webvulnscanner.entitlements import (
+from glassbox.entitlements import (
     FEATURE_REQUIREMENTS,
     Tier,
     allowed_checks,
     domain_is_org_verified,
     effective_tier,
 )
-from webvulnscanner.models import Plan
+from glassbox.models import Plan
 
 from tests.conftest import make_org, make_user
 
@@ -47,7 +47,7 @@ def test_tier_ordering():
 # --------------------------------------------------------------------------
 
 def _run_scan_job_names():
-    src = Path(__file__).resolve().parent.parent / "webvulnscanner" / "scan_engine.py"
+    src = Path(__file__).resolve().parent.parent / "glassbox" / "scan_engine.py"
     text = src.read_text(encoding="utf-8")
     # Slice out just the `jobs = { ... }` block inside run_scan (the first
     # occurrence - run_advanced_scan doesn't use a jobs dict, it branches
@@ -185,8 +185,8 @@ def test_domain_is_org_verified_no_row_is_false(db):
 
 
 def test_domain_is_org_verified_pending_row_is_false(db):
-    from webvulnscanner.extensions import db as _db
-    from webvulnscanner.models import DomainVerification, VerifyMethod
+    from glassbox.extensions import db as _db
+    from glassbox.models import DomainVerification, VerifyMethod
 
     org = make_org()
     _db.session.add(DomainVerification(
@@ -200,8 +200,8 @@ def test_domain_is_org_verified_pending_row_is_false(db):
 def test_domain_is_org_verified_verified_row_is_true(db):
     from datetime import datetime, timezone
 
-    from webvulnscanner.extensions import db as _db
-    from webvulnscanner.models import DomainVerification, VerifyMethod
+    from glassbox.extensions import db as _db
+    from glassbox.models import DomainVerification, VerifyMethod
 
     org = make_org()
     _db.session.add(DomainVerification(
@@ -215,8 +215,8 @@ def test_domain_is_org_verified_verified_row_is_true(db):
 def test_domain_is_org_verified_hostname_is_case_and_port_insensitive(db):
     from datetime import datetime, timezone
 
-    from webvulnscanner.extensions import db as _db
-    from webvulnscanner.models import DomainVerification, VerifyMethod
+    from glassbox.extensions import db as _db
+    from glassbox.models import DomainVerification, VerifyMethod
 
     org = make_org()
     _db.session.add(DomainVerification(
@@ -234,8 +234,8 @@ def test_domain_is_org_verified_does_not_leak_across_orgs(db):
     # they don't own just by matching hostnames.
     from datetime import datetime, timezone
 
-    from webvulnscanner.extensions import db as _db
-    from webvulnscanner.models import DomainVerification, VerifyMethod
+    from glassbox.extensions import db as _db
+    from glassbox.models import DomainVerification, VerifyMethod
 
     org_a = make_org(name="Org A")
     org_b = make_org(name="Org B")

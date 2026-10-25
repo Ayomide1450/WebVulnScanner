@@ -9,8 +9,8 @@ by line without loading the entire document.
 """
 import json
 
-from webvulnscanner.utils import safe_filename
-from webvulnscanner.webhooks import _load_report
+from glassbox.utils import safe_filename
+from glassbox.webhooks import _load_report
 
 
 # Fields emitted per finding.  Order matters for downstream parsers that

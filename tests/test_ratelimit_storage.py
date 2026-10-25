@@ -3,8 +3,8 @@ HARD-01's proof: rate limits actually enforce correctly across more than one
 gunicorn worker, once RATELIMIT_STORAGE_URI is pointed at a shared backend.
 
 This module deliberately builds bare `flask.Flask` + `flask_limiter.Limiter`
-instances in-test, instead of going through `webvulnscanner.create_app()`.
-`webvulnscanner.extensions.limiter` is a module-level singleton reused via
+instances in-test, instead of going through `glassbox.create_app()`.
+`glassbox.extensions.limiter` is a module-level singleton reused via
 `.init_app(app)` by every `create_app()` call in one process (04-RESEARCH.md
 Pitfall 1; also documented in tests/test_auth_flows.py's
 test_login_rate_limit_is_enforced). A test built on that shared object would
@@ -33,7 +33,7 @@ from flask_limiter import Limiter
 from flask_limiter.constants import ConfigVars
 from flask_limiter.util import get_remote_address
 
-from webvulnscanner.config import Config
+from glassbox.config import Config
 
 
 def _make_limited_client(storage_uri):

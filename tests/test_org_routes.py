@@ -1,8 +1,8 @@
 """Tests for org_routes.py's org_admin page: member/domain pill rendering,
 the domain-deletion request/approve/reject workflow, and pending-invitation
 resend/revoke."""
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import DomainVerification, Invitation, InvitationStatus, OrgAuditEvent, Role, VerifyMethod
+from glassbox.extensions import db as _db
+from glassbox.models import DomainVerification, Invitation, InvitationStatus, OrgAuditEvent, Role, VerifyMethod
 from tests.conftest import login, make_org, make_user
 
 
@@ -133,7 +133,7 @@ def test_platform_admin_can_approve_deletion_for_an_org_they_dont_belong_to(clie
     make_user("admin@example.com", org=org, role=Role.ORG_ADMIN)
     # No org_id at all - a platform admin need not belong to any org.
     make_user("staff@example.com", org=None)
-    from webvulnscanner.models import User
+    from glassbox.models import User
     staff = User.query.filter_by(email="staff@example.com").first()
     staff.is_platform_admin = True
     dv = _make_domain(org)

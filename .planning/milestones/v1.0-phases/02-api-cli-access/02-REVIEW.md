@@ -14,12 +14,12 @@ files_reviewed_list:
   - tests/test_api_routes.py
   - tests/test_api_tokens_routes.py
   - tests/test_cli.py
-  - webvulnscanner/__init__.py
-  - webvulnscanner/api_routes.py
-  - webvulnscanner/api_tokens_routes.py
-  - webvulnscanner/extensions.py
-  - webvulnscanner/models.py
-  - webvulnscanner/scheduler.py
+  - glassbox/__init__.py
+  - glassbox/api_routes.py
+  - glassbox/api_tokens_routes.py
+  - glassbox/extensions.py
+  - glassbox/models.py
+  - glassbox/scheduler.py
 findings:
   critical: 1
   warning: 4
@@ -65,14 +65,14 @@ this file is *not* a bug, despite looking suspicious at a glance.
 
 ### CR-01: Bearer-token auth is not scoped to `/api/v1/*` — a leaked token grants full-app session-equivalent access, unthrottled by the API's rate limits
 
-**File:** `webvulnscanner/extensions.py:57-83`, `webvulnscanner/__init__.py:132-138`
+**File:** `glassbox/extensions.py:57-83`, `glassbox/__init__.py:132-138`
 **Issue:**
 `load_user_from_request` (the `login_manager.request_loader` callback) is registered once,
 globally, on `login_manager` in `extensions.py`. Flask-Login's `request_loader` mechanism is
 invoked for **every** request that reaches a `current_user.is_authenticated` check with no
 session-authenticated user — this is not scoped to the `api` blueprint in any way (no
 `request.blueprint` / `request.path` check inside `load_user_from_request`, and no
-`before_request` guard registered anywhere in `webvulnscanner/__init__.py`).
+`before_request` guard registered anywhere in `glassbox/__init__.py`).
 
 Every other blueprint in the app (`asset`, `scan`, `org`, `billing`, `api_tokens`, ...) protects
 its routes with plain `@login_required`, which only checks `current_user.is_authenticated` —
@@ -124,7 +124,7 @@ valid `Authorization: Bearer <token>` header and no session cookie returns a red
 
 ### WR-01: `trigger_scan`/`fetch_report` don't exclude soft-deleted Assets
 
-**File:** `webvulnscanner/api_routes.py:111-130`, `webvulnscanner/api_routes.py:133-162`
+**File:** `glassbox/api_routes.py:111-130`, `glassbox/api_routes.py:133-162`
 **Issue:** Both routes look the target up with `Asset.query.get_or_404(asset_id)` /
 `Scan.query.get_or_404(scan_id)` and then call `_check_asset_access(a)` (imported from
 `asset_routes.py`), which checks org/solo ownership but never checks `Asset.deleted_at`. The
@@ -153,7 +153,7 @@ if the linked Asset has been deleted).
 
 ### WR-02: `fetch_report`'s file read isn't guarded — a missing/corrupt report file 500s with an HTML body, not JSON
 
-**File:** `webvulnscanner/api_routes.py:156-162`
+**File:** `glassbox/api_routes.py:156-162`
 **Issue:**
 ```python
 with open(os.path.join(REPORTS_DIR, s.report.json_path), encoding="utf-8") as f:
@@ -165,7 +165,7 @@ a redeploy/restart, or it was manually cleaned up) or contains malformed JSON, t
 Unlike 404s (`@api.errorhandler(404)` exists specifically so `abort(404)`/`get_or_404()` return
 JSON instead of falling through to the app's HTML 404 page), there is no `@api.errorhandler(500)`
 here, so the request falls through to the global `@app.errorhandler(500)` in
-`webvulnscanner/__init__.py`, which renders `500.html` — an HTML page returned to what the
+`glassbox/__init__.py`, which renders `500.html` — an HTML page returned to what the
 CLI/scripts expect to always be a JSON response, breaking `_raise_for_error_response`'s parsing
 in `cli/wvs.py` (it degrades to raw HTML text, not a clean error message, but at least doesn't
 crash the CLI outright).
@@ -218,7 +218,7 @@ if not api_url:
 
 ### IN-01: `POST /tokens/new` has no rate limit
 
-**File:** `webvulnscanner/api_tokens_routes.py:39-65`
+**File:** `glassbox/api_tokens_routes.py:39-65`
 **Issue:** Unlike the careful per-route rate limiting this phase applies to `/api/v1/*`
 (`_api_rate_limit_key`, 60/30 per minute) and the app's pre-existing `/login`/`/signup` limits,
 `create_token` has no `@limiter.limit(...)`. A compromised session or a buggy automation script
@@ -243,7 +243,7 @@ instead of the clean `click.ClickException` the rest of the module is careful to
 
 ### IN-03: `_serialize_asset` issues one extra query per Asset (N+1)
 
-**File:** `webvulnscanner/api_routes.py:87-100`
+**File:** `glassbox/api_routes.py:87-100`
 **Issue:** `list_assets` calls `_serialize_asset(a)` once per Asset in the result set, and each
 call does its own `Scan.query.filter_by(asset_id=a.id).order_by(...).first()` — an N+1 query
 pattern. Flagged for awareness only; per the review's scope, performance issues are out of v1

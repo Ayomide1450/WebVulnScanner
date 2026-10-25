@@ -22,8 +22,8 @@ from flask_wtf import FlaskForm
 from wtforms import IntegerField, SelectField, StringField, TextAreaField
 from wtforms.validators import DataRequired, Email, NumberRange, Optional
 
-from webvulnscanner.extensions import db, limiter
-from webvulnscanner.models import AssessmentRequest, AssessmentType
+from glassbox.extensions import db, limiter
+from glassbox.models import AssessmentRequest, AssessmentType
 
 assessment = Blueprint("assessment", __name__, url_prefix="/assessment")
 

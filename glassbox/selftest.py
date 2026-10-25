@@ -48,7 +48,7 @@ from urllib.parse import parse_qs, urlparse
 import requests
 from jinja2 import Template
 
-from webvulnscanner.checks import (
+from glassbox.checks import (
     check_cache_deception,
     check_crlf_injection,
     check_csrf_posture,

@@ -8,12 +8,12 @@
 - Issue: `CLAUDE.md` (lines 37-43) documents that the project moved from `db.create_all()`-only
   schema management to Alembic via Flask-Migrate (`migrations/`, one baseline revision:
   `migrations/versions/4621b1837a3f_baseline_schema.py`). However, `models.py` still carries
-  docstrings written under the old constraint: `PasswordReset` (`webvulnscanner/models.py:103-107`)
+  docstrings written under the old constraint: `PasswordReset` (`glassbox/models.py:103-107`)
   says it's "its own table rather than a column on User... added after the app already had a live
   database, and `db.create_all()` can only create new tables, never ALTER an existing one," and
-  `ScanEvent` (`webvulnscanner/models.py:168-173`) repeats the same "db.create_all() only creates
+  `ScanEvent` (`glassbox/models.py:168-173`) repeats the same "db.create_all() only creates
   new tables" reasoning.
-- Files: `webvulnscanner/models.py:103-107`, `webvulnscanner/models.py:168-173`
+- Files: `glassbox/models.py:103-107`, `glassbox/models.py:168-173`
 - Impact: A future contributor reading these docstrings could conclude that ALTERing an existing
   table is still unsafe/impossible, and add an unnecessary new table instead of a proper Alembic
   migration for what should now be a normal `flask db migrate` column addition.
@@ -24,13 +24,13 @@
 
 **README.md and PRODUCT.md are out of sync with the current migrations-based schema model:**
 - Issue: `README.md:100-101` states "SQLite tables are created automatically on first run
-  (`webvulnscanner.db`)" — no mention of `flask db upgrade`. `PRODUCT.md:57-58` states "No
+  (`glassbox.db`)" — no mention of `flask db upgrade`. `PRODUCT.md:57-58` states "No
   migrations system: `models.py` uses `db.create_all()` only. Adding a column to an existing
   table won't apply to a live DB — schema changes require a new table." Both directly contradict
-  `CLAUDE.md:37-43`'s documented Alembic/Flask-Migrate setup and `webvulnscanner/__init__.py:119`'s
+  `CLAUDE.md:37-43`'s documented Alembic/Flask-Migrate setup and `glassbox/__init__.py:119`'s
   comment that schema is intentionally *not* created implicitly via `db.create_all()` anymore.
 - Files: `README.md:100-101`, `PRODUCT.md:57-58`, contradicted by `CLAUDE.md:37-43` and
-  `webvulnscanner/__init__.py:119`
+  `glassbox/__init__.py:119`
 - Impact: A new developer following README setup steps will not run `flask db upgrade` and will
   hit a database with no tables (SQLite) or fail entirely (Postgres, where `create_all()` is
   never called at all per `__init__.py:119`).
@@ -43,8 +43,8 @@
   `scan_routes.py`/`scan_engine.py`/`checks.py` as running "the three scan orchestrators," while
   `CLAUDE.md:107-108` and `docs/vercel-migration.md:42-43` both confirm there are now four
   (`run_scan`/`run_advanced_scan`/`run_media_scan`/`run_api_scan`). The `models.py` row also omits
-  `ScanEvent`, which is a real table (`webvulnscanner/models.py:168-190`).
-- Files: `README.md:36-44` vs `webvulnscanner/scan_engine.py`, `webvulnscanner/models.py`
+  `ScanEvent`, which is a real table (`glassbox/models.py:168-190`).
+- Files: `README.md:36-44` vs `glassbox/scan_engine.py`, `glassbox/models.py`
 - Impact: Low — cosmetic/doc-accuracy only, but compounds the migrations doc-drift above as a
   sign README isn't kept current with `CLAUDE.md`/code changes.
 - Fix approach: Sync the README architecture table with `CLAUDE.md`'s module table the next time
@@ -54,7 +54,7 @@
 - Issue: `CLAUDE.md:192-198` documents that the 100-minus-severity-weights → letter-grade →
   `severity_counts` scoring block "is duplicated four times in `scan_engine.py` (`run_scan`,
   `run_media_scan`, `run_advanced_scan`, `run_api_scan`) rather than shared."
-- Files: `webvulnscanner/scan_engine.py` (all four orchestrator functions)
+- Files: `glassbox/scan_engine.py` (all four orchestrator functions)
 - Impact: Any change to the scoring formula (severity weights, grade thresholds) must be applied
   in four places by hand; a partial update silently produces inconsistent grading between scan
   types.
@@ -66,7 +66,7 @@
   `progress_cb` parameter at all — their scan-progress pages "degrade to the plain
   bar/status-line-only view," and extending the live feed to them is explicitly called out as
   "a deferred, separate piece of work."
-- Files: `webvulnscanner/scan_engine.py` (three orchestrators), `templates/scan_progress.html`
+- Files: `glassbox/scan_engine.py` (three orchestrators), `templates/scan_progress.html`
 - Impact: User-facing inconsistency — three of four scan types give substantially worse
   real-time feedback than the base scan.
 - Fix approach: Give each remaining orchestrator the same `jobs`-dict + `ThreadPoolExecutor` +
@@ -96,18 +96,18 @@
 ## Known Bugs
 
 Not detected — no open bug reports, `TODO`/`FIXME`/`HACK`/`XXX` markers exist anywhere in
-`webvulnscanner/`, `templates/`, `tests/`, or `scripts/` (verified via repo-wide grep). All
+`glassbox/`, `templates/`, `tests/`, or `scripts/` (verified via repo-wide grep). All
 caveats found are pre-documented design limitations (see other sections) rather than acknowledged
 bugs.
 
 ## Security Considerations
 
 **SSRF guard is submission-time only, does not protect against DNS rebinding:**
-- Risk: `CLAUDE.md:231-235` and `webvulnscanner/scan_routes.py` document that
+- Risk: `CLAUDE.md:231-235` and `glassbox/scan_routes.py` document that
   `checks.is_ssrf_safe_hostname()` resolves the target hostname once at scan-submission time and
   rejects private/loopback/link-local/reserved/multicast addresses, but "it does not pin the
   resolved IP for the actual scan request, so it does not protect against DNS rebinding."
-- Files: `webvulnscanner/checks.py` (`is_ssrf_safe_hostname`), `webvulnscanner/scan_routes.py`
+- Files: `glassbox/checks.py` (`is_ssrf_safe_hostname`), `glassbox/scan_routes.py`
   (call sites in every `new_scan_*` route)
 - Current mitigation: Submission-time hostname-class rejection; `tests/test_ssrf_guard.py`
   covers the address-class matrix via mocked `socket.getaddrinfo`.
@@ -116,7 +116,7 @@ bugs.
   is ever required — currently explicitly out of scope, not a regression.
 
 **In-memory rate limiting is not multi-worker-safe:**
-- Risk: `CLAUDE.md:242-245` and `webvulnscanner/extensions.py:24-28` both flag that
+- Risk: `CLAUDE.md:242-245` and `glassbox/extensions.py:24-28` both flag that
   `flask_limiter.Limiter`'s in-memory storage is "fine for the current single dev-server-process
   reality, not multi-worker-safe." `Procfile`/`render.yaml` currently run gunicorn with
   `--workers 1 --threads 4`, so the limitation is latent, not currently triggered — but any future
@@ -124,7 +124,7 @@ bugs.
   process) silently breaks `/login` (10/min), `/signup` (5/hour), and invoice
   create/verify (10/hour, 30/hour) rate limits, since counters wouldn't be shared across
   processes.
-- Files: `webvulnscanner/extensions.py:24-29`, `Procfile`, `render.yaml`
+- Files: `glassbox/extensions.py:24-29`, `Procfile`, `render.yaml`
 - Current mitigation: Single-worker deployment keeps counters process-global; documented as a
   known constraint in code comments.
 - Recommendations: Switch `Limiter`'s `storage_uri` to a shared backend (e.g. Redis) before ever
@@ -134,7 +134,7 @@ bugs.
 - Risk: `CLAUDE.md:266-272` notes that finding `detail`/`title` text can contain content drawn
   directly from the scanned site's own HTTP responses (header values, secret snippets, probe
   output) — not fully trusted input, even for an authorized target.
-- Files: `webvulnscanner/ai_summary.py` (`SYSTEM_PROMPT`, `generate_remediation_summary`)
+- Files: `glassbox/ai_summary.py` (`SYSTEM_PROMPT`, `generate_remediation_summary`)
 - Current mitigation: `SYSTEM_PROMPT` frames all finding data as data-to-summarize inside
   `<findings>` delimiters, never as instructions to follow; the model's output is read-only
   report text with no tool-use attached, bounding a successful prompt injection to "a wrong
@@ -154,7 +154,7 @@ bottleneck in the current single-worker deployment.
 ## Fragile Areas
 
 **Background scan threads share the request-thread's SQLite connection pool:**
-- Files: `webvulnscanner/scan_routes.py:82-90` (`_run_scan_in_background`), `webvulnscanner/config.py:55-72`
+- Files: `glassbox/scan_routes.py:82-90` (`_run_scan_in_background`), `glassbox/config.py:55-72`
 - Why fragile: Each submitted scan spawns a daemon `threading.Thread` that writes `Scan`/
   `ScanEvent`/`Report` rows through the same SQLite connection pool as the HTTP request thread
   that spawned it — `scan_routes.py:87-89` documents this explicitly requires
@@ -176,7 +176,7 @@ bottleneck in the current single-worker deployment.
 
 **Scan execution model is fundamentally incompatible with serverless deployment:**
 - Files: `docs/vercel-migration.md` (whole document), `api/index.py`, `vercel.json`,
-  `webvulnscanner/scan_routes.py`, `webvulnscanner/scan_engine.py`
+  `glassbox/scan_routes.py`, `glassbox/scan_engine.py`
 - Why fragile: `docs/vercel-migration.md:9-27` documents three specific incompatibilities: (1)
   scans run on a raw daemon `threading.Thread` spawned from the request handler that keeps
   running after the HTTP response returns — a serverless function is frozen/torn down once it
@@ -194,8 +194,8 @@ bottleneck in the current single-worker deployment.
   app is currently deployed via Render/gunicorn per `render.yaml`/`Procfile`, not Vercel).
 
 **Crypto invoice amount-collision handling is probabilistic, not exhaustively verified:**
-- Files: `webvulnscanner/billing.py` (`create_invoice()`, `MAX_OFFSET_COLLISION_RETRIES`),
-  `webvulnscanner/models.py` (`CryptoInvoice.matched_tx_hash` unique constraint)
+- Files: `glassbox/billing.py` (`create_invoice()`, `MAX_OFFSET_COLLISION_RETRIES`),
+  `glassbox/models.py` (`CryptoInvoice.matched_tx_hash` unique constraint)
 - Why fragile: `CLAUDE.md:246-250` documents that `create_invoice()` re-rolls its random
   amount-offset "up to `MAX_OFFSET_COLLISION_RETRIES` times" if it collides with another
   `PENDING` invoice's `expected_amount` for the same plan, since `verify_invoice()` "matches
@@ -229,7 +229,7 @@ bottleneck in the current single-worker deployment.
 - Limit: See "In-memory rate limiting is not multi-worker-safe" above — counters are
   process-local, so scaling workers/processes silently multiplies the effective rate limit
   (or resets it per-process on serverless).
-- Scaling path: `webvulnscanner/extensions.py:28` states directly: "Switch `storage_uri` to a
+- Scaling path: `glassbox/extensions.py:28` states directly: "Switch `storage_uri` to a
   shared backend (e.g. Redis) if that changes."
 
 ## Dependencies at Risk
@@ -259,7 +259,7 @@ These are documented, acknowledged product gaps rather than accidental omissions
   "Explicitly undecided / open per project history, not to be treated as settled... These are
   acknowledged gaps, not commitments."
 - Blocks: Third-party or user-authored custom checks; every check currently lives as a hardcoded
-  function in `webvulnscanner/checks.py`.
+  function in `glassbox/checks.py`.
 
 **No compliance-framework mapping:**
 - Problem: `PRODUCT.md:60` lists "compliance-framework mapping (OWASP ASVS/Top 10/PCI-DSS)" as
@@ -284,7 +284,7 @@ These are documented, acknowledged product gaps rather than accidental omissions
   tests). By contrast, `run_scan()` (base scans) has dedicated coverage in
   `tests/test_scan_events.py` (338 lines) for its `progress_cb` call sequence, `ScanEvent`
   writes, and SSE serialization.
-- Files: `webvulnscanner/scan_engine.py` (`run_advanced_scan`, `run_media_scan`, `run_api_scan`)
+- Files: `glassbox/scan_engine.py` (`run_advanced_scan`, `run_media_scan`, `run_api_scan`)
 - Risk: Regressions in the advanced/media/api scan pipelines — e.g. the duplicated scoring logic
   described above, or scan-status/error-handling behavior — would not be caught by the test
   suite; only entitlement-gating around them is verified.
@@ -297,7 +297,7 @@ These are documented, acknowledged product gaps rather than accidental omissions
   verification pill rendering on `/org/admin`). By comparison, `auth_routes.py` has 414 lines of
   tests (`tests/test_auth_flows.py`) and billing has 259 + 58 lines
   (`tests/test_billing.py`/`tests/test_billing_routes.py`).
-- Files: `webvulnscanner/org_routes.py` (193 lines), `webvulnscanner/domain_verification.py`
+- Files: `glassbox/org_routes.py` (193 lines), `glassbox/domain_verification.py`
   (120 lines)
 - Risk: Org invite flows, member-role changes, and domain-verification submission/status logic
   in `org_routes.py`/`domain_verification.py` have no visible regression coverage beyond the one

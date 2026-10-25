@@ -12,9 +12,9 @@ from datetime import timedelta
 
 import pytest
 
-from webvulnscanner.audit import MAX_AUDIT_EVENTS_PER_ORG, ORG_AUDIT_EVENT_LABELS
-from webvulnscanner.extensions import db
-from webvulnscanner.models import OrgAuditEvent, Role
+from glassbox.audit import MAX_AUDIT_EVENTS_PER_ORG, ORG_AUDIT_EVENT_LABELS
+from glassbox.extensions import db
+from glassbox.models import OrgAuditEvent, Role
 
 from tests.conftest import login, make_org, make_user
 
@@ -25,7 +25,7 @@ from tests.conftest import login, make_org, make_user
 
 class TestNoMutatingRoutes:
     def test_org_audit_events_has_no_update_or_delete_routes(self):
-        from webvulnscanner import create_app
+        from glassbox import create_app
         from tests.conftest import TestConfig
         app = create_app(TestConfig)
         mutating_methods = {"PUT", "PATCH", "DELETE"}
@@ -123,7 +123,7 @@ class TestAuditLogPage:
         assert "/login" in resp.headers["Location"]
 
     def test_pagination(self, client, db):
-        from webvulnscanner.org_routes import AUDIT_PER_PAGE
+        from glassbox.org_routes import AUDIT_PER_PAGE
 
         org = make_org()
         user = make_user("audit-page@example.com", org=org, role=Role.ORG_ADMIN)
@@ -238,14 +238,14 @@ def test_audit_log_cross_org_is_404():
     org's (empty) events — no data leak.  We seed org1 with events and
     assert none appear when the rival (org2) loads the page."""
     import uuid
-    from webvulnscanner import create_app
+    from glassbox import create_app
     from tests.conftest import TestConfig
 
     app = create_app(TestConfig)
     uid = uuid.uuid4().hex[:8]
     with app.test_client() as client:
         with app.app_context():
-            from webvulnscanner.models import Organization, User
+            from glassbox.models import Organization, User
             org1 = Organization(name=f"Victim-{uid}")
             org2 = Organization(name=f"Attacker-{uid}")
             db.session.add_all([org1, org2])

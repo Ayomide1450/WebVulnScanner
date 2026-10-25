@@ -1,7 +1,7 @@
 # Glassbox Rebrand — Design Spec
 
 **Status:** Approved for planning. Implementation deliberately deferred until v1.1
-(Phases 6-9 on the current WebVulnScanner identity) closes — see "Sequencing" below.
+(Phases 6-9 on the current Glassbox identity) closes — see "Sequencing" below.
 
 ## 1. Product identity
 
@@ -110,7 +110,7 @@ columns, template filenames) are unaffected unless explicitly listed.
 
 | Old (user-facing) | New (user-facing) |
 |---|---|
-| WebVulnScanner (brand name, everywhere) | Glassbox |
+| Glassbox (brand name, everywhere) | Glassbox |
 | New Scan / Run Scan (button/CTA copy) | Run Assessment |
 | Scan History | Security History |
 | Scan Results / Scan Report (page heading) | Findings |
@@ -154,7 +154,7 @@ structural IA changes are called out; everything else is copy-only.
 - `README.md` — full rewrite under the new identity (name, description, problem
   statement, target users, core capabilities, architecture, security model, domain
   ownership verification, assessment engine, reporting, dev setup, env vars, testing,
-  deployment, project structure). No leftover "WebVulnScanner"/"website scanner"
+  deployment, project structure). No leftover "Glassbox"/"website scanner"
   framing.
 - Page `<title>`/Open Graph metadata, favicon references
 - Email templates (verify-email, password-reset, org-invite) — brand name + tone pass
@@ -163,7 +163,7 @@ structural IA changes are called out; everything else is copy-only.
 
 ## 8. Final repository-wide check (part of implementation, not this spec)
 
-Once implemented: search the full repo for `WebVulnScanner`/`webvulnscanner`/`scanner`
+Once implemented: search the full repo for `Glassbox`/`glassbox`/`scanner`
 and triage every hit — legitimate internal/technical uses (Python package name,
 `.venv` paths, git history, code comments describing internal mechanics) are left
 alone; user-facing strings are not. Full test suite, and a repeat of this session's

@@ -1,7 +1,7 @@
-"""Tests for webvulnscanner/email_stub.py's ResendEmailSender."""
+"""Tests for glassbox/email_stub.py's ResendEmailSender."""
 import pytest
 
-from webvulnscanner.email_stub import ConsoleEmailSender, ResendEmailSender, make_email_sender
+from glassbox.email_stub import ConsoleEmailSender, ResendEmailSender, make_email_sender
 
 
 def test_resend_sender_requires_api_key():
@@ -25,7 +25,7 @@ def test_resend_sender_posts_to_resend_api(monkeypatch):
         calls.append((url, headers, json, timeout))
         return FakeResp()
 
-    monkeypatch.setattr("webvulnscanner.email_stub.requests.post", fake_post)
+    monkeypatch.setattr("glassbox.email_stub.requests.post", fake_post)
 
     sender = ResendEmailSender(api_key="re_test", from_address="noreply@example.com")
     sender.send(to="user@example.com", subject="Verify", body="click here")

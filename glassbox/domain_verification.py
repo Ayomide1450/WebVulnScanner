@@ -2,7 +2,7 @@
 Domain-ownership verification (Workstream 6).
 
 Two proof methods, mirroring how `checks.py` already talks to DNS/HTTP:
-- DNS TXT: a `webvulnscanner-verify=<token>` TXT record on the domain.
+- DNS TXT: a `glassbox-verify=<token>` TXT record on the domain.
 - well-known: an HTTP GET of `/.well-known/<token>.txt` returning the token.
 
 `verify_domain()` tries whichever `dv.method` is set on the row, and - like
@@ -28,8 +28,8 @@ from datetime import datetime, timezone
 import dns.resolver
 import requests
 
-from webvulnscanner.extensions import db
-from webvulnscanner.models import DomainVerification
+from glassbox.extensions import db
+from glassbox.models import DomainVerification
 
 # Local timeout for the well-known HTTP check. checks.py's REQUEST_TIMEOUT
 # (8s) is the established convention for outbound HTTP in this app; reused
@@ -63,7 +63,7 @@ def generate_verification(org_id, domain, method):
 
 
 def txt_record_value(dv):
-    return f"webvulnscanner-verify={dv.token}"
+    return f"glassbox-verify={dv.token}"
 
 
 def well_known_path_and_content(dv):
@@ -106,7 +106,7 @@ def verify_domain(dv):
     failure, returns False and leaves the row unchanged (a retry with a
     fixed record/file will succeed on a later call).
     """
-    from webvulnscanner.models import VerifyMethod
+    from glassbox.models import VerifyMethod
 
     if dv.method == VerifyMethod.DNS_TXT:
         ok = _verify_dns_txt(dv)

@@ -177,7 +177,7 @@ No other new packages are required — `requests`, Flask-Login, Flask-Limiter, F
 already direct dependencies.
 
 **Version verification:** Verified live against this project's own virtualenv
-(`C:\Users\Arktech_Designs\Documents\WebVulnScanner\.venv`), not just training-data versions:
+(`C:\Users\Arktech_Designs\Documents\Glassbox\.venv`), not just training-data versions:
 ```
 Flask-Login    0.6.3
 Flask-Limiter  4.1.1
@@ -263,7 +263,7 @@ above, since this is not a new, unvetted package being pulled in cold.
 
 ### Recommended Project Structure
 ```
-webvulnscanner/
+glassbox/
 ├── api_tokens_routes.py   # NEW - Blueprint "api_tokens": session-auth HTML CRUD (API-01)
 ├── api_routes.py          # NEW - Blueprint "api": token-auth JSON /api/v1/* (API-02..05)
 ├── extensions.py          # MODIFIED - add login_manager.request_loader
@@ -273,7 +273,7 @@ templates/
 ├── api_tokens.html        # NEW - token list + create form, dashboard.html table conventions
 migrations/versions/
 ├── <hash>_add_api_tokens_table.py   # NEW - op.create_table('api_tokens', ...)
-cli/                        # NEW top-level package, sibling to webvulnscanner/
+cli/                        # NEW top-level package, sibling to glassbox/
 ├── __init__.py
 ├── wvs.py                  # click entrypoint: login, assets list, scan start, report get
 tests/
@@ -294,7 +294,7 @@ variable, no forked authorization logic.
 **Example:**
 ```python
 # Source: flask-login.readthedocs.io/en/0.6.3/ (Request Loader Example) - adapted to this
-# project's hash-lookup token model. Add to webvulnscanner/extensions.py, near
+# project's hash-lookup token model. Add to glassbox/extensions.py, near
 # the existing @login_manager.user_loader.
 import hashlib
 
@@ -307,7 +307,7 @@ def load_user_from_request(request):
     if not raw_token:
         return None
 
-    from webvulnscanner.models import ApiToken
+    from glassbox.models import ApiToken
 
     token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
     row = ApiToken.query.filter_by(token_hash=token_hash, revoked_at=None).first()
@@ -329,7 +329,7 @@ to a login page).
 **When to use:** Every route in `api_routes.py`.
 **Example:**
 ```python
-# webvulnscanner/api_routes.py
+# glassbox/api_routes.py
 from functools import wraps
 from flask import Blueprint, current_app, g, jsonify, request
 from flask_login import current_user
@@ -352,7 +352,7 @@ identically for a browser-with-cookie hitting the API by accident and a CLI with
 
 ### Pattern 3: Reuse `scheduler._fire()` for on-demand (API-triggered) scans
 **What:** API-03 ("trigger a new scan against an existing Asset") is *exactly* what
-`scheduler._fire(asset)` (Phase 1, `webvulnscanner/scheduler.py:70-124`) already does — re-derive
+`scheduler._fire(asset)` (Phase 1, `glassbox/scheduler.py:70-124`) already does — re-derive
 tier fresh, re-check SSRF fresh, create the `Scan` row, dispatch via `_spawn_scan_thread`. The only
 gap: `_fire()` currently returns `None`; the API route needs the created `Scan`'s id/status to
 respond with. Recommend a **minimal, backward-compatible** change: have `_fire()` `return s` (or
@@ -361,10 +361,10 @@ return value, so this doesn't change any existing behavior.
 **When to use:** `POST /api/v1/assets/<id>/scans`.
 **Example:**
 ```python
-# webvulnscanner/api_routes.py
-from webvulnscanner.asset_routes import _check_asset_access
-from webvulnscanner.models import Asset
-from webvulnscanner.scheduler import _fire
+# glassbox/api_routes.py
+from glassbox.asset_routes import _check_asset_access
+from glassbox.models import Asset
+from glassbox.scheduler import _fire
 
 @api.route("/assets/<int:asset_id>/scans", methods=["POST"])
 @api_login_required
@@ -515,9 +515,9 @@ middleware on this route).
 
 ### `ApiToken` model
 ```python
-# Source: modeled directly on webvulnscanner/models.py's Asset class (soft-delete → soft-revoke
+# Source: modeled directly on glassbox/models.py's Asset class (soft-delete → soft-revoke
 # convention) and PasswordReset/DomainVerification's token-column precedent - verbatim column
-# types drawn from webvulnscanner/models.py:103-135 (PasswordReset/DomainVerification), read this
+# types drawn from glassbox/models.py:103-135 (PasswordReset/DomainVerification), read this
 # session.
 class ApiToken(db.Model):
     """A user-scoped, hash-only API token (Phase 2, API-01/D-01..D-04). Acts as the exact user
@@ -544,7 +544,7 @@ style Phase 1's `Asset` model already uses for `next_run_at`/`org_id`+`deleted_a
 
 ### Token creation route (API-01, web UI)
 ```python
-# webvulnscanner/api_tokens_routes.py - follows asset_routes.py's structure/docstring
+# glassbox/api_tokens_routes.py - follows asset_routes.py's structure/docstring
 # conventions (blueprint at module top, ownership helper, one route per action).
 import hashlib
 import secrets
@@ -553,8 +553,8 @@ from datetime import datetime, timezone
 from flask import Blueprint, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from webvulnscanner.extensions import db
-from webvulnscanner.models import ApiToken
+from glassbox.extensions import db
+from glassbox.models import ApiToken
 
 api_tokens = Blueprint("api_tokens", __name__, url_prefix="/tokens")
 
@@ -736,13 +736,13 @@ transitively) is needed.
   (fetched this session, quoted in Pattern 4)
 - `docs.python.org/3/library/secrets.html` — `secrets.token_urlsafe` as the recommended token
   generator (training knowledge, standard/stable stdlib API, unlikely to have changed)
-- This project's own source, read this session: `webvulnscanner/models.py` (Asset/User/Scan
-  schemas, lines 62-319), `webvulnscanner/asset_routes.py` (`_check_asset_access`, full file),
-  `webvulnscanner/scan_routes.py` (`_check_ownership`, `_spawn_scan_thread`, `scan_report`, full
-  file), `webvulnscanner/scheduler.py` (`_fire`, full file), `webvulnscanner/entitlements.py` (full
-  file), `webvulnscanner/extensions.py` (full file), `webvulnscanner/decorators.py` (full file),
-  `webvulnscanner/config.py` (full file), `webvulnscanner/checks.py` lines 195-240
-  (`is_ssrf_safe_hostname`, `normalize_target`), `webvulnscanner/__init__.py` (full file),
+- This project's own source, read this session: `glassbox/models.py` (Asset/User/Scan
+  schemas, lines 62-319), `glassbox/asset_routes.py` (`_check_asset_access`, full file),
+  `glassbox/scan_routes.py` (`_check_ownership`, `_spawn_scan_thread`, `scan_report`, full
+  file), `glassbox/scheduler.py` (`_fire`, full file), `glassbox/entitlements.py` (full
+  file), `glassbox/extensions.py` (full file), `glassbox/decorators.py` (full file),
+  `glassbox/config.py` (full file), `glassbox/checks.py` lines 195-240
+  (`is_ssrf_safe_hostname`, `normalize_target`), `glassbox/__init__.py` (full file),
   `migrations/versions/672a304d4921_add_assets_table_and_scans_asset_id.py` (full file),
   `tests/conftest.py` (full file), `templates/asset_detail.html` lines 99-207 (scan-link
   targets, confirming Pitfall 1), `requirements.txt` (full file)

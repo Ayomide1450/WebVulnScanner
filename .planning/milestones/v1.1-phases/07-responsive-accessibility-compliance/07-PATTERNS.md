@@ -144,7 +144,7 @@ as a genuine exception — do not blanket-convert.
 
 **Current violation** (`templates/marketing.html:191,198`, VERIFIED per RESEARCH.md):
 ```html
-<h2>What WebVulnScanner checks</h2>
+<h2>What Glassbox checks</h2>
 ...
 <h4>Exposed secrets</h4>  <!-- skips h3 -->
 ```

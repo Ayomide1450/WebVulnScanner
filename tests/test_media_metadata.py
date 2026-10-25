@@ -17,7 +17,7 @@ import zipfile
 
 import pytest
 
-from webvulnscanner.checks import (
+from glassbox.checks import (
     _extract_mp4_metadata,
     _extract_office_metadata,
     _extract_pdf_metadata,
@@ -238,7 +238,7 @@ class _FakeMediaSession:
 
 
 def test_check_media_reports_leaked_pdf_author(monkeypatch):
-    from webvulnscanner import checks
+    from glassbox import checks
 
     pdf_bytes = _fake_pdf(b"/Author (Internal Employee Name)")
     home_html = '<html><body><a href="/reports/q3.pdf">Q3 report</a></body></html>'
@@ -257,7 +257,7 @@ def test_check_media_reports_leaked_pdf_author(monkeypatch):
 
 
 def test_check_media_reports_leaked_video_gps(monkeypatch):
-    from webvulnscanner import checks
+    from glassbox import checks
 
     video_bytes = _fake_mp4(_mp4_atom(b"\xa9xyz", "+37.3349-122.0090+000.000/"))
     home_html = '<html><body><a href="/videos/clip.mp4">clip</a></body></html>'

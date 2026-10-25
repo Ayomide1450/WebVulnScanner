@@ -50,10 +50,10 @@ from urllib.parse import urlparse
 
 import requests
 
-from webvulnscanner.checks import is_ssrf_safe_hostname
-from webvulnscanner.models import OutboundWebhook, WebhookDelivery
-from webvulnscanner.regressions import alertable_new
-from webvulnscanner.security_gate import DEFAULT_FAIL_ON, evaluate_gate
+from glassbox.checks import is_ssrf_safe_hostname
+from glassbox.models import OutboundWebhook, WebhookDelivery
+from glassbox.regressions import alertable_new
+from glassbox.security_gate import DEFAULT_FAIL_ON, evaluate_gate
 
 # Bounded worst case per receiver - a webhook must never stall the scan
 # thread that's delivering from it (WR-03's reasoning, applied server-side).
@@ -117,7 +117,7 @@ def _load_report(scan):
         return None
     if scan.report.data is not None:
         return scan.report.data
-    from webvulnscanner.scan_engine import read_report_file
+    from glassbox.scan_engine import read_report_file
 
     return read_report_file(scan.report.json_path)
 
@@ -265,7 +265,7 @@ def _log_delivery(webhook_id, scan_id, status, code, error, attempt=1):
     """Write one WebhookDelivery row — the single place delivery outcomes
     are recorded so every call site (deliver, send_test_ping) stays in sync.
     Never raises: a failed observability write is logged and swallowed."""
-    from webvulnscanner.extensions import db
+    from glassbox.extensions import db
 
     try:
         db.session.add(WebhookDelivery(
@@ -297,8 +297,8 @@ def deliver(webhook, scan_id, payload=None):
     logging stay single-sourced.
 
     Never raises (degrade-gracefully convention inherited from Phase 19)."""
-    from webvulnscanner.extensions import db
-    from webvulnscanner.models import Scan
+    from glassbox.extensions import db
+    from glassbox.models import Scan
 
     try:
         scan = db.session.get(Scan, scan_id)
@@ -344,7 +344,7 @@ def send_test_ping(webhook):
     reachable and the secret/signature flow works before any real scan needs
     it. Records its own WebhookDelivery row (scan_id NULL) so the attempt is
     visible in the same recent-deliveries table as real traffic."""
-    from webvulnscanner.extensions import db
+    from glassbox.extensions import db
 
     payload = {
         "text": "Glassbox: test ping - this endpoint is wired up correctly.",
@@ -364,8 +364,8 @@ def fire_scan_webhooks(scan_id):
     equality would cross-match different solo users). Called from
     `_run_scan_in_background`'s shared tail AFTER the terminal commit, so
     every spawn path (wizard, API, scheduler) converges here unchanged."""
-    from webvulnscanner.extensions import db
-    from webvulnscanner.models import Scan
+    from glassbox.extensions import db
+    from glassbox.models import Scan
 
     try:
         s = db.session.get(Scan, scan_id)
@@ -397,8 +397,8 @@ def fire_regression_webhooks(scan_id):
     Self-guarding: silently does nothing for scans without regression tags
     (manual wizard scans), scans whose only new findings are below High, or
     missing/unreadable reports. Never raises."""
-    from webvulnscanner.extensions import db
-    from webvulnscanner.models import Scan
+    from glassbox.extensions import db
+    from glassbox.models import Scan
 
     try:
         s = db.session.get(Scan, scan_id)

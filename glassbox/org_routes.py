@@ -4,7 +4,7 @@ domain deletion request/approve/reject).
 
 Every route here requires both `@login_required` (must be authenticated)
 and `@org_admin_required` (must be `Role.ORG_ADMIN`) - see
-`webvulnscanner/decorators.py`.
+`glassbox/decorators.py`.
 
 `/org/admin/invite` generates a signed, email-bound invite token and
 "sends" (console-prints, via the same `EmailSender` pattern as
@@ -40,15 +40,15 @@ from sqlalchemy.orm import joinedload
 from wtforms import BooleanField, SelectField, StringField, TextAreaField
 from wtforms.validators import DataRequired, Email, Length, Optional, URL
 
-from webvulnscanner.decorators import org_admin_required, platform_admin_required
-from webvulnscanner.domain_verification import (
+from glassbox.decorators import org_admin_required, platform_admin_required
+from glassbox.domain_verification import (
     generate_verification,
     txt_record_value,
     verify_domain,
     well_known_path_and_content,
 )
-from webvulnscanner.extensions import db
-from webvulnscanner.models import DomainVerification, Invitation, InvitationStatus, OrgAuditEvent, Role, Scan, SSOConfiguration, User, VerifyMethod, _utcnow
+from glassbox.extensions import db
+from glassbox.models import DomainVerification, Invitation, InvitationStatus, OrgAuditEvent, Role, Scan, SSOConfiguration, User, VerifyMethod, _utcnow
 
 org = Blueprint("org", __name__, url_prefix="/org")
 
@@ -71,7 +71,7 @@ SCAN_TYPE_LABELS = {
     "media": "Media Scan",
     "api": "API Scan",
 }
-from webvulnscanner.audit import ORG_AUDIT_EVENT_LABELS, log_org_event as _log_org_event  # noqa: E402
+from glassbox.audit import ORG_AUDIT_EVENT_LABELS, log_org_event as _log_org_event  # noqa: E402
 
 
 class AddDomainForm(FlaskForm):
@@ -364,7 +364,7 @@ def revoke_invitation(invitation_id):
 # Domain deletion request/approve/reject workflow. An org admin can
 # request a deletion for their own org's domain, but never approve one -
 # approve/reject require platform_admin_required instead (see
-# webvulnscanner/admin_routes.py for the cross-org review queue), a real
+# glassbox/admin_routes.py for the cross-org review queue), a real
 # separation-of-duties gate rather than the same actor being able to both
 # request and approve their own request. A request never deletes the row
 # itself, it just flips the domain into a "Deletion Pending" state until a
@@ -462,8 +462,8 @@ def audit_log():
     timestamp — the dual-markup contract (AUDIT-05) reuses the same
     rendering pattern as org_admin.html's inline audit section but with
     full pagination and a link back from the org admin page."""
-    from webvulnscanner.audit import ORG_AUDIT_EVENT_LABELS
-    from webvulnscanner.models import Organization
+    from glassbox.audit import ORG_AUDIT_EVENT_LABELS
+    from glassbox.models import Organization
 
     page = request.args.get("page", 1, type=int)
 
@@ -501,7 +501,7 @@ def audit_log():
 
 def _ssrf_safe_hostname(hostname):
     """SSRF guard for IdP metadata URL — blocks private/loopback/reserved."""
-    from webvulnscanner.checks import is_ssrf_safe_hostname
+    from glassbox.checks import is_ssrf_safe_hostname
     try:
         return is_ssrf_safe_hostname(hostname)
     except Exception:

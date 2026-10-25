@@ -18,23 +18,23 @@ from functools import wraps
 from flask import Blueprint, Response, abort, jsonify, request
 from flask_login import current_user
 
-from webvulnscanner.asset_routes import _check_asset_access, _scoped_asset_query
-from webvulnscanner.entitlements import effective_tier
-from webvulnscanner.extensions import csrf, limiter
-from webvulnscanner.models import Asset, Scan
-from webvulnscanner.scan_engine import read_report_file
-from webvulnscanner.scan_routes import (
+from glassbox.asset_routes import _check_asset_access, _scoped_asset_query
+from glassbox.entitlements import effective_tier
+from glassbox.extensions import csrf, limiter
+from glassbox.models import Asset, Scan
+from glassbox.scan_engine import read_report_file
+from glassbox.scan_routes import (
     _check_ownership,
     _launch_base_scan,
     _load_report_json,
     diff_reports,
     findings_csv_document,
 )
-from webvulnscanner.scheduler import _fire
-from webvulnscanner.pdf_report import build_pdf_report, PDF_MIMETYPE
-from webvulnscanner.sarif import build_sarif_report, sarif_text
-from webvulnscanner.ndjson_report import findings_ndjson
-from webvulnscanner.security_gate import DEFAULT_FAIL_ON, GATE_SEVERITIES, evaluate_gate
+from glassbox.scheduler import _fire
+from glassbox.pdf_report import build_pdf_report, PDF_MIMETYPE
+from glassbox.sarif import build_sarif_report, sarif_text
+from glassbox.ndjson_report import findings_ndjson
+from glassbox.security_gate import DEFAULT_FAIL_ON, GATE_SEVERITIES, evaluate_gate
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
 
@@ -67,7 +67,7 @@ def _api_not_found(_e):
     # ownership check reused from asset_routes.py/scan_routes.py call
     # abort(404) - without this blueprint-scoped handler those fall
     # through to the app's global @app.errorhandler(404)
-    # (webvulnscanner/__init__.py), which renders the styled HTML
+    # (glassbox/__init__.py), which renders the styled HTML
     # 404.html page - wrong content-type for a JSON API client.
     return jsonify(error="not found"), 404
 
@@ -470,7 +470,7 @@ def scans_gate(scan_id):
     `?fail_on=` severity threshold and return a pass/fail verdict - the
     single server-side implementation `glassbox gate` (cli/wvs.py) and any
     direct HTTP CI consumer share, so the blocking rule is defined exactly
-    once (webvulnscanner/security_gate.py's evaluate_gate).
+    once (glassbox/security_gate.py's evaluate_gate).
 
     Read-only and derived on demand - nothing is persisted; the verdict is
     recomputed from the stored Report JSON on every call.

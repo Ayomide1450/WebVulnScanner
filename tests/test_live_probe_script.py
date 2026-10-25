@@ -89,7 +89,7 @@ def test_loopback_guardrail_accepts_loopback_urls():
 
 def test_database_guardrail_rejects_a_uri_it_did_not_create():
     with pytest.raises(live_probe.ProbeRefused):
-        live_probe.assert_db_uri_is_self_created("sqlite:///webvulnscanner.db")
+        live_probe.assert_db_uri_is_self_created("sqlite:///glassbox.db")
 
 
 def test_database_guardrail_accepts_its_own_generated_uri():
@@ -220,7 +220,7 @@ def test_verify_authenticated_checks_status_and_marker_together():
 
 # ---------------------------------------------------------------------------
 # Production-file boundary - this plan's own acceptance criteria requires
-# `git diff --stat` for this plan to list no file under webvulnscanner/.
+# `git diff --stat` for this plan to list no file under glassbox/.
 # Checked here as a standing lock, not just a one-time commit-time check.
 # ---------------------------------------------------------------------------
 

@@ -4,7 +4,7 @@ Blueprint `asset`: /assets, /assets/new.
 Asset registration + inventory-list routes (ASSET-01/02/03, tracer plan
 01-01). An Asset is a persistent, recurring scan target - distinct from a
 one-off manual Scan (see scan_routes.py's new_scan_* routes) - that
-webvulnscanner.scheduler's tick loop fires automatically on a cadence.
+glassbox.scheduler's tick loop fires automatically on a cadence.
 
 **Ownership decision**: mirrors scan_routes._check_ownership's 404-not-403
 convention, but org-scoped rather than owner-or-org-admin-scoped (every org
@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from webvulnscanner.checks import (
+from glassbox.checks import (
     CHECK_COMPLIANCE,
     CHECK_LABELS,
     SCAN_TYPE_CHECK_NAMES,
@@ -29,11 +29,11 @@ from webvulnscanner.checks import (
     is_ssrf_safe_hostname,
     normalize_target,
 )
-from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, effective_tier_for_org
-from webvulnscanner.extensions import db
-from webvulnscanner.models import Asset, Scan, ScanStatus
-from webvulnscanner.scan_engine import read_report_file
-from webvulnscanner.scheduler import CADENCE_INTERVALS
+from glassbox.entitlements import FEATURE_REQUIREMENTS, Tier, effective_tier_for_org
+from glassbox.extensions import db
+from glassbox.models import Asset, Scan, ScanStatus
+from glassbox.scan_engine import read_report_file
+from glassbox.scheduler import CADENCE_INTERVALS
 
 asset = Blueprint("asset", __name__, url_prefix="/assets")
 

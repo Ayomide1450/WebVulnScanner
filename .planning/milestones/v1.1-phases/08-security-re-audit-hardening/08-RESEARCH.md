@@ -13,15 +13,15 @@ through SEC-10 ask for. Reading every ID-accepting route in `scan_routes.py`, `a
 `api_routes.py`, `api_tokens_routes.py`, `org_routes.py`, and `billing_routes.py` this session
 confirms a consistent, already-tested `_check_ownership`/`_check_asset_access`/inline-`org_id`
 pattern is applied almost everywhere an object ID is accepted. CSRF is enforced app-wide via a
-single `CSRFProtect()` instance (`webvulnscanner/extensions.py:19`, `csrf.init_app(app)` at
-`webvulnscanner/__init__.py:98`), and every template carrying a POST form was confirmed (this
+single `CSRFProtect()` instance (`glassbox/extensions.py:19`, `csrf.init_app(app)` at
+`glassbox/__init__.py:98`), and every template carrying a POST form was confirmed (this
 session, via grep) to emit a `csrf_token` field. Jinja2 autoescaping is on everywhere by Flask
 default (`render_template` never disables it; zero `|safe` filters exist in `templates/`, zero
-`Markup(...)`/`render_template_string(...)` calls exist in `webvulnscanner/`). No raw/string-
+`Markup(...)`/`render_template_string(...)` calls exist in `glassbox/`). No raw/string-
 interpolated SQL exists — the only two non-ORM-builder DB calls in the codebase are
 `db.session.execute(db.text("SELECT 1"))` (a static healthcheck string,
-`webvulnscanner/public_routes.py:37`) and a parameterized SQLAlchemy Core `update()` in
-`webvulnscanner/scheduler.py:46`. No route accepts a raw filesystem path from the user at all —
+`glassbox/public_routes.py:37`) and a parameterized SQLAlchemy Core `update()` in
+`glassbox/scheduler.py:46`. No route accepts a raw filesystem path from the user at all —
 report/CSV downloads resolve their on-disk file via a DB-stored filename generated server-side
 (`scan_engine.save_report()`), never from a request parameter.
 
@@ -87,7 +87,7 @@ exists in `requirements.txt`/`requirements-dev.txt`.
 ### Core (already in use, no version change needed)
 | Library | Installed Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| Flask-WTF | 1.3.0 [VERIFIED: `.venv` `pip show`, this session] | `CSRFProtect`, form validation | Already the app's CSRF mechanism (`webvulnscanner/extensions.py:19`) |
+| Flask-WTF | 1.3.0 [VERIFIED: `.venv` `pip show`, this session] | `CSRFProtect`, form validation | Already the app's CSRF mechanism (`glassbox/extensions.py:19`) |
 | requests | 2.34.2 [VERIFIED: `.venv` `pip show`, this session] | Outbound HTTP client for all scan checks | `Session.resolve_redirects()` override is the standard idiomatic way to intercept per-hop redirects in this library — stable API across 2.x |
 | pytest | 9.1.1 [VERIFIED: `.venv` `pip show`, this session] | Regression-test framework | Already the project's only test runner |
 
@@ -226,7 +226,7 @@ without a `csrf_token` gets a 400, not the normal success redirect.
 # Source: tests/test_auth_flows.py:483-498 (existing project pattern for the
 # equivalent RATELIMIT_ENABLED override) [VERIFIED: tests/test_auth_flows.py:483-498, this session]
 def test_csrf_protection_rejects_post_without_token(tmp_path):
-    from webvulnscanner import create_app
+    from glassbox import create_app
     from tests.conftest import TestConfig
 
     class _CSRFEnabledConfig(TestConfig):
@@ -235,7 +235,7 @@ def test_csrf_protection_rejects_post_without_token(tmp_path):
 
     csrf_app = create_app(_CSRFEnabledConfig)
     with csrf_app.app_context():
-        from webvulnscanner.extensions import db as _db
+        from glassbox.extensions import db as _db
         _db.create_all()
     client = csrf_app.test_client()
     # ... log in, then POST to a state-changing route with no csrf_token field
@@ -283,7 +283,7 @@ being renamed or moved by this phase's work.
 DELETE." A planner could spend time hunting for PUT/DELETE routes that don't exist.
 **Why it happens:** The phrasing is a generic REST-audit checklist, not a description of this
 app's actual routing.
-**How to avoid:** [VERIFIED: grepped `methods=\[` across `webvulnscanner/*.py`, this session] —
+**How to avoid:** [VERIFIED: grepped `methods=\[` across `glassbox/*.py`, this session] —
 the only non-GET method in the entire app is `POST` (mutations are POST to
 action-suffixed paths like `/assets/<id>/delete`, `/tokens/<id>/revoke`, never a literal HTTP
 DELETE/PUT verb). Interpret the criterion as "every GET (read) and POST (mutation) route," full
@@ -401,7 +401,7 @@ def test_verify_invoice_route_rejects_cross_org(client, db):
      explicitly-deferred DNS-rebinding-pinning question. Do not conflate the two.
 
 2. **Should the live dev-server probe pass (D-01) use a throwaway `.env`/DB, or run against the
-   developer's real local `webvulnscanner.db`?**
+   developer's real local `glassbox.db`?**
    - What we know: CLAUDE.md documents `FLASK_SKIP_DOTENV=1` for `flask db` commands from a
      worktree to avoid touching a shared DB; the same caution likely applies to a live probe run.
    - What's unclear: whether the planner should script a disposable SQLite file + two seeded test
@@ -495,7 +495,7 @@ def test_verify_invoice_route_rejects_cross_org(client, db):
 ## Sources
 
 ### Primary (HIGH confidence)
-- This session's direct `Read`/`Grep`/`Bash` inspection of: `webvulnscanner/__init__.py`,
+- This session's direct `Read`/`Grep`/`Bash` inspection of: `glassbox/__init__.py`,
   `decorators.py`, `extensions.py`, `config.py`, `scan_routes.py`, `asset_routes.py`,
   `api_routes.py`, `api_tokens_routes.py`, `org_routes.py`, `billing_routes.py`,
   `admin_routes.py`, `domain_verification.py`, `auth_routes.py`, `checks.py` (session/redirect

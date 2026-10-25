@@ -8,7 +8,7 @@ marketing landing page with Sign up / Log in CTAs.
 """
 from flask import Blueprint, Response, current_app, jsonify, render_template, url_for
 
-from webvulnscanner.extensions import db
+from glassbox.extensions import db
 
 public = Blueprint("public", __name__)
 

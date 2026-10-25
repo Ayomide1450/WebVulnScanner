@@ -17,7 +17,7 @@ before this plan (login/signup/the four scan-launch forms), plus presence
 tests for the twelve forms this plan closes the disable-only or
 no-indicator-at-all gap on.
 """
-from webvulnscanner.models import Report, Role, ScanStatus
+from glassbox.models import Report, Role, ScanStatus
 
 from tests.conftest import login, make_org, make_scan, make_user
 
@@ -100,7 +100,7 @@ def test_dashboard_local_empty_state_css_rule_removed():
 
 def _make_org_admin(email="orgadmin2@example.com"):
     """An ORG_ADMIN user with no org attached (org=None) - org_admin_required
-    only checks the role, not org membership (webvulnscanner/decorators.py),
+    only checks the role, not org membership (glassbox/decorators.py),
     so this is a real, reachable state: it's what drives every one of
     org_admin.html's/org_verify_domain.html's four/one bare-collection
     branches to their empty-state simultaneously (current_user.organization

@@ -2,7 +2,7 @@
 mirroring test_compliance.py's group_findings_by_compliance() test shape
 (same function contract, different mapping shape - see that function's own
 docstring for the difference)."""
-from webvulnscanner.scan_routes import group_findings_by_domain
+from glassbox.scan_routes import group_findings_by_domain
 
 _MAPPING = {
     "headers": "Configuration",
@@ -48,7 +48,7 @@ def test_group_findings_by_domain_uncategorized_group_is_always_last():
 def test_group_findings_by_domain_uses_real_security_domain_map():
     """End-to-end sanity check against the actual SECURITY_DOMAIN_MAP, not
     just the small local fixture above."""
-    from webvulnscanner.checks import SECURITY_DOMAIN_MAP
+    from glassbox.checks import SECURITY_DOMAIN_MAP
     findings = [
         {"check_name": "idor", "title": "IDOR finding"},
         {"check_name": "secrets", "title": "Secret finding"},

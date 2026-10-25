@@ -1,6 +1,6 @@
 """
 Tests for the domain-ownership verification flow (HARD-03's D-08 half):
-`webvulnscanner/domain_verification.py`'s `generate_verification`/
+`glassbox/domain_verification.py`'s `generate_verification`/
 `verify_domain`, and `org_routes.verify_domain_view`'s `action=add`/
 `action=verify` POST branches. Both proof methods (DNS TXT, well-known
 HTTP) already worked before this phase - D-08 scopes this module to
@@ -8,7 +8,7 @@ coverage only, not a behavior change.
 
 Every DNS lookup and outbound HTTP request is mocked - `dns.resolver.resolve`
 and `requests.get` are monkeypatched at the module path
-`webvulnscanner/domain_verification.py` imports them through, following the
+`glassbox/domain_verification.py` imports them through, following the
 same never-touch-the-network convention `tests/test_ssrf_guard.py` already
 established for this kind of check.
 
@@ -26,14 +26,14 @@ from datetime import datetime, timezone
 import dns.resolver
 import requests
 
-from webvulnscanner.domain_verification import (
+from glassbox.domain_verification import (
     generate_verification,
     txt_record_value,
     verify_domain,
     well_known_path_and_content,
 )
-from webvulnscanner.entitlements import domain_is_org_verified
-from webvulnscanner.models import DomainVerification, Role, VerifyMethod
+from glassbox.entitlements import domain_is_org_verified
+from glassbox.models import DomainVerification, Role, VerifyMethod
 
 from tests.conftest import login, make_org, make_user
 
@@ -251,7 +251,7 @@ def test_domain_is_org_verified_true_after_dns_txt(db, monkeypatch):
 
 
 def test_domain_is_org_verified_true_after_well_known(db, monkeypatch):
-    import webvulnscanner.domain_verification as domver
+    import glassbox.domain_verification as domver
 
     org = make_org()
     dv = generate_verification(org.id, "example.com", VerifyMethod.WELL_KNOWN)

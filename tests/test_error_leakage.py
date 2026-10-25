@@ -23,15 +23,15 @@ import re
 import pytest
 from bs4 import BeautifulSoup
 
-from webvulnscanner import create_app
-from webvulnscanner.config import APP_DIR, Config
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.extensions import limiter as _limiter
-from webvulnscanner.models import Role
+from glassbox import create_app
+from glassbox.config import APP_DIR, Config
+from glassbox.extensions import db as _db
+from glassbox.extensions import limiter as _limiter
+from glassbox.models import Role
 
 from tests.conftest import make_org, make_user
 
-CONFIG_PY = pathlib.Path(__file__).resolve().parent.parent / "webvulnscanner" / "config.py"
+CONFIG_PY = pathlib.Path(__file__).resolve().parent.parent / "glassbox" / "config.py"
 
 
 def _derive_env_var_names_from_config():
@@ -67,7 +67,7 @@ def _assert_no_leak(resp, label):
 
 # --------------------------------------------------------------------------
 # App builder. SCHEDULER_ENABLED is forced off purely so this test app
-# doesn't leak a real background poll thread - webvulnscanner/__init__.py's
+# doesn't leak a real background poll thread - glassbox/__init__.py's
 # _maybe_start_scheduler only skips the scheduler on TESTING=True, and this
 # app deliberately sets TESTING=False, so without this override every test
 # below would start (and never stop) a real scheduler thread against a

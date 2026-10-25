@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 import pytest
 import yaml
 
-from webvulnscanner.community_checks import (
+from glassbox.community_checks import (
     COMMUNITY_CHECKS_DIR,
     MAX_REQUESTS_PER_CHECK,
     VALID_METHODS,
@@ -29,14 +29,14 @@ from webvulnscanner.community_checks import (
     load_community_checks,
     register_community_checks,
 )
-from webvulnscanner.checks import (
+from glassbox.checks import (
     CHECK_CATEGORY,
     CHECK_COMPLIANCE,
     CHECK_LABELS,
     SCAN_TYPE_CHECK_NAMES,
     SECURITY_DOMAIN_MAP,
 )
-from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier
+from glassbox.entitlements import FEATURE_REQUIREMENTS, Tier
 
 FIXTURES_DIR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),

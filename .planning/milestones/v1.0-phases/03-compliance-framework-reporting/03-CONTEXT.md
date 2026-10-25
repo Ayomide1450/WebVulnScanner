@@ -57,10 +57,10 @@ a per-Asset compliance-coverage summary across scan history.
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Existing coverage-convention precedent (COMP-04's explicit reference point)
-- `webvulnscanner/checks.py` — `CHECK_LABELS` (~line 61) and `CHECK_CATEGORY` (~line 79) dicts,
+- `glassbox/checks.py` — `CHECK_LABELS` (~line 61) and `CHECK_CATEGORY` (~line 79) dicts,
   and their "keep this dict in sync" comment — the pattern any new compliance-mapping dict and its
   regression test should mirror.
-- `webvulnscanner/checks.py` — `Finding` dataclass (~line 146): `category`, `severity` fields —
+- `glassbox/checks.py` — `Finding` dataclass (~line 146): `category`, `severity` fields —
   where a compliance tag would attach or be looked up from.
 - `tests/test_scan_events.py` — existing regression test that checks `CHECK_LABELS`/
   `CHECK_CATEGORY` cover every check name `run_scan()`'s jobs dict can dispatch; the pattern

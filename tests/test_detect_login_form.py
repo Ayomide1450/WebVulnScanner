@@ -6,7 +6,7 @@ tests) - these exercise the crawl/parse logic directly against a fake
 `requests`-shaped session, same convention as tests/test_domain_verification.py's
 _FakeHttpResponse.
 """
-from webvulnscanner.checks import detect_login_form
+from glassbox.checks import detect_login_form
 
 
 class _FakeResponse:

@@ -1,14 +1,14 @@
 """
 Tests for the OWASP Top 10 / ASVS compliance-mapping layer added in Phase 3
-(COMP-01/COMP-04): webvulnscanner.checks.CHECK_COMPLIANCE,
-webvulnscanner.checks.SCAN_TYPE_CHECK_NAMES, Finding.check_name, the
+(COMP-01/COMP-04): glassbox.checks.CHECK_COMPLIANCE,
+glassbox.checks.SCAN_TYPE_CHECK_NAMES, Finding.check_name, the
 check_name-tagging lines added to each of scan_engine.py's 4 orchestrators,
 and the compliance pill/caption scan_report.html now renders per finding.
 
 Lives in its own module rather than tests/test_entitlements.py, matching
 this codebase's existing precedent that a per-check coverage-regression test
 doesn't have to live beside the dict it tests (CHECK_LABELS's own coverage
-test lives in tests/test_scan_events.py, not webvulnscanner/checks.py).
+test lives in tests/test_scan_events.py, not glassbox/checks.py).
 
 Covers: run_scan()'s tagging plus the report-page-rendering behaviors
 (mapped finding, legacy/unmapped finding, HTML-escaping) [Task 1]; the
@@ -21,10 +21,10 @@ import re
 from pathlib import Path
 from types import SimpleNamespace
 
-from webvulnscanner import scan_engine
-from webvulnscanner.checks import CHECK_COMPLIANCE, SCAN_TYPE_CHECK_NAMES, Finding
-from webvulnscanner.entitlements import Tier
-from webvulnscanner.scan_routes import GROUPING_MODES, group_findings_by_compliance
+from glassbox import scan_engine
+from glassbox.checks import CHECK_COMPLIANCE, SCAN_TYPE_CHECK_NAMES, Finding
+from glassbox.entitlements import Tier
+from glassbox.scan_routes import GROUPING_MODES, group_findings_by_compliance
 
 from tests.conftest import login, make_scan, make_user
 from tests.test_api_routes import _make_report

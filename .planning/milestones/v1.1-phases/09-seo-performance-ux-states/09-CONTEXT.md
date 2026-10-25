@@ -146,10 +146,10 @@ No other external specs/ADRs apply — requirements fully captured in decisions 
   partial exists.
 - Auth pages (login/signup/forgot/reset) — existing submitting-state pattern (disabled button +
   loading indicator) to extend per D-05.
-- `webvulnscanner/org_routes.py` — already has `.limit(50)`/`.limit(30)` query caps on some listing
+- `glassbox/org_routes.py` — already has `.limit(50)`/`.limit(30)` query caps on some listing
   queries (invite/member lists) — a partial precedent for D-03's pagination work, though not
   full page-N pagination.
-- `webvulnscanner/scan_routes.py:1111` — `.limit(MAX_LIFECYCLE_SCANS)` on a scan-history query —
+- `glassbox/scan_routes.py:1111` — `.limit(MAX_LIFECYCLE_SCANS)` on a scan-history query —
   another existing cap to potentially convert to real pagination.
 - Phase 8's `_check_ownership`/`_check_asset_access` pattern in `scan_routes.py`/`asset_routes.py`
   — the shape D-06's duplicate-concurrent-scan guard should follow for consistency.
@@ -158,12 +158,12 @@ No other external specs/ADRs apply — requirements fully captured in decisions 
 - `templates/_scan_form_styles.html`, `templates/_admin_form_styles.html` — the existing
   shared-partial convention (unscoped element selectors that would leak if promoted into
   `base.html` directly) that `_empty_state.html` should follow.
-- `webvulnscanner/scan_routes.py`'s `_run_scan_in_background` — the shared background-thread
+- `glassbox/scan_routes.py`'s `_run_scan_in_background` — the shared background-thread
   dispatch tail all four scan types already go through; the natural wrapping point for D-06's
   scan-level timeout rather than threading it through `scan_engine.py`'s four orchestrators.
 
 ### Integration Points
-- `webvulnscanner/public_routes.py` — currently only serves `/` (marketing); `robots.txt`/
+- `glassbox/public_routes.py` — currently only serves `/` (marketing); `robots.txt`/
   `sitemap.xml` routes (D-01) belong here, generated from `app.url_map`.
 - `templates/base.html`'s `{% block title %}`/head area — currently has only a generic `<title>`;
   the meta description/canonical/OG/Twitter Card tags (D-02) need a template block structure that

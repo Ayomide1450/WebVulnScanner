@@ -13,9 +13,9 @@ import json
 
 import pytest
 
-from webvulnscanner.models import Plan, Report, Role, ScanStatus
-from webvulnscanner.ndjson_report import findings_ndjson
-from webvulnscanner.scan_routes import safe_filename
+from glassbox.models import Plan, Report, Role, ScanStatus
+from glassbox.ndjson_report import findings_ndjson
+from glassbox.scan_routes import safe_filename
 
 from tests.conftest import (
     login,
@@ -77,7 +77,7 @@ def _attach_ndjson_marker_report(scan):
     }
     r = Report(scan_id=scan.id, json_path="unused-for-this-test.json",
                data=report_data)
-    from webvulnscanner.extensions import db as _db
+    from glassbox.extensions import db as _db
     _db.session.add(r)
     _db.session.flush()
     return r

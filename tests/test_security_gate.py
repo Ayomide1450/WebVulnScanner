@@ -1,4 +1,4 @@
-"""Tests for the Security Gate - webvulnscanner/security_gate.py's pure
+"""Tests for the Security Gate - glassbox/security_gate.py's pure
 evaluate_gate() and its single API exposure, GET /api/v1/scans/<id>/gate
 (api_routes.py), which `glassbox gate` (cli/wvs.py) now consumes instead of
 filtering findings client-side.
@@ -11,8 +11,8 @@ response be read more widely than the report it derives from.
 """
 import pytest
 
-from webvulnscanner.models import Plan, Report, Role, ScanStatus
-from webvulnscanner.security_gate import GATE_SEVERITIES, evaluate_gate
+from glassbox.models import Plan, Report, Role, ScanStatus
+from glassbox.security_gate import GATE_SEVERITIES, evaluate_gate
 
 from tests.conftest import make_api_token, make_asset, make_org, make_scan, make_user
 
@@ -320,7 +320,7 @@ def test_manual_scan_org_admin_gets_200(client, db):
 
 
 def test_asset_linked_org_member_can_gate_shared_asset_scan(client, db):
-    from webvulnscanner.models import Plan, Role
+    from glassbox.models import Plan, Role
 
     org = make_org(plan=Plan.PAID, name="Org")
     creator = make_user("creator@example.com", org=org, role=Role.ORG_ADMIN)
@@ -338,7 +338,7 @@ def test_asset_linked_org_member_can_gate_shared_asset_scan(client, db):
 def test_soft_deleted_asset_gate_gets_404(client, db):
     from datetime import datetime, timezone
 
-    from webvulnscanner.models import Plan
+    from glassbox.models import Plan
 
     org = make_org(plan=Plan.PAID, name="Org")
     user = make_user("owner@example.com", org=org)

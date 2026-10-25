@@ -17,7 +17,7 @@ verification_state preserved on each result's properties for round-tripping.
 
 import json
 
-from webvulnscanner.checks import CHECK_LABELS, severity_to_sarif_level
+from glassbox.checks import CHECK_LABELS, severity_to_sarif_level
 
 SARIF_VERSION = "2.1.0"
 SARIF_SCHEMA_URI = "https://json.schemastore.org/sarif-2.1.0.json"
@@ -125,7 +125,7 @@ def build_sarif_report(report, scan_id):
         or _urlparse_netloc(target)
         or "scan"
     )
-    from webvulnscanner.utils import safe_filename
+    from glassbox.utils import safe_filename
     filename = safe_filename(f"{str(hostname).replace(':', '_')}_scan{scan_id}.sarif")
     return doc, filename
 

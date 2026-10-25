@@ -16,9 +16,9 @@ from datetime import datetime, timezone
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from webvulnscanner.audit import log_org_event
-from webvulnscanner.extensions import db
-from webvulnscanner.models import ApiToken
+from glassbox.audit import log_org_event
+from glassbox.extensions import db
+from glassbox.models import ApiToken
 
 api_tokens = Blueprint("api_tokens", __name__, url_prefix="/tokens")
 

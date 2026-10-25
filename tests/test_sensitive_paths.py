@@ -13,8 +13,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from webvulnscanner import checks
-from webvulnscanner.checks import _mk_session, check_sensitive_paths
+from glassbox import checks
+from glassbox.checks import _mk_session, check_sensitive_paths
 
 
 class _Handler(BaseHTTPRequestHandler):

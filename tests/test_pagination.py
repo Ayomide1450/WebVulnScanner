@@ -19,7 +19,7 @@ query/aggregate - never from the current page's row count - by requesting
 page 2 of a 25-row seed and asserting the stat is unaffected.
 """
 from tests.conftest import login, make_asset, make_org, make_scan, make_user
-from webvulnscanner.models import Report, Role, ScanStatus
+from glassbox.models import Report, Role, ScanStatus
 
 
 # --------------------------------------------------------------------------

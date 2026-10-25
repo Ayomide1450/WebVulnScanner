@@ -28,7 +28,7 @@ separate from the main checkout. Per the fixer's own isolation rationale
 additional nested `git worktree` was created for this run — edits and
 commits happened directly in this already-dedicated worktree. All syntax
 checks and the full test suite ran here, using the sibling checkout's
-venv (`C:\Users\Arktech_Designs\Documents\WebVulnScanner\.venv`) since this
+venv (`C:\Users\Arktech_Designs\Documents\Glassbox\.venv`) since this
 worktree has no local `.venv` of its own — results are reproducible from
 this worktree's current state.
 
@@ -36,7 +36,7 @@ this worktree's current state.
 
 ### CR-01: Bearer-token auth is not scoped to `/api/v1/*`
 
-**Files modified:** `webvulnscanner/extensions.py`, `tests/test_api_routes.py`
+**Files modified:** `glassbox/extensions.py`, `tests/test_api_routes.py`
 **Commit:** `06896cf`
 **Applied fix:** `load_user_from_request` (the `login_manager.request_loader`
 callback) now returns `None` immediately for any request whose path does
@@ -52,7 +52,7 @@ new test plus the full `test_api_routes.py`/`test_api_tokens_routes.py`/
 
 ### WR-01: `trigger_scan`/`fetch_report` don't exclude soft-deleted Assets
 
-**Files modified:** `webvulnscanner/api_routes.py`, `tests/test_api_routes.py`
+**Files modified:** `glassbox/api_routes.py`, `tests/test_api_routes.py`
 **Commit:** `00ccae8`
 **Applied fix:** `trigger_scan` now looks the Asset up with
 `Asset.query.filter_by(id=asset_id, deleted_at=None).first_or_404()`,
@@ -66,7 +66,7 @@ committing.
 
 ### WR-02: `fetch_report`'s file read isn't guarded
 
-**Files modified:** `webvulnscanner/api_routes.py`, `tests/test_api_routes.py`
+**Files modified:** `glassbox/api_routes.py`, `tests/test_api_routes.py`
 **Commit:** `bb21a63`
 **Applied fix:** Wrapped the `open()`/`json.load()` call in
 `try/except (OSError, ValueError)`, returning `jsonify(error="report file

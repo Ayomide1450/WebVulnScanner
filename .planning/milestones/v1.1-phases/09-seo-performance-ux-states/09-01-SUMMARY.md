@@ -7,7 +7,7 @@ dependency-graph:
   requires: []
   provides: ["/robots.txt", "/sitemap.xml", "base.html head-block contract", "favicon set"]
   affects:
-    - webvulnscanner/public_routes.py
+    - glassbox/public_routes.py
     - templates/base.html
     - templates/marketing.html
     - templates/terms.html
@@ -20,12 +20,12 @@ key-files:
   created:
     - scripts/generate_favicons.py
     - tests/test_seo.py
-    - webvulnscanner/static/favicon.ico
-    - webvulnscanner/static/favicon-16x16.png
-    - webvulnscanner/static/favicon-32x32.png
-    - webvulnscanner/static/apple-touch-icon.png
+    - glassbox/static/favicon.ico
+    - glassbox/static/favicon-16x16.png
+    - glassbox/static/favicon-32x32.png
+    - glassbox/static/apple-touch-icon.png
   modified:
-    - webvulnscanner/public_routes.py
+    - glassbox/public_routes.py
     - templates/base.html
     - templates/marketing.html
     - templates/terms.html
@@ -51,7 +51,7 @@ head-block contract for per-page title/description/canonical/OG/Twitter meta tag
 
 ## What was built
 
-- **`webvulnscanner/public_routes.py`**: `/robots.txt` and `/sitemap.xml` routes built by walking
+- **`glassbox/public_routes.py`**: `/robots.txt` and `/sitemap.xml` routes built by walking
   `app.url_map` rather than a hand-maintained static list, so a new route can't be silently
   omitted from either. Authenticated/admin/scan/API routes are excluded via `Disallow`.
 - **`templates/base.html`**: a `{% block head %}`-based contract child templates fill in for
@@ -59,7 +59,7 @@ head-block contract for per-page title/description/canonical/OG/Twitter meta tag
   set.
 - **`marketing.html`/`terms.html`/`privacy.html`**: adopted the head-block contract with real
   per-page metadata.
-- **`scripts/generate_favicons.py`** + `webvulnscanner/static/favicon*`/`apple-touch-icon.png`:
+- **`scripts/generate_favicons.py`** + `glassbox/static/favicon*`/`apple-touch-icon.png`:
   a one-time Pillow-based generation script and its committed output (favicon.ico,
   16x16/32x32 PNGs, apple-touch-icon).
 - **`tests/test_seo.py`**: coverage including a regression test proving `robots.txt`'s
@@ -68,7 +68,7 @@ head-block contract for per-page title/description/canonical/OG/Twitter meta tag
 
 ## Self-Check
 
-- `webvulnscanner/public_routes.py` (`/robots.txt`, `/sitemap.xml`) - FOUND
+- `glassbox/public_routes.py` (`/robots.txt`, `/sitemap.xml`) - FOUND
 - `templates/base.html` head-block contract - FOUND
 - `scripts/generate_favicons.py` + generated favicon files - FOUND
 - `tests/test_seo.py` - FOUND

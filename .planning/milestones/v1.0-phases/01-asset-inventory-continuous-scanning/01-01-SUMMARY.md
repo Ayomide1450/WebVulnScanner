@@ -7,8 +7,8 @@ tags: [flask, sqlalchemy, alembic, threading, scheduler, entitlements, ssrf]
 requires: []
 provides:
   - "Asset model (assets table) + Scan.asset_id FK, migrated"
-  - "webvulnscanner/scheduler.py: in-process daemon-thread tick loop, DB-level claim guard, fire-time SSRF/tier re-checks, dispatch through the existing _spawn_scan_thread path"
-  - "webvulnscanner/asset_routes.py: /assets, /assets/new (registration + org/solo-scoped inventory list)"
+  - "glassbox/scheduler.py: in-process daemon-thread tick loop, DB-level claim guard, fire-time SSRF/tier re-checks, dispatch through the existing _spawn_scan_thread path"
+  - "glassbox/asset_routes.py: /assets, /assets/new (registration + org/solo-scoped inventory list)"
   - "entitlements.effective_tier_for_org(org): org-shaped tier lookup for non-request callers"
   - "templates/asset_new.html, templates/assets.html reusing the existing dark-OLED design system"
 affects: [01-02-PLAN.md]
@@ -29,18 +29,18 @@ tech-stack:
 
 key-files:
   created:
-    - webvulnscanner/scheduler.py
-    - webvulnscanner/asset_routes.py
+    - glassbox/scheduler.py
+    - glassbox/asset_routes.py
     - templates/asset_new.html
     - templates/assets.html
     - tests/test_scheduler.py
     - tests/test_asset_routes.py
     - migrations/versions/672a304d4921_add_assets_table_and_scans_asset_id.py
   modified:
-    - webvulnscanner/models.py
-    - webvulnscanner/entitlements.py
-    - webvulnscanner/config.py
-    - webvulnscanner/__init__.py
+    - glassbox/models.py
+    - glassbox/entitlements.py
+    - glassbox/config.py
+    - glassbox/__init__.py
     - templates/base.html
     - tests/conftest.py
 
@@ -146,8 +146,8 @@ status: complete
 
 ## Accomplishments
 - `Asset` model (`assets` table) with a durable authorization audit trail (`authorized_by_user_id`/`authorized_at`), `next_run_at`/`locked_until`/`is_paused`/`deleted_at` schedule state, and `Scan.asset_id` FK — hand-reviewed, clean `create_table`+`add_column` Alembic migration, applied to the local dev SQLite DB.
-- `webvulnscanner/scheduler.py`: an in-process daemon-thread tick loop (`start_scheduler`/`_scheduler_loop`/`_tick`/`_try_claim`/`_fire`) that claims due Assets via a conditional `UPDATE ... WHERE locked_until IS NULL OR locked_until < now`, re-derives SSRF safety and org tier at fire time (never cached from registration), and dispatches through the existing `_spawn_scan_thread` path unchanged for `base`/`media`/`api` schedule types.
-- `webvulnscanner/asset_routes.py`: `/assets` (org/solo-scoped inventory list) and `/assets/new` (registration, reusing the exact authorization-checkbox and SSRF error copy `new_scan_base` already uses), with a 404-not-403 ownership check that explicitly branches on solo (no-org) users to avoid leaking one solo user's Assets to another via a naive `NULL == NULL` org_id comparison.
+- `glassbox/scheduler.py`: an in-process daemon-thread tick loop (`start_scheduler`/`_scheduler_loop`/`_tick`/`_try_claim`/`_fire`) that claims due Assets via a conditional `UPDATE ... WHERE locked_until IS NULL OR locked_until < now`, re-derives SSRF safety and org tier at fire time (never cached from registration), and dispatches through the existing `_spawn_scan_thread` path unchanged for `base`/`media`/`api` schedule types.
+- `glassbox/asset_routes.py`: `/assets` (org/solo-scoped inventory list) and `/assets/new` (registration, reusing the exact authorization-checkbox and SSRF error copy `new_scan_base` already uses), with a 404-not-403 ownership check that explicitly branches on solo (no-org) users to avoid leaking one solo user's Assets to another via a naive `NULL == NULL` org_id comparison.
 - `entitlements.effective_tier_for_org(org)` extracted from `effective_tier(user)` so the scheduler (which has an `Organization`, not a `User`) can look up tier without faking a user object; both functions now share one `Plan -> Tier` mapping.
 - Three-part guarded scheduler startup in `create_app()` (`SCHEDULER_ENABLED` / `TESTING` / Werkzeug-reloader checks) with `SCHEDULER_ENABLED = False` in `TestConfig`, so the ~180-test suite never leaks a background thread.
 - `templates/asset_new.html` / `templates/assets.html`, reusing `scan_new_base.html`'s form-card structure and `dashboard.html`'s table structure exactly, plus an "Assets" nav link in `base.html`.
@@ -160,12 +160,12 @@ status: complete
 **Plan metadata:** this SUMMARY.md + STATE.md/ROADMAP.md/REQUIREMENTS.md update (separate docs commit, see below)
 
 ## Files Created/Modified
-- `webvulnscanner/models.py` - `Asset` model + `Scan.asset_id`/`Scan.asset` FK+relationship+index
-- `webvulnscanner/entitlements.py` - `effective_tier_for_org(org)` extracted; `effective_tier(user)` delegates to it
-- `webvulnscanner/scheduler.py` (new) - tick/claim-guard/fire scheduling engine
-- `webvulnscanner/asset_routes.py` (new) - `asset` blueprint: `/assets`, `/assets/new`
-- `webvulnscanner/config.py` - `SCHEDULER_ENABLED`, `SCHEDULER_POLL_INTERVAL_SECONDS`
-- `webvulnscanner/__init__.py` - `_maybe_start_scheduler(app)`, `asset` blueprint registration
+- `glassbox/models.py` - `Asset` model + `Scan.asset_id`/`Scan.asset` FK+relationship+index
+- `glassbox/entitlements.py` - `effective_tier_for_org(org)` extracted; `effective_tier(user)` delegates to it
+- `glassbox/scheduler.py` (new) - tick/claim-guard/fire scheduling engine
+- `glassbox/asset_routes.py` (new) - `asset` blueprint: `/assets`, `/assets/new`
+- `glassbox/config.py` - `SCHEDULER_ENABLED`, `SCHEDULER_POLL_INTERVAL_SECONDS`
+- `glassbox/__init__.py` - `_maybe_start_scheduler(app)`, `asset` blueprint registration
 - `templates/asset_new.html` (new) - Asset registration form
 - `templates/assets.html` (new) - Asset inventory list
 - `templates/base.html` - "Assets" nav link
@@ -187,7 +187,7 @@ status: complete
 - **Found during:** Task 1, first `pytest tests/test_scheduler.py` run
 - **Issue:** RESEARCH.md's Pattern 3 skeleton uses a plain `db.session.execute(update(Asset)...)` with no `synchronize_session` option. SQLAlchemy's default "evaluate" strategy tries to sync the WHERE clause against already-loaded ORM objects in Python before hitting the DB. On SQLite, `DateTime(timezone=True)` columns round-trip as timezone-naive, so comparing a loaded (naive) `Asset.locked_until`/`next_run_at` attribute against the timezone-aware `now` passed into the WHERE clause raised `TypeError: can't compare offset-naive and offset-aware datetimes`.
 - **Fix:** Added `.execution_options(synchronize_session=False)` to the claim UPDATE — this is a Core-style conditional UPDATE where only `result.rowcount` matters to the caller; the caller (`_tick`) already re-fetches the Asset by primary key afterward, so no in-session attribute sync is needed. Portable to Postgres (which preserves tz-aware datetimes and would not have hit this) without behavior change.
-- **Files modified:** `webvulnscanner/scheduler.py`
+- **Files modified:** `glassbox/scheduler.py`
 - **Verification:** `pytest tests/test_scheduler.py` — all claim-guard and tick tests pass
 - **Committed in:** `e8cae13` (Task 1 commit)
 
@@ -205,7 +205,7 @@ status: complete
 
 ## Issues Encountered
 
-**Cross-repo `.env` leak via Flask CLI's automatic dotenv loading (caught before any write, no data affected).** This worktree has no `.env` file of its own. Flask's CLI (`flask db migrate`/`flask db upgrade`) auto-loads a `.env` by walking **upward** from the current working directory (`python-dotenv`'s `find_dotenv(usecwd=True)`) — from this worktree at `.claude/worktrees/lazy-drifting-quilt`, that walk found and loaded the **main repo's real `.env`** (three directories up), which points `SQLALCHEMY_DATABASE_URI` at what appears to be a live Postgres (Neon) database, before `webvulnscanner/config.py`'s own explicit (and correctly worktree-scoped, but no-op since no local `.env` exists) `load_dotenv()` call ever ran. The first `flask db migrate` invocation connected to that real database for its autogenerate diff (read-only introspection: `SELECT`/catalog queries only — `flask db migrate` and `flask db current` never issue DDL) and the newly-added scheduler's background thread also fired one harmless read-only `SELECT ... FROM assets WHERE ...` against it (table doesn't exist there, so it errored and logged, changing nothing). No `flask db upgrade` (the only DDL-issuing command) was ever run against that connection — this was caught and diagnosed before that step. Recovery: discarded the migration generated against the wrong DB, set `FLASK_SKIP_DOTENV=1` for every subsequent `flask` CLI invocation (skips Flask's automatic `.env`/`.flaskenv` search entirely, forcing `webvulnscanner/config.py`'s own explicit, correctly-scoped `load_dotenv()` — a no-op here — to be the only source), recreated a fresh local `webvulnscanner.db`, and regenerated the migration cleanly against it. **This is a process risk worth flagging beyond this plan**: any future `flask` CLI command run from inside this worktree without `FLASK_SKIP_DOTENV=1` will silently reconnect to the main repo's real database. Not fixed in code (no application code owns this — it's a Flask-CLI/python-dotenv interaction specific to the worktree directory layout), but is now known and documented here for the next executor.
+**Cross-repo `.env` leak via Flask CLI's automatic dotenv loading (caught before any write, no data affected).** This worktree has no `.env` file of its own. Flask's CLI (`flask db migrate`/`flask db upgrade`) auto-loads a `.env` by walking **upward** from the current working directory (`python-dotenv`'s `find_dotenv(usecwd=True)`) — from this worktree at `.claude/worktrees/lazy-drifting-quilt`, that walk found and loaded the **main repo's real `.env`** (three directories up), which points `SQLALCHEMY_DATABASE_URI` at what appears to be a live Postgres (Neon) database, before `glassbox/config.py`'s own explicit (and correctly worktree-scoped, but no-op since no local `.env` exists) `load_dotenv()` call ever ran. The first `flask db migrate` invocation connected to that real database for its autogenerate diff (read-only introspection: `SELECT`/catalog queries only — `flask db migrate` and `flask db current` never issue DDL) and the newly-added scheduler's background thread also fired one harmless read-only `SELECT ... FROM assets WHERE ...` against it (table doesn't exist there, so it errored and logged, changing nothing). No `flask db upgrade` (the only DDL-issuing command) was ever run against that connection — this was caught and diagnosed before that step. Recovery: discarded the migration generated against the wrong DB, set `FLASK_SKIP_DOTENV=1` for every subsequent `flask` CLI invocation (skips Flask's automatic `.env`/`.flaskenv` search entirely, forcing `glassbox/config.py`'s own explicit, correctly-scoped `load_dotenv()` — a no-op here — to be the only source), recreated a fresh local `glassbox.db`, and regenerated the migration cleanly against it. **This is a process risk worth flagging beyond this plan**: any future `flask` CLI command run from inside this worktree without `FLASK_SKIP_DOTENV=1` will silently reconnect to the main repo's real database. Not fixed in code (no application code owns this — it's a Flask-CLI/python-dotenv interaction specific to the worktree directory layout), but is now known and documented here for the next executor.
 
 ## User Setup Required
 

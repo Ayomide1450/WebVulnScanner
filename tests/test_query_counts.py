@@ -13,9 +13,9 @@ during it, via a `sqlalchemy.event.listen(engine, "before_cursor_execute",
 never leaks into a later test even if the wrapped code raises.
 
 09-03-PLAN.md's Task 1 is an audit-and-prove task, not an assume-and-fix
-one: `webvulnscanner/scan_routes.py`'s `dashboard()` query only ever touches
+one: `glassbox/scan_routes.py`'s `dashboard()` query only ever touches
 plain `Scan` columns per row (no relationship traversal), and
-`webvulnscanner/org_routes.py`'s `admin()` scans/audit_events queries are
+`glassbox/org_routes.py`'s `admin()` scans/audit_events queries are
 already eager-loaded (`joinedload(Scan.user)`, `joinedload(Scan.report)`,
 `joinedload(OrgAuditEvent.actor)`) while its members loop reads only plain
 `User` columns. Both tests below pass against the CURRENT code with zero
@@ -47,8 +47,8 @@ from contextlib import contextmanager
 from sqlalchemy import event
 
 from tests.conftest import login, make_org, make_scan, make_user
-from webvulnscanner.extensions import db
-from webvulnscanner.models import OrgAuditEvent, Role, ScanStatus
+from glassbox.extensions import db
+from glassbox.models import OrgAuditEvent, Role, ScanStatus
 
 
 @contextmanager

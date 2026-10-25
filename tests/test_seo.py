@@ -4,7 +4,7 @@ SEO-01..04 coverage (09-01-PLAN.md).
 This module grows across all three tasks in 09-01-PLAN.md:
 
 - Task 1: base.html's favicon <link> set (the four static assets under
-  webvulnscanner/static/ resolve with a 200, and base.html references all
+  glassbox/static/ resolve with a 200, and base.html references all
   four via <link> tags).
 - Task 2: /robots.txt (self-updating Disallow list derived from
   current_app.url_map, never a hardcoded list) and /sitemap.xml (exactly

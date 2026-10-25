@@ -20,8 +20,8 @@ from pathlib import Path
 
 import pytest
 
-from webvulnscanner.models import Scan
-from webvulnscanner.selftest import (
+from glassbox.models import Scan
+from glassbox.selftest import (
     EXPECTATIONS,
     detection_verification,
     reset_detection_verification_cache,
@@ -111,7 +111,7 @@ def test_route_requires_login_removed_with_the_route():
     engine now feeds scan reports directly; a re-introduced route would
     resurrect the exact "another scanner - which domain does THIS one hit?"
     confusion the redesign exists to kill."""
-    from webvulnscanner import create_app
+    from glassbox import create_app
     app = create_app()
     client = app.test_client()
     resp = client.get("/selftest")
@@ -129,7 +129,7 @@ def _matrix_stub(rows, passed=True, duration_ms=7):
 
 
 def test_detection_verification_caches_per_process(monkeypatch):
-    from webvulnscanner import selftest as st
+    from glassbox import selftest as st
     reset_detection_verification_cache()
     calls = []
 
@@ -148,7 +148,7 @@ def test_detection_verification_caches_per_process(monkeypatch):
 
 
 def test_verification_error_is_not_cached(monkeypatch):
-    from webvulnscanner import selftest as st
+    from glassbox import selftest as st
     reset_detection_verification_cache()
     attempts = []
 
@@ -167,7 +167,7 @@ def test_verification_error_is_not_cached(monkeypatch):
 
 
 def test_verification_summary_shape_and_failed_list(monkeypatch):
-    from webvulnscanner import selftest as st
+    from glassbox import selftest as st
     reset_detection_verification_cache()
     matrix = _matrix_stub(
         [("ssti", True, True), ("crlf", False, False)],
@@ -188,7 +188,7 @@ def test_verification_summary_shape_and_failed_list(monkeypatch):
 
 
 def test_verification_summary_none_when_engine_unavailable(monkeypatch):
-    from webvulnscanner import selftest as st
+    from glassbox import selftest as st
     reset_detection_verification_cache()
 
     def boom():
@@ -203,7 +203,7 @@ def test_run_scan_attaches_detection_verified():
     must call verification_summary() at the END of its pipeline (after
     scoring) and attach the result to the returned report only when present -
     an unavailable verification omits the key rather than failing the scan."""
-    src = (Path(__file__).resolve().parent.parent / "webvulnscanner" /
+    src = (Path(__file__).resolve().parent.parent / "glassbox" /
            "scan_engine.py").read_text(encoding="utf-8")
     scoring_at = src.index("_score_report(all_findings)")
     attach_at = src.index('report["detection_verified"] = detection_verified')

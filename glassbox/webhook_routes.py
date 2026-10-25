@@ -2,7 +2,7 @@
 Blueprint `webhooks`: /webhooks (+ add/delete/toggle/test/deliveries).
 
 Phase 19 (WEBH-*): the management UI for the outbound-webhook surface
-implemented in `webvulnscanner/webhooks.py` - that module owns delivery
+implemented in `glassbox/webhooks.py` - that module owns delivery
 and signing; this file owns CRUD, scoping, and validation.
 
 Scope model (mirrors `_scoped_asset_query()`'s dual rule):
@@ -27,10 +27,10 @@ from flask_wtf import FlaskForm
 from wtforms import SelectField, StringField
 from wtforms.validators import DataRequired, Length, Optional
 
-from webvulnscanner.audit import log_org_event
-from webvulnscanner.extensions import db, limiter
-from webvulnscanner.models import OutboundWebhook, Role, WebhookDelivery
-from webvulnscanner.webhooks import (
+from glassbox.audit import log_org_event
+from glassbox.extensions import db, limiter
+from glassbox.models import OutboundWebhook, Role, WebhookDelivery
+from glassbox.webhooks import (
     redact_webhook_url,
     send_test_ping,
     validate_webhook_url,

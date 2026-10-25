@@ -22,8 +22,8 @@ trim is a safety net, not something an org routinely hits.
 from flask import current_app
 from flask_login import current_user
 
-from webvulnscanner.extensions import db
-from webvulnscanner.models import OrgAuditEvent, PlatformAuditEvent
+from glassbox.extensions import db
+from glassbox.models import OrgAuditEvent, PlatformAuditEvent
 
 # --- Retention (AUDIT-04) ------------------------------------------------
 

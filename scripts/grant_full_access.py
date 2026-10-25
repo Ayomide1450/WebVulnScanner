@@ -20,9 +20,9 @@ domain for the specific target being scanned.
 import argparse
 import sys
 
-from webvulnscanner import create_app
-from webvulnscanner.extensions import db
-from webvulnscanner.models import User, Plan, DomainVerification, VerifyMethod, _utcnow
+from glassbox import create_app
+from glassbox.extensions import db
+from glassbox.models import User, Plan, DomainVerification, VerifyMethod, _utcnow
 
 
 def main():

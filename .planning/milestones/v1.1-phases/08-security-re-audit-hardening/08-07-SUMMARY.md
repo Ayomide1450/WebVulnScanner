@@ -24,7 +24,7 @@ tech-stack:
   added: []
   patterns:
     - "Real-import collection assertion (not a source-text scan): imports each of the six phase-8 test modules via the tests.* package and counts module-level test_* functions/classes, mirroring what pytest's own collector would gather - closer to the actual failure mode (a module present but empty/broken) than a regex over file text."
-    - "The live probe script's own three hard guardrails (loopback-only base URL, self-created-database-only, FLASK_SKIP_DOTENV required) were exercised for real in Task 2, not just unit-tested against mocks - the printed seed path was independently confirmed to be a temp file, not webvulnscanner.db, proving the guardrail worked under real conditions, not just its own test suite."
+    - "The live probe script's own three hard guardrails (loopback-only base URL, self-created-database-only, FLASK_SKIP_DOTENV required) were exercised for real in Task 2, not just unit-tested against mocks - the printed seed path was independently confirmed to be a temp file, not glassbox.db, proving the guardrail worked under real conditions, not just its own test suite."
 
 key-files:
   created: []
@@ -95,12 +95,12 @@ status: complete
 ## Accomplishments
 
 - **Task 1 (already committed, `1935fef`):** Built `scripts/live_probe_phase8.py` - a standalone `requests`-based prober with a two-org disposable-SQLite seeder, three hard guardrails (loopback-only base URL, self-created-database-only, `FLASK_SKIP_DOTENV` required), an authentication pre-check that aborts rather than reporting a false pass from an unsent `Secure` cookie, and a case list pairing each probe case with its named regression test. `tests/test_live_probe_script.py` locked everything checkable without a running server (16 tests at that point).
-- **Task 2 (checkpoint:human-verify, run for real by the orchestrator - not re-run here per this task's explicit instructions):** The probe was seeded into a disposable SQLite file at a confirmed-temporary path (`webvulnscanner_live_probe_phase8.db`, NOT `webvulnscanner.db` - the guardrail worked as designed), run against a real `python app.py` on `http://127.0.0.1:5000` with `FLASK_SKIP_DOTENV=1`/`SESSION_COOKIE_SECURE=false`/`ALLOW_INSECURE_DEV_SECRET_KEY=true` set. **All 10 cases passed, exit code 0.** Full per-case table below. Cleanup confirmed: both `python app.py` processes stopped, port 5000 free, disposable `.db` + `_ids.json` deleted.
+- **Task 2 (checkpoint:human-verify, run for real by the orchestrator - not re-run here per this task's explicit instructions):** The probe was seeded into a disposable SQLite file at a confirmed-temporary path (`glassbox_live_probe_phase8.db`, NOT `glassbox.db` - the guardrail worked as designed), run against a real `python app.py` on `http://127.0.0.1:5000` with `FLASK_SKIP_DOTENV=1`/`SESSION_COOKIE_SECURE=false`/`ALLOW_INSECURE_DEV_SECRET_KEY=true` set. **All 10 cases passed, exit code 0.** Full per-case table below. Cleanup confirmed: both `python app.py` processes stopped, port 5000 free, disposable `.db` + `_ids.json` deleted.
 - **Task 3 (this session):** Added the phase-gate collection assertion (`test_all_six_phase_8_test_modules_exist_and_collect_at_least_one_test`) to `tests/test_live_probe_script.py` - imports all six of this phase's new test modules via the `tests.*` package and counts module-level `test_*` functions/classes, failing by name if any module is missing, fails to import, or collects zero tests. Negative-controlled live: temporarily removed `tests/test_error_leakage.py`, the assertion failed naming exactly `tests/test_error_leakage.py (created by plan 08-06) is MISSING from disk entirely`; reverted, `git status --short` confirmed clean before re-committing.
 - Ran the full suite twice: first run showed `1 failed, 756 passed` (the known pre-existing `tests/test_org_invite.py::test_decode_invite_token_rejects_tampered_signature` flake, WINDOWS.md entry #1, ~6.9% intermittent rate documented since 08-02 and unrelated to this plan's diff - reproduced clean in isolation immediately after); second full run came back **757 passed, 0 failures**.
 - Walked the phase evidence gate row by row against all seven summaries (08-01 through this plan) and filled every row with a specific recorded observation and its source summary - see the completed table below.
 - Updated `08-VALIDATION.md`: Per-Task Verification Map status column set to ✅ green for all ten requirements with evidence citations; Wave 0 Requirements and Manual-Only Verifications marked done with results recorded; `wave_0_complete: true` and `nyquist_compliant: true` set in frontmatter; Validation Sign-Off checklist all checked.
-- Confirmed no file under `webvulnscanner/` was touched by this plan (`git diff --stat` for the whole plan lists only `scripts/`, `tests/`, and `.planning/phases/08-security-re-audit-hardening/08-VALIDATION.md`).
+- Confirmed no file under `glassbox/` was touched by this plan (`git diff --stat` for the whole plan lists only `scripts/`, `tests/`, and `.planning/phases/08-security-re-audit-hardening/08-VALIDATION.md`).
 
 ## Task Commits
 
@@ -120,8 +120,8 @@ status: complete
 
 Run against a real `python app.py` process on `http://127.0.0.1:5000`, seeded via
 `scripts/live_probe_phase8.py --seed` into a disposable SQLite file at
-`C:\Users\ARKTEC~1\AppData\Local\Temp\webvulnscanner_live_probe_phase8.db` (confirmed NOT
-`webvulnscanner.db` - guardrail worked as designed), with `FLASK_SKIP_DOTENV=1`,
+`C:\Users\ARKTEC~1\AppData\Local\Temp\glassbox_live_probe_phase8.db` (confirmed NOT
+`glassbox.db` - guardrail worked as designed), with `FLASK_SKIP_DOTENV=1`,
 `SESSION_COOKIE_SECURE=false`, `ALLOW_INSECURE_DEV_SECRET_KEY=true` set in both shells.
 
 **Command:** `.venv\Scripts\python scripts\live_probe_phase8.py --probe --base-url http://127.0.0.1:5000`
@@ -142,13 +142,13 @@ csrf_wrong_token_invite                    /org/admin/invite                    
 csrf_valid_token_invite                    /org/admin/invite                                302      302      PASS   tests/test_csrf_enforcement.py::test_invite_with_valid_csrf_token_returns_302_and_creates_one_row
 foreign_origin_valid_token_invite          /org/admin/invite                                302      302      PASS   tests/test_csrf_enforcement.py::test_invite_with_valid_csrf_token_returns_302_and_creates_one_row
 
-  NOTE (foreign_origin_valid_token_invite): This app's CSRFProtect validates the submitted token only, not the Origin/Referer header (no WTF_CSRF_SSL_STRICT/Referer check is configured anywhere in webvulnscanner/) - a valid token from a real session is expected to succeed regardless of Origin. A real browser's own SameSite=Lax cookie policy (not this app) is what would actually withhold the session cookie on a genuine cross-site POST navigation; requests does not enforce SameSite, so this case's value is confirming the app itself has no independent Origin check to fall back on.
+  NOTE (foreign_origin_valid_token_invite): This app's CSRFProtect validates the submitted token only, not the Origin/Referer header (no WTF_CSRF_SSL_STRICT/Referer check is configured anywhere in glassbox/) - a valid token from a real session is expected to succeed regardless of Origin. A real browser's own SameSite=Lax cookie policy (not this app) is what would actually withhold the session cookie on a genuine cross-site POST navigation; requests does not enforce SameSite, so this case's value is confirming the app itself has no independent Origin check to fall back on.
 
 ALL 10 CASE(S) PASSED.
 ```
 
 **Confirmations:** Step 1's printed seed path was a temporary file under the OS temp dir, not
-`webvulnscanner.db` - the guardrail behaved correctly. Both `python app.py` processes were
+`glassbox.db` - the guardrail behaved correctly. Both `python app.py` processes were
 stopped after the run, port 5000 confirmed free, the disposable `.db` and its companion
 `_ids.json` file both deleted by the orchestrator.
 

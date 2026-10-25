@@ -31,7 +31,7 @@ ENV FLASK_APP=app.py \
 
 EXPOSE 8080
 
-# --workers 1: SCHEDULER_ENABLED's in-process daemon thread (webvulnscanner/scheduler.py)
+# --workers 1: SCHEDULER_ENABLED's in-process daemon thread (glassbox/scheduler.py)
 # and Flask-Limiter's in-memory storage are both single-process assumptions
 # today - see CLAUDE.md's "Known limitations" before raising this. --threads 4
 # lets background scan threads (threading.Thread per scan) and normal request

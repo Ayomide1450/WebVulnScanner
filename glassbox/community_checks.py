@@ -27,7 +27,7 @@ from urllib.parse import urlencode, urlparse, parse_qs
 import yaml
 import requests as _requests
 
-from webvulnscanner.checks import (
+from glassbox.checks import (
     Finding,
     REQUEST_TIMEOUT,
     CHECK_LABELS,
@@ -36,7 +36,7 @@ from webvulnscanner.checks import (
     SECURITY_DOMAIN_MAP,
     SCAN_TYPE_CHECK_NAMES,
 )
-from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier
+from glassbox.entitlements import FEATURE_REQUIREMENTS, Tier
 
 logger = logging.getLogger(__name__)
 

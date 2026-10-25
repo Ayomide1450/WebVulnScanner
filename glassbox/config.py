@@ -1,5 +1,5 @@
 """
-Config for the webvulnscanner package.
+Config for the glassbox package.
 
 Reads everything from the environment (via python-dotenv, so a local `.env`
 file next to the repo root is picked up automatically) with sane local-dev
@@ -91,7 +91,7 @@ class Config:
 
     # Idle-session timeout (security hardening): a logged-in user is signed
     # out server-side after this many minutes with no request, regardless
-    # of "Remember me" - see webvulnscanner/__init__.py's
+    # of "Remember me" - see glassbox/__init__.py's
     # _enforce_idle_timeout before_request hook, which is what actually
     # reads this value. Overridable via env for e.g. a longer local-dev
     # session; production keeps the 5-minute default.
@@ -116,7 +116,7 @@ class Config:
     _db_uri = os.environ.get(
         "SQLALCHEMY_DATABASE_URI",
         os.environ.get("DATABASE_URL")
-        or "sqlite:///" + os.path.join(APP_DIR, "webvulnscanner.db"),
+        or "sqlite:///" + os.path.join(APP_DIR, "glassbox.db"),
     )
     # Render/Heroku/most managed-Postgres providers (Neon included) hand out
     # connection strings starting "postgres://" - SQLAlchemy 1.4+ only
@@ -167,7 +167,7 @@ class Config:
     TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "")
     TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
 
-    # Error monitoring (Sentry) - see webvulnscanner/__init__.py's
+    # Error monitoring (Sentry) - see glassbox/__init__.py's
     # _init_sentry(). Empty by default: sentry-sdk isn't a hard dependency
     # (not in requirements.txt) and initialization is skipped entirely,
     # with a log line, if either the package or this DSN is missing - same
@@ -188,7 +188,7 @@ class Config:
     RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
     RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "")
 
-    # AI-assisted remediation summaries (see webvulnscanner/ai_summary.py) -
+    # AI-assisted remediation summaries (see glassbox/ai_summary.py) -
     # Groq's free, OpenAI-compatible API serving an open-source model.
     # Empty-string default: generate_remediation_summary() treats a missing
     # key as "no summary available" and degrades gracefully, it does not
@@ -196,7 +196,7 @@ class Config:
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
     GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
 
-    # In-process daemon-thread scheduler (Phase 1, D-01/webvulnscanner/scheduler.py) -
+    # In-process daemon-thread scheduler (Phase 1, D-01/glassbox/scheduler.py) -
     # ticks periodically to fire due Assets. Default on; set false to disable
     # entirely (e.g. ops maintenance) without a code change. TestConfig
     # (tests/conftest.py) sets this False unconditionally - required, or

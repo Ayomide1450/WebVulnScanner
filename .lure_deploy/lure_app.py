@@ -1,7 +1,7 @@
 """Glassbox Phase-20 lure app - deliberately vulnerable endpoints for
 positive-detection verification ONLY. Never deploy this to production.
 
-Lures implemented (each mirrors what webvulnscanner/checks.py probes):
+Lures implemented (each mirrors what glassbox/checks.py probes):
   SSTI        GET /ssti?name=...        -> reflects input through Jinja;
                                             {{77*88}} must yield 6776.
   TRAVERSAL   GET /download?file=...    -> unsanitized join; the probe sends

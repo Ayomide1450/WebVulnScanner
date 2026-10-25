@@ -32,7 +32,7 @@ key-files:
   created:
     - tests/test_scan_status.py
   modified:
-    - webvulnscanner/scan_routes.py
+    - glassbox/scan_routes.py
     - templates/scan_progress.html
 
 key-decisions:
@@ -88,7 +88,7 @@ status: executed (Task 3 human-verify checkpoint outstanding)
 - 18 new tests in `tests/test_scan_status.py`: 11 on the status endpoint (all four `ScanStatus` values, report-row presence/absence, cross-org/same-org-member/org-admin/anonymous/nonexistent-id ownership matrix, error-message-never-leaked), 7 on the rendered progress page (button presence, transport-branch source-content assertions, failed-scan error box, template-source occurrence counts for `revealViewReport`/`isBase`).
 
 ## Files Created/Modified
-- `webvulnscanner/scan_routes.py` - added `scan_status()` route (one new function, `jsonify` already imported from an earlier session change this same session); no existing function body touched.
+- `glassbox/scan_routes.py` - added `scan_status()` route (one new function, `jsonify` already imported from an earlier session change this same session); no existing function body touched.
 - `templates/scan_progress.html` - `viewReportBtn` anchor in `.soc-header`; conditional `feed-empty` copy; `isBase` flag, `revealViewReport()`, base-only `watchdog`; the SSE construction/handlers wrapped in a Jinja `{% if scan.scan_type == 'base' %}` block, the poll `pollStatus()`/`setInterval` in the paired `{% else %}` block. Zero changes inside the `<style>` block (confirmed by diffing the block directly, not just the blunt open-brace grep the original plan's acceptance criteria used, which also counts JS braces).
 - `tests/test_scan_status.py` - new module, 18 tests.
 

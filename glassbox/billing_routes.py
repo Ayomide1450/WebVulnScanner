@@ -9,11 +9,11 @@ status and pending invoices.
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from webvulnscanner import billing
-from webvulnscanner.audit import log_org_event
-from webvulnscanner.decorators import org_admin_required
-from webvulnscanner.extensions import limiter
-from webvulnscanner.models import CryptoInvoice, InvoiceStatus, Plan
+from glassbox import billing
+from glassbox.audit import log_org_event
+from glassbox.decorators import org_admin_required
+from glassbox.extensions import limiter
+from glassbox.models import CryptoInvoice, InvoiceStatus, Plan
 
 billing_bp = Blueprint("billing", __name__, url_prefix="/account/billing")
 

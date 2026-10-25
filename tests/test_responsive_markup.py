@@ -40,7 +40,7 @@ import re
 
 import pytest
 
-from webvulnscanner.models import ScanStatus
+from glassbox.models import ScanStatus
 
 from tests.conftest import login, make_org, make_scan, make_user
 

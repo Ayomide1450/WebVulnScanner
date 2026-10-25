@@ -2,9 +2,9 @@
 Blueprint `admin`: /platform-admin - the website's own operator panel, not
 to be confused with `/org/admin` (an org's own ORG_ADMIN self-service page).
 
-Every route here requires `platform_admin_required` (webvulnscanner/
+Every route here requires `platform_admin_required` (glassbox/
 decorators.py) - `User.is_platform_admin`, a flag no route can set, only
-the `flask grant-platform-admin <email>` CLI command (webvulnscanner/cli.py).
+the `flask grant-platform-admin <email>` CLI command (glassbox/cli.py).
 
 Scope: a cross-org queue of pending domain-deletion requests (the actual
 separation-of-duties fix - an org admin can request a deletion, only a
@@ -20,9 +20,9 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 from flask_login import current_user, login_required
 from sqlalchemy.orm import joinedload
 
-from webvulnscanner.decorators import platform_admin_required
-from webvulnscanner.extensions import db
-from webvulnscanner.models import (
+from glassbox.decorators import platform_admin_required
+from glassbox.extensions import db
+from glassbox.models import (
     AssessmentRequest,
     DomainVerification,
     Organization,
@@ -35,7 +35,7 @@ from webvulnscanner.models import (
 admin = Blueprint("admin", __name__, url_prefix="/platform-admin")
 
 
-from webvulnscanner.audit import log_platform_event as _log_platform_event
+from glassbox.audit import log_platform_event as _log_platform_event
 
 
 @admin.route("")

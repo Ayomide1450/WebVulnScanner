@@ -15,9 +15,9 @@ FEATURE_REQUIREMENTS.
 import ast
 import pathlib
 
-from webvulnscanner.checks import CONFIDENCE_LEVELS, Finding
+from glassbox.checks import CONFIDENCE_LEVELS, Finding
 
-CHECKS_PY = pathlib.Path(__file__).resolve().parent.parent / "webvulnscanner" / "checks.py"
+CHECKS_PY = pathlib.Path(__file__).resolve().parent.parent / "glassbox" / "checks.py"
 
 
 def _find_finding_calls(tree):

@@ -34,7 +34,7 @@ OPERATOR SEQUENCE (also see 08-07-PLAN.md Task 2's checkpoint text):
        .venv\\Scripts\\python scripts\\live_probe_phase8.py --seed
 
      Confirm the printed database path is a temporary file, NOT
-     webvulnscanner.db. If it is not, stop - the guardrail failed and that
+     glassbox.db. If it is not, stop - the guardrail failed and that
      is itself a finding.
 
   2. In a SECOND shell, with the SAME three env vars set plus the
@@ -91,7 +91,7 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 
-PROBE_DB_MARKER = "webvulnscanner_live_probe_phase8"
+PROBE_DB_MARKER = "glassbox_live_probe_phase8"
 PROBE_PASSWORD = "ProbePhase8Pass!1"
 # base.html's nav renders this exact link for every authenticated page -
 # see templates/base.html's "Logout" <a> tag. Used by verify_authenticated()
@@ -119,7 +119,7 @@ def probe_db_path():
     accept - always inside the OS temp directory, named with an
     unambiguous marker so a human glancing at printed output immediately
     recognizes it as disposable and never mistakes it for
-    webvulnscanner.db."""
+    glassbox.db."""
     return Path(tempfile.gettempdir()) / f"{PROBE_DB_MARKER}.db"
 
 
@@ -176,14 +176,14 @@ def assert_loopback_base_url(base_url):
 def assert_db_uri_is_self_created(uri):
     """Refuses a database URI this script did not itself generate -
     compared against the exact value probe_db_uri() returns, so pointing
-    this at webvulnscanner.db (by a stray env var, a copy-pasted config, or
+    this at glassbox.db (by a stray env var, a copy-pasted config, or
     any other means) is structurally impossible, not merely discouraged."""
     expected = probe_db_uri()
     if uri != expected:
         raise ProbeRefused(
             f"database URI {uri!r} is not the disposable file this script creates "
             f"itself ({expected!r}). This guardrail exists because a careless run "
-            f"can otherwise end up pointed at your real webvulnscanner.db - see "
+            f"can otherwise end up pointed at your real glassbox.db - see "
             f"CLAUDE.md's FLASK_SKIP_DOTENV warning and 08-RESEARCH.md's Open "
             f"Question 2. Do not set SQLALCHEMY_DATABASE_URI yourself before "
             f"--seed; this script manages its own disposable file and prints the "
@@ -235,8 +235,8 @@ def seed_disposable_database():
     os.environ.setdefault("SESSION_COOKIE_SECURE", "false")
     os.environ.setdefault("ALLOW_INSECURE_DEV_SECRET_KEY", "true")
 
-    from webvulnscanner import create_app
-    from webvulnscanner.config import Config
+    from glassbox import create_app
+    from glassbox.config import Config
 
     class _ProbeConfig(Config):
         SQLALCHEMY_DATABASE_URI = uri
@@ -245,7 +245,7 @@ def seed_disposable_database():
 
     app = create_app(_ProbeConfig)
     with app.app_context():
-        from webvulnscanner.extensions import db as _db
+        from glassbox.extensions import db as _db
 
         _db.create_all()
         ids = _seed_two_orgs(_db)
@@ -260,7 +260,7 @@ def _seed_two_orgs(_db):
 
     from werkzeug.security import generate_password_hash
 
-    from webvulnscanner.models import (
+    from glassbox.models import (
         ApiToken,
         Asset,
         CryptoInvoice,
@@ -520,7 +520,7 @@ CASES = [
         "note": (
             "This app's CSRFProtect validates the submitted token only, not the "
             "Origin/Referer header (no WTF_CSRF_SSL_STRICT/Referer check is "
-            "configured anywhere in webvulnscanner/) - a valid token from a real "
+            "configured anywhere in glassbox/) - a valid token from a real "
             "session is expected to succeed regardless of Origin. A real browser's "
             "own SameSite=Lax cookie policy (not this app) is what would actually "
             "withhold the session cookie on a genuine cross-site POST navigation; "
@@ -749,7 +749,7 @@ def main(argv=None):
         if args.seed:
             ids = seed_disposable_database()
             print(f"Seeded disposable database at: {probe_db_path()}")
-            print("Confirm this path is a TEMPORARY file, NOT webvulnscanner.db.")
+            print("Confirm this path is a TEMPORARY file, NOT glassbox.db.")
             print()
             print("Start the app against this same database in a second shell")
             print("(same FLASK_SKIP_DOTENV=1 / SESSION_COOKIE_SECURE=false / ")

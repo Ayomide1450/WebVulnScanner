@@ -1,6 +1,6 @@
 """
 Flask extension instances, created uninitialized here and wired up via
-`.init_app(app)` inside `create_app()` (see `webvulnscanner/__init__.py`).
+`.init_app(app)` inside `create_app()` (see `glassbox/__init__.py`).
 Kept in their own module so other modules (models, routes) can import them
 without triggering circular imports with the app factory.
 """
@@ -49,7 +49,7 @@ login_manager.login_view = "auth.login"
 # models.py <-> extensions.py circular import at module load time.
 @login_manager.user_loader
 def load_user(user_id):
-    from webvulnscanner.models import User
+    from glassbox.models import User
 
     return User.query.get(int(user_id))
 
@@ -86,7 +86,7 @@ def load_user_from_request(request):
 
     from datetime import datetime, timezone
 
-    from webvulnscanner.models import ApiToken
+    from glassbox.models import ApiToken
 
     token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
     row = ApiToken.query.filter_by(token_hash=token_hash, revoked_at=None).first()

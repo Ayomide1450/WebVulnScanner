@@ -32,7 +32,7 @@ tech-stack:
 key-files:
   created: []
   modified:
-    - webvulnscanner/checks.py
+    - glassbox/checks.py
     - tests/test_ssrf_guard.py
     - tests/test_sensitive_paths.py
     - tests/test_scan_engine.py
@@ -41,7 +41,7 @@ key-decisions:
   - "Overrode get_redirect_target(), not resolve_redirects(), after building and testing the resolve_redirects() approach 08-RESEARCH.md proposed and watching it fail its own real-server proof test - recorded here so a future reader does not re-attempt the same falsified approach."
   - "is_ssrf_safe_hostname() itself was not touched - confirmed via a dedicated frozen-surface source-identity test, not just by review."
   - "D-05's orchestrator-session backfill was scoped narrowly to what SEC-03 actually requires (one new lock in the existing tests/test_scan_engine.py, no new test file) rather than treated as a general coverage expansion - tests/test_scan_engine.py already had 549 lines of orchestrator coverage from Phase 4, so 08-RESEARCH.md's note that CONCERNS.md's 'thin coverage' claim is stale was reconfirmed, not just cited."
-  - "Coordinated with plan 08-05's concurrent edit to the same file (webvulnscanner/scan_engine.py, an unrelated new read_report_file() helper below the orchestrators): the new lock is scoped to the four named orchestrator functions plus a whole-module bare-session ban, neither of which a report-reading helper touches. Re-ran green after both plans' worktrees were merged; no collision occurred."
+  - "Coordinated with plan 08-05's concurrent edit to the same file (glassbox/scan_engine.py, an unrelated new read_report_file() helper below the orchestrators): the new lock is scoped to the four named orchestrator functions plus a whole-module bare-session ban, neither of which a report-reading helper touches. Re-ran green after both plans' worktrees were merged; no collision occurred."
 
 patterns-established:
   - "SSRF-redirect-guard test harness: a real http.server on an ephemeral port in a daemon thread with a recorded request log, used for both the blocked-hop proofs and the legitimate-redirect regression proofs - avoids asserting behavior against a mock of the very mechanism under test."
@@ -154,7 +154,7 @@ status: complete
 
 ## Files Created/Modified
 
-- `webvulnscanner/checks.py` - new `_SSRFSafeSession(requests.Session)` class; `_mk_session()` returns an instance of it instead of a bare `requests.Session`.
+- `glassbox/checks.py` - new `_SSRFSafeSession(requests.Session)` class; `_mk_session()` returns an instance of it instead of a bare `requests.Session`.
 - `tests/test_ssrf_guard.py` - grew substantially: blocked-hop proofs (loopback/RFC1918/link-local/metadata), multi-hop chain test, three legitimate-redirect regression tests, the `allow_redirects=False` no-op test, the frozen-surface lock, and the delegation lock.
 - `tests/test_sensitive_paths.py` - session-construction assumptions updated for the `_SSRFSafeSession` subclass change.
 - `tests/test_scan_engine.py` - two new tests: `test_every_orchestrator_acquires_its_session_via_mk_session` and `test_scan_engine_module_never_constructs_a_bare_requests_session`.
@@ -174,7 +174,7 @@ Task 1's read-first research (08-RESEARCH.md Assumption A3) proposed overriding 
 
 ## Negative Controls Performed
 
-Recorded verbatim in the Task 3 commit message (`78fb9a1`): `run_api_scan`'s `_mk_session()` call was temporarily replaced with `requests.Session()`; both new `test_scan_engine.py` locks failed and named `run_api_scan` specifically; four pre-existing `run_api_scan` tests also failed as an expected side effect of the mutation itself. Reverted; `git diff --stat webvulnscanner/scan_engine.py` confirmed empty afterward. Task 2's frozen-surface and delegation locks were similarly negative-controlled during authoring (per-task action notes); see `tests/test_ssrf_guard.py`'s own test bodies for what each asserts.
+Recorded verbatim in the Task 3 commit message (`78fb9a1`): `run_api_scan`'s `_mk_session()` call was temporarily replaced with `requests.Session()`; both new `test_scan_engine.py` locks failed and named `run_api_scan` specifically; four pre-existing `run_api_scan` tests also failed as an expected side effect of the mutation itself. Reverted; `git diff --stat glassbox/scan_engine.py` confirmed empty afterward. Task 2's frozen-surface and delegation locks were similarly negative-controlled during authoring (per-task action notes); see `tests/test_ssrf_guard.py`'s own test bodies for what each asserts.
 
 ## Residual Gap (accepted, not closed by this plan)
 

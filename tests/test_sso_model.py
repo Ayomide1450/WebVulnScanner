@@ -6,7 +6,7 @@ auth_method column behavior.
 """
 import pytest
 from tests.conftest import make_org, make_user
-from webvulnscanner.models import SSOConfiguration, Organization, Plan, Role
+from glassbox.models import SSOConfiguration, Organization, Plan, Role
 
 
 class TestSSOConfigurationModel:

@@ -1,4 +1,4 @@
-# Requirements: WebVulnScanner → Glassbox — v1.3 Rebrand & Production Security Readiness
+# Requirements: Glassbox → Glassbox — v1.3 Rebrand & Production Security Readiness
 
 **Defined:** 2026-08-20
 **Core Value:** Security engineers can trust the product to run safe, authorization-gated,
@@ -6,7 +6,7 @@ non-destructive scans against their own infrastructure and get findings they can
 it ever weakening its safety guarantees to become a general attack tool. This holds regardless of
 product name.
 
-**Milestone Goal:** Rebrand from WebVulnScanner to Glassbox (in-app branding + a live Fly app
+**Milestone Goal:** Rebrand from Glassbox to Glassbox (in-app branding + a live Fly app
 migration to `glassboxsec.fly.dev`), then extend the existing scan engine — reusing all current
 checks, the OWASP-mapped compliance layer, ownership verification, and scan pipelines rather than
 duplicating any of it — into a full "Production Security Readiness" assessment: an extended
@@ -21,9 +21,9 @@ product framing, it does not change what the scanner is allowed to do to a targe
 
 ### Rebrand (REBRAND) — Phase 11
 
-- [x] **REBRAND-01**: Product name changed from "WebVulnScanner" to "Glassbox" across all
+- [x] **REBRAND-01**: Product name changed from "Glassbox" to "Glassbox" across all
       user-facing surfaces — page titles, meta/OG/Twitter tags, nav brand, emails, error pages —
-      with no leftover "WebVulnScanner" string in rendered output.
+      with no leftover "Glassbox" string in rendered output.
 - [x] **REBRAND-02**: `README.md`, `CLAUDE.md`, and other project docs updated to reflect the new
       name; `CLAUDE.md`'s safety-critical constraints (frozen surface, non-destructive rules)
       carry over unchanged in substance.
@@ -34,7 +34,7 @@ product framing, it does not change what the scanner is allowed to do to a targe
       `USDT_CONTRACT_ADDRESS`, `USDC_CONTRACT_ADDRESS`, `TURNSTILE_SITE_KEY`,
       `TURNSTILE_SECRET_KEY`) and deployed from the same image/Dockerfile.
 - [x] **REBRAND-04**: `glassboxsec.fly.dev` is confirmed healthy (health check passing, a real login/
-      scan smoke test succeeds) before `webvulnscanner.fly.dev` is decommissioned — no
+      scan smoke test succeeds) before `glassbox.fly.dev` is decommissioned — no
       destructive cutover without a verified working replacement first.
 - [x] **REBRAND-05**: The rebrand does not touch `authorized*` checkboxes, `entitlements.py`, or
       `checks.is_ssrf_safe_hostname()` — cosmetic/naming change only, verified by the existing
@@ -273,7 +273,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ### Detection Self-Test — Phase 21 (v1.5)
 
-- [x] **ST-01** Loopback-only lure listener: `webvulnscanner/selftest.py` binds a
+- [x] **ST-01** Loopback-only lure listener: `glassbox/selftest.py` binds a
   `ThreadingHTTPServer` to 127.0.0.1 on an ephemeral port; never a wildcard or external
   interface; per-instance state so repeated runs see identical ground truth.
 - [x] **ST-02** Five planted flaws with deterministic proofs: SSTI (`{{77*77}}` computed),
@@ -313,7 +313,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 - [x] **DOCS-01**: /docs/api renders from ONE server-side spec structure (not hand-duplicated
       HTML per route); a url_map-enumeration regression test fails naming any `/api/v1` rule
       missing from the spec, so a new endpoint cannot ship undocumented.
-      (webvulnscanner/api_docs.py API_ENDPOINTS; bidirectional lock incl. method drift)
+      (glassbox/api_docs.py API_ENDPOINTS; bidirectional lock incl. method drift)
 - [x] **DOCS-02**: Every endpoint row documents method, path, required auth (session/token/
       public), rate limit, and request+response examples drawn from real test fixtures.
       (examples shaped after _serialize_asset/_serialize_scan_summary/evaluate_gate output)
@@ -447,7 +447,7 @@ Which phases cover which requirements. Updated during roadmap creation.
       *(Implementation note: same receiver fan-out as scan.completed, distinct X-Glassbox-Event header, signature/delivery rows identical; fires only when `alertable_new()` finds regression=="new" AND severity in {high, critical}.)*
 - [x] **CONT-04**: The diff function is pure/deterministic (two report dicts in, tagged
       findings out) and unit-tested with no network calls.
-      *(Implementation note: `webvulnscanner/regressions.py` imports neither Flask nor db; resolved snapshots sorted by (check_name, title) so identical inputs produce byte-equal output — locked by a determinism test.)
+      *(Implementation note: `glassbox/regressions.py` imports neither Flask nor db; resolved snapshots sorted by (check_name, title) so identical inputs produce byte-equal output — locked by a determinism test.)
 
 ### Risk-Score-Over-Time Chart Legibility Fix (CHARTUX) — Phase 27.1 (v1.7, INSERTED)
 

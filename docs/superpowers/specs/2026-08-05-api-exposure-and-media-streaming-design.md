@@ -5,7 +5,7 @@ Date: 2026-08-05
 
 ## Context
 
-WebVulnScanner is a local, single-user Flask app with three independent, non-destructive
+Glassbox is a local, single-user Flask app with three independent, non-destructive
 scan pipelines (`/scan`, `/scan-advanced`, `/scan-media` — see `CLAUDE.md`). This spec adds
 a fourth pipeline (API exposure) and strengthens the existing media pipeline (video/HLS/DASH
 stream discovery). Both follow the codebase's existing conventions: every check function

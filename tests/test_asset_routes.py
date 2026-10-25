@@ -1,5 +1,5 @@
 """
-Tests for webvulnscanner/asset_routes.py - Asset registration + inventory
+Tests for glassbox/asset_routes.py - Asset registration + inventory
 list routes (Phase 1, ASSET-01/02, tracer plan 01-01) and Asset detail /
 schedule-editing / pause / resume / delete routes (Phase 1,
 ASSET-03/05/06, plan 01-02).
@@ -11,10 +11,10 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from webvulnscanner.asset_routes import compliance_coverage, summarize_compliance
-from webvulnscanner.checks import REPORTS_DIR
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import Asset, Plan, Report, Scan, ScanStatus
+from glassbox.asset_routes import compliance_coverage, summarize_compliance
+from glassbox.checks import REPORTS_DIR
+from glassbox.extensions import db as _db
+from glassbox.models import Asset, Plan, Report, Scan, ScanStatus
 
 from tests.conftest import login, make_asset, make_org, make_user
 

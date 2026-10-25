@@ -7,7 +7,7 @@
 # them. See CLAUDE.md's Commands section for the full env var list.
 services:
   - type: web
-    name: webvulnscanner
+    name: glassbox
     runtime: python
     plan: free
     buildCommand: "pip install -r requirements.txt"

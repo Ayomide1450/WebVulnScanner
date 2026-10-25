@@ -2,12 +2,12 @@
 
 Two layers, matching the module split:
 
-- Engine (`webvulnscanner/webhooks.py`): URL validation (HTTPS + SSRF),
+- Engine (`glassbox/webhooks.py`): URL validation (HTTPS + SSRF),
   payload construction, HMAC signing, delivery recording, the
   never-raises contract around dead receivers, and scope matching -
   org webhooks fire for their org's scans, solo webhooks only for
   scans their creator ran.
-- Routes (`webvulnscanner/webhook_routes.py`): creation validation,
+- Routes (`glassbox/webhook_routes.py`): creation validation,
   secret-shown-once reveal, member/admin visibility, and the 404-not-403
   cross-scope denials registered in tests/test_cross_org_idor.py's
   REGISTRY.
@@ -24,10 +24,10 @@ import socket
 import pytest
 import requests as requests_lib
 
-import webvulnscanner.webhooks as webhook_engine
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import OutboundWebhook, Plan, Role, ScanStatus, WebhookDelivery
-from webvulnscanner.scan_engine import save_report
+import glassbox.webhooks as webhook_engine
+from glassbox.extensions import db as _db
+from glassbox.models import OutboundWebhook, Plan, Role, ScanStatus, WebhookDelivery
+from glassbox.scan_engine import save_report
 
 from tests.conftest import login, make_org, make_scan, make_user
 
@@ -54,7 +54,7 @@ def _persist_report(app, scan, score, grade, findings):
     written (save_report only writes the file; the caller links the row)."""
     from urllib.parse import urlparse
 
-    from webvulnscanner.models import Report
+    from glassbox.models import Report
 
     fname = save_report({
         "target": scan.target_url, "score": score,

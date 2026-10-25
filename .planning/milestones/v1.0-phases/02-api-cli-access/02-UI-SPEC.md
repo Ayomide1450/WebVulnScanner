@@ -220,7 +220,7 @@ color.
 | Empty state body | "Generate a token to authenticate CLI and API requests as yourself. **Generate your first token →**" |
 | Error state — missing name | "Enter a name for this token, e.g. \"CI pipeline\" or \"Personal script\"." |
 | One-time reveal — heading | "Copy your token now — it won't be shown again" |
-| One-time reveal — warning body | "This is the only time you'll see this token's value. WebVulnScanner stores only a one-way hash of it and can't show it to you again if you navigate away — if you lose it, revoke this token and generate a new one." |
+| One-time reveal — warning body | "This is the only time you'll see this token's value. Glassbox stores only a one-way hash of it and can't show it to you again if you navigate away — if you lose it, revoke this token and generate a new one." |
 | Table column — Created | Raw rendered `created_at` timestamp, no relative-time formatting — matches every other timestamp column in the app (`dashboard.html`, `org_admin.html`, `assets.html`) |
 | Table column — Last used | **"Never"** if `last_used_at` is null; otherwise the raw rendered timestamp, same convention as Created |
 | Table column — Status | **"Active"** (renders uppercase via `.pill`'s existing `text-transform:uppercase`) for a non-revoked token; **"Revoked"** for a revoked token. Revoked rows show no Actions-column button — replace with plain muted text, no dead/disabled control. |

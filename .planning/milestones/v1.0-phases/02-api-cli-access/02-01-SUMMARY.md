@@ -29,16 +29,16 @@ tech-stack:
 
 key-files:
   created:
-    - webvulnscanner/api_tokens_routes.py
-    - webvulnscanner/api_routes.py
+    - glassbox/api_tokens_routes.py
+    - glassbox/api_routes.py
     - templates/api_tokens.html
     - migrations/versions/e1d41aad57db_add_api_tokens_table.py
     - tests/test_api_tokens_routes.py
     - tests/test_api_routes.py
   modified:
-    - webvulnscanner/models.py
-    - webvulnscanner/extensions.py
-    - webvulnscanner/__init__.py
+    - glassbox/models.py
+    - glassbox/extensions.py
+    - glassbox/__init__.py
     - templates/base.html
     - tests/conftest.py
 
@@ -196,11 +196,11 @@ status: complete
 _Note: this is a single-task tracer plan; one commit covers the full task._
 
 ## Files Created/Modified
-- `webvulnscanner/models.py` - `ApiToken` model
-- `webvulnscanner/extensions.py` - `load_user_from_request` + `_ApiAwareSessionInterface`
-- `webvulnscanner/api_tokens_routes.py` - `/tokens` blueprint (new)
-- `webvulnscanner/api_routes.py` - `/api/v1` blueprint, `GET /api/v1/assets` (new)
-- `webvulnscanner/__init__.py` - blueprint registration
+- `glassbox/models.py` - `ApiToken` model
+- `glassbox/extensions.py` - `load_user_from_request` + `_ApiAwareSessionInterface`
+- `glassbox/api_tokens_routes.py` - `/tokens` blueprint (new)
+- `glassbox/api_routes.py` - `/api/v1` blueprint, `GET /api/v1/assets` (new)
+- `glassbox/__init__.py` - blueprint registration
 - `templates/api_tokens.html` - token-management UI (new)
 - `templates/base.html` - icon-key/icon-copy sprite symbols, nav link
 - `migrations/versions/e1d41aad57db_add_api_tokens_table.py` - `api_tokens` table (new)

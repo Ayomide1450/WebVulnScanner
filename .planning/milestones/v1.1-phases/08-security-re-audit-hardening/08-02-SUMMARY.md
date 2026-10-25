@@ -64,7 +64,7 @@ key-decisions:
     a plain MEMBER/FREE-tier user never sees the form at all."
   - "csrf.exempt() scope lock and template-idiom lock use a plain
     read_text()+substring scan rather than inspect.getsource/AST, since the
-    checks operate over whole files (webvulnscanner/**/*.py,
+    checks operate over whole files (glassbox/**/*.py,
     templates/*.html) rather than single functions."
 
 patterns-established:
@@ -130,7 +130,7 @@ coverage:
     human_judgment: false
   - id: D4
     description: "csrf.exempt() is applied to exactly one call site
-      (webvulnscanner/api_routes.py, the api blueprint) and nowhere else,
+      (glassbox/api_routes.py, the api blueprint) and nowhere else,
       with a demonstrated negative control; the Bearer-token API surface
       still works under CSRF enforcement; every POST-form template in
       templates/ emits a csrf token by one of the two known idioms."
@@ -188,7 +188,7 @@ status: complete
   closing the gap where the JS's `if (csrfInput)` conditional could silently
   degrade to a no-op if the input were ever removed.
 - Locked `csrf.exempt()`'s scope with a comment-filtered, exact-set
-  source-parsing assertion over `webvulnscanner/`: exactly one call site
+  source-parsing assertion over `glassbox/`: exactly one call site
   exists, in `api_routes.py`, applied to the `api` blueprint. Demonstrated the
   negative control (a second exempt call fails the test, naming both sites)
   and reverted.

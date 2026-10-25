@@ -35,8 +35,8 @@ key-files:
   created:
     - tests/test_detect_login_form.py
   modified:
-    - webvulnscanner/checks.py
-    - webvulnscanner/scan_routes.py
+    - glassbox/checks.py
+    - glassbox/scan_routes.py
     - templates/scan_new_media.html
     - templates/scan_new_api.html
     - templates/scan_new_advanced.html
@@ -96,8 +96,8 @@ status: executed (Task 3 human-verify checkpoint outstanding; Task 2 as original
 - 23 new tests across `tests/test_scan_wizard.py` (Advanced page + detect endpoint) and `tests/test_detect_login_form.py` (crawl/parse unit tests), plus the 20 media/API tests above - all passing alongside the full pre-existing suite.
 
 ## Files Created/Modified
-- `webvulnscanner/checks.py` - `detect_login_form()`, `_guess_login_fields()`, `_USERNAME_FIELD_HINTS`.
-- `webvulnscanner/scan_routes.py` - `new_scan_advanced_detect()` route; `_availability_for()`, `_advanced_render_kwargs()`, `_media_render_kwargs()`, `_api_render_kwargs()` helpers; `SCAN_TYPE_CARDS` blurbs rewritten; `jsonify`/`detect_login_form` imports added. Every existing tier/authorization/SSRF check in `new_scan_media`/`new_scan_api`/`new_scan_advanced` is untouched.
+- `glassbox/checks.py` - `detect_login_form()`, `_guess_login_fields()`, `_USERNAME_FIELD_HINTS`.
+- `glassbox/scan_routes.py` - `new_scan_advanced_detect()` route; `_availability_for()`, `_advanced_render_kwargs()`, `_media_render_kwargs()`, `_api_render_kwargs()` helpers; `SCAN_TYPE_CARDS` blurbs rewritten; `jsonify`/`detect_login_form` imports added. Every existing tier/authorization/SSRF check in `new_scan_media`/`new_scan_api`/`new_scan_advanced` is untouched.
 - `templates/scan_new_media.html`, `templates/scan_new_api.html` - Step 3 restructure.
 - `templates/scan_new_advanced.html` - full rewrite: URL-first intake, progressive disclosure, Smart Setup JS.
 - `templates/scan_new.html`, `templates/scan_new_type.html` - copy audit.

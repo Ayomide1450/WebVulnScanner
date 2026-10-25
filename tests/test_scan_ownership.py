@@ -1,5 +1,5 @@
 """
-Tests for `_check_ownership()` in webvulnscanner/scan_routes.py - the IDOR
+Tests for `_check_ownership()` in glassbox/scan_routes.py - the IDOR
 guard shared by every route that looks up a Scan by ID
 (scan_detail/scan_events/scan_report/scan_compare). Per its own docstring:
 a scan is viewable by the user who ran it, OR an ORG_ADMIN of the same org
@@ -19,8 +19,8 @@ test_scan_report_and_scan_compare_enforce_ownership_too).
 """
 import pytest
 
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import Report, Role, ScanStatus
+from glassbox.extensions import db as _db
+from glassbox.models import Report, Role, ScanStatus
 
 from tests.conftest import login, make_org, make_scan, make_user
 
@@ -207,7 +207,7 @@ def test_scan_report_csv_cross_org_is_404_and_leaks_no_finding_text(client, scen
 
 
 def test_scan_detail_redirects_to_report_when_completed(client, scenario, db):
-    from webvulnscanner.extensions import db as _db
+    from glassbox.extensions import db as _db
 
     scenario["scan"].status = ScanStatus.COMPLETED
     _db.session.flush()

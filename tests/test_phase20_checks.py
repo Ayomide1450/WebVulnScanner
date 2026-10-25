@@ -24,8 +24,8 @@ import requests
 
 import pytest
 
-from webvulnscanner import checks
-from webvulnscanner.entitlements import Tier, FEATURE_REQUIREMENTS
+from glassbox import checks
+from glassbox.entitlements import Tier, FEATURE_REQUIREMENTS
 
 
 # --------------------------------------------------------------------------

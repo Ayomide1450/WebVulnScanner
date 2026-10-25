@@ -5,8 +5,8 @@
 ## Directory Layout
 
 ```
-WebVulnScanner/
-├── webvulnscanner/          # Application package: blueprints + business logic (4403 lines total)
+Glassbox/
+├── glassbox/          # Application package: blueprints + business logic (4403 lines total)
 │   ├── __init__.py          # App factory: create_app()
 │   ├── config.py            # Env-var driven Config class
 │   ├── extensions.py        # db/login_manager/csrf/limiter/migrate singletons
@@ -49,14 +49,14 @@ WebVulnScanner/
 │   └── index.py             # Adapts Flask app for Vercel's Python runtime
 ├── reports/                    # Generated at runtime: JSON scan report output (checks.py's REPORTS_DIR)
 ├── downloads/                   # Generated at runtime: media-scan downloaded files (checks.py's DOWNLOADS_DIR)
-├── app.py                      # Thin WSGI entry: from webvulnscanner import create_app
+├── app.py                      # Thin WSGI entry: from glassbox import create_app
 ├── config files                # pytest.ini, render.yaml, vercel.json, Procfile, requirements*.txt
 └── .planning/                   # GSD planning artifacts (not app code)
 ```
 
 ## Directory Purposes
 
-**`webvulnscanner/`:**
+**`glassbox/`:**
 - Purpose: All application code — the entire Flask app package.
 - Contains: Blueprints (`*_routes.py`), business logic modules, models, extensions, config.
 - Key files: `__init__.py` (app factory), `models.py` (schema), `checks.py` (largest single module at 1523 lines).
@@ -67,7 +67,7 @@ WebVulnScanner/
 - Key files: `base.html` (shared nav/footer, injects `Role` enum and `current_year` via `create_app()`'s `context_processor`).
 
 **`tests/`:**
-- Purpose: pytest suite; file names mirror the module/blueprint under test (e.g., `test_scan_routes.py` ↔ `webvulnscanner/scan_routes.py`).
+- Purpose: pytest suite; file names mirror the module/blueprint under test (e.g., `test_scan_routes.py` ↔ `glassbox/scan_routes.py`).
 - Contains: `conftest.py` fixtures plus one `test_*.py` per concern (auth flows, billing, entitlements, org routes, scan ownership/events, SSRF guard, public routes, config, email stub).
 - Config: `pytest.ini` at repo root.
 
@@ -89,7 +89,7 @@ WebVulnScanner/
 - Contains: `index.py`, which imports and exposes the same `create_app()`-built Flask app for Vercel's Python runtime.
 
 **`reports/` and `downloads/`:**
-- Purpose: Runtime-generated output directories, created via `os.makedirs(..., exist_ok=True)` in `webvulnscanner/checks.py` (`REPORTS_DIR`, `DOWNLOADS_DIR` constants).
+- Purpose: Runtime-generated output directories, created via `os.makedirs(..., exist_ok=True)` in `glassbox/checks.py` (`REPORTS_DIR`, `DOWNLOADS_DIR` constants).
 - Generated: Yes — JSON scan reports (`reports/`) and media-scan downloaded files (`downloads/`).
 - Committed: No (runtime artifacts, not source).
 
@@ -98,17 +98,17 @@ WebVulnScanner/
 **Entry Points:**
 - `app.py`: WSGI entry for local/gunicorn/Render — thin shim calling `create_app()`.
 - `api/index.py`: Vercel serverless entry.
-- `webvulnscanner/__init__.py::create_app()`: actual app factory doing all wiring.
+- `glassbox/__init__.py::create_app()`: actual app factory doing all wiring.
 
 **Configuration:**
-- `webvulnscanner/config.py`: `Config` class, env-var driven (DB URL, `TRUST_PROXY_HOPS`, `SQLALCHEMY_ENGINE_OPTIONS`, `EMAIL_MODE`, `GROQ_API_KEY`/`GROQ_MODEL`, `SENTRY_DSN`, etc.).
+- `glassbox/config.py`: `Config` class, env-var driven (DB URL, `TRUST_PROXY_HOPS`, `SQLALCHEMY_ENGINE_OPTIONS`, `EMAIL_MODE`, `GROQ_API_KEY`/`GROQ_MODEL`, `SENTRY_DSN`, etc.).
 - `.env.example`: documents expected env vars (never read actual `.env` contents — see forbidden-files policy).
 - `docs/env-vars.md`: prose reference for environment variables.
 
 **Core Logic:**
-- `webvulnscanner/checks.py`: individual vulnerability checks + `Finding` dataclass + SSRF guard (`is_ssrf_safe_hostname`).
-- `webvulnscanner/scan_engine.py`: orchestrators that assemble check results into a report.
-- `webvulnscanner/entitlements.py`: tier gating (`Tier`, `FEATURE_REQUIREMENTS`, `effective_tier`, `allowed_checks`).
+- `glassbox/checks.py`: individual vulnerability checks + `Finding` dataclass + SSRF guard (`is_ssrf_safe_hostname`).
+- `glassbox/scan_engine.py`: orchestrators that assemble check results into a report.
+- `glassbox/entitlements.py`: tier gating (`Tier`, `FEATURE_REQUIREMENTS`, `effective_tier`, `allowed_checks`).
 
 **Testing:**
 - `tests/conftest.py`: shared fixtures (test app/client/db).
@@ -123,20 +123,20 @@ WebVulnScanner/
 - Template partials meant for `{% include %}` are prefixed with `_` (e.g., `_gauge.html`).
 
 **Directories:**
-- Flat single-package layout — no nested subpackages inside `webvulnscanner/`; all ~16 modules live directly in the package root.
+- Flat single-package layout — no nested subpackages inside `glassbox/`; all ~16 modules live directly in the package root.
 
 ## Where to Add New Code
 
 **New Feature (new page/blueprint):**
-- Create `webvulnscanner/<feature>_routes.py` following the `Blueprint("<name>", __name__)` pattern seen in `auth_routes.py`/`org_routes.py`/`scan_routes.py`.
-- Register it inside `create_app()` (`webvulnscanner/__init__.py`) via a local import + `app.register_blueprint(...)`, matching the existing 5-blueprint pattern.
+- Create `glassbox/<feature>_routes.py` following the `Blueprint("<name>", __name__)` pattern seen in `auth_routes.py`/`org_routes.py`/`scan_routes.py`.
+- Register it inside `create_app()` (`glassbox/__init__.py`) via a local import + `app.register_blueprint(...)`, matching the existing 5-blueprint pattern.
 - Add corresponding template(s) to `templates/`.
 - Add `tests/test_<feature>_routes.py` mirroring existing test file naming.
 
 **New vulnerability check:**
-- Add a `check_<name>(session, ...)` function to `webvulnscanner/checks.py` returning `(raw_data, [Finding, ...])`, matching the existing per-check function contract.
-- Wire it into the appropriate orchestrator in `webvulnscanner/scan_engine.py` (`run_scan`/`run_advanced_scan`/`run_media_scan`/`run_api_scan`).
-- Add a `FEATURE_REQUIREMENTS["<name>"] = Tier.<TIER>` entry in `webvulnscanner/entitlements.py` — the module warns at runtime if a check name is missing from this map.
+- Add a `check_<name>(session, ...)` function to `glassbox/checks.py` returning `(raw_data, [Finding, ...])`, matching the existing per-check function contract.
+- Wire it into the appropriate orchestrator in `glassbox/scan_engine.py` (`run_scan`/`run_advanced_scan`/`run_media_scan`/`run_api_scan`).
+- Add a `FEATURE_REQUIREMENTS["<name>"] = Tier.<TIER>` entry in `glassbox/entitlements.py` — the module warns at runtime if a check name is missing from this map.
 
 **Business logic:**
 - Domain-agnostic, DB-free logic belongs in `checks.py`/`scan_engine.py` (explicitly kept free of `models.py`/Flask-Login coupling).
@@ -146,17 +146,17 @@ WebVulnScanner/
 - No dedicated `utils.py` exists; small shared helpers currently live inline in the module that needs them (e.g., `_safe_next()` in `auth_routes.py`, `_unsafe_target_error()` in `scan_routes.py`). Follow that precedent for new small helpers unless genuinely shared across 3+ modules.
 
 **Database schema changes:**
-- Edit `webvulnscanner/models.py`, then run `flask db migrate` to generate a new file under `migrations/versions/`, then `flask db upgrade`. Do not rely on `db.create_all()` for schema changes to an existing DB.
+- Edit `glassbox/models.py`, then run `flask db migrate` to generate a new file under `migrations/versions/`, then `flask db upgrade`. Do not rely on `db.create_all()` for schema changes to an existing DB.
 
 ## Special Directories
 
 **`reports/`:**
-- Purpose: JSON scan report output, one file per completed scan (`save_report()` in `webvulnscanner/scan_engine.py`).
+- Purpose: JSON scan report output, one file per completed scan (`save_report()` in `glassbox/scan_engine.py`).
 - Generated: Yes, at runtime.
 - Committed: No.
 
 **`downloads/`:**
-- Purpose: Files downloaded during a media scan (`check_media()` in `webvulnscanner/checks.py`).
+- Purpose: Files downloaded during a media scan (`check_media()` in `glassbox/checks.py`).
 - Generated: Yes, at runtime.
 - Committed: No.
 

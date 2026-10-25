@@ -32,8 +32,8 @@ import requests
 from flask import current_app
 from sqlalchemy.exc import IntegrityError
 
-from webvulnscanner.extensions import db
-from webvulnscanner.models import InvoiceStatus, CryptoInvoice, Plan, SubStatus, Subscription
+from glassbox.extensions import db
+from glassbox.models import InvoiceStatus, CryptoInvoice, Plan, SubStatus, Subscription
 
 POLYGONSCAN_API_URL = "https://api.polygonscan.com/api"
 # Same-ethos timeout convention as checks.py's REQUEST_TIMEOUT (8s) - this is

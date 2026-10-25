@@ -1,7 +1,7 @@
 """
 Blueprint `docs`: in-product API reference at /docs/api (Phase 22, DOCS-05).
 
-Session-authenticated HTML page rendering webvulnscanner/api_docs.py's spec -
+Session-authenticated HTML page rendering glassbox/api_docs.py's spec -
 the single source of truth for the /api/v1 surface. Login-required like every
 other authenticated HTML page: the reference includes live base-URL-aware
 examples, and there is no reason to expose your API's complete shape to
@@ -13,7 +13,7 @@ protect beyond Flask-WTF's global GET safety.
 from flask import Blueprint, render_template
 from flask_login import login_required
 
-from webvulnscanner.api_docs import (
+from glassbox.api_docs import (
     CLI_SUBCOMMANDS,
     CURL_EXAMPLE,
     ERROR_SEMANTICS,

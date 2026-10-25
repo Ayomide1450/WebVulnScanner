@@ -34,8 +34,8 @@ from datetime import datetime, timezone
 import pytest
 from bs4 import BeautifulSoup
 
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import (
+from glassbox.extensions import db as _db
+from glassbox.models import (
     DomainVerification,
     Invitation,
     InvitationStatus,
@@ -66,7 +66,7 @@ EXCLUDED_ENDPOINTS = {
     "sso.login_saml": "Always redirects to the IdP (302) - no HTML template to assert heading/label structure against.",
 }
 EXCLUDED_BLUEPRINT_PREFIXES = (
-    "api.",  # webvulnscanner/api_routes.py - a JSON API blueprint (/api/v1/*). Every
+    "api.",  # glassbox/api_routes.py - a JSON API blueprint (/api/v1/*). Every
     # response is application/json, so heading/label/icon/focus assertions - all of
     # which parse an HTML document - don't apply.
 )
@@ -211,13 +211,13 @@ def _build_throwaway_app_for_url_map():
     needs the page list before any per-test fixture runs). TESTING=True
     plus SCHEDULER_ENABLED=False guarantees create_app()'s own
     _maybe_start_scheduler() guard skips starting the background thread
-    (webvulnscanner/__init__.py); the in-memory SQLite URI means db.init_app()
+    (glassbox/__init__.py); the in-memory SQLite URI means db.init_app()
     never touches a real file, and no query is ever issued against it - the
     url_map is fully built by blueprint registration alone, before any
     request or DB access happens. The `app`/`client` fixtures below build
     the real per-test app every actual request in this module goes through."""
-    from webvulnscanner import create_app
-    from webvulnscanner.config import Config
+    from glassbox import create_app
+    from glassbox.config import Config
 
     class _UrlMapOnlyConfig(Config):
         TESTING = True

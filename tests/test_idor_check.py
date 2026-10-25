@@ -6,7 +6,7 @@ this on every single probe. check_idor had zero direct behavioral test
 coverage before this file (every existing reference monkeypatches it
 away) - exactly the gap that let check_http_methods' bug ship unnoticed.
 """
-from webvulnscanner.checks import check_idor
+from glassbox.checks import check_idor
 
 URL_TEMPLATE = "https://example.com/api/resource/{id}"
 COOKIE_A = "session=account-a-token"

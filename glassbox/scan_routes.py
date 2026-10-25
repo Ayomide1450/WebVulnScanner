@@ -53,8 +53,8 @@ from urllib.parse import urlparse
 from flask import Blueprint, Response, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from webvulnscanner.ai_summary import generate_remediation_summary
-from webvulnscanner.checks import (
+from glassbox.ai_summary import generate_remediation_summary
+from glassbox.checks import (
     CHECK_CATEGORY,
     CHECK_COMPLIANCE,
     CHECK_LABELS,
@@ -63,10 +63,10 @@ from webvulnscanner.checks import (
     is_ssrf_safe_hostname,
     normalize_target,
 )
-from webvulnscanner.entitlements import FEATURE_REQUIREMENTS, Tier, domain_is_org_verified, effective_tier
-from webvulnscanner.extensions import db
-from webvulnscanner.models import Report, Role, Scan, ScanEvent, ScanEventPhase, ScanStatus
-from webvulnscanner.scan_engine import (
+from glassbox.entitlements import FEATURE_REQUIREMENTS, Tier, domain_is_org_verified, effective_tier
+from glassbox.extensions import db
+from glassbox.models import Report, Role, Scan, ScanEvent, ScanEventPhase, ScanStatus
+from glassbox.scan_engine import (
     read_report_file,
     run_advanced_scan,
     run_api_scan,
@@ -74,11 +74,11 @@ from webvulnscanner.scan_engine import (
     run_scan,
     save_report,
 )
-from webvulnscanner.webhooks import fire_scan_webhooks, fire_regression_webhooks
-from webvulnscanner.regressions import classify_regressions
-from webvulnscanner.pdf_report import build_pdf_report, PDF_MIMETYPE
-from webvulnscanner.sarif import build_sarif_report, sarif_text
-from webvulnscanner.ndjson_report import findings_ndjson
+from glassbox.webhooks import fire_scan_webhooks, fire_regression_webhooks
+from glassbox.regressions import classify_regressions
+from glassbox.pdf_report import build_pdf_report, PDF_MIMETYPE
+from glassbox.sarif import build_sarif_report, sarif_text
+from glassbox.ndjson_report import findings_ndjson
 
 scan = Blueprint("scan", __name__)
 
@@ -100,7 +100,7 @@ GROUPING_MODES = ("severity", "compliance", "domain")
 FINDINGS_PER_PAGE = 20
 
 
-from webvulnscanner.utils import safe_filename  # noqa: E402 — after blueprint consts
+from glassbox.utils import safe_filename  # noqa: E402 — after blueprint consts
 
 
 # --------------------------------------------------------------------------
@@ -560,7 +560,7 @@ def _unsafe_target_error(url, org_id=None):
     if not hostname or not is_ssrf_safe_hostname(hostname):
         return "This target resolves to a private, internal, or unreachable address and cannot be scanned."
 
-    from webvulnscanner.models import DomainVerification
+    from glassbox.models import DomainVerification
 
     claim = (
         DomainVerification.query.filter(
@@ -596,7 +596,7 @@ def _verified_domain_choices(user):
     if user.org_id is None:
         return []
 
-    from webvulnscanner.models import DomainVerification  # lazy import - see _unsafe_target_error above
+    from glassbox.models import DomainVerification  # lazy import - see _unsafe_target_error above
 
     rows = (
         DomainVerification.query
@@ -619,7 +619,7 @@ def _prefill_target(field):
     return request.args.get("target", "")
 
 
-# normalize_target() (webvulnscanner/checks.py, frozen - never edited by
+# normalize_target() (glassbox/checks.py, frozen - never edited by
 # this phase) only requires a non-empty netloc after prefixing "https://" -
 # a string like "not a domain at all" or an HTML-injection payload still
 # parses to a (garbage but non-empty) netloc and would otherwise sail past

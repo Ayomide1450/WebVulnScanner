@@ -7,7 +7,7 @@ Tests cover:
 - Source-parse lock: _score_report still uses SEVERITY_WEIGHT (CVSS is附加)
 - 5 check call sites supply CVSS vectors (one per severity tier)
 """
-from webvulnscanner.checks import Finding, compute_cvss_score, SEVERITY_WEIGHT
+from glassbox.checks import Finding, compute_cvss_score, SEVERITY_WEIGHT
 
 
 class TestComputeCvssScore:
@@ -132,7 +132,7 @@ class TestScoreReportCvssIndependence:
         """Source-parse lock: _score_report's arithmetic references SEVERITY_WEIGHT,
         not compute_cvss_score — CVSS is附加 metadata, not a scoring replacement."""
         import inspect
-        from webvulnscanner.scan_engine import _score_report
+        from glassbox.scan_engine import _score_report
         source = inspect.getsource(_score_report)
         assert "SEVERITY_WEIGHT" in source
         assert "compute_cvss_score" not in source
@@ -144,7 +144,7 @@ class TestCvssCallSiteCoverage:
     def test_five_call_sites_have_cvss_vector(self):
         """Source-parse: at least 5 Finding(...) calls in checks.py pass cvss_vector."""
         import pathlib
-        source = pathlib.Path("webvulnscanner/checks.py").read_text(encoding="utf-8")
+        source = pathlib.Path("glassbox/checks.py").read_text(encoding="utf-8")
         count = source.count("cvss_vector=")
         assert count >= 5, f"expected at least 5 cvss_vector= call sites, found {count}"
 
@@ -152,7 +152,7 @@ class TestCvssCallSiteCoverage:
         """Each severity tier (critical/high/medium/low/info) has at least one
         Finding with a cvss_vector."""
         import pathlib
-        source = pathlib.Path("webvulnscanner/checks.py").read_text(encoding="utf-8")
+        source = pathlib.Path("glassbox/checks.py").read_text(encoding="utf-8")
         # Find all cvss_vector= lines and check surrounding context for severity
         for sev in ("critical", "high", "medium", "low", "info"):
             # Look for the severity string near a cvss_vector= in the same Finding

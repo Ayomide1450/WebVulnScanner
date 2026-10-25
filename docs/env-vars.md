@@ -1,6 +1,6 @@
 # Environment variables reference
 
-Source of truth: `webvulnscanner/config.py`. `.env.example` at the repo root is the local-dev
+Source of truth: `glassbox/config.py`. `.env.example` at the repo root is the local-dev
 template but is sandbox-blocked from editing by this assistant (dotfile directory access
 denied) — this file is the maintained reference instead. Never commit real values for any of
 these; set them in Render's/Vercel's dashboard Environment tab.
@@ -49,7 +49,7 @@ these; set them in Render's/Vercel's dashboard Environment tab.
 
 | Variable | Purpose | Notes |
 |---|---|---|
-| `RATELIMIT_STORAGE_URI` | Flask-Limiter storage backend | Defaults to empty, which Flask-Limiter treats as unset and falls back to in-memory storage (fine for a single dev-server process). Set to a Redis URL (e.g. `redis://...`, such as Upstash's) once running behind more than one worker process — otherwise counters aren't shared and rate limits become per-process instead of global. See `webvulnscanner/extensions.py`. |
+| `RATELIMIT_STORAGE_URI` | Flask-Limiter storage backend | Defaults to empty, which Flask-Limiter treats as unset and falls back to in-memory storage (fine for a single dev-server process). Set to a Redis URL (e.g. `redis://...`, such as Upstash's) once running behind more than one worker process — otherwise counters aren't shared and rate limits become per-process instead of global. See `glassbox/extensions.py`. |
 
 ## Reverse proxy trust
 
@@ -73,7 +73,7 @@ the same account rather than a new Cloudflare account.
 
 | Variable | Purpose | Notes |
 |---|---|---|
-| `SENTRY_DSN` | Sentry project DSN | Empty by default. `sentry-sdk` is **not** in `requirements.txt` — `webvulnscanner/__init__.py`'s `_init_sentry()` is a no-op (with a log line) if either the DSN or the package is missing, same degrade-gracefully convention as `GROQ_API_KEY`. To activate: add `sentry-sdk[flask]` to `requirements.txt` and set this variable. |
+| `SENTRY_DSN` | Sentry project DSN | Empty by default. `sentry-sdk` is **not** in `requirements.txt` — `glassbox/__init__.py`'s `_init_sentry()` is a no-op (with a log line) if either the DSN or the package is missing, same degrade-gracefully convention as `GROQ_API_KEY`. To activate: add `sentry-sdk[flask]` to `requirements.txt` and set this variable. |
 
 ## Planned, not yet wired into the code (target Vercel architecture)
 

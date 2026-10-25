@@ -1,6 +1,6 @@
 """
 Tests for the live scan-progress feed added in Phase 1 of the redesign:
-webvulnscanner.models.ScanEvent, checks.CHECK_LABELS, run_scan()'s enriched
+glassbox.models.ScanEvent, checks.CHECK_LABELS, run_scan()'s enriched
 progress_cb contract, _run_scan_in_background's ScanEvent-writing closure,
 and scan_routes._serialize_new_events().
 
@@ -11,7 +11,7 @@ data-layer functions it reads from.
 
 Network calls are avoided by stubbing every check_* function scan_engine.py
 imports (via monkeypatch on the scan_engine module's own namespace - each
-is a `from webvulnscanner.checks import check_x` binding, so patching
+is a `from glassbox.checks import check_x` binding, so patching
 scan_engine.check_x is what actually intercepts run_scan()'s calls) and by
 stubbing _mk_session so the initial home-page fetch never hits the network
 either - matching handoff.md's documented rule to mock network calls rather
@@ -19,10 +19,10 @@ than trigger a real scan in a test script.
 """
 from types import SimpleNamespace
 
-from webvulnscanner import scan_engine
-from webvulnscanner.checks import CHECK_LABELS
-from webvulnscanner.entitlements import Tier
-from webvulnscanner.models import Role, Scan, ScanEvent, ScanEventPhase, ScanStatus
+from glassbox import scan_engine
+from glassbox.checks import CHECK_LABELS
+from glassbox.entitlements import Tier
+from glassbox.models import Role, Scan, ScanEvent, ScanEventPhase, ScanStatus
 
 from tests.conftest import login, make_org, make_scan, make_user
 
@@ -41,7 +41,7 @@ FREE_TIER_JOBS = {
 # --------------------------------------------------------------------------
 
 def test_scan_event_round_trips(db):
-    from webvulnscanner.extensions import db as _db
+    from glassbox.extensions import db as _db
 
     user = make_user("owner@example.com")
     scan = make_scan(user)
@@ -84,7 +84,7 @@ def test_check_category_covers_every_check_label():
     # icon-key fallback to "shield") - keep it in sync with CHECK_LABELS's
     # key set the same way CHECK_LABELS itself is kept in sync with
     # run_scan()'s dispatchable check names above.
-    from webvulnscanner.checks import CHECK_CATEGORY
+    from glassbox.checks import CHECK_CATEGORY
 
     missing = set(CHECK_LABELS) - set(CHECK_CATEGORY)
     assert not missing, f"CHECK_CATEGORY is missing entries for {missing} - live feed would fall back to 'shield'"
@@ -199,7 +199,7 @@ def test_run_scan_progress_cb_reports_failed_check(monkeypatch):
 
 
 def test_run_scan_progress_cb_reports_finding_count_and_top_severity(monkeypatch):
-    from webvulnscanner.checks import Finding
+    from glassbox.checks import Finding
 
     _stub_all_checks(monkeypatch)
     # tls "completes" with two real findings (high + low) - top_severity
@@ -255,8 +255,8 @@ def test_run_scan_in_background_persists_scan_events_and_progress(app, monkeypat
     # overlapping `with app.app_context():` blocks (matching how a real
     # request thread and a real scan thread never share one Python-level
     # context either) avoids it entirely.
-    from webvulnscanner.extensions import db as _db
-    from webvulnscanner.scan_routes import _run_scan_in_background
+    from glassbox.extensions import db as _db
+    from glassbox.scan_routes import _run_scan_in_background
 
     _stub_all_checks(monkeypatch)
     with app.app_context():
@@ -306,8 +306,8 @@ def test_scan_events_ownership_guard_applies_regardless_of_after_param(client, d
 # --------------------------------------------------------------------------
 
 def test_serialize_new_events_returns_only_events_after_cursor(db):
-    from webvulnscanner.extensions import db as _db
-    from webvulnscanner.scan_routes import _serialize_new_events
+    from glassbox.extensions import db as _db
+    from glassbox.scan_routes import _serialize_new_events
 
     user = make_user("owner@example.com")
     scan = make_scan(user)
@@ -340,8 +340,8 @@ def test_serialize_new_events_returns_only_events_after_cursor(db):
 
 
 def test_serialize_new_events_scopes_to_the_given_scan(db):
-    from webvulnscanner.extensions import db as _db
-    from webvulnscanner.scan_routes import _serialize_new_events
+    from glassbox.extensions import db as _db
+    from glassbox.scan_routes import _serialize_new_events
 
     user = make_user("owner@example.com")
     scan_a = make_scan(user, target_url="https://a.example.com")

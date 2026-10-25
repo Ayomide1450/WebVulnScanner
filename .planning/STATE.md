@@ -19,7 +19,7 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-08-15)
 
-**Core value:** Security engineers can trust WebVulnScanner to run safe, authorization-gated,
+**Core value:** Security engineers can trust Glassbox to run safe, authorization-gated,
 non-destructive scans against their own infrastructure and get findings they can act on.
 **Current focus:** Phase 08 — Security Re-Audit & Hardening (verified complete)
 
@@ -104,7 +104,7 @@ Recent decisions affecting current work:
 - [Phase ?]: 06-01: Phase-4 HARD-05 lock test_admin_form_partial_untouched_by_this_phase rewritten to test_admin_form_partial_uses_canonical_button_treatment - Phase 6 intentionally supersedes that constraint
 - [Phase ?]: 07-01: dual-markup table/card pattern (D-01) proven on dashboard Scan History - .record-card gets no id attribute since both markup blocks coexist in the DOM simultaneously (T-07-02)
 - [Phase ?]: 07-05: continued a prior stalled session by re-auditing all 23 scan_report.html tables against actual file content (not assumed prior-session state) before making any edit; confirmed 14 tables already correct, completed the remaining 9 plus the untouched _gauge.html hex-to-token migration.
-- [Phase ?]: 07-06: the plan's acceptance criteria assumed the API-tokens page lives at `/account/api-tokens`; the real registered route (built programmatically from app.url_map per the plan's own instruction) is `/tokens` (webvulnscanner/api_tokens_routes.py's url_prefix) — the module's page list follows the actual codebase, documented as a plan-text mismatch, not a code defect.
+- [Phase ?]: 07-06: the plan's acceptance criteria assumed the API-tokens page lives at `/account/api-tokens`; the real registered route (built programmatically from app.url_map per the plan's own instruction) is `/tokens` (glassbox/api_tokens_routes.py's url_prefix) — the module's page list follows the actual codebase, documented as a plan-text mismatch, not a code defect.
 - [Phase ?]: 07-07: Task 3 proceeded without Task 2's checkpoint answers (never answered by a human, no browser tool available) — fixed only the specific risk shapes Task 2's own text named, in the five files Task 3 declared in scope, and recorded this as an explicit deviation rather than silently treating the phase as done. An earlier background-agent run for this plan reported "nothing pending on 07-07-PLAN.md" after only re-running the test suite; that claim was inaccurate (Task 2 was never done, and scan_new_type.html's fix was still outstanding) and is corrected in 07-07-SUMMARY.md rather than carried forward.
 - [Phase 8]: 08-VERIFICATION.md (2026-08-19): Independent re-verification of Phase 8 (not trusting 08-07-SUMMARY.md's evidence table alone) confirms all 10 SEC-01..SEC-10 requirements and all 5 ROADMAP success criteria against the actual codebase — full suite re-run clean from scratch (757/757), production diff read line-by-line (6 files changed, matches claims exactly), frozen surfaces confirmed untouched, both live findings confirmed real and each regression-tested. `gsd-tools.cjs phase complete` was refused by this harness's worktree-isolation guard (any command containing the literal word "complete" is blocked as unverifiable for a worktree-isolated agent, regardless of actual command semantics) — ROADMAP.md/STATE.md were updated by direct file edit instead, per the task's own documented fallback.
 

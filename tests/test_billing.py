@@ -1,4 +1,4 @@
-"""Tests for webvulnscanner/billing.py's pure logic - the invoice-amount-
+"""Tests for glassbox/billing.py's pure logic - the invoice-amount-
 collision retry in create_invoice(), and verify_invoice()'s status
 transitions / Polygonscan-response matching. Previously untested (see
 handoff.md's "known limitations" list) despite create_invoice()'s
@@ -20,9 +20,9 @@ from unittest.mock import patch
 import pytest
 
 from tests.conftest import make_org
-from webvulnscanner import billing
-from webvulnscanner.extensions import db as _db
-from webvulnscanner.models import CryptoInvoice, InvoiceStatus, Plan, SubStatus, Subscription
+from glassbox import billing
+from glassbox.extensions import db as _db
+from glassbox.models import CryptoInvoice, InvoiceStatus, Plan, SubStatus, Subscription
 
 
 def _make_invoice(org, plan=Plan.PAID, token_symbol="USDT", status=InvoiceStatus.PENDING,
@@ -126,7 +126,7 @@ def test_verify_invoice_already_paid_short_circuits_true_without_network(app, db
     org = make_org()
     inv = _make_invoice(org, status=InvoiceStatus.PAID)
     _db.session.commit()
-    with patch("webvulnscanner.billing.requests.get") as mock_get:
+    with patch("glassbox.billing.requests.get") as mock_get:
         assert billing.verify_invoice(inv) is True
         mock_get.assert_not_called()
 
@@ -135,7 +135,7 @@ def test_verify_invoice_already_expired_short_circuits_false_without_network(app
     org = make_org()
     inv = _make_invoice(org, status=InvoiceStatus.EXPIRED)
     _db.session.commit()
-    with patch("webvulnscanner.billing.requests.get") as mock_get:
+    with patch("glassbox.billing.requests.get") as mock_get:
         assert billing.verify_invoice(inv) is False
         mock_get.assert_not_called()
 
@@ -144,7 +144,7 @@ def test_verify_invoice_past_expiry_flips_to_expired(app, db):
     org = make_org()
     inv = _make_invoice(org, expires_in_minutes=-5)  # already past expiry
     _db.session.commit()
-    with patch("webvulnscanner.billing.requests.get") as mock_get:
+    with patch("glassbox.billing.requests.get") as mock_get:
         assert billing.verify_invoice(inv) is False
         mock_get.assert_not_called()
     assert inv.status == InvoiceStatus.EXPIRED
@@ -181,7 +181,7 @@ def test_verify_invoice_matches_and_activates_subscription(app, db):
 
     matching_tx = _tx(19.0050)
     mock_resp = type("R", (), {"json": lambda self: {"result": [matching_tx]}})()
-    with patch("webvulnscanner.billing.requests.get", return_value=mock_resp):
+    with patch("glassbox.billing.requests.get", return_value=mock_resp):
         assert billing.verify_invoice(inv) is True
 
     assert inv.status == InvoiceStatus.PAID
@@ -200,7 +200,7 @@ def test_verify_invoice_activates_annual_period_end_365_days(app, db):
 
     matching_tx = _tx(190.005)
     mock_resp = type("R", (), {"json": lambda self: {"result": [matching_tx]}})()
-    with patch("webvulnscanner.billing.requests.get", return_value=mock_resp):
+    with patch("glassbox.billing.requests.get", return_value=mock_resp):
         assert billing.verify_invoice(inv) is True
 
     sub = Subscription.query.filter_by(org_id=org.id).first()
@@ -218,7 +218,7 @@ def test_verify_invoice_ignores_tx_below_min_confirmations(app, db):
 
     low_conf_tx = _tx(19.0050, confirmations=1)  # below default INVOICE_MIN_CONFIRMATIONS=5
     mock_resp = type("R", (), {"json": lambda self: {"result": [low_conf_tx]}})()
-    with patch("webvulnscanner.billing.requests.get", return_value=mock_resp):
+    with patch("glassbox.billing.requests.get", return_value=mock_resp):
         assert billing.verify_invoice(inv) is False
     assert inv.status == InvoiceStatus.PENDING
 
@@ -230,7 +230,7 @@ def test_verify_invoice_ignores_tx_with_wrong_amount(app, db):
 
     wrong_amount_tx = _tx(19.0099)
     mock_resp = type("R", (), {"json": lambda self: {"result": [wrong_amount_tx]}})()
-    with patch("webvulnscanner.billing.requests.get", return_value=mock_resp):
+    with patch("glassbox.billing.requests.get", return_value=mock_resp):
         assert billing.verify_invoice(inv) is False
     assert inv.status == InvoiceStatus.PENDING
 
@@ -243,7 +243,7 @@ def test_verify_invoice_ignores_tx_before_invoice_created(app, db):
     old_ts = (datetime.now(timezone.utc) - timedelta(days=1)).timestamp()
     old_tx = _tx(19.0050, ts=old_ts)
     mock_resp = type("R", (), {"json": lambda self: {"result": [old_tx]}})()
-    with patch("webvulnscanner.billing.requests.get", return_value=mock_resp):
+    with patch("glassbox.billing.requests.get", return_value=mock_resp):
         assert billing.verify_invoice(inv) is False
     assert inv.status == InvoiceStatus.PENDING
 
@@ -254,7 +254,7 @@ def test_verify_invoice_network_failure_returns_false_not_raise(app, db):
     _db.session.commit()
 
     import requests as requests_module
-    with patch("webvulnscanner.billing.requests.get", side_effect=requests_module.RequestException("boom")):
+    with patch("glassbox.billing.requests.get", side_effect=requests_module.RequestException("boom")):
         assert billing.verify_invoice(inv) is False
     assert inv.status == InvoiceStatus.PENDING
 
@@ -265,7 +265,7 @@ def test_verify_invoice_malformed_json_returns_false_not_raise(app, db):
     _db.session.commit()
 
     mock_resp = type("R", (), {"json": lambda self: (_ for _ in ()).throw(ValueError("bad json"))})()
-    with patch("webvulnscanner.billing.requests.get", return_value=mock_resp):
+    with patch("glassbox.billing.requests.get", return_value=mock_resp):
         assert billing.verify_invoice(inv) is False
 
 
@@ -288,6 +288,6 @@ def test_verify_invoice_double_match_on_matched_tx_hash_returns_false(app, db):
 
     dup_tx = _tx(19.0050, tx_hash="0xduplicate")
     mock_resp = type("R", (), {"json": lambda self: {"result": [dup_tx]}})()
-    with patch("webvulnscanner.billing.requests.get", return_value=mock_resp):
+    with patch("glassbox.billing.requests.get", return_value=mock_resp):
         assert billing.verify_invoice(inv) is False
     assert inv.status == InvoiceStatus.PENDING

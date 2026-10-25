@@ -1,4 +1,4 @@
-"""Tests for webvulnscanner/scan_routes.py.
+"""Tests for glassbox/scan_routes.py.
 
 Originally covered only the dashboard() view (below), including its
 "Recent Findings" section (a real report JSON on disk via _attach_report).
@@ -17,11 +17,11 @@ import json
 import os
 from types import SimpleNamespace
 
-from webvulnscanner import scan_engine, scan_routes
-from webvulnscanner.checks import REPORTS_DIR
-from webvulnscanner.entitlements import Tier
-from webvulnscanner.extensions import db
-from webvulnscanner.models import Report, Scan, ScanStatus
+from glassbox import scan_engine, scan_routes
+from glassbox.checks import REPORTS_DIR
+from glassbox.entitlements import Tier
+from glassbox.extensions import db
+from glassbox.models import Report, Scan, ScanStatus
 
 from tests.conftest import login, make_org, make_scan, make_user
 
@@ -122,7 +122,7 @@ def test_dashboard_scan_status_renders_as_a_pill(client, db):
 # below follows that exact same short-lived-app-context shape instead.
 #
 # Every check function is stubbed on scan_engine's own module namespace
-# (never on webvulnscanner.checks - see test_scan_events.py's module
+# (never on glassbox.checks - see test_scan_events.py's module
 # docstring for why), and scan_routes.save_report is stubbed to a recorder
 # so no JSON is ever written into the repository's report directory.
 # --------------------------------------------------------------------------
@@ -205,8 +205,8 @@ def _stub_advanced_checks(monkeypatch):
 # orchestrator function takes a tier parameter at all.
 
 def test_run_scan_in_background_media_completes_and_saves_report(app, monkeypatch):
-    from webvulnscanner.extensions import db as _db
-    from webvulnscanner.scan_routes import _run_scan_in_background
+    from glassbox.extensions import db as _db
+    from glassbox.scan_routes import _run_scan_in_background
 
     _stub_media_check(monkeypatch)
     save_calls = _stub_save_report(monkeypatch)
@@ -234,8 +234,8 @@ def test_run_scan_in_background_media_completes_and_saves_report(app, monkeypatc
 
 
 def test_run_scan_in_background_api_completes_and_saves_report(app, monkeypatch):
-    from webvulnscanner.extensions import db as _db
-    from webvulnscanner.scan_routes import _run_scan_in_background
+    from glassbox.extensions import db as _db
+    from glassbox.scan_routes import _run_scan_in_background
 
     _stub_api_checks(monkeypatch)
     save_calls = _stub_save_report(monkeypatch)
@@ -260,8 +260,8 @@ def test_run_scan_in_background_api_completes_and_saves_report(app, monkeypatch)
 
 
 def test_run_scan_in_background_advanced_completes_and_saves_report(app, monkeypatch):
-    from webvulnscanner.extensions import db as _db
-    from webvulnscanner.scan_routes import _run_scan_in_background
+    from glassbox.extensions import db as _db
+    from glassbox.scan_routes import _run_scan_in_background
 
     _stub_advanced_checks(monkeypatch)
     save_calls = _stub_save_report(monkeypatch)
@@ -305,8 +305,8 @@ def test_run_scan_in_background_report_prefixes_all_differ():
 # --------------------------------------------------------------------------
 
 def test_run_scan_in_background_media_failure_leaves_scan_failed(app, monkeypatch):
-    from webvulnscanner.extensions import db as _db
-    from webvulnscanner.scan_routes import _run_scan_in_background
+    from glassbox.extensions import db as _db
+    from glassbox.scan_routes import _run_scan_in_background
 
     monkeypatch.setattr(scan_engine, "_mk_session", lambda: SimpleNamespace())
 
@@ -335,8 +335,8 @@ def test_run_scan_in_background_media_failure_leaves_scan_failed(app, monkeypatc
 
 
 def test_run_scan_in_background_api_failure_leaves_scan_failed(app, monkeypatch):
-    from webvulnscanner.extensions import db as _db
-    from webvulnscanner.scan_routes import _run_scan_in_background
+    from glassbox.extensions import db as _db
+    from glassbox.scan_routes import _run_scan_in_background
 
     fake_session = SimpleNamespace(get=lambda *a, **k: SimpleNamespace(text="<html></html>"))
     monkeypatch.setattr(scan_engine, "_mk_session", lambda: fake_session)
@@ -373,8 +373,8 @@ def test_run_scan_in_background_advanced_failure_leaves_scan_failed(app, monkeyp
     # despite tier >= Tier.PAID: run_advanced_scan raises before
     # _run_scan_in_background's try block ever gets to that line, so still
     # zero Groq calls (T-04-20).
-    from webvulnscanner.extensions import db as _db
-    from webvulnscanner.scan_routes import _run_scan_in_background
+    from glassbox.extensions import db as _db
+    from glassbox.scan_routes import _run_scan_in_background
 
     monkeypatch.setattr(scan_engine, "_mk_session", lambda: SimpleNamespace())
 
@@ -407,8 +407,8 @@ def test_run_scan_in_background_advanced_failure_leaves_scan_failed(app, monkeyp
 
 
 def test_run_scan_in_background_unknown_scan_type_lands_failed_not_raising(app):
-    from webvulnscanner.extensions import db as _db
-    from webvulnscanner.scan_routes import _run_scan_in_background
+    from glassbox.extensions import db as _db
+    from glassbox.scan_routes import _run_scan_in_background
 
     with app.app_context():
         user = make_user("unknown-type@example.com")
