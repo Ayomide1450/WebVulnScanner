@@ -46,6 +46,7 @@ import logging
 import re
 import threading
 import time
+import zipfile
 from datetime import UTC, datetime
 from math import ceil
 from urllib.parse import urlparse
@@ -1597,6 +1598,45 @@ def scan_report_pdf(scan_id):
     return Response(
         pdf_bytes,
         mimetype=PDF_MIMETYPE,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@scan.route("/scan/<int:scan_id>/report-pack.zip")
+@login_required
+def scan_report_pack(scan_id):
+    """Prospecting report pack: a zip of OFFER.md / WRITEUP.md / OUTREACH.md
+    drafted from this scan's findings (glassbox.sales_kit). Same ownership
+    guard as every other report rendering - 404-not-403 for a scan the caller
+    can't see - because it is another rendering of an already-authorised
+    report, not a new access path.
+
+    These are EDITABLE DRAFTS, not auto-sent anything: each file carries an
+    'authorised contacts only' banner, and the scan that produced the report
+    already passed the server-side authorisation checkbox upstream. The route
+    writes a download; it never transmits outreach anywhere."""
+    s = Scan.query.get_or_404(scan_id)
+    _check_ownership(s)
+    if s.report is None:
+        abort(404)
+
+    report = _load_report_json(s)
+    if report is None:
+        abort(404)
+
+    from glassbox.sales_kit import generate_kit
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, content in generate_kit(report).items():
+            zf.writestr(name, content)
+    buf.seek(0)
+
+    hostname = report.get("hostname") or "scan"
+    filename = f"{hostname}_scan{scan_id}_report-pack.zip"
+    return Response(
+        buf.getvalue(),
+        mimetype="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
