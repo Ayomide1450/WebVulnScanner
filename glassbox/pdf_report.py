@@ -98,6 +98,26 @@ def build_pdf_report(report, scan_id):
             "label": CHECK_LABELS.get(f.get("check_name", ""), f.get("category", "")),
         })
 
+    # Derived, deterministic summary fields so the template can open with an
+    # executive summary instead of dropping the reader straight into an
+    # unranked findings dump. All of these are a pure function of the
+    # findings list above - no clock, no randomness - so
+    # test_deterministic_byte_for_byte still holds.
+    SEVERITY_SCALE = ["critical", "high", "medium", "low", "info"]
+    actionable = [s for s in SEVERITY_SCALE if severity_counts.get(s)]
+    headline_severity = actionable[0] if actionable else ""
+
+    # "Needs attention now" vs "nothing urgent" - drives the one-line verdict.
+    urgent_count = severity_counts.get("critical", 0) + severity_counts.get("high", 0)
+
+    # Group for the per-severity sections, preserving the severity-sorted
+    # order within each group.
+    grouped = []
+    for sev in SEVERITY_SCALE + ["pass"]:
+        rows = [f for f in enriched if f.get("severity") == sev]
+        if rows:
+            grouped.append({"severity": sev, "count": len(rows), "findings": rows})
+
     context = {
         "target": report.get("target", ""),
         "hostname": report.get("hostname", ""),
@@ -107,6 +127,12 @@ def build_pdf_report(report, scan_id):
         "severity_counts": severity_counts,
         "total_findings": len(findings),
         "scan_id": scan_id,
+        "headline_severity": headline_severity,
+        "urgent_count": urgent_count,
+        "actionable_count": sum(severity_counts.get(s, 0) for s in SEVERITY_SCALE),
+        "pass_count": severity_counts.get("pass", 0),
+        "grouped_findings": grouped,
+        "severity_scale": SEVERITY_SCALE,
     }
 
     template = _jinja_env.get_template("pdf_report.html")

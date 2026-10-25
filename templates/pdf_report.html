@@ -3,15 +3,36 @@
 <head>
 <meta charset="utf-8">
 <title>Glassbox Security Report — {{ hostname }} (Scan #{{ scan_id }})</title>
-<style nonce="{{ csp_nonce }}">
+<style>
+  /* ====================================================================
+     Print deliverable, not a screen page.
+
+     This is the artifact a client or an exec actually reads, so it is
+     designed as a document: a cover, an executive summary that states the
+     verdict in a sentence, a findings index, then per-severity detail.
+     Before 2026-10-25 it opened directly onto an unranked card list.
+
+     Always a light ground - it is paper. No dark theme, no CSS custom
+     properties: WeasyPrint's var() support is patchy across versions and a
+     silently-unresolved var here means an invisible report.
+
+     Severity is encoded by a left RULE as well as by color, because this
+     document gets printed in black and white more often than not.
+     ==================================================================== */
   @page {
     size: A4;
-    margin: 20mm 16mm 20mm 16mm;
+    margin: 18mm 16mm 20mm 16mm;
     @bottom-center {
       content: "Glassbox — Page " counter(page) " of " counter(pages);
-      font-size: 9px;
-      color: #999;
-      font-family: "Fira Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: 8.5px;
+      color: #8794a6;
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+    @bottom-right {
+      content: "Scan #{{ scan_id }}";
+      font-size: 8.5px;
+      color: #8794a6;
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
     }
   }
 
@@ -19,251 +40,280 @@
 
   body {
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-    font-size: 11px;
-    line-height: 1.5;
-    color: #1a1a1a;
+    font-size: 10.5px;
+    line-height: 1.55;
+    color: #0f1419;
     background: #fff;
   }
 
-  .cover {
-    text-align: center;
-    padding: 60px 20px 40px;
-    border-bottom: 3px solid #00b4d8;
-    margin-bottom: 30px;
+  /* ---- Cover ---- */
+  .cover { padding: 4mm 0 6mm; border-bottom: 2.5px solid #0c7a44; margin-bottom: 7mm; }
+  .cover .brand {
+    font-size: 9px; font-weight: 700; letter-spacing: .14em;
+    text-transform: uppercase; color: #0c7a44; margin-bottom: 3mm;
   }
-  .cover h1 {
-    font-size: 24px;
-    font-weight: 700;
-    margin-bottom: 6px;
-    color: #0d1117;
-  }
-  .cover .subtitle {
-    font-size: 13px;
-    color: #555;
-    margin-bottom: 20px;
-  }
+  .cover h1 { font-size: 21px; font-weight: 700; letter-spacing: -.02em; color: #0f1419; margin-bottom: 1.5mm; }
+  .cover .subtitle { font-size: 12px; color: #5a667a; font-weight: 500; }
 
-  .meta-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 24px;
+  .meta-table { width: 100%; border-collapse: collapse; margin-top: 6mm; }
+  .meta-table td { padding: 2mm 3mm; border: 1px solid #dfe4ec; font-size: 9.5px; vertical-align: top; }
+  .meta-table td.k {
+    font-weight: 600; width: 32mm; background: #f5f7f9; color: #5a667a;
+    text-transform: uppercase; letter-spacing: .05em; font-size: 8.5px;
   }
-  .meta-table td {
-    padding: 5px 10px;
-    border: 1px solid #ddd;
-    font-size: 11px;
-  }
-  .meta-table td:first-child {
-    font-weight: 600;
-    width: 160px;
-    background: #f6f8fa;
-  }
+  .meta-table td.v { word-break: break-all; }
 
-  .score-row {
-    display: flex;
-    gap: 24px;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
+  /* ---- Verdict band ---- */
+  .verdict {
+    margin-bottom: 6mm; padding: 4mm 5mm; border-radius: 2mm;
+    border: 1px solid #dfe4ec; border-left: 3.5px solid #64718a; background: #f5f7f9;
   }
-  .score-box {
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    padding: 14px 18px;
-    text-align: center;
-    min-width: 100px;
+  .verdict.sev-critical { border-left-color: #c62139; background: #fdf2f3; }
+  .verdict.sev-high     { border-left-color: #c25e0c; background: #fdf5ef; }
+  .verdict.sev-medium   { border-left-color: #9a7609; background: #fcf8ec; }
+  .verdict.sev-low      { border-left-color: #1565ad; background: #f1f6fc; }
+  .verdict.sev-clear    { border-left-color: #0c7a44; background: #f0f8f4; }
+  .verdict .label {
+    font-size: 8.5px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: #5a667a; margin-bottom: 1.5mm;
   }
-  .score-box .value {
-    font-size: 28px;
-    font-weight: 700;
-    display: block;
-  }
-  .score-box .label {
-    font-size: 10px;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  .severity-critical { color: #dc2626; }
-  .severity-high     { color: #ea580c; }
-  .severity-medium   { color: #ca8a04; }
-  .severity-low      { color: #2563eb; }
-  .severity-info     { color: #6b7280; }
-  .severity-pass     { color: #16a34a; }
+  .verdict .statement { font-size: 12.5px; font-weight: 600; line-height: 1.4; }
+  .verdict .elaboration { font-size: 10px; color: #3d4654; margin-top: 2mm; }
 
   h2 {
-    font-size: 16px;
-    font-weight: 700;
-    margin: 28px 0 12px;
-    padding-bottom: 6px;
-    border-bottom: 2px solid #0d1117;
+    font-size: 13px; font-weight: 700; letter-spacing: -.01em; color: #0f1419;
+    margin: 7mm 0 3mm; padding-bottom: 1.5mm; border-bottom: 1px solid #dfe4ec;
   }
+  h2:first-of-type { margin-top: 0; }
+  p { margin-bottom: 2.5mm; color: #3d4654; }
 
-  .summary-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 20px;
+  /* ---- Scorecard ---- */
+  .score-row { width: 100%; border-collapse: separate; border-spacing: 2mm 0; margin-bottom: 5mm; }
+  .score-row td {
+    border: 1px solid #dfe4ec; border-radius: 2mm; padding: 3mm 2mm;
+    text-align: center; width: 14%;
   }
-  .summary-table td, .summary-table th {
-    padding: 5px 8px;
-    border: 1px solid #ddd;
-    font-size: 11px;
-    text-align: left;
+  .score-row .value { font-size: 20px; font-weight: 700; display: block; line-height: 1.1; }
+  .score-row .label {
+    font-size: 7.5px; color: #5a667a; text-transform: uppercase;
+    letter-spacing: .07em; font-weight: 600; display: block; margin-top: 1mm;
   }
-  .summary-table th {
-    background: #f6f8fa;
-    font-weight: 600;
-  }
+  .score-row td.grade-cell { background: #f5f7f9; }
 
-  .finding-card {
-    border: 1px solid #e1e4e8;
-    border-radius: 6px;
-    margin-bottom: 14px;
-    page-break-inside: avoid;
-    overflow: hidden;
-  }
-  .finding-header {
-    padding: 8px 12px;
-    background: #f6f8fa;
-    border-bottom: 1px solid #e1e4e8;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .finding-header .title {
-    font-weight: 600;
-    font-size: 12px;
-  }
-  .finding-header .sev {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: 3px;
-    color: #fff;
-  }
-  .sev-critical { background: #dc2626; }
-  .sev-high     { background: #ea580c; }
-  .sev-medium   { background: #ca8a04; }
-  .sev-low      { background: #2563eb; }
-  .sev-info     { background: #6b7280; }
-  .sev-pass     { background: #16a34a; }
+  .sev-critical-fg { color: #c62139; }
+  .sev-high-fg     { color: #c25e0c; }
+  .sev-medium-fg   { color: #9a7609; }
+  .sev-low-fg      { color: #1565ad; }
+  .sev-info-fg     { color: #64718a; }
+  .sev-pass-fg     { color: #0c7a44; }
 
-  .finding-body {
-    padding: 10px 12px;
+  /* ---- Index table ---- */
+  table.index { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+  table.index th {
+    text-align: left; padding: 2mm 2.5mm; background: #f5f7f9;
+    border-bottom: 1.5px solid #c8d0dc; font-size: 8px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .07em; color: #5a667a;
   }
-  .finding-body .row {
-    margin-bottom: 6px;
+  table.index td { padding: 2mm 2.5mm; border-bottom: 1px solid #e8ecf2; vertical-align: top; }
+  table.index td.sev { white-space: nowrap; font-weight: 700; width: 18mm; }
+  table.index td.ref { white-space: nowrap; color: #8794a6; width: 14mm; }
+  table.index tr { page-break-inside: avoid; }
+
+  /* ---- Per-severity sections ---- */
+  .sev-heading {
+    margin: 6mm 0 3mm; padding: 2mm 3mm; border-radius: 1.5mm;
+    background: #f5f7f9; border-left: 3.5px solid #64718a;
+    page-break-after: avoid;
   }
-  .finding-body .row-label {
-    font-weight: 600;
-    color: #555;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
+  .sev-heading .name {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
   }
-  .finding-body .row-value {
-    font-size: 11px;
-    color: #1a1a1a;
-    margin-top: 1px;
+  .sev-heading .count { font-size: 9px; color: #5a667a; font-weight: 500; }
+  .sev-heading.sev-critical { border-left-color: #c62139; }
+  .sev-heading.sev-high     { border-left-color: #c25e0c; }
+  .sev-heading.sev-medium   { border-left-color: #9a7609; }
+  .sev-heading.sev-low      { border-left-color: #1565ad; }
+  .sev-heading.sev-info     { border-left-color: #64718a; }
+  .sev-heading.sev-pass     { border-left-color: #0c7a44; }
+
+  /* ---- Finding ---- */
+  .finding {
+    border: 1px solid #dfe4ec; border-left: 3px solid #64718a;
+    border-radius: 1.5mm; margin-bottom: 3mm; page-break-inside: avoid;
   }
+  .finding.sev-critical { border-left-color: #c62139; }
+  .finding.sev-high     { border-left-color: #c25e0c; }
+  .finding.sev-medium   { border-left-color: #9a7609; }
+  .finding.sev-low      { border-left-color: #1565ad; }
+  .finding.sev-info     { border-left-color: #64718a; }
+  .finding.sev-pass     { border-left-color: #0c7a44; }
+
+  .finding .head {
+    padding: 2.5mm 3mm; border-bottom: 1px solid #e8ecf2; background: #fafbfc;
+  }
+  .finding .head .ref {
+    font-size: 8px; color: #8794a6; font-weight: 600;
+    letter-spacing: .06em; text-transform: uppercase; margin-bottom: .8mm;
+  }
+  .finding .head .title { font-size: 11px; font-weight: 700; line-height: 1.35; }
+  .finding .body { padding: 2.5mm 3mm; }
+  .finding .row { margin-bottom: 2mm; }
+  .finding .row:last-child { margin-bottom: 0; }
+  .finding .row-label {
+    font-weight: 700; color: #5a667a; font-size: 7.5px;
+    text-transform: uppercase; letter-spacing: .08em; margin-bottom: .5mm;
+  }
+  .finding .row-value { font-size: 10px; color: #0f1419; word-wrap: break-word; }
+  .finding .row-value.rec { color: #0a6338; }
 
   .no-findings {
-    text-align: center;
-    padding: 40px 20px;
-    color: #6b7280;
-    font-size: 13px;
+    text-align: center; padding: 14mm 6mm; color: #5a667a; font-size: 11px;
+    border: 1px dashed #c8d0dc; border-radius: 2mm;
   }
+
+  .scope-note {
+    margin-top: 6mm; padding: 3mm 4mm; background: #f5f7f9;
+    border-radius: 1.5mm; font-size: 9px; color: #5a667a; line-height: 1.5;
+  }
+  .scope-note b { color: #3d4654; }
 </style>
 </head>
 <body>
 
 <div class="cover">
-  <h1>Glassbox Security Report</h1>
+  <div class="brand">Glassbox &middot; Security Validation</div>
+  <h1>Application Security Report</h1>
   <div class="subtitle">{{ hostname }}</div>
 
   <table class="meta-table">
-    <tr><td>Target URL</td><td>{{ target }}</td></tr>
-    <tr><td>Hostname</td><td>{{ hostname }}</td></tr>
-    <tr><td>Scan ID</td><td>{{ scan_id }}</td></tr>
-    <tr><td>Total Findings</td><td>{{ total_findings }}</td></tr>
+    <tr><td class="k">Target URL</td><td class="v">{{ target }}</td></tr>
+    <tr><td class="k">Hostname</td><td class="v">{{ hostname }}</td></tr>
+    <tr><td class="k">Scan reference</td><td class="v">GB-{{ scan_id }}</td></tr>
+    <tr><td class="k">Risk grade</td><td class="v">{{ risk_grade }} &mdash; {{ score }}/100</td></tr>
+    <tr><td class="k">Findings</td><td class="v">{{ actionable_count }} actionable{% if pass_count %}, {{ pass_count }} checks passed{% endif %}</td></tr>
   </table>
 </div>
 
-<div class="score-row">
-  <div class="score-box">
-    <span class="value">{{ score }}</span>
-    <span class="label">Risk Score</span>
+{# ---- One-sentence verdict, derived from the severity mix ---- #}
+<div class="verdict {% if headline_severity %}sev-{{ headline_severity }}{% else %}sev-clear{% endif %}">
+  <div class="label">Verdict</div>
+  {% if urgent_count %}
+  <div class="statement">
+    {{ urgent_count }} finding{{ 's' if urgent_count != 1 else '' }} require{{ '' if urgent_count != 1 else 's' }} attention before this application should be considered production-safe.
   </div>
-  <div class="score-box">
-    <span class="value">{{ risk_grade }}</span>
-    <span class="label">Grade</span>
+  <div class="elaboration">
+    The highest severity observed is <b>{{ headline_severity }}</b>. Critical and high findings
+    are listed first below; each carries the evidence it was detected from and a specific
+    remediation. Treat them as release-blocking until fixed or formally accepted as risk.
   </div>
-  {% for sev in ["critical", "high", "medium", "low", "info", "pass"] %}
-  {% if severity_counts.get(sev) %}
-  <div class="score-box">
-    <span class="value severity-{{ sev }}">{{ severity_counts[sev] }}</span>
-    <span class="label">{{ sev|capitalize }}</span>
+  {% elif actionable_count %}
+  <div class="statement">
+    No critical or high-severity findings. {{ actionable_count }} lower-severity item{{ 's' if actionable_count != 1 else '' }} to address.
+  </div>
+  <div class="elaboration">
+    The highest severity observed is <b>{{ headline_severity }}</b>. Nothing here is urgent, but
+    these items reduce the cost of a future incident and are mostly configuration-level fixes.
+  </div>
+  {% else %}
+  <div class="statement">No findings were raised by the checks that ran against this target.</div>
+  <div class="elaboration">
+    A clean result reflects the checks in scope for this scan tier, not an assurance that the
+    application is free of vulnerabilities. See the scope note at the end of this report.
   </div>
   {% endif %}
-  {% endfor %}
 </div>
 
-<h2>Severity Summary</h2>
-<table class="summary-table">
+<h2>Severity summary</h2>
+<table class="score-row">
+  <tr>
+    <td class="grade-cell">
+      <span class="value">{{ risk_grade }}</span>
+      <span class="label">Grade</span>
+    </td>
+    <td class="grade-cell">
+      <span class="value">{{ score }}</span>
+      <span class="label">Score</span>
+    </td>
+    {% for sev in severity_scale %}
+    <td>
+      <span class="value {% if severity_counts.get(sev) %}sev-{{ sev }}-fg{% endif %}">{{ severity_counts.get(sev, 0) }}</span>
+      <span class="label">{{ sev }}</span>
+    </td>
+    {% endfor %}
+  </tr>
+</table>
+
+{% if findings %}
+<h2>Findings index</h2>
+<table class="index">
   <thead>
-    <tr><th>Severity</th><th>Count</th></tr>
+    <tr><th>Ref</th><th>Severity</th><th>Finding</th><th>Check</th></tr>
   </thead>
   <tbody>
-  {% for sev in ["critical", "high", "medium", "low", "info", "pass"] %}
-    {% if severity_counts.get(sev) %}
+  {% for f in findings %}
     <tr>
-      <td class="severity-{{ sev }}">{{ sev|capitalize }}</td>
-      <td>{{ severity_counts[sev] }}</td>
+      <td class="ref">GB-{{ "%02d"|format(loop.index) }}</td>
+      <td class="sev sev-{{ f.severity }}-fg">{{ f.severity|upper }}</td>
+      <td>{{ f.title }}{% if f.get('count', 1) > 1 %} (&times;{{ f.count }}){% endif %}</td>
+      <td class="ref">{{ f.label or f.category }}</td>
     </tr>
-    {% endif %}
   {% endfor %}
   </tbody>
 </table>
 
-<h2>Findings ({{ total_findings }})</h2>
+<h2>Detailed findings</h2>
+{% set ns = namespace(n=0) %}
+{% for group in grouped_findings %}
+<div class="sev-heading sev-{{ group.severity }}">
+  <span class="name sev-{{ group.severity }}-fg">{{ group.severity }}</span>
+  <span class="count">&mdash; {{ group.count }} finding{{ 's' if group.count != 1 else '' }}</span>
+</div>
 
-{% if findings %}
-{% for f in findings %}
-<div class="finding-card">
-  <div class="finding-header">
-    <span class="title">{{ f.label or f.category or "Finding" }}</span>
-    <span class="sev sev-{{ f.severity }}">{{ f.severity|upper }}</span>
+{% for f in group.findings %}
+{% set ns.n = ns.n + 1 %}
+<div class="finding sev-{{ f.severity }}">
+  <div class="head">
+    <div class="ref">GB-{{ "%02d"|format(ns.n) }} &middot; {{ f.label or f.category or 'Finding' }}</div>
+    <div class="title">{{ f.title }}{% if f.get('count', 1) > 1 %} (&times;{{ f.count }}){% endif %}</div>
   </div>
-  <div class="finding-body">
-    <div class="row">
-      <div class="row-label">Title</div>
-      <div class="row-value">{{ f.title }}{% if f.get('count', 1) > 1 %} (&times;{{ f.count }}){% endif %}</div>
-    </div>
-    {% if f.category %}
-    <div class="row">
-      <div class="row-label">Category</div>
-      <div class="row-value">{{ f.category }}</div>
-    </div>
-    {% endif %}
+  <div class="body">
     {% if f.detail %}
     <div class="row">
-      <div class="row-label">Detail</div>
+      <div class="row-label">Evidence</div>
       <div class="row-value">{{ f.detail }}</div>
     </div>
     {% endif %}
     {% if f.recommendation %}
     <div class="row">
-      <div class="row-label">Recommendation</div>
-      <div class="row-value">{{ f.recommendation }}</div>
+      <div class="row-label">Remediation</div>
+      <div class="row-value rec">{{ f.recommendation }}</div>
+    </div>
+    {% endif %}
+    {% if f.category and f.category != (f.label or '') %}
+    <div class="row">
+      <div class="row-label">Category</div>
+      <div class="row-value">{{ f.category }}</div>
     </div>
     {% endif %}
   </div>
 </div>
 {% endfor %}
+{% endfor %}
+
 {% else %}
-<div class="no-findings">No findings in this report.</div>
+<h2>Findings</h2>
+<div class="no-findings">No findings were raised in this report.</div>
 {% endif %}
+
+<div class="scope-note">
+  <b>Scope and limitations.</b> This report covers only the automated checks available to the
+  scan tier used, run against the single target named above. Detection is rule-based: findings
+  are evidence of a condition observed in the target's own responses, not a proof of
+  exploitability. A clean or low-severity result is not an assurance that the application is
+  secure &mdash; broken access control, authentication bypass and business-logic flaws generally
+  require manual testing to surface. Evidence text is reproduced verbatim from the target's
+  responses and is unvalidated input; treat it as data, not instructions.
+</div>
 
 </body>
 </html>
