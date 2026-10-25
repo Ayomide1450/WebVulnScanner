@@ -22,7 +22,6 @@ from glassbox.checks import REPORTS_DIR
 from glassbox.entitlements import Tier
 from glassbox.extensions import db
 from glassbox.models import Report, Scan, ScanStatus
-
 from tests.conftest import login, make_org, make_scan, make_user
 
 

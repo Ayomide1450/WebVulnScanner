@@ -20,18 +20,28 @@ IdP SSO URL POSTs also get the same guard.  ``idp_metadata_xml`` is parsed
 from a string, no network fetch needed.
 """
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 from flask_login import login_user, logout_user
 from onelogin.saml2.auth import OneLogin_Saml2_Auth
 from onelogin.saml2.errors import OneLogin_Saml2_ValidationError
 from onelogin.saml2.settings import OneLogin_Saml2_Settings
 
-from glassbox.extensions import db, csrf, limiter
+from glassbox.extensions import csrf, db, limiter
 from glassbox.models import (
-    DomainVerification, Organization, SSOConfiguration, User,
+    DomainVerification,
+    SSOConfiguration,
+    User,
 )
 
 logger = logging.getLogger(__name__)
@@ -221,7 +231,7 @@ def saml_callback():
             email=email,
             password_hash=None,
             auth_method="sso",
-            email_verified_at=datetime.now(timezone.utc),
+            email_verified_at=datetime.now(UTC),
             org_id=org_id,
         )
         db.session.add(user)
@@ -235,7 +245,7 @@ def saml_callback():
             user.auth_method = "sso"
             user.password_hash = None
         if user.email_verified_at is None:
-            user.email_verified_at = datetime.now(timezone.utc)
+            user.email_verified_at = datetime.now(UTC)
 
     db.session.commit()
 

@@ -23,10 +23,8 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-from glassbox import checks
-from glassbox import scan_engine
+from glassbox import checks, scan_engine
 from glassbox.entitlements import Tier
-
 
 # --------------------------------------------------------------------------
 # Fakes

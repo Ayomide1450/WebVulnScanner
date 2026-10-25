@@ -18,9 +18,7 @@ tests for the twelve forms this plan closes the disable-only or
 no-indicator-at-all gap on.
 """
 from glassbox.models import Report, Role, ScanStatus
-
 from tests.conftest import login, make_org, make_scan, make_user
-
 
 # --------------------------------------------------------------------------
 # Task 1: _empty_state.html partial + dashboard.html / assets.html migration

@@ -20,13 +20,11 @@ import base64
 import json
 from types import SimpleNamespace
 
+import pytest
 import requests
 
-import pytest
-
 from glassbox import checks
-from glassbox.entitlements import Tier, FEATURE_REQUIREMENTS
-
+from glassbox.entitlements import FEATURE_REQUIREMENTS, Tier
 
 # --------------------------------------------------------------------------
 # Fakes
@@ -397,7 +395,6 @@ def test_takeover_flags_dangling_fingerprint(monkeypatch):
 
 
 def test_takeover_live_target_is_not_flagged(monkeypatch):
-    import dns.resolver as dr
 
     state = {"cname_done": False}
 

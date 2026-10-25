@@ -28,9 +28,7 @@ import glassbox.webhooks as webhook_engine
 from glassbox.extensions import db as _db
 from glassbox.models import OutboundWebhook, Plan, Role, ScanStatus, WebhookDelivery
 from glassbox.scan_engine import save_report
-
 from tests.conftest import login, make_org, make_scan, make_user
-
 
 # --------------------------------------------------------------------------
 # Shared fakes (test_asset_routes.py idioms)

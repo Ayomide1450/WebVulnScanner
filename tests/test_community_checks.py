@@ -9,32 +9,27 @@ Covers:
 - Scan-engine integration: community checks appear in run_scan() jobs dict
 """
 import os
-import re
 import tempfile
 from unittest.mock import MagicMock
 
 import pytest
 import yaml
 
-from glassbox.community_checks import (
-    COMMUNITY_CHECKS_DIR,
-    MAX_REQUESTS_PER_CHECK,
-    VALID_METHODS,
-    CommunityCheckError,
-    CommunityCheckSpec,
-    _build_check_function,
-    _parse_check,
-    _validate_check,
-    build_community_jobs,
-    load_community_checks,
-    register_community_checks,
-)
 from glassbox.checks import (
     CHECK_CATEGORY,
     CHECK_COMPLIANCE,
     CHECK_LABELS,
     SCAN_TYPE_CHECK_NAMES,
     SECURITY_DOMAIN_MAP,
+)
+from glassbox.community_checks import (
+    CommunityCheckError,
+    CommunityCheckSpec,
+    _build_check_function,
+    _validate_check,
+    build_community_jobs,
+    load_community_checks,
+    register_community_checks,
 )
 from glassbox.entitlements import FEATURE_REQUIREMENTS, Tier
 
@@ -71,7 +66,7 @@ def _restore_registries():
 def _load_fixture_raw(name):
     """Load a single fixture file as raw YAML dict."""
     fpath = os.path.join(FIXTURES_DIR, name)
-    with open(fpath, "r", encoding="utf-8") as f:
+    with open(fpath, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -81,7 +76,7 @@ def _isolated_load(*fixture_names):
         for name in fixture_names:
             src = os.path.join(FIXTURES_DIR, name)
             dst = os.path.join(tmpdir, name)
-            with open(src, "r", encoding="utf-8") as fin:
+            with open(src, encoding="utf-8") as fin:
                 with open(dst, "w", encoding="utf-8") as fout:
                     fout.write(fin.read())
         return load_community_checks(tmpdir)

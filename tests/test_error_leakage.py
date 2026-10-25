@@ -28,7 +28,6 @@ from glassbox.config import APP_DIR, Config
 from glassbox.extensions import db as _db
 from glassbox.extensions import limiter as _limiter
 from glassbox.models import Role
-
 from tests.conftest import make_org, make_user
 
 CONFIG_PY = pathlib.Path(__file__).resolve().parent.parent / "glassbox" / "config.py"

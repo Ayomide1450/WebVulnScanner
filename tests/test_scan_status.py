@@ -9,13 +9,10 @@ Ownership scoping mirrors tests/test_scan_ownership.py's convention:
 integration tests through the real routes/login flow, since `_check_ownership`
 reads the context-local `flask_login.current_user` proxy.
 """
-from datetime import datetime, timezone
 
-import pytest
 
 from glassbox.extensions import db as _db
 from glassbox.models import Plan, Report, Role, ScanStatus
-
 from tests.conftest import login, make_org, make_scan, make_user
 
 

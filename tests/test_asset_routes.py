@@ -7,7 +7,7 @@ ASSET-03/05/06, plan 01-02).
 import json
 import os
 import socket
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -15,7 +15,6 @@ from glassbox.asset_routes import compliance_coverage, summarize_compliance
 from glassbox.checks import REPORTS_DIR
 from glassbox.extensions import db as _db
 from glassbox.models import Asset, Plan, Report, Scan, ScanStatus
-
 from tests.conftest import login, make_asset, make_org, make_user
 
 
@@ -41,7 +40,7 @@ def _as_aware(dt):
     tz-aware datetime.now(timezone.utc). Same convention as
     tests/test_scheduler.py's _as_aware helper."""
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -284,7 +283,7 @@ def test_post_schedule_valid_update_persists_and_recomputes_next_run(db, client)
     user = make_user("schedule-owner@example.com", org=org)
     a = make_asset(
         org, user, cadence="daily", schedule_scan_type="base",
-        next_run_at=datetime.now(timezone.utc) - timedelta(days=1),
+        next_run_at=datetime.now(UTC) - timedelta(days=1),
     )
     db.session.commit()
     asset_id = a.id
@@ -300,7 +299,7 @@ def test_post_schedule_valid_update_persists_and_recomputes_next_run(db, client)
     updated = Asset.query.get(asset_id)
     assert updated.cadence == "monthly"
     assert updated.schedule_scan_type == "media"
-    assert _as_aware(updated.next_run_at) > datetime.now(timezone.utc) + timedelta(days=20)
+    assert _as_aware(updated.next_run_at) > datetime.now(UTC) + timedelta(days=20)
 
 
 def test_post_schedule_invalid_value_rejected_and_row_unchanged(db, client):
@@ -376,7 +375,7 @@ def test_schedule_tier_locked_hint_absent_for_base_schedule_type(db, client):
 def test_pause_resume_delete_pause_excludes_asset_from_due_query(db, client):
     org = make_org(plan=Plan.PAID, name="Pause Org")
     user = make_user("pause-owner@example.com", org=org)
-    a = make_asset(org, user, next_run_at=datetime.now(timezone.utc) - timedelta(minutes=5))
+    a = make_asset(org, user, next_run_at=datetime.now(UTC) - timedelta(minutes=5))
     db.session.commit()
     asset_id = a.id
 
@@ -387,7 +386,7 @@ def test_pause_resume_delete_pause_excludes_asset_from_due_query(db, client):
     updated = Asset.query.get(asset_id)
     assert updated.is_paused is True
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     due = Asset.query.filter(
         Asset.is_paused.is_(False), Asset.deleted_at.is_(None), Asset.next_run_at <= now,
     ).all()
@@ -399,7 +398,7 @@ def test_pause_resume_delete_resume_reincludes_asset_in_due_query(db, client):
     user = make_user("resume-owner@example.com", org=org)
     a = make_asset(
         org, user, is_paused=True,
-        next_run_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+        next_run_at=datetime.now(UTC) - timedelta(minutes=5),
     )
     db.session.commit()
     asset_id = a.id
@@ -411,7 +410,7 @@ def test_pause_resume_delete_resume_reincludes_asset_in_due_query(db, client):
     updated = Asset.query.get(asset_id)
     assert updated.is_paused is False
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     due = Asset.query.filter(
         Asset.is_paused.is_(False), Asset.deleted_at.is_(None), Asset.next_run_at <= now,
     ).all()

@@ -11,20 +11,18 @@ tests/test_sensitive_paths.py, rather than hand-authoring a mock report
 dict - a hand-rolled dict risks drifting from the real report shape and
 missing template fields the real orchestrator always includes.
 """
-import json
 import os
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
+from glassbox import scan_engine
 from glassbox.checks import REPORTS_DIR
 from glassbox.entitlements import Tier
 from glassbox.extensions import db as _db
-from glassbox.models import Report, Scan, ScanStatus
-from glassbox import scan_engine
-
+from glassbox.models import Report, ScanStatus
 from tests.conftest import login, make_org, make_scan, make_user
 
 
@@ -100,9 +98,9 @@ def two_scans(db, target_server, monkeypatch):
     owner = make_user("owner@history.com", org=org)
 
     older = make_scan(owner, org=org, target_url=target_server, status=ScanStatus.COMPLETED)
-    older.created_at = datetime.now(timezone.utc) - timedelta(days=3)
+    older.created_at = datetime.now(UTC) - timedelta(days=3)
     newer = make_scan(owner, org=org, target_url=target_server, status=ScanStatus.COMPLETED)
-    newer.created_at = datetime.now(timezone.utc)
+    newer.created_at = datetime.now(UTC)
     _db.session.flush()
 
     fname_older = _write_report_row(older, target_server, monkeypatch)

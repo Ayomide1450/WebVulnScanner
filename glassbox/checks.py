@@ -23,14 +23,14 @@ import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from urllib.parse import urlparse, urlencode, parse_qs, urlunparse, urljoin, quote
+from datetime import UTC, datetime
+from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse, urlunparse
 from xml.etree import ElementTree
 
 import dns.resolver
 import requests
 from bs4 import BeautifulSoup
-from PIL import Image, ExifTags
+from PIL import ExifTags, Image
 
 # APP_DIR points at the repo root (one level up from this package), matching
 # the original app.py's `os.path.dirname(os.path.abspath(__file__))` so
@@ -411,7 +411,6 @@ def compute_cvss_score(vector):
     Returns (0.0, "None") for invalid/unparseable vectors — never raises.
     Uses the CVSS 3.1 specification's Roundup function (always one decimal).
     """
-    import math
     import re
 
     def _roundup(val):
@@ -923,8 +922,8 @@ def check_tls_cert(hostname):
                 # only reads back what the server was willing to offer.
                 tls_version = ssock.version()
                 cipher = ssock.cipher()  # (name, protocol, secret_bits) or None
-        not_after = datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
-        days_left = (not_after - datetime.now(timezone.utc)).days
+        not_after = datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z").replace(tzinfo=UTC)
+        days_left = (not_after - datetime.now(UTC)).days
         subject = dict(x[0] for x in cert.get("subject", []))
         issuer = dict(x[0] for x in cert.get("issuer", []))
         status = "pass" if days_left > 30 else ("warn" if days_left > 0 else "fail")
@@ -1369,13 +1368,13 @@ def check_open_ports(hostname):
             data = b""
             try:
                 data = s.recv(256)
-            except socket.timeout:
+            except TimeoutError:
                 pass
             if not data:
                 try:
                     s.sendall(b"HEAD / HTTP/1.0\r\nHost: %s\r\n\r\n" % hostname.encode())
                     data = s.recv(256)
-                except (socket.timeout, OSError):
+                except (TimeoutError, OSError):
                     pass
         finally:
             s.close()
@@ -1817,7 +1816,7 @@ def check_sri(base_url, home_html):
         has_sri = bool(tag.get("integrity"))
         rows.append({"url": abs_url, "type": "script", "has_sri": has_sri})
         if not has_sri:
-            findings.append(Finding("Supply chain", f"Third-party script without SRI", "medium",
+            findings.append(Finding("Supply chain", "Third-party script without SRI", "medium",
                                      f"{abs_url} is loaded from an external host with no integrity= hash.",
                                      "Add an integrity (SHA-384) and crossorigin attribute, or self-host the script.", confidence="Confirmed",
                                      cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N"))
@@ -3633,7 +3632,7 @@ def check_sqli_login(session, login_url, user_field, pass_field, fail_text):
     against a baseline invalid login, (2) time-based blind SQLi via response
     delay - this second technique works even without a usable fail_text,
     since it doesn't depend on matching response content at all."""
-    bogus_password = "not_a_real_password_123"
+    bogus_password = "not_a_real_password_123"  # noqa: S105 - deliberately wrong password for the login probe
     findings = []
 
     try:
@@ -3800,7 +3799,7 @@ def check_xss_stored(session, submit_url, field, view_url, cookie):
                                "Session-token theft would be trivially possible from here (not executed by this tool).",
                                "Escape/encode all user input before rendering; verify with a CSP.", confidence="Confirmed")
             return {"rows": rows, "status": "confirmed"}, [finding]
-        elif marker in r.text:
+        if marker in r.text:
             rows.append({"variant": name, "result": "partially reflected (likely encoded)"})
         else:
             rows.append({"variant": name, "result": "not reflected"})
@@ -3980,7 +3979,7 @@ def check_xxe(urls, session):
     XXE_MARKER = "xxe_marker_31415"
     for url in urls[:20]:
         try:
-            payload = f'<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root>&xxe;</root>'
+            payload = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root>&xxe;</root>'
             r = session.post(url, data=payload,
                              headers={"Content-Type": "application/xml"},
                              timeout=REQUEST_TIMEOUT, allow_redirects=False)
@@ -4105,8 +4104,8 @@ def check_dnssec(hostname):
     findings = []
     rows = []
     try:
-        import dns.resolver
         import dns.flags
+        import dns.resolver
         # Query for DNSKEY records
         try:
             answer = dns.resolver.resolve(hostname, "DNSKEY")
@@ -4184,7 +4183,7 @@ def check_dependency_audit(home_html):
                                             f"Detected {lib} loaded from {src}. Known CVEs exist "
                                             f"for older versions: {', '.join(c[0] for c in cves[:3])}. "
                                             "Version could not be confirmed from the URL alone.",
-                                            f"Verify the loaded version and upgrade to the latest safe release.",
+                                            "Verify the loaded version and upgrade to the latest safe release.",
                                             confidence="Not Externally Verifiable",
                                             verification_state="Discovered"))
                 break

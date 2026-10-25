@@ -27,6 +27,8 @@ os.environ.setdefault("GROQ_API_KEY", "")
 os.environ.setdefault("TURNSTILE_SITE_KEY", "")
 os.environ.setdefault("TURNSTILE_SECRET_KEY", "")
 
+from datetime import UTC
+
 import pytest
 from werkzeug.security import generate_password_hash
 
@@ -104,14 +106,14 @@ def make_org(plan=Plan.FREE, name="Test Org"):
 
 
 def make_user(email, org=None, role=Role.MEMBER, password="password123", verified=True):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     user = User(
         email=email,
         password_hash=generate_password_hash(password),
         org_id=org.id if org else None,
         role=role,
-        email_verified_at=datetime.now(timezone.utc) if verified else None,
+        email_verified_at=datetime.now(UTC) if verified else None,
     )
     _db.session.add(user)
     _db.session.flush()
@@ -135,10 +137,10 @@ def make_scan(user, org=None, target_url="https://example.com", scan_type="base"
 def make_asset(org, user, name="Test Asset", target_url="https://example.com",
                 cadence="daily", schedule_scan_type="base", next_run_at=None,
                 is_paused=False, deleted_at=None):
-    from datetime import datetime, timezone
+    from datetime import datetime
     from urllib.parse import urlparse
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     a = Asset(
         org_id=org.id if org else None,
         created_by_user_id=user.id,
@@ -166,7 +168,7 @@ def make_api_token(user, name="test", revoked=False):
     going through the HTML create-route first."""
     import hashlib
     import secrets
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     raw_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
@@ -174,7 +176,7 @@ def make_api_token(user, name="test", revoked=False):
         user_id=user.id,
         name=name,
         token_hash=token_hash,
-        revoked_at=datetime.now(timezone.utc) if revoked else None,
+        revoked_at=datetime.now(UTC) if revoked else None,
     )
     _db.session.add(t)
     _db.session.flush()

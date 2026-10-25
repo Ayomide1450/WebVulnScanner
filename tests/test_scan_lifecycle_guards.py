@@ -27,15 +27,11 @@ test_api_routes.py) so no test in this module ever starts a real
 background scan thread from a route POST.
 """
 import socket
-import threading
-import time
 
 import pytest
 
-from glassbox.entitlements import Tier
 from glassbox.extensions import db as _db
 from glassbox.models import Plan, Scan, ScanStatus
-
 from tests.conftest import login, make_org, make_scan, make_user
 
 

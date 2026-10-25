@@ -12,7 +12,7 @@ org-tier features later (entitlements.py, a later workstream), not
 authentication itself.
 """
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import requests
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
@@ -264,7 +264,7 @@ def verify_email(token):
         flash("Invalid or expired verification link.", "error")
         return render_template("verify_email.html", verified=False)
 
-    user.email_verified_at = datetime.now(timezone.utc)
+    user.email_verified_at = datetime.now(UTC)
     user.verify_token = None
     db.session.commit()
     return render_template("verify_email.html", verified=True)
@@ -404,7 +404,7 @@ def forgot_password():
             token = secrets.token_urlsafe(32)
             db.session.add(PasswordReset(
                 user_id=user.id, token=token,
-                expires_at=datetime.now(timezone.utc) + timedelta(minutes=RESET_TOKEN_EXPIRY_MINUTES),
+                expires_at=datetime.now(UTC) + timedelta(minutes=RESET_TOKEN_EXPIRY_MINUTES),
             ))
             db.session.commit()
             reset_url = url_for("auth.reset_password", token=token, _external=True)
@@ -425,8 +425,8 @@ def forgot_password():
 @limiter.limit("10 per hour")
 def reset_password(token):
     pr = PasswordReset.query.filter_by(token=token).first()
-    now = datetime.now(timezone.utc)
-    expires_at = pr.expires_at.replace(tzinfo=timezone.utc) if pr and pr.expires_at.tzinfo is None else (pr.expires_at if pr else None)
+    now = datetime.now(UTC)
+    expires_at = pr.expires_at.replace(tzinfo=UTC) if pr and pr.expires_at.tzinfo is None else (pr.expires_at if pr else None)
     valid = pr is not None and pr.used_at is None and expires_at is not None and expires_at > now
 
     if not valid:

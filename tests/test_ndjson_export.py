@@ -10,13 +10,13 @@ No WeasyPrint/GTK3 dependency — these tests always run on every platform.
 """
 
 import json
+from datetime import UTC
 
 import pytest
 
 from glassbox.models import Plan, Report, Role, ScanStatus
 from glassbox.ndjson_report import findings_ndjson
 from glassbox.scan_routes import safe_filename
-
 from tests.conftest import (
     login,
     make_api_token,
@@ -25,7 +25,6 @@ from tests.conftest import (
     make_scan,
     make_user,
 )
-
 
 NDJSON_LEAK_MARKER = "MARKER-25-NDJSON-LEAK-CHECK-7b2e04"
 
@@ -301,7 +300,7 @@ def test_report_ndjson_different_org_gets_404(client, db):
 
 
 def test_report_ndjson_soft_deleted_asset_gets_404(client, db):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     org = make_org(plan=Plan.PAID)
     user = make_user("del-asset-ndjson@example.com", org=org, role=Role.ORG_ADMIN)
@@ -312,7 +311,7 @@ def test_report_ndjson_soft_deleted_asset_gets_404(client, db):
     scan.asset_id = a.id
     db.session.commit()
     _attach_ndjson_marker_report(scan)
-    a.deleted_at = datetime.now(timezone.utc)
+    a.deleted_at = datetime.now(UTC)
     db.session.commit()
 
     resp = client.get(

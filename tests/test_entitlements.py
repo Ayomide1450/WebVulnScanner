@@ -10,6 +10,7 @@ easy to introduce and easy to miss.
 """
 import logging
 import re
+from datetime import UTC
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -23,9 +24,7 @@ from glassbox.entitlements import (
     effective_tier,
 )
 from glassbox.models import Plan
-
-from tests.conftest import make_org, make_user
-
+from tests.conftest import make_org
 
 # --------------------------------------------------------------------------
 # Tier ordering
@@ -198,7 +197,7 @@ def test_domain_is_org_verified_pending_row_is_false(db):
 
 
 def test_domain_is_org_verified_verified_row_is_true(db):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from glassbox.extensions import db as _db
     from glassbox.models import DomainVerification, VerifyMethod
@@ -206,14 +205,14 @@ def test_domain_is_org_verified_verified_row_is_true(db):
     org = make_org()
     _db.session.add(DomainVerification(
         org_id=org.id, domain="example.com", method=VerifyMethod.DNS_TXT,
-        token="tok", verified_at=datetime.now(timezone.utc),
+        token="tok", verified_at=datetime.now(UTC),
     ))
     _db.session.flush()
     assert domain_is_org_verified(org, "https://example.com") is True
 
 
 def test_domain_is_org_verified_hostname_is_case_and_port_insensitive(db):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from glassbox.extensions import db as _db
     from glassbox.models import DomainVerification, VerifyMethod
@@ -221,7 +220,7 @@ def test_domain_is_org_verified_hostname_is_case_and_port_insensitive(db):
     org = make_org()
     _db.session.add(DomainVerification(
         org_id=org.id, domain="example.com", method=VerifyMethod.DNS_TXT,
-        token="tok", verified_at=datetime.now(timezone.utc),
+        token="tok", verified_at=datetime.now(UTC),
     ))
     _db.session.flush()
     assert domain_is_org_verified(org, "https://EXAMPLE.com:8443/some/path") is True
@@ -232,7 +231,7 @@ def test_domain_is_org_verified_does_not_leak_across_orgs(db):
     # this is the org-isolation half of the ORG_VERIFIED gate; without it,
     # any org could unlock another org's intrusive checks against a domain
     # they don't own just by matching hostnames.
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from glassbox.extensions import db as _db
     from glassbox.models import DomainVerification, VerifyMethod
@@ -241,7 +240,7 @@ def test_domain_is_org_verified_does_not_leak_across_orgs(db):
     org_b = make_org(name="Org B")
     _db.session.add(DomainVerification(
         org_id=org_a.id, domain="example.com", method=VerifyMethod.DNS_TXT,
-        token="tok", verified_at=datetime.now(timezone.utc),
+        token="tok", verified_at=datetime.now(UTC),
     ))
     _db.session.flush()
     assert domain_is_org_verified(org_a, "https://example.com") is True

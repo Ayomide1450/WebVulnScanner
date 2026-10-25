@@ -25,10 +25,13 @@ from glassbox import scan_engine
 from glassbox.checks import CHECK_COMPLIANCE, SCAN_TYPE_CHECK_NAMES, Finding
 from glassbox.entitlements import Tier
 from glassbox.scan_routes import GROUPING_MODES, group_findings_by_compliance
-
 from tests.conftest import login, make_scan, make_user
 from tests.test_api_routes import _make_report
-from tests.test_entitlements import ADVANCED_SCAN_CHECK_NAMES, OUT_OF_JOBS_DICT_NAMES, _run_scan_job_names
+from tests.test_entitlements import (
+    ADVANCED_SCAN_CHECK_NAMES,
+    OUT_OF_JOBS_DICT_NAMES,
+    _run_scan_job_names,
+)
 
 
 def _stub_all_checks_with_findings(monkeypatch):

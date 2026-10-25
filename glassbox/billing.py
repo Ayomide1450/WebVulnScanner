@@ -26,14 +26,14 @@ on-expiry job is not built here (see billing.html for the shown-but-not-
 yet-enforced framing).
 """
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import requests
 from flask import current_app
 from sqlalchemy.exc import IntegrityError
 
 from glassbox.extensions import db
-from glassbox.models import InvoiceStatus, CryptoInvoice, Plan, SubStatus, Subscription
+from glassbox.models import CryptoInvoice, InvoiceStatus, Plan, Subscription, SubStatus
 
 POLYGONSCAN_API_URL = "https://api.polygonscan.com/api"
 # Same-ethos timeout convention as checks.py's REQUEST_TIMEOUT (8s) - this is
@@ -66,9 +66,9 @@ AMOUNT_MATCH_TOLERANCE = 1e-6
 
 
 def _token_contract_address(token_symbol):
-    if token_symbol == "USDT":
+    if token_symbol == "USDT":  # noqa: S105 - crypto token symbol, not a password
         return current_app.config["USDT_CONTRACT_ADDRESS"]
-    if token_symbol == "USDC":
+    if token_symbol == "USDC":  # noqa: S105 - crypto token symbol, not a password
         return current_app.config["USDC_CONTRACT_ADDRESS"]
     raise ValueError(f"Unsupported token_symbol: {token_symbol!r}")
 
@@ -120,7 +120,7 @@ def create_invoice(org_id, target_plan, token_symbol, billing_cycle="monthly"):
             "pending invoices for this plan. Try again shortly."
         )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     inv = CryptoInvoice(
         org_id=org_id,
@@ -157,10 +157,10 @@ def verify_invoice(inv):
     if inv.status == InvoiceStatus.EXPIRED:
         return False
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expires_at = inv.expires_at
     if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+        expires_at = expires_at.replace(tzinfo=UTC)
     if now > expires_at:
         inv.status = InvoiceStatus.EXPIRED
         db.session.commit()
@@ -189,7 +189,7 @@ def verify_invoice(inv):
 
     created_at = inv.created_at
     if created_at.tzinfo is None:
-        created_at = created_at.replace(tzinfo=timezone.utc)
+        created_at = created_at.replace(tzinfo=UTC)
     created_ts = created_at.timestamp()
 
     min_confirmations = current_app.config["INVOICE_MIN_CONFIRMATIONS"]
@@ -214,7 +214,7 @@ def verify_invoice(inv):
 
         inv.status = InvoiceStatus.PAID
         inv.matched_tx_hash = tx.get("hash")
-        inv.matched_at = datetime.now(timezone.utc)
+        inv.matched_at = datetime.now(UTC)
         try:
             db.session.commit()
         except IntegrityError:
@@ -238,7 +238,7 @@ def _activate_subscription(inv):
     `Organization.plan` - the latter is what `entitlements.effective_tier()`
     actually reads, so this is the step that changes what a scan is allowed
     to do."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     sub = Subscription.query.filter_by(org_id=inv.org_id).first()
     if sub is None:

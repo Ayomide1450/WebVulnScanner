@@ -14,21 +14,21 @@ opened a second SQLite connection while the first transaction was still
 open, deadlocking every test with "database is locked" the first time this
 file was written - see handoff.md's "nested app_context()" pitfall entry.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
 
-from tests.conftest import make_org
 from glassbox import billing
 from glassbox.extensions import db as _db
-from glassbox.models import CryptoInvoice, InvoiceStatus, Plan, SubStatus, Subscription
+from glassbox.models import CryptoInvoice, InvoiceStatus, Plan, Subscription, SubStatus
+from tests.conftest import make_org
 
 
 def _make_invoice(org, plan=Plan.PAID, token_symbol="USDT", status=InvoiceStatus.PENDING,
                    expected_amount=19.005, expires_in_minutes=60, created_minutes_ago=0,
                    billing_cycle="monthly"):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     inv = CryptoInvoice(
         org_id=org.id,
         target_plan=plan,
@@ -163,7 +163,7 @@ def _tx(amount_units, decimals=6, to="0xReceivingAddress", confirmations=10, ts=
         # "must be after creation" check, which is what a real on-chain tx
         # (whole-second timestamps) landing shortly after invoice creation
         # would never have to worry about.
-        ts = datetime.now(timezone.utc).timestamp() + 2
+        ts = datetime.now(UTC).timestamp() + 2
     return {
         "timeStamp": str(int(ts)),
         "value": str(int(amount_units * (10 ** decimals))),
@@ -206,8 +206,8 @@ def test_verify_invoice_activates_annual_period_end_365_days(app, db):
     sub = Subscription.query.filter_by(org_id=org.id).first()
     period_end = sub.current_period_end
     if period_end.tzinfo is None:
-        period_end = period_end.replace(tzinfo=timezone.utc)
-    delta = period_end - datetime.now(timezone.utc)
+        period_end = period_end.replace(tzinfo=UTC)
+    delta = period_end - datetime.now(UTC)
     assert 360 < delta.days <= 365  # ~365 days out, not the monthly 30
 
 
@@ -240,7 +240,7 @@ def test_verify_invoice_ignores_tx_before_invoice_created(app, db):
     inv = _make_invoice(org, expected_amount=19.0050, created_minutes_ago=0)
     _db.session.commit()
 
-    old_ts = (datetime.now(timezone.utc) - timedelta(days=1)).timestamp()
+    old_ts = (datetime.now(UTC) - timedelta(days=1)).timestamp()
     old_tx = _tx(19.0050, ts=old_ts)
     mock_resp = type("R", (), {"json": lambda self: {"result": [old_tx]}})()
     with patch("glassbox.billing.requests.get", return_value=mock_resp):
@@ -280,7 +280,7 @@ def test_verify_invoice_double_match_on_matched_tx_hash_returns_false(app, db):
         other_org, expected_amount=49.0012, plan=Plan.ORG_VERIFIED, status=InvoiceStatus.PAID,
     )
     already_matched.matched_tx_hash = "0xduplicate"
-    already_matched.matched_at = datetime.now(timezone.utc)
+    already_matched.matched_at = datetime.now(UTC)
     _db.session.commit()
 
     inv = _make_invoice(org, expected_amount=19.0050)

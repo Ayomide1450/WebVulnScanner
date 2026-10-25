@@ -21,20 +21,19 @@ actually need.
 import logging
 import os
 import re
-from dataclasses import dataclass, field
-from urllib.parse import urlencode, urlparse, parse_qs
+from dataclasses import dataclass
+from urllib.parse import urlencode
 
-import yaml
 import requests as _requests
+import yaml
 
 from glassbox.checks import (
-    Finding,
-    REQUEST_TIMEOUT,
-    CHECK_LABELS,
     CHECK_CATEGORY,
     CHECK_COMPLIANCE,
+    CHECK_LABELS,
+    REQUEST_TIMEOUT,
     SECURITY_DOMAIN_MAP,
-    SCAN_TYPE_CHECK_NAMES,
+    Finding,
 )
 from glassbox.entitlements import FEATURE_REQUIREMENTS, Tier
 
@@ -299,7 +298,7 @@ def _build_check_function(spec):
                 try:
                     if not re.search(body_regex, resp.text):
                         matched = False
-                        reasons.append(f"body regex not matched")
+                        reasons.append("body regex not matched")
                 except re.error:
                     matched = False
                     reasons.append("invalid body_regex in check definition")
@@ -362,7 +361,7 @@ def load_community_checks(directory=None):
             continue
         fpath = os.path.join(directory, fname)
         try:
-            with open(fpath, "r", encoding="utf-8") as f:
+            with open(fpath, encoding="utf-8") as f:
                 raw = yaml.safe_load(f)
         except yaml.YAMLError as e:
             raise CommunityCheckError(f"{fpath}: YAML parse error: {e}")
@@ -372,7 +371,7 @@ def load_community_checks(directory=None):
 
         _validate_check(raw, fpath)
         specs.append(_parse_check(raw, fpath))
-        logger.info("Loaded community check: %s (%s)", spec.name if False else raw["name"], fpath)
+        logger.info("Loaded community check: %s (%s)", raw["name"], fpath)
 
     return specs
 

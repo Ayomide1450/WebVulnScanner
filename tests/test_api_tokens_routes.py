@@ -5,7 +5,6 @@ generate/revoke (API-01, D-01..D-05, Phase 2 tracer plan 02-01).
 import pytest
 
 from glassbox.models import ApiToken
-
 from tests.conftest import login, make_api_token, make_org, make_user
 
 

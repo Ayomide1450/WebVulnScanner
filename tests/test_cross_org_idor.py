@@ -43,8 +43,8 @@ Two registry value shapes are NOT plain test references:
 import re
 from pathlib import Path
 
-from tests.conftest import TestConfig
 from glassbox import create_app
+from tests.conftest import TestConfig
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 

@@ -15,7 +15,7 @@ org_id equality - two different solo users both have org_id = None, so a
 naive `a.org_id == current_user.org_id` comparison would match NULL == NULL
 and leak one solo user's Assets to another.
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 from flask import Blueprint, abort, redirect, render_template, request, url_for
@@ -123,7 +123,7 @@ def new_asset():
             "asset_new.html", error="Enter a name for this Asset.",
         )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     a = Asset(
         org_id=current_user.org_id,
         created_by_user_id=current_user.id,
@@ -396,7 +396,7 @@ def update_schedule(asset_id):
     # from math done against a cadence that no longer applies.
     a.cadence = cadence
     a.schedule_scan_type = schedule_scan_type
-    a.next_run_at = datetime.now(timezone.utc) + CADENCE_INTERVALS[cadence]
+    a.next_run_at = datetime.now(UTC) + CADENCE_INTERVALS[cadence]
     db.session.commit()
 
     return redirect(url_for("asset.asset_detail", asset_id=a.id))
@@ -436,7 +436,7 @@ def delete_asset(asset_id):
     # history for this Asset stays queryable/intact. is_paused=True too
     # (belt-and-suspenders): the row's own state stays self-explanatory
     # without needing to reason about two columns' interaction.
-    a.deleted_at = datetime.now(timezone.utc)
+    a.deleted_at = datetime.now(UTC)
     a.is_paused = True
     db.session.commit()
     return redirect(url_for("asset.list_assets"))

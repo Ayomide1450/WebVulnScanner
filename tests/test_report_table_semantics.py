@@ -31,7 +31,6 @@ import pytest
 
 from glassbox.extensions import db as _db
 from glassbox.models import Report, ScanStatus
-
 from tests.conftest import login, make_org, make_scan, make_user
 
 SCAN_REPORT_TEMPLATE = "templates/scan_report.html"

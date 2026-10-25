@@ -1,8 +1,17 @@
 """Tests for org_routes.py's org_admin page: member/domain pill rendering,
 the domain-deletion request/approve/reject workflow, and pending-invitation
 resend/revoke."""
+from datetime import UTC
+
 from glassbox.extensions import db as _db
-from glassbox.models import DomainVerification, Invitation, InvitationStatus, OrgAuditEvent, Role, VerifyMethod
+from glassbox.models import (
+    DomainVerification,
+    Invitation,
+    InvitationStatus,
+    OrgAuditEvent,
+    Role,
+    VerifyMethod,
+)
 from tests.conftest import login, make_org, make_user
 
 
@@ -11,8 +20,8 @@ def _make_domain(org, domain="example.com", verified=True):
         org_id=org.id, domain=domain, method=VerifyMethod.DNS_TXT, token="tok",
     )
     if verified:
-        from datetime import datetime, timezone
-        dv.verified_at = datetime.now(timezone.utc)
+        from datetime import datetime
+        dv.verified_at = datetime.now(UTC)
     _db.session.add(dv)
     _db.session.flush()
     return dv

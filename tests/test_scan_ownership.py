@@ -21,7 +21,6 @@ import pytest
 
 from glassbox.extensions import db as _db
 from glassbox.models import Report, Role, ScanStatus
-
 from tests.conftest import login, make_org, make_scan, make_user
 
 

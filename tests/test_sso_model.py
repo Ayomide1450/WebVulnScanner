@@ -5,8 +5,9 @@ Encryption round-trip, org uniqueness, nullable password_hash, and
 auth_method column behavior.
 """
 import pytest
+
+from glassbox.models import SSOConfiguration
 from tests.conftest import make_org, make_user
-from glassbox.models import SSOConfiguration, Organization, Plan, Role
 
 
 class TestSSOConfigurationModel:

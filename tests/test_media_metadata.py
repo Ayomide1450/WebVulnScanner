@@ -15,15 +15,12 @@ import io
 import struct
 import zipfile
 
-import pytest
-
 from glassbox.checks import (
     _extract_mp4_metadata,
     _extract_office_metadata,
     _extract_pdf_metadata,
     check_media,
 )
-
 
 # --------------------------------------------------------------------------
 # _extract_pdf_metadata

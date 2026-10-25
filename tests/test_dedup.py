@@ -155,6 +155,7 @@ class TestScoreReportDedupIndependence:
 
     def test_score_report_uses_severity_weight(self):
         import inspect
+
         from glassbox.scan_engine import _score_report
         source = inspect.getsource(_score_report)
         assert "SEVERITY_WEIGHT" in source

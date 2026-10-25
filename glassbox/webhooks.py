@@ -344,7 +344,6 @@ def send_test_ping(webhook):
     reachable and the secret/signature flow works before any real scan needs
     it. Records its own WebhookDelivery row (scan_id NULL) so the attempt is
     visible in the same recent-deliveries table as real traffic."""
-    from glassbox.extensions import db
 
     payload = {
         "text": "Glassbox: test ping - this endpoint is wired up correctly.",

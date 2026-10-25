@@ -9,12 +9,16 @@ Tests cover:
 - All 5 registered in FEATURE_REQUIREMENTS, CHECK_LABELS, CHECK_CATEGORY
 - All 5 wired into run_scan() jobs dict
 """
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from glassbox.checks import (
-    Finding, check_xxe, check_csp_depth, check_hsts_depth,
-    check_dnssec, check_dependency_audit,
-    CHECK_LABELS, CHECK_CATEGORY,
+    CHECK_CATEGORY,
+    CHECK_LABELS,
+    check_csp_depth,
+    check_dependency_audit,
+    check_dnssec,
+    check_hsts_depth,
+    check_xxe,
 )
 from glassbox.entitlements import FEATURE_REQUIREMENTS
 

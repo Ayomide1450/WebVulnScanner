@@ -10,7 +10,7 @@ The `@login_manager.user_loader` callback lives in `extensions.py`, not
 here (see the comment there for why).
 """
 import enum
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from flask_login import UserMixin
 
@@ -18,7 +18,7 @@ from glassbox.extensions import db
 
 
 def _utcnow():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Role(enum.Enum):
@@ -663,6 +663,7 @@ class SSOConfiguration(db.Model):
         """Encrypt a plaintext string for at-rest storage. Returns a
         base64-encoded Fernet token string."""
         from cryptography.fernet import Fernet
+
         from glassbox.config import Config
         f = Fernet(Config._fernet_key())
         return f.encrypt(plaintext.encode("utf-8")).decode("ascii")
@@ -671,6 +672,7 @@ class SSOConfiguration(db.Model):
     def decrypt_secret(ciphertext_b64):
         """Decrypt a base64-encoded Fernet token back to plaintext."""
         from cryptography.fernet import Fernet
+
         from glassbox.config import Config
         f = Fernet(Config._fernet_key())
         return f.decrypt(ciphertext_b64.encode("ascii")).decode("utf-8")

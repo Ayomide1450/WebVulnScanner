@@ -8,16 +8,12 @@ the retention trim keeps event count bounded (AUDIT-04), and events
 render with actor/action/timestamp/detail (AUDIT-05).
 """
 
-from datetime import timedelta
 
-import pytest
 
 from glassbox.audit import MAX_AUDIT_EVENTS_PER_ORG, ORG_AUDIT_EVENT_LABELS
 from glassbox.extensions import db
 from glassbox.models import OrgAuditEvent, Role
-
 from tests.conftest import login, make_org, make_user
-
 
 # --------------------------------------------------------------------------
 # AUDIT-01: no update/delete routes exist on the audit tables
@@ -238,6 +234,7 @@ def test_audit_log_cross_org_is_404():
     org's (empty) events — no data leak.  We seed org1 with events and
     assert none appear when the rival (org2) loads the page."""
     import uuid
+
     from glassbox import create_app
     from tests.conftest import TestConfig
 

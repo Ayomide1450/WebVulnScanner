@@ -5,10 +5,9 @@ user is signed out server-side after `IDLE_TIMEOUT_MINUTES` (default 5) with
 no request, independent of "Remember me". Bearer-token (API) auth is
 exempt - see the hook's own docstring for why.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from glassbox.models import ApiToken, ScanStatus
-
+from glassbox.models import ScanStatus
 from tests.conftest import login, make_api_token, make_org, make_scan, make_user
 
 
@@ -29,7 +28,7 @@ def test_request_within_timeout_stays_logged_in(client, db):
     org = make_org()
     make_user("idle2@example.com", org=org)
     login(client, "idle2@example.com")
-    _set_last_seen(client, datetime.now(timezone.utc) - timedelta(minutes=1))
+    _set_last_seen(client, datetime.now(UTC) - timedelta(minutes=1))
     resp = client.get("/dashboard")
     assert resp.status_code == 200
 
@@ -38,7 +37,7 @@ def test_request_past_timeout_logs_out_and_redirects_to_login(client, db):
     org = make_org()
     make_user("idle3@example.com", org=org)
     login(client, "idle3@example.com")
-    _set_last_seen(client, datetime.now(timezone.utc) - timedelta(minutes=6))
+    _set_last_seen(client, datetime.now(UTC) - timedelta(minutes=6))
     resp = client.get("/dashboard", follow_redirects=False)
     assert resp.status_code == 302
     assert "/login" in resp.headers["Location"]
@@ -51,7 +50,7 @@ def test_logged_out_session_is_actually_cleared(client, db):
     org = make_org()
     make_user("idle4@example.com", org=org)
     login(client, "idle4@example.com")
-    _set_last_seen(client, datetime.now(timezone.utc) - timedelta(minutes=6))
+    _set_last_seen(client, datetime.now(UTC) - timedelta(minutes=6))
     client.get("/dashboard", follow_redirects=False)
     resp = client.get("/dashboard", follow_redirects=False)
     assert resp.status_code == 302
@@ -66,7 +65,7 @@ def test_timeout_applies_even_with_remember_me(client, db):
         data={"email": "idle5@example.com", "password": "password123", "remember": "y"},
         follow_redirects=True,
     )
-    _set_last_seen(client, datetime.now(timezone.utc) - timedelta(minutes=6))
+    _set_last_seen(client, datetime.now(UTC) - timedelta(minutes=6))
     resp = client.get("/dashboard", follow_redirects=False)
     assert resp.status_code == 302
     assert "/login" in resp.headers["Location"]
@@ -96,7 +95,7 @@ def test_scan_status_poll_does_not_refresh_last_seen(client, db):
     scan = make_scan(user, org=org, status=ScanStatus.RUNNING)
     login(client, "idle7@example.com")
 
-    stale = datetime.now(timezone.utc) - timedelta(minutes=4)
+    stale = datetime.now(UTC) - timedelta(minutes=4)
     _set_last_seen(client, stale)
     client.get(f"/scan/{scan.id}/status")
     with client.session_transaction() as sess:

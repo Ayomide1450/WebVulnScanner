@@ -84,12 +84,12 @@ import os
 import socket
 import sys
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse
 
 PROBE_DB_MARKER = "glassbox_live_probe_phase8"
 PROBE_PASSWORD = "ProbePhase8Pass!1"
@@ -264,9 +264,9 @@ def _seed_two_orgs(_db):
         ApiToken,
         Asset,
         CryptoInvoice,
-        InvoiceStatus,
         Invitation,
         InvitationStatus,
+        InvoiceStatus,
         Organization,
         OutboundWebhook,
         Plan,
@@ -285,13 +285,13 @@ def _seed_two_orgs(_db):
             email=f"probe-admin-{label.lower()}@example.com",
             password_hash=generate_password_hash(PROBE_PASSWORD),
             org_id=org.id, role=Role.ORG_ADMIN,
-            email_verified_at=datetime.now(timezone.utc),
+            email_verified_at=datetime.now(UTC),
         )
         member = User(
             email=f"probe-member-{label.lower()}@example.com",
             password_hash=generate_password_hash(PROBE_PASSWORD),
             org_id=org.id, role=Role.MEMBER,
-            email_verified_at=datetime.now(timezone.utc),
+            email_verified_at=datetime.now(UTC),
         )
         _db.session.add_all([admin, member])
         _db.session.flush()
@@ -306,10 +306,10 @@ def _seed_two_orgs(_db):
 
         asset = Asset(
             org_id=org.id, created_by_user_id=admin.id, authorized_by_user_id=admin.id,
-            authorized_at=datetime.now(timezone.utc),
+            authorized_at=datetime.now(UTC),
             name=f"Live Probe Asset {label}", target_url="https://example.com",
             hostname="example.com", cadence="daily", schedule_scan_type="base",
-            next_run_at=datetime.now(timezone.utc),
+            next_run_at=datetime.now(UTC),
         )
         _db.session.add(asset)
         _db.session.flush()
@@ -320,7 +320,7 @@ def _seed_two_orgs(_db):
             receiving_address="0x" + ("1" if label == "A" else "2") * 40,
             base_usd_amount=29, unique_offset="0.000001", expected_amount="29.000001",
             status=InvoiceStatus.PENDING,
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
         )
         _db.session.add(invoice)
 

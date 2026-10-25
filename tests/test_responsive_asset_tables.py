@@ -31,7 +31,6 @@ not yet exist on disk, so this module defines its own
 import re
 
 from glassbox.models import Plan, Report, Scan, ScanStatus
-
 from tests.conftest import login, make_api_token, make_asset, make_org, make_user
 
 

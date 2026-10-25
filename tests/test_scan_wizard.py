@@ -19,13 +19,12 @@ existing, working convention rather than hardcoding a URL that would 404;
 tests below assert the real resolved path.
 """
 import socket
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from glassbox.extensions import db as _db
 from glassbox.models import DomainVerification, Plan, Scan, VerifyMethod
-
 from tests.conftest import login, make_org, make_user
 
 
@@ -58,7 +57,7 @@ def _public_dns(monkeypatch):
 def _verify_domain(org, domain, verified=True):
     row = DomainVerification(
         org_id=org.id, domain=domain, method=VerifyMethod.DNS_TXT, token="tok",
-        verified_at=datetime.now(timezone.utc) if verified else None,
+        verified_at=datetime.now(UTC) if verified else None,
     )
     _db.session.add(row)
     _db.session.flush()
