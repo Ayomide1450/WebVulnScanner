@@ -29,6 +29,13 @@ from glassbox.checks import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _force_connect_pinning(monkeypatch):
+    """This file is the one that proves the guard, so it overrides
+    conftest.py's global disable and turns pinning back ON."""
+    monkeypatch.setattr("glassbox.checks.PIN_CONNECTIONS", True)
+
+
 class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)

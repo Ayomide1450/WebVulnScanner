@@ -959,15 +959,30 @@ class _SSRFPinnedAdapter(requests.adapters.HTTPAdapter):
         }
 
 
+# Connect-time peer-IP pinning is ON by default - this module is the
+# detection engine and must be safe when imported and run directly in
+# production, with no app/config wiring required. It is gated so the test
+# suite can turn it OFF: almost every check-level test runs the real check
+# against a 127.0.0.1 fixture server, and pinning (correctly) refuses
+# loopback, which would block those legitimate test connections. This
+# mirrors RATELIMIT_ENABLED, which tests/conftest.py also disables globally
+# while one dedicated test re-enables it. tests/conftest.py sets this False
+# for the general suite; tests/test_ssrf_connect_pinning.py sets it True to
+# prove the guard. checks.py stays framework-agnostic (no flask import), so
+# this is a plain module flag rather than a Config value.
+PIN_CONNECTIONS = True
+
+
 def _mk_session():
     s = _SSRFSafeSession()
     s.headers.update({"User-Agent": UA})
     # Mount the peer-IP-pinning adapter on both schemes. Combined with
     # _SSRFSafeSession's redirect guard, this closes the DNS-rebinding gap
     # that is_ssrf_safe_hostname's submission-time check alone cannot.
-    adapter = _SSRFPinnedAdapter()
-    s.mount("http://", adapter)
-    s.mount("https://", adapter)
+    if PIN_CONNECTIONS:
+        adapter = _SSRFPinnedAdapter()
+        s.mount("http://", adapter)
+        s.mount("https://", adapter)
     return s
 
 
