@@ -58,7 +58,7 @@ def _run_scan_job_names():
 
 
 ADVANCED_SCAN_CHECK_NAMES = {"sqli_login", "bruteforce", "sqli_union", "xss_stored", "idor",
-                             "auth_comparison", "mass_assignment"}
+                             "idor_sweep", "auth_comparison", "mass_assignment"}
 # Dispatched outside run_scan's jobs dict (see FEATURE_REQUIREMENTS's own
 # comment) but still gated through the same map.
 OUT_OF_JOBS_DICT_NAMES = {"headers", "cookies", "open_ports"}

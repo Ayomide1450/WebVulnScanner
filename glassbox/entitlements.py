@@ -52,7 +52,7 @@ FEATURE_REQUIREMENTS = {
     "xss_sqli": Tier.ORG_VERIFIED,
     # advanced scan - all intrusive (ORG_VERIFIED + domain-ownership check)
     "sqli_login": Tier.ORG_VERIFIED, "bruteforce": Tier.ORG_VERIFIED,
-    "sqli_union": Tier.ORG_VERIFIED, "xss_stored": Tier.ORG_VERIFIED, "idor": Tier.ORG_VERIFIED,
+    "sqli_union": Tier.ORG_VERIFIED, "xss_stored": Tier.ORG_VERIFIED, "idor": Tier.ORG_VERIFIED, "idor_sweep": Tier.ORG_VERIFIED,
     # media scan - single call, judgment call: active multi-page crawl +
     # optional download, but no payload injection, so PAID (not ORG_VERIFIED).
     "media": Tier.PAID,
