@@ -35,6 +35,8 @@ import urllib3.connectionpool as _urllib3_pool
 from bs4 import BeautifulSoup
 from PIL import ExifTags, Image
 
+from glassbox import baseline as baseline_diff
+
 # APP_DIR points at the repo root (one level up from this package), matching
 # the original app.py's `os.path.dirname(os.path.abspath(__file__))` so
 # reports/ and downloads/ keep resolving to the same on-disk location as
@@ -3922,7 +3924,10 @@ def check_sqli_login(session, login_url, user_field, pass_field, fail_text):
         except requests.RequestException as e:
             timing_rows.append({"payload": payload, "result": f"error: {e}"})
             continue
-        delayed = elapsed >= baseline_time + TIME_BLIND_DELAY - 1.5
+        delayed = baseline_diff.is_significantly_slower(
+            baseline_diff.Fingerprint.of(baseline_r, baseline_time),
+            baseline_diff.Fingerprint.of(r, elapsed),
+            min_extra_seconds=TIME_BLIND_DELAY - 1.5)
         timing_rows.append({"payload": payload, "elapsed": round(elapsed, 2), "result": "DELAYED" if delayed else "normal"})
         if delayed:
             findings.append(Finding("SQL Injection", "Time-based blind SQLi in login form", "critical",
@@ -4003,7 +4008,10 @@ def check_sqli_union(session, url, param, max_columns=10):
             r, elapsed = _timed_request(session, "GET", _inject_param(url, param, payload))
         except requests.RequestException:
             continue
-        if elapsed >= baseline_time + TIME_BLIND_DELAY - 1.5:
+        if baseline_diff.is_significantly_slower(
+                baseline_diff.Fingerprint.of(baseline_r, baseline_time),
+                baseline_diff.Fingerprint.of(r, elapsed),
+                min_extra_seconds=TIME_BLIND_DELAY - 1.5):
             result = {"technique": "time_based", "payload": payload, "elapsed": round(elapsed, 2)}
             findings.append(Finding("SQL Injection", f"Time-based blind SQLi confirmed in '{param}'", "critical",
                                      f"Payload {payload!r} delayed the response by {elapsed:.1f}s vs a "
@@ -4051,20 +4059,19 @@ def check_xss_stored(session, submit_url, field, view_url, cookie):
 def _idor_looks_like_baseline(resp, baseline):
     """True iff `resp` is indistinguishable from the "definitely bogus
     resource id" baseline for the same session - same status code and a
-    near-identical body length (within 5% or 32 bytes, whichever is
-    larger). Used to catch the same false-positive class fixed in
-    check_http_methods: an app that answers every id (real or bogus) with
-    the same 200 soft-page proves nothing about that specific id being
-    genuinely readable."""
-    if baseline is None or resp.status_code != baseline["status"]:
-        return False
-    len_a, len_b = len(resp.text), baseline["length"]
-    tolerance = max(32, int(len_b * 0.05))
-    return abs(len_a - len_b) <= tolerance
+    near-identical body length. Catches the soft-200 false-positive class:
+    an app that answers every id (real or bogus) with the same 200 page
+    proves nothing about that specific id being genuinely readable.
+
+    Delegates to baseline.is_distinguishable so "meaningfully different
+    response" has one definition across every check (roadmap #2). A None
+    baseline reads as distinguishable (not-like-baseline), preserving this
+    function's original fail-toward-flagging behaviour."""
+    return not baseline_diff.is_distinguishable(baseline, baseline_diff.Fingerprint.of(resp))
 
 
 def _idor_fingerprint(resp):
-    return {"status": resp.status_code, "length": len(resp.text)}
+    return baseline_diff.Fingerprint.of(resp)
 
 
 def check_idor(session, url_template, ids, cookie_a, cookie_b):
