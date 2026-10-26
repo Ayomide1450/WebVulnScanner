@@ -20,3 +20,8 @@ cli/build/
 cli/*.egg-info/
 srv_files/
 .lure_deploy/srv_files/
+
+# Local dev run artifacts (never commit - .env.local holds a real SECRET_KEY)
+.env.local
+glassbox_local.db
+server.local.log
