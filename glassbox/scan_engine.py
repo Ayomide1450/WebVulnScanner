@@ -61,6 +61,7 @@ from glassbox.checks import (
     check_http_methods,
     check_https_redirect,
     check_idor,
+    check_idor_sweep,
     check_jwt_active,
     check_jwt_weakness,
     check_mass_assignment,
@@ -367,6 +368,26 @@ def run_advanced_scan(advanced, tier, org_verified_for_domain):
     elif advanced.get("idor_url_template") and advanced.get("idor_ids") and \
             advanced.get("idor_cookie_a") and advanced.get("idor_cookie_b"):
         locked.append("idor")
+
+    # IDOR sweep (roadmap #1): discovery-driven, needs only a base URL and
+    # two operator-controlled cookies - no url_template/id list, because it
+    # crawls A's surface and harvests id-bearing URLs itself. Gated the same
+    # as the manual idor check (ORG_VERIFIED + domain-verified).
+    has_idor_sweep_fields = bool(advanced.get("idor_sweep_base_url")
+                                  and advanced.get("idor_sweep_cookie_a")
+                                  and advanced.get("idor_sweep_cookie_b"))
+    if has_idor_sweep_fields \
+            and FEATURE_REQUIREMENTS["idor_sweep"] <= tier and org_verified_for_domain:
+        targets.append(advanced["idor_sweep_base_url"])
+        data, findings = check_idor_sweep(
+            session, advanced["idor_sweep_base_url"],
+            advanced["idor_sweep_cookie_a"], advanced["idor_sweep_cookie_b"])
+        for f in findings:
+            f.check_name = "idor_sweep"
+        results["idor_sweep"] = data
+        all_findings.extend(findings)
+    elif has_idor_sweep_fields:
+        locked.append("idor_sweep")
 
     # Phase 34 (APIT-02..03) — API auth-comparison and mass-assignment,
     # both need real test-account credentials (auth_cookie from the form).

@@ -136,7 +136,7 @@ CHECK_CATEGORY = {
 SCAN_TYPE_CHECK_NAMES = {
     "base": set(CHECK_LABELS),
     "advanced": {"sqli_login", "bruteforce", "sqli_union", "xss_stored", "idor",
-                 "auth_comparison", "mass_assignment"},
+                 "idor_sweep", "auth_comparison", "mass_assignment"},
     "media": {"media"},
     "api": {"schema", "wordlist", "js_discovery"},
 }
@@ -181,6 +181,7 @@ CHECK_COMPLIANCE = {
     "sqli_union":        {"owasp": "A03:2021-Injection",                 "asvs": "V5.3"},
     "xss_stored":        {"owasp": "A03:2021-Injection",                 "asvs": "V5.3"},
     "idor":              {"owasp": "A01:2021-Broken Access Control",     "asvs": "V4.2"},
+    "idor_sweep":        {"owasp": "A01:2021-Broken Access Control",     "asvs": "V4.2"},
     # media scan
     "media":             {"owasp": "A01:2021-Broken Access Control",     "asvs": "V8.3"},
     # api scan (matches run_api_scan()'s own `results` dict sub-keys, not
@@ -275,6 +276,7 @@ CHECK_CWE = {
 
     # --- access control ---
     "idor":               "CWE-639",   # Authorization Bypass Through User-Controlled Key
+    "idor_sweep":         "CWE-639",   # same weakness, discovery-driven
     "open_redirect":      "CWE-601",   # URL Redirection to Untrusted Site
     "cors":               "CWE-942",   # Permissive Cross-domain Policy
     "csrf_posture":       "CWE-352",   # Cross-Site Request Forgery
@@ -361,6 +363,7 @@ SECURITY_DOMAIN_MAP = {
     "sqli_union":        "Client Security",
     "xss_stored":        "Client Security",
     "idor":              "Authorization",
+    "idor_sweep":        "Authorization",
     # media scan
     "media":             "Privacy",
     # api scan
@@ -4155,6 +4158,212 @@ def check_idor(session, url_template, ids, cookie_a, cookie_b):
             row["status"] = "unexpected"
         rows.append(row)
     return {"rows": rows}, findings
+
+
+# --------------------------------------------------------------------------
+# IDOR SWEEP (roadmap item #1): the discovery layer on top of check_idor.
+#
+# check_idor above tests one operator-supplied url_template against a
+# supplied id list. The sweep instead CRAWLS account A's authorised surface,
+# auto-harvests every URL carrying an object-id-looking token, and replays
+# each as account B and anonymously - so the operator doesn't have to know
+# in advance which endpoints are ID-addressable. The per-URL decision reuses
+# check_idor's exact baseline-diff + confidence discipline (an id-substituted
+# "bogus" variant is the per-URL baseline; a real-id 200 only counts as
+# Confirmed if it's distinguishable from that baseline).
+#
+# Same safety posture as every authenticated check here: GET-only (no form
+# submission, no state change), same-origin, hard-capped at
+# MAX_IDOR_SWEEP_URLS, and ORG_VERIFIED + domain-verified gated in the
+# orchestrator. Both cookies must be for accounts the operator controls.
+# --------------------------------------------------------------------------
+
+MAX_IDOR_SWEEP_URLS = 15
+# Query-string keys whose value, if id-shaped, marks the URL as object-
+# addressable. Deliberately a hint list, not every param - a `?page=2`
+# pagination cursor is not an object reference.
+_IDOR_QUERY_ID_KEYS = (
+    "id", "uid", "pid", "user", "userid", "user_id", "account", "acct",
+    "doc", "document", "order", "invoice", "file", "fileid", "profile",
+    "customer", "record", "item", "object", "ref",
+)
+_IDOR_UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+
+
+def _idor_value_is_id(value):
+    """An all-digit run (>=1) or a UUID reads as an object id. A slug like
+    'about-us' does not, keeping the sweep off ordinary content pages."""
+    return bool(value) and (value.isdigit() or bool(_IDOR_UUID_RE.match(value)))
+
+
+def _idor_bogus_token(original):
+    """A same-shape but almost-certainly-nonexistent replacement for an id,
+    used to build the per-URL baseline. Random so it can't collide with a
+    real record across a sweep."""
+    if _IDOR_UUID_RE.match(original):
+        h = os.urandom(16).hex()
+        return f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
+    # numeric: a large random id in a range real sequential ids won't reach
+    return str(900_000_000 + int.from_bytes(os.urandom(4), "big") % 99_000_000)
+
+
+def _idor_bogus_variant(url):
+    """If `url` carries an object-id token (an id-shaped path segment, or an
+    id-shaped value under an _IDOR_QUERY_ID_KEYS key), return a copy with
+    that one token swapped for a bogus same-shape value. Else None - the URL
+    isn't object-addressable and the sweep skips it. Only the FIRST id token
+    is rewritten, so the baseline differs from the real URL by exactly the
+    id under test."""
+    parsed = urlparse(url)
+
+    segments = parsed.path.split("/")
+    for i, seg in enumerate(segments):
+        if _idor_value_is_id(seg):
+            bogus = segments[:]
+            bogus[i] = _idor_bogus_token(seg)
+            return urlunparse(parsed._replace(path="/".join(bogus)))
+
+    if parsed.query:
+        q = parse_qs(parsed.query, keep_blank_values=True)
+        for key, values in q.items():
+            if key.lower() in _IDOR_QUERY_ID_KEYS and values and _idor_value_is_id(values[0]):
+                bogus_q = {k: v[:] for k, v in q.items()}
+                bogus_q[key] = [_idor_bogus_token(values[0])]
+                return urlunparse(parsed._replace(query=urlencode(bogus_q, doseq=True)))
+
+    return None
+
+
+def _harvest_idor_urls(base_url, htmls, limit):
+    """Same-origin URLs carrying an object-id token, harvested from HTML
+    collected while authenticated as account A. De-duplicated, capped."""
+    origin = urlparse(base_url).netloc
+    found, seen = [], set()
+    for html in htmls:
+        if not html:
+            continue
+        soup = BeautifulSoup(html, "html.parser")
+        for a in soup.find_all("a", href=True):
+            abs_url = urljoin(base_url + "/", a["href"])
+            if urlparse(abs_url).netloc != origin or abs_url in seen:
+                continue
+            if _idor_bogus_variant(abs_url) is not None:
+                seen.add(abs_url)
+                found.append(abs_url)
+                if len(found) >= limit:
+                    return found
+    return found
+
+
+def check_idor_sweep(session, base_url, cookie_a, cookie_b, home_html=None,
+                     max_urls=MAX_IDOR_SWEEP_URLS):
+    """Discovery-driven IDOR sweep. Crawls account A's authorised surface,
+    harvests every object-id-addressable URL, and for each one replays the
+    request as account B and anonymously, flagging any that returns A's
+    object to a caller who shouldn't see it.
+
+    Per-URL confidence follows check_idor exactly: a bogus-id variant is the
+    baseline, and a real-id 200 is only "Confirmed" when distinguishable from
+    that baseline - an app that soft-200s every id proves nothing and is held
+    at "Potential". Both cookies must be for operator-controlled accounts.
+    GET-only, same-origin, capped at max_urls."""
+    headers_a = {"Cookie": cookie_a}
+    headers_b = {"Cookie": cookie_b}
+
+    # Collect account-A-authenticated HTML. A passed-in home_html may be the
+    # anonymous homepage, so also fetch the base as A to see A's real surface.
+    htmls = []
+    if home_html:
+        htmls.append(home_html)
+    try:
+        htmls.append(session.get(base_url + "/", headers=headers_a, timeout=REQUEST_TIMEOUT).text)
+    except requests.RequestException:
+        pass
+
+    urls = _harvest_idor_urls(base_url, htmls, max_urls)
+    rows, findings = [], []
+
+    for url in urls:
+        bogus_url = _idor_bogus_variant(url)
+        if not bogus_url:
+            continue
+        row = {"url": url}
+
+        b_baseline = anon_baseline = None
+        try:
+            b_baseline = _idor_fingerprint(
+                session.get(bogus_url, headers=headers_b, timeout=REQUEST_TIMEOUT))
+        except requests.RequestException:
+            pass
+        try:
+            anon_baseline = _idor_fingerprint(session.get(bogus_url, timeout=REQUEST_TIMEOUT))
+        except requests.RequestException:
+            pass
+
+        try:
+            r_b = session.get(url, headers=headers_b, timeout=REQUEST_TIMEOUT)
+            row["cross_account_code"] = r_b.status_code
+        except requests.RequestException as e:
+            row["cross_account_code"] = None
+            row["detail"] = str(e)
+            rows.append(row)
+            continue
+
+        try:
+            r_anon = session.get(url, timeout=REQUEST_TIMEOUT)
+            row["anonymous_code"] = r_anon.status_code
+        except requests.RequestException:
+            r_anon = None
+            row["anonymous_code"] = None
+
+        # Anonymous exposure first - it's strictly worse than a cross-account
+        # leak (no credentials needed at all), mirroring check_idor's ordering.
+        if r_anon is not None and r_anon.status_code == 200:
+            row["status"] = "PUBLIC"
+            if _idor_looks_like_baseline(r_anon, anon_baseline):
+                findings.append(Finding(
+                    "IDOR", f"{url} answered 200 with no authentication (unconfirmed)", "medium",
+                    f"An unauthenticated request to {url} returned HTTP 200, but the response is "
+                    "indistinguishable from a probe against a bogus id on the same route - the "
+                    "route may soft-200 every id rather than genuinely exposing this object.",
+                    "Confirm manually whether this route returns real per-account data before "
+                    "treating it as exposed.", confidence="Potential"))
+            else:
+                findings.append(Finding(
+                    "IDOR", f"{url} is readable with no authentication at all", "high",
+                    f"An unauthenticated request to {url} returned HTTP 200 for an object-id-"
+                    "addressable resource, distinguishable from a bogus-id baseline on the same "
+                    "route - it appears to expose a specific object with no auth.",
+                    "Require authentication for this route, or confirm the object is meant to be "
+                    "public.", confidence="Confirmed"))
+        elif r_b.status_code == 200:
+            row["status"] = "EXPOSED"
+            if _idor_looks_like_baseline(r_b, b_baseline):
+                findings.append(Finding(
+                    "IDOR", f"Account B received 200 for {url} (unconfirmed)", "medium",
+                    f"HTTP 200 returned when account B requested {url}, created under account A, "
+                    "but the response is indistinguishable from account B's response to a bogus id "
+                    "on the same route - the route may soft-200 every id rather than leaking this "
+                    "object.",
+                    "Confirm manually whether this route returns account-A-specific data to "
+                    "account B before treating it as confirmed IDOR.", confidence="Potential"))
+            else:
+                findings.append(Finding(
+                    "IDOR", f"Account B accessed {url}, an object owned by account A", "high",
+                    f"HTTP 200 returned when account B's session requested {url}, created under "
+                    "account A, and the response is distinguishable from account B's bogus-id "
+                    "baseline on the same route - a cross-account object read.",
+                    "Enforce ownership/role checks server-side on every object lookup, not just in "
+                    "the UI.", confidence="Confirmed"))
+        elif r_b.status_code in (401, 403, 404):
+            row["status"] = "denied"
+        else:
+            row["status"] = "unexpected"
+        rows.append(row)
+
+    return {"rows": rows, "discovered": len(urls)}, findings
 
 
 def check_bruteforce(session, url, user_field, pass_field, username, passwords, fail_text):

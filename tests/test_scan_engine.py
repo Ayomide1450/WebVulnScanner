@@ -375,10 +375,13 @@ def _full_advanced_form():
         "idor_ids": ["1", "2", "3"],
         "idor_cookie_a": "session=fake-account-a-cookie",
         "idor_cookie_b": "session=fake-account-b-cookie",
+        "idor_sweep_base_url": "https://example.com",
+        "idor_sweep_cookie_a": "session=fake-account-a-cookie",
+        "idor_sweep_cookie_b": "session=fake-account-b-cookie",
     }
 
 
-ALL_GROUP_NAMES = {"sqli_login", "bruteforce", "sqli_union", "xss_stored", "idor"}
+ALL_GROUP_NAMES = {"sqli_login", "bruteforce", "sqli_union", "xss_stored", "idor", "idor_sweep"}
 
 
 def _stub_advanced_checks(monkeypatch):
@@ -400,6 +403,7 @@ def _stub_advanced_checks(monkeypatch):
     monkeypatch.setattr(scan_engine, "check_sqli_union", make_stub("sqli_union"))
     monkeypatch.setattr(scan_engine, "check_xss_stored", make_stub("xss_stored"))
     monkeypatch.setattr(scan_engine, "check_idor", make_stub("idor"))
+    monkeypatch.setattr(scan_engine, "check_idor_sweep", make_stub("idor_sweep"))
     return calls
 
 
