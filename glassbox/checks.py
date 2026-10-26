@@ -363,6 +363,7 @@ SECURITY_DOMAIN_MAP = {
     "sqli_union":        "Client Security",
     "xss_stored":        "Client Security",
     "idor":              "Authorization",
+    "idor_sweep":        "Authorization",
     # media scan
     "media":             "Privacy",
     # api scan
