@@ -303,8 +303,9 @@
   <h2 class="section">Detailed check output</h2>
 
   <details open>
-    <summary>Security headers &mdash; grade {{ r.headers.grade }} <span class="arrow">&#9656;</span></summary>
+    <summary>Security headers{% if r.headers %} &mdash; grade {{ r.headers.grade }}{% endif %} <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
+      {% if not r.headers %}<p class="note">This check didn't run in this scan (it may be an older report - re-run a scan to see it).</p>{% else %}
       <div class="table-scroll">
       <table>
         <thead><tr><th>Header</th><th>Status</th><th>Value / note</th></tr></thead>
@@ -320,6 +321,7 @@
         </tbody>
       </table>
       </div>
+      {% endif %}
     </div>
   </details>
 
@@ -349,6 +351,7 @@
     <summary>TLS certificate <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       {% if 'tls' in locked %}{{ locked_card('tls') }}
+      {% elif not r.tls %}<p class="note">This check didn't run in this scan (it may be an older report - re-run a scan to see it).</p>
       {% elif r.tls.error %}<p>Could not retrieve certificate: {{ r.tls.error }}</p>
       {% else %}
       <div class="table-scroll">
@@ -373,6 +376,7 @@
     <summary>HTTP &rarr; HTTPS redirect <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       {% if 'https_redirect' in locked %}{{ locked_card('https_redirect') }}
+      {% elif not r.https_redirect %}<p class="note">This check didn't run in this scan (it may be an older report - re-run a scan to see it).</p>
       {% else %}<p>{{ r.https_redirect.detail }}</p>{% endif %}
     </div>
   </details>
@@ -471,6 +475,7 @@
     <summary>Exposed API keys / secrets <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       {% if 'secrets' in locked %}{{ locked_card('secrets') }}
+      {% elif not r.secrets %}<p class="note">This check didn't run in this scan (it may be an older report - re-run a scan to see it).</p>
       {% else %}
       <p class="note">{{ r.secrets.js_files_scanned }} same-origin JS file(s) scanned, plus the homepage HTML.</p>
       {% if r.secrets.rows %}
@@ -493,6 +498,7 @@
     <summary>Client-visible JWT weaknesses <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       {% if 'jwt' in locked %}{{ locked_card('jwt') }}
+      {% elif not r.jwt %}<p class="note">This check didn't run in this scan (it may be an older report - re-run a scan to see it).</p>
       {% else %}
       {% if r.jwt.rows %}
       <div class="table-scroll">
@@ -561,6 +567,7 @@
     <summary>CORS configuration <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       {% if 'cors' in locked %}{{ locked_card('cors') }}
+      {% elif not r.cors %}<p class="note">This check didn't run in this scan (it may be an older report - re-run a scan to see it).</p>
       {% else %}
       {% if r.cors.note %}<p class="note">{{ r.cors.note }}</p>{% endif %}
       {% for path, d in r.cors.items() %}
@@ -578,6 +585,7 @@
     <summary>HTTP methods <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       {% if 'http_methods' in locked %}{{ locked_card('http_methods') }}
+      {% elif not r.http_methods %}<p class="note">This check didn't run in this scan (it may be an older report - re-run a scan to see it).</p>
       {% else %}
       <div class="table-scroll">
       <table>
@@ -642,6 +650,7 @@
     <summary>DNS email security (SPF / DMARC / CAA) <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       {% if 'dns_email' in locked %}{{ locked_card('dns_email') }}
+      {% elif not r.dns_email %}<p class="note">This check didn't run in this scan (it may be an older report - re-run a scan to see it).</p>
       {% else %}
       <div class="table-scroll">
       <!-- Row-header table (Domain/SPF/DMARC/CAA label the value beside them,
@@ -681,6 +690,7 @@
   <details>
     <summary>Same-origin crawl &amp; parameter/XSS/SQLi testing <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
+      {% if r.crawl %}
       <p class="note">{{ r.crawl.discovered_urls|length }} URL(s) discovered from the homepage
       {% if r.crawl.forms %} &middot; {{ r.crawl.forms|length }} form(s) found (listed only, never auto-submitted){% endif %}.</p>
       {% if r.crawl.forms %}
@@ -692,6 +702,7 @@
       </table>
       </div>
       {% endif %}
+      {% endif %}{# /r.crawl #}
       {% if 'xss_sqli' in locked %}{{ locked_card('xss_sqli') }}
       {% elif r.xss_sqli %}
       <div class="table-scroll">
@@ -713,6 +724,7 @@
     <summary>robots.txt / sitemap.xml <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       {% if 'robots_sitemap' in locked %}{{ locked_card('robots_sitemap') }}
+      {% elif not r.robots_sitemap %}<p class="note">This check didn't run in this scan (it may be an older report - re-run a scan to see it).</p>
       {% else %}
       {% for name, data in r.robots_sitemap.items() %}
       <p><b>{{ name }}</b> &mdash; HTTP {{ data.code }}</p>
@@ -743,6 +755,7 @@
     <summary>Host header injection <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       {% if 'host_header' in locked %}{{ locked_card('host_header') }}
+      {% elif not r.host_header %}<p class="note">This check didn't run in this scan (it may be an older report - re-run a scan to see it).</p>
       {% else %}
       <div class="table-scroll">
       <table><thead><tr><th>Header tested</th><th>Reflected</th></tr></thead><tbody>
@@ -758,6 +771,7 @@
     <summary>Web cache deception surface <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       {% if 'cache_deception' in locked %}{{ locked_card('cache_deception') }}
+      {% elif not r.cache_deception %}<p class="note">This check didn't run in this scan (it may be an older report - re-run a scan to see it).</p>
       {% else %}
       <div class="table-scroll">
       <table><thead><tr><th>Decoy path</th><th>Status</th><th>Cache headers</th><th>Result</th></tr></thead><tbody>
@@ -809,6 +823,7 @@
     <summary>Subdomain takeover (DNS) <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       {% if 'subdomain_takeover' in locked %}{{ locked_card('subdomain_takeover') }}
+      {% elif not r.subdomain_takeover %}<p class="note">This check didn't run in this scan (it may be an older report - re-run a scan to see it).</p>
       {% else %}
       <p class="note">{{ r.subdomain_takeover.checked }} common subdomains checked, DNS-only (no HTTP requests to third-party hosts).</p>
       {% if r.subdomain_takeover.rows %}
@@ -845,6 +860,7 @@
     <summary>Rate limiting posture <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       {% if 'rate_limit' in locked %}{{ locked_card('rate_limit') }}
+      {% elif not r.rate_limit %}<p class="note">This check didn't run in this scan (it may be an older report - re-run a scan to see it).</p>
       {% else %}
         {% set rl = r.rate_limit %}
         {% if rl.statuses %}
@@ -861,6 +877,7 @@
     <summary>JWT alg:none acceptance <span class="arrow">&#9656;</span></summary>
     <div class="details-body">
       {% if 'jwt_active' in locked %}{{ locked_card('jwt_active') }}
+      {% elif not r.jwt_active %}<p class="note">This check didn't run in this scan (it may be an older report - re-run a scan to see it).</p>
       {% else %}
         {% set ja = r.jwt_active %}
         {% if ja.tested %}
